@@ -3,50 +3,34 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ClipboardCheck,
   PlusCircle,
   Loader2,
   AlertTriangle,
-  Settings2,
-  Tag,
-  ShieldCheck,
-  Edit,
   RefreshCw,
-  MoreVertical,
-  TerminalSquare,
-  Router as RouterIcon,
-  BookText,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  ListChecks,
-  Server,
   Search,
   X,
-  LayoutGrid,
-  List,
-  Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn, getCookie, setCookie } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { EstCaCertsPanel } from '@/components/shared/EstCaCertsPanel';
 import { CmpEnrollModal } from '@/components/shared/CmpEnrollModal';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
+import { ColumnSelector } from '@/components/ui/column-selector';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -63,9 +47,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 
 // Add SortConfig type
 export type SortableColumn = 'name' | 'creation_ts';
@@ -75,10 +56,9 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
-type EnrollPanelMode = 'enroll' | 'reenroll' | 'cacerts' | 'cmpEnroll' | null;
+type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | 'cmpEnroll' | null;
 
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
@@ -89,8 +69,6 @@ export default function RegistrationAuthoritiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // View mode state
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>();
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,7 +76,7 @@ export default function RegistrationAuthoritiesPage() {
   const [caFilterId, setCaFilterId] = useState<string | null>(null);
 
   // Pagination State
-  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZES[0]);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZES[0]);
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
@@ -106,8 +84,8 @@ export default function RegistrationAuthoritiesPage() {
   // Sorting State
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ column: 'name', direction: 'asc' });
 
-  const [enrollPanelMode, setEnrollPanelMode] = useState<EnrollPanelMode>(null);
-  const [selectedRaForEnrollAction, setSelectedRaForEnrollAction] = useState<ApiRaItem | null>(null);
+  const [estPanelMode, setEstPanelMode] = useState<EstPanelMode>(null);
+  const [selectedRaForEstAction, setSelectedRaForEstAction] = useState<ApiRaItem | null>(null);
 
   const [isMetadataModalOpen, setIsMetadataModalOpen] = useState(false);
   const [selectedRaForMetadata, setSelectedRaForMetadata] = useState<ApiRaItem | null>(null);
@@ -119,32 +97,34 @@ export default function RegistrationAuthoritiesPage() {
   const [raToDelete, setRaToDelete] = useState<ApiRaItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    icon: true,
+    name: true,
+    registrationMode: true,
+    protocol: true,
+    enrollmentCA: true,
+    authMode: true,
+    createdAt: true,
+  });
+
+  const raColumns = [
+    { id: 'icon', label: 'Icon', visible: columnVisibility.icon },
+    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
+    { id: 'protocol', label: 'Protocol', visible: columnVisibility.protocol },
+    { id: 'enrollmentCA', label: 'Enrollment CA', visible: columnVisibility.enrollmentCA },
+    { id: 'authMode', label: 'Auth Mode', visible: columnVisibility.authMode },
+    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
+  };
+
   useEffect(() => {
     setIsClientMounted(true);
   }, []);
 
-  // Load view mode from cookie
-  useEffect(() => {
-    if (isClientMounted) {
-      const savedViewMode = getCookie('user-view-mode');
-      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
-      setViewMode(newViewMode);
-      setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
-    }
-  }, [isClientMounted]);
-
-  // Save view mode to cookie when it changes and adjust page size
-  useEffect(() => {
-    if (viewMode && isClientMounted) {
-      setCookie('user-view-mode', viewMode);
-      const newPageSize = viewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0];
-      // Only change page size if it's not already in the correct set for the view mode
-      const currentOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
-      if (!currentOptions.includes(pageSize)) {
-          setPageSize(newPageSize);
-      }
-    }
-  }, [viewMode, isClientMounted, pageSize]);
   
   // Debounce search term
   useEffect(() => {
@@ -273,30 +253,30 @@ export default function RegistrationAuthoritiesPage() {
   };
   
   const handleOpenEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEnrollAction(ra);
-    setEnrollPanelMode('enroll');
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('enroll');
   };
 
-  const handleEnrollPanelOpenChange = (isOpen: boolean) => {
+  const handleEstPanelOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEnrollPanelMode(null);
-      setSelectedRaForEnrollAction(null);
+      setEstPanelMode(null);
+      setSelectedRaForEstAction(null);
     }
   };
 
   const handleOpenReEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEnrollAction(ra);
-    setEnrollPanelMode('reenroll');
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('reenroll');
   };
 
   const handleOpenCaCertsPanel = (ra: ApiRaItem) => {
-    setSelectedRaForEnrollAction(ra);
-    setEnrollPanelMode('cacerts');
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('cacerts');
   };
 
   const handleOpenCmpEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEnrollAction(ra);
-    setEnrollPanelMode('cmpEnroll');
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('cmpEnroll');
   };
 
   const handleShowMetadata = (ra: ApiRaItem) => {
@@ -342,28 +322,32 @@ export default function RegistrationAuthoritiesPage() {
   }
 
   const hasActiveFilters = searchTerm || caFilterId;
-  const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+  const pageSizeOptions = LIST_PAGE_SIZES;
 
   return (
     <>
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <ClipboardCheck className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Registration Authorities'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <ClipboardCheck className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage policies for device enrollment and certificate issuance.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-           <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
-            </Button>
-            <Button variant="default" onClick={handleCreateNewRAClick}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
-            </Button>
+        <div className="flex items-center space-x-2 shrink-0">
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+          </Button>
+          <Button variant="default" onClick={handleCreateNewRAClick}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
+          </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Manage policies for device enrollment and certificate issuance.
-      </p>
 
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-grow w-full space-y-1.5">
@@ -385,7 +369,7 @@ export default function RegistrationAuthoritiesPage() {
           <div className="flex items-center gap-2">
             <Button
                 id="ca-filter-button"
-                variant="outline"
+                variant="secondary"
                 className="w-full justify-start text-left font-normal"
                 onClick={() => setIsCaSelectorOpen(true)}
                 disabled={isLoading}
@@ -405,59 +389,10 @@ export default function RegistrationAuthoritiesPage() {
             )}
            </div>
         </div>
-        <div className="flex items-center space-x-2">
-            <ToggleGroup
-                type="single"
-                value={viewMode}
-                onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
-                variant="outline"
-            >
-                <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
-                <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
-            </ToggleGroup>
-        </div>
+        <ColumnSelector columns={raColumns} onColumnToggle={handleColumnToggle} align="end" />
       </div>
 
-        <SplitPanelLayout
-          isPanelOpen={enrollPanelMode !== null}
-          onPanelOpenChange={handleEnrollPanelOpenChange}
-          mobilePanelAsDialog
-          panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
-        panel={
-            enrollPanelMode === 'enroll' ? (
-              <EstEnrollModal
-                isOpen={enrollPanelMode === 'enroll' && !!selectedRaForEnrollAction}
-                onOpenChange={handleEnrollPanelOpenChange}
-                ra={selectedRaForEnrollAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : enrollPanelMode === 'reenroll' ? (
-              <EstReEnrollModal
-                isOpen={enrollPanelMode === 'reenroll' && !!selectedRaForEnrollAction}
-                onOpenChange={handleEnrollPanelOpenChange}
-                ra={selectedRaForEnrollAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : enrollPanelMode === 'cacerts' ? (
-              <EstCaCertsPanel
-                isOpen={enrollPanelMode === 'cacerts' && !!selectedRaForEnrollAction}
-                onOpenChange={handleEnrollPanelOpenChange}
-                ra={selectedRaForEnrollAction}
-                className="p-4"
-              />
-            ) : enrollPanelMode === 'cmpEnroll' ? (
-              <CmpEnrollModal
-                isOpen={enrollPanelMode === 'cmpEnroll' && !!selectedRaForEnrollAction}
-                onOpenChange={handleEnrollPanelOpenChange}
-                ra={selectedRaForEnrollAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : null
-        }
-        >
+        <div>
         {error && (
           <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -474,7 +409,7 @@ export default function RegistrationAuthoritiesPage() {
             <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
             </Button>
           </div>
-        ) : viewMode === 'list' ? (
+        ) : (
           <RegistrationAuthoritiesTable
             ras={filteredRas}
             getCaNameById={getCaNameById}
@@ -490,186 +425,8 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
-            columnVisibility={{ icon: true, name: true, registrationMode: true, protocol: true, enrollmentCA: true, authMode: true, createdAt: true }}
+            columnVisibility={columnVisibility}
           />
-        ) : (
-          <div className={cn("grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3", isLoading && "opacity-50")}>
-            {filteredRas.map(ra => {
-              const profile = ra.settings.enrollment_settings.device_provisioning_profile;
-              const IconComponent = getLucideIconByName(profile.icon);
-              const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
-              const authMode = ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode
-                || ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode;
-              const tags = ra.settings.enrollment_settings.device_provisioning_profile.tags;
-              const validationCas = ra.settings?.enrollment_settings?.est_rfc7030_settings?.client_certificate_settings?.validation_cas ?? [];
-              const reEnrollCas = ra.settings.reenrollment_settings?.additional_validation_cas ?? [];
-              const keygen = ra.settings.server_keygen_settings;
-
-              return (
-              <Card key={ra.id} className="flex flex-col overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
-                {/* Accent bar */}
-                <div className="h-1 w-full" style={{ backgroundColor: iconColor }} />
-
-                {/* Header */}
-                <div className="p-5 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: bgColor }}>
-                        {IconComponent
-                          ? <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
-                          : <Settings2 className="h-5 w-5 text-primary" />
-                        }
-                      </div>
-                      <div className="min-w-0">
-                        <button
-                          className="truncate font-semibold leading-tight text-left hover:underline focus:outline-none"
-                          title={ra.name}
-                          onClick={() => router.push(`/registration-authorities/new?raId=${ra.id}`)}
-                        >{ra.name}</button>
-                        <code className="block truncate max-w-[200px] text-[11px] text-muted-foreground font-mono">{ra.id}</code>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">More actions for {ra.name}</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${ra.id}`)}>
-                          <Edit className="mr-2 h-4 w-4" /><span>Edit</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/devices?dms_owner=${ra.id}`)}>
-                          <RouterIcon className="mr-2 h-4 w-4" /><span>View Devices</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleShowMetadata(ra)}>
-                          <BookText className="mr-2 h-4 w-4" /><span>Show Metadata</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {/* Protocol-aware enrollment menus: the RA's enrollment
-                            protocol determines which submenu is shown so the
-                            operator only sees commands that the DMS will accept.
-                            We check both the top-level protocol field and the
-                            presence of the protocol-specific settings block to
-                            stay tolerant of older RAs that may have one set but
-                            not the other. */}
-                        {(ra.settings.enrollment_settings.protocol === 'EST_RFC7030'
-                            || !!ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode) && (
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger>
-                              <TerminalSquare className="mr-2 h-4 w-4" /><span>EST (RFC-7030)</span>
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuPortal>
-                              <DropdownMenuSubContent>
-                                <DropdownMenuItem onClick={() => handleOpenEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenReEnrollModal(ra)}><span>Re-Enroll...</span></DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenCaCertsPanel(ra)}><span>Get CA Certs</span></DropdownMenuItem>
-                              </DropdownMenuSubContent>
-                            </DropdownMenuPortal>
-                          </DropdownMenuSub>
-                        )}
-                        {(ra.settings.enrollment_settings.protocol === 'CMP_RFC9483'
-                            || !!ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode) && (
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger>
-                              <TerminalSquare className="mr-2 h-4 w-4" /><span>CMP (RFC-9483)</span>
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuPortal>
-                              <DropdownMenuSubContent>
-                                <DropdownMenuItem onClick={() => handleOpenCmpEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => router.push(`/registration-authorities/transactions?raId=${ra.id}`)}><span>View Transactions</span></DropdownMenuItem>
-                              </DropdownMenuSubContent>
-                            </DropdownMenuPortal>
-                          </DropdownMenuSub>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setRaToDelete(ra)} className="text-destructive focus:text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /><span>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-
-                  {/* Badge cluster */}
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Badge variant="secondary" className="text-xs">{ra.settings.enrollment_settings.registration_mode}</Badge>
-                    <Badge variant="outline" className="text-xs">{authMode?.replaceAll('_', ' ') || 'N/A'}</Badge>
-                    {keygen?.enabled && (
-                      <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300 dark:border-emerald-700">Server Keygen</Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details */}
-                <div className="flex-grow border-t px-5 py-3 space-y-2.5">
-                  {/* Enrollment CA */}
-                  <div className="flex items-center gap-2 text-xs">
-                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="text-muted-foreground shrink-0">Enrollment CA</span>
-                    <span className="ml-auto truncate font-medium text-primary/90" title={getCaNameById(ra.settings.enrollment_settings.enrollment_ca)}>
-                      {getCaNameById(ra.settings.enrollment_settings.enrollment_ca)}
-                    </span>
-                  </div>
-
-                  {/* Tags */}
-                  {tags.length > 0 && (
-                    <div className="flex items-start gap-2 text-xs">
-                      <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="flex flex-wrap gap-1">
-                        {tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Validation CAs */}
-                  {authMode === 'CLIENT_CERTIFICATE' && validationCas.length > 0 && (
-                    <div className="flex items-start gap-2 text-xs">
-                      <ListChecks className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="min-w-0">
-                        <p className="text-muted-foreground">Validation CAs</p>
-                        <p className="truncate text-foreground/90">{validationCas.map(id => getCaNameById(id)).join(', ')}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Re-enrollment Validation CAs */}
-                  {reEnrollCas.length > 0 && (
-                    <div className="flex items-start gap-2 text-xs">
-                      <ListChecks className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="min-w-0">
-                        <p className="text-muted-foreground">Re-enrollment CAs</p>
-                        <p className="truncate text-foreground/90">{reEnrollCas.map(id => getCaNameById(id)).join(', ')}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Server-side keygen details */}
-                  {keygen?.enabled && keygen.key && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="text-muted-foreground shrink-0">Key</span>
-                      <span className="ml-auto text-foreground/90">
-                        {keygen.key.type}
-                        {' · '}
-                        {keygen.key.type === 'RSA'
-                          ? `${keygen.key.bits} bit`
-                          : ({ 256: 'P-256', 384: 'P-384', 521: 'P-521' } as Record<number,string>)[keygen.key.bits] ?? `${keygen.key.bits} bit`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer */}
-                <div className="border-t px-5 py-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  <span>Created</span>
-                  <span className="text-border">·</span>
-                  <DateDisplay date={ra.creation_ts} formatString={getDisplayDateFormat()} showRelative={false} className="text-xs" />
-                </div>
-              </Card>
-            )})}
-          </div>
         )}
 
         {(!isLoading && !error && (ras.length > 0 || currentPageIndex > 0)) && (
@@ -688,18 +445,39 @@ export default function RegistrationAuthoritiesPage() {
               </Select>
             </div>
             <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
               </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
                 Next <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
-        </SplitPanelLayout>
+        </div>
 
-    </div>
+    </BreadcrumbPage>
+    <EstEnrollModal
+        isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+      />
+    <EstReEnrollModal
+        isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+      />
+    <EstCaCertsPanel
+        isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+      />
+    <CmpEnrollModal
+        isOpen={estPanelMode === 'cmpEnroll' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+        presentation="sheet"
+      />
     <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}
@@ -716,15 +494,18 @@ export default function RegistrationAuthoritiesPage() {
       <MetadataViewerModal
         isOpen={isMetadataModalOpen}
         onOpenChange={setIsMetadataModalOpen}
-        title={`Metadata for ${selectedRaForMetadata?.name}`}
-        description={`Raw metadata object associated with the Registration Authority.`}
+        title={`Metadata — ${selectedRaForMetadata?.name}`}
+        description="Raw metadata object associated with this Registration Authority."
         data={selectedRaForMetadata?.metadata || null}
         isEditable={true}
         itemId={selectedRaForMetadata?.id}
         onSave={handleUpdateRaMetadata}
         onUpdateSuccess={handleRefresh}
+        presentation="sheet"
+        useMonacoViewer={true}
+        sheetContentClassName="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none"
       />
-      <AlertDialog open={!!raToDelete} onOpenChange={(open: boolean) => !open && setRaToDelete(null)}>
+      <AlertDialog open={!!raToDelete} onOpenChange={(open) => !open && setRaToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

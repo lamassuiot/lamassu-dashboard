@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
-    Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info,
+    Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
@@ -39,6 +39,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import type { CmpPopoMethod, CmpRevocationReason } from '@/lib/dms-api';
 import { RfcLink } from './RfcLink';
+import { CardSelector, type CardSelectorOption } from './CardSelector';
 
 // Subset of the RA shape we read for CMP enrollment. Mirrors the structure
 // EstEnrollModal uses but pivots on lwc_rfc9483_settings instead of the EST
@@ -85,8 +86,31 @@ interface ApiRaItem {
                     // cannot succeed and must warn.
                     registration_token?: { mode?: 'disabled' | 'optional' | 'required' };
                     authenticator_control?: { mode?: 'disabled' | 'optional' | 'required' };
+                    policy_overrides?: {
+                        confirmation?: 'inherit' | 'implicit' | 'explicit';
+                    };
                 };
-                kur?: { enabled?: boolean };
+                cr?: {
+                    enabled?: boolean;
+                    proof_of_possession?: {
+                        allowed_methods?: CmpPopoMethod[];
+                    };
+                    policy_overrides?: {
+                        confirmation?: 'inherit' | 'implicit' | 'explicit';
+                    };
+                };
+                p10cr?: {
+                    enabled?: boolean;
+                    policy_overrides?: {
+                        confirmation?: 'inherit' | 'implicit' | 'explicit';
+                    };
+                };
+                kur?: {
+                    enabled?: boolean;
+                    policy_overrides?: {
+                        confirmation?: 'inherit' | 'implicit' | 'explicit';
+                    };
+                };
                 rr?: {
                     enabled?: boolean;
                     allowed_reasons?: CmpRevocationReason[];
@@ -105,18 +129,68 @@ interface CmpEnrollModalProps {
     className?: string;
 }
 
+type CmpEnrollmentOperation = 'ir' | 'cr' | 'kur' | 'p10cr';
+type CmpConfirmationMode = 'implicit' | 'explicit';
+
+const CMP_ENROLLMENT_OPERATIONS: CardSelectorOption<CmpEnrollmentOperation>[] = [
+    {
+        value: 'ir',
+        label: 'Initialization Request (IR)',
+        description: 'Initialization Request. Join a new PKI with CRMF, using a bootstrap credential and CRMF proof of possession.',
+        icon: ShieldCheck,
+    },
+    {
+        value: 'cr',
+        label: 'Certification Request (CR)',
+        description: 'Certification Request. Obtain an additional certificate with CRMF, authenticated by an existing target-PKI certificate.',
+        icon: ShieldCheck,
+    },
+    {
+        value: 'kur',
+        label: 'Key Update Request (KUR)',
+        description: 'Key Update Request. Replace a valid certificate with CRMF, authenticated by the certificate being updated; subject and SAN remain unchanged.',
+        icon: ShieldCheck,
+    },
+    {
+        value: 'p10cr',
+        label: 'PKCS #10 Certification Request (P10CR)',
+        description: 'PKCS #10 Certification Request. Request a certificate with a self-signed PKCS #10 CSR; authentication comes from the enrollment flow.',
+        icon: ShieldCheck,
+    },
+];
+
+const CMP_OPERATION_NAMES: Record<CmpEnrollmentOperation, string> = {
+    ir: 'Initialization Request (IR)',
+    cr: 'Certification Request (CR)',
+    kur: 'Key Update Request (KUR)',
+    p10cr: 'PKCS #10 Certification Request (P10CR)',
+};
+
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
 
 // challenge_response / encrypted_certificate prove possession of a key the CA
 // generated for the device (RFC 9483 §4.1.6 central key generation) — they
 // have no meaning for this wizard's client-generates-its-own-key `-newkey`
-// flow, so they're shown (when the DMS enables them) but not selectable here.
+// flow, so they're always visible for completeness but not selectable here.
 const POPO_METHOD_INFO: Record<CmpPopoMethod, { label: string; requiresCkg?: boolean }> = {
-    signature: { label: 'CRMF signature (default)' },
-    trusted_ra: { label: 'Trusted RA (raVerified)' },
-    challenge_response: { label: 'Challenge-response', requiresCkg: true },
-    encrypted_certificate: { label: 'Encrypted certificate delivery', requiresCkg: true },
+    trusted_ra: { label: 'RA Verified' },
+    signature: { label: 'Signature' },
+    encrypted_certificate: {
+        label: 'Key Encipherment / Key Agreement — Encrypted certificate',
+        requiresCkg: true,
+    },
+    challenge_response: {
+        label: 'Key Encipherment / Key Agreement — Challenge response',
+        requiresCkg: true,
+    },
 };
+
+const CRMF_POPO_METHODS: CmpPopoMethod[] = [
+    'trusted_ra',
+    'signature',
+    'encrypted_certificate',
+    'challenge_response',
+];
 
 // RFC 5280 CRLReason codes for `openssl cmp -revreason`, keyed by the DMS's
 // CmpRevocationReason names (the backend's cmpRevocationReasonName maps codes
@@ -165,10 +239,12 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
     // ── Wizard state ────────────────────────────────────────────────────────
     const [step, setStep] = useState(1);
+    const [selectedOperation, setSelectedOperation] = useState<CmpEnrollmentOperation>('ir');
+    const [confirmationMode, setConfirmationMode] = useState<CmpConfirmationMode>('explicit');
     const [deviceId, setDeviceId] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // Step 2: bootstrap signer issuance
+    // Step 3: bootstrap signer issuance
     const [bootstrapSigner, setBootstrapSigner] = useState<CA | null>(null);
     const [bootstrapValidity, setBootstrapValidity] = useState('1h');
     const [bootstrapCn, setBootstrapCn] = useState('');
@@ -176,15 +252,15 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const [bootstrapKeygenType, setBootstrapKeygenType] = useState('RSA');
     const [bootstrapKeygenSpec, setBootstrapKeygenSpec] = useState('2048');
 
-    // Step 2/3: device cert key params (used for openssl cmp -newkey)
+    // Step 3/4: device cert key params (used for openssl cmp -newkey)
     const [deviceKeygenType, setDeviceKeygenType] = useState('EC');
     const [deviceKeygenSpec, setDeviceKeygenSpec] = useState('P-256');
 
-    // Step 3: issued bootstrap material
+    // Step 4: issued bootstrap material
     const [bootstrapCertificate, setBootstrapCertificate] = useState('');
     const [bootstrapPrivateKey, setBootstrapPrivateKey] = useState('');
 
-    // Step 4: command rendering options
+    // Step 5: command rendering options
     const [pinProtectionCert, setPinProtectionCert] = useState(true);
     const [popoMethod, setPopoMethod] = useState<CmpPopoMethod>('signature');
 
@@ -214,6 +290,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         if (!isOpen) return;
         const newDeviceId = initialDeviceId || crypto.randomUUID();
         setStep(1);
+        setSelectedOperation('ir');
         setDeviceId(newDeviceId);
         setBootstrapCn(newDeviceId);
         setBootstrapValidity('1h');
@@ -224,29 +301,6 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         setDeviceKeygenType('EC');
         setDeviceKeygenSpec('P-256');
         setPinProtectionCert(true);
-
-        // Default the POPO method to one the DMS actually accepts (RFC011
-        // IR.ProofOfPossession.AllowedMethods) rather than blindly to
-        // 'signature' — otherwise a DMS that only allows, say, trusted_ra
-        // would get a signature command it rejects with notAuthorized. Prefer
-        // 'signature' (simplest for this client-generates-its-own-key flow)
-        // when allowed, then trusted_ra when the auth_mode provides a signer,
-        // else the first allowed method so the selector is at least coherent.
-        {
-            const resetCmp = ra?.settings.enrollment_settings.lwc_rfc9483_settings;
-            const resetAuthMode = resetCmp?.auth_mode ?? 'CLIENT_CERTIFICATE';
-            const resetRequiresClientCert =
-                resetAuthMode === 'CLIENT_CERTIFICATE' || resetAuthMode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
-            const resetAllowed = resetCmp?.ir?.proof_of_possession?.allowed_methods ?? ['signature', 'trusted_ra'];
-            const usable = resetAllowed.filter(
-                (m) => m === 'signature' || (m === 'trusted_ra' && resetRequiresClientCert),
-            );
-            const defaultPopo: CmpPopoMethod =
-                usable.includes('signature') ? 'signature'
-                : usable.includes('trusted_ra') ? 'trusted_ra'
-                : (resetAllowed[0] ?? 'signature');
-            setPopoMethod(defaultPopo);
-        }
 
         if (ra && availableCAs.length > 0) {
             const validationCaIds =
@@ -265,6 +319,50 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             setSelectableSigners([]);
         }
     }, [isOpen, ra, availableCAs, initialDeviceId]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const resetCmp = ra?.settings.enrollment_settings.lwc_rfc9483_settings;
+        const selectedSettings =
+            selectedOperation === 'ir' ? resetCmp?.ir
+            : selectedOperation === 'cr' ? resetCmp?.cr
+            : selectedOperation === 'kur' ? resetCmp?.kur
+            : resetCmp?.p10cr;
+        const confirmationOverride = selectedSettings?.policy_overrides?.confirmation;
+        const supportsImplicit =
+            confirmationOverride === 'implicit'
+            || (confirmationOverride !== 'explicit' && (resetCmp?.accept_implicit ?? false));
+        setConfirmationMode(supportsImplicit ? 'implicit' : 'explicit');
+
+        if (selectedOperation !== 'ir' && selectedOperation !== 'cr') {
+            setPopoMethod('signature');
+            return;
+        }
+
+        // IR and CR expose configurable CRMF PoP methods. Prefer signature for
+        // this client-generated-key flow, then raVerified when the request has
+        // a trusted message-protection signer.
+        const resetAuthMode = resetCmp?.auth_mode ?? 'CLIENT_CERTIFICATE';
+        const resetRequiresClientCert =
+            resetAuthMode === 'CLIENT_CERTIFICATE'
+            || resetAuthMode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
+        const resetAllowed =
+            (selectedOperation === 'ir'
+                ? resetCmp?.ir?.proof_of_possession?.allowed_methods
+                : resetCmp?.cr?.proof_of_possession?.allowed_methods)
+            ?? ['signature', 'trusted_ra'];
+        const usable = resetAllowed.filter(
+            (method) =>
+                method === 'signature'
+                || (method === 'trusted_ra' && resetRequiresClientCert),
+        );
+        const defaultPopo: CmpPopoMethod =
+            usable.includes('signature') ? 'signature'
+            : usable.includes('trusted_ra') ? 'trusted_ra'
+            : (resetAllowed[0] ?? 'signature');
+        setPopoMethod(defaultPopo);
+    }, [isOpen, ra, selectedOperation]);
 
     useEffect(() => {
         setProtectionCertIssuerCaId(null);
@@ -305,7 +403,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const handleSkipBootstrap = () => {
         setBootstrapCertificate('');
         setBootstrapPrivateKey('');
-        setStep(4);
+        setStep(5);
     };
 
     const handleNext = async () => {
@@ -314,6 +412,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             setBootstrapCn(deviceId.trim());
             setStep(2);
         } else if (step === 2) {
+            setStep(3);
+        } else if (step === 3) {
             if (!requiresClientCert) {
                 // This RA's auth_mode doesn't validate a client certificate at
                 // all — there's nothing to issue, so behave like "Skip".
@@ -362,19 +462,19 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                     ? window.atob(result.certificate)
                     : 'Error: Certificate not found in response.';
                 setBootstrapCertificate(issuedPem);
-                setStep(3);
+                setStep(4);
             } catch (e: any) {
                 sileo.error({ title: 'Bootstrap Certificate Issuance Failed', description: e.message });
             } finally {
                 setIsGenerating(false);
             }
-        } else if (step === 3) {
-            setStep(4);
+        } else if (step === 4) {
+            setStep(5);
         }
     };
 
     const handleBack = () => {
-        if (step === 4 && !bootstrapCertificate) setStep(2);
+        if (step === 5 && !bootstrapCertificate) setStep(3);
         else setStep((p) => (p > 1 ? p - 1 : 1));
     };
 
@@ -406,6 +506,34 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const enrollmentCaId = ra?.settings.enrollment_settings.enrollment_ca;
     const protectionSerial = cmp?.protection_certificate;
     const acceptImplicit = cmp?.accept_implicit ?? false;
+    const selectedOperationSettings =
+        selectedOperation === 'ir' ? cmp?.ir
+        : selectedOperation === 'cr' ? cmp?.cr
+        : selectedOperation === 'kur' ? cmp?.kur
+        : cmp?.p10cr;
+    const confirmationOverride = selectedOperationSettings?.policy_overrides?.confirmation;
+    const supportsImplicitConfirmation =
+        confirmationOverride === 'implicit'
+        || (confirmationOverride !== 'explicit' && acceptImplicit);
+    const usesImplicitConfirmation =
+        confirmationMode === 'implicit' && supportsImplicitConfirmation;
+    const confirmationModeOptions: CardSelectorOption<CmpConfirmationMode>[] = [
+        {
+            value: 'implicit',
+            label: 'Implicit',
+            description: supportsImplicitConfirmation
+                ? 'Request implicitConfirm so the certificate is accepted without a certConf round trip.'
+                : 'Unavailable for this request because its effective policy requires explicit confirmation.',
+            icon: ShieldCheck,
+            disabled: !supportsImplicitConfirmation,
+        },
+        {
+            value: 'explicit',
+            label: 'Explicit',
+            description: 'Complete the exchange with an explicit certConf confirmation.',
+            icon: ShieldCheck,
+        },
+    ];
     const authMode = cmp?.auth_mode ?? 'CLIENT_CERTIFICATE';
     // Only these two modes require the IR to be signed by a cert chaining to
     // validation_cas; NONE and EXTERNAL_WEBHOOK accept an unprotected IR
@@ -416,16 +544,20 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const usesSrvcert = pinProtectionCert && !!protectionSerial;
     const caApiBase = get_CA_API_BASE_URL();
 
-    // Which POPO methods this DMS actually honours for an ir (RFC011
-    // IR.ProofOfPossession.AllowedMethods), so the wizard only offers options
-    // that will actually be accepted — falls back to the backend's own default
-    // (resolveIR: signature + trusted_ra) when the RA predates this schema.
+    // Which POPO methods this DMS actually honours for the selected CRMF
+    // request. IR and CR read ProofOfPossession.AllowedMethods and fall back to
+    // the backend default; KUR uses the signature PoP required by its flow.
     // trusted_ra (raVerified) additionally needs a signed request (asks the DMS
     // to trust the message-protection signer instead of a POPOSigningKey), so
     // it's disabled in the selector below when this RA's auth_mode doesn't
     // validate a client certificate.
     const allowedPopoMethods: CmpPopoMethod[] =
-        cmp?.ir?.proof_of_possession?.allowed_methods ?? ['signature', 'trusted_ra'];
+        selectedOperation === 'kur'
+            ? ['signature']
+            : (selectedOperation === 'cr'
+            ? cmp?.cr?.proof_of_possession?.allowed_methods
+            : cmp?.ir?.proof_of_possession?.allowed_methods)
+            ?? ['signature', 'trusted_ra'];
 
     // ── Per-operation gates the DMS enforces (RFC011) ─────────────────────────
     // The backend rejects any request whose operation is disabled, and openssl
@@ -497,7 +629,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // continuation. RR ends on these flags, so it strips the trailing "\".
     const verifyFlagLines = [`    -trusted enrollca.pem \\`];
     if (usesSrvcert) verifyFlagLines.push(`    -srvcert srvcert.pem \\`);
-    const implicitLine = acceptImplicit ? [`    -implicit_confirm \\`] : [];
+    const implicitLine = usesImplicitConfirmation ? [`    -implicit_confirm \\`] : [];
 
     // Only signed when this RA's auth_mode actually validates a client
     // certificate — NONE/EXTERNAL_WEBHOOK accept an unprotected IR. openssl
@@ -599,7 +731,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
                 <div className="pt-2">
-                    <Stepper currentStep={step} steps={["Device", "Bootstrap", "Credentials", "Commands"]} />
+                    <Stepper
+                        currentStep={step}
+                        steps={['Request', 'Flow variant', 'Bootstrap', 'Credentials', 'Commands']}
+                    />
                 </div>
 
                 <div className="space-y-4">
@@ -617,43 +752,126 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                     )}
 
                     {step === 1 && (
-                        <div className="space-y-2">
-                            <Label htmlFor="cmp-device-id">Device ID</Label>
-                            <div className="flex items-center gap-2">
-                                <Input id="cmp-device-id" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} placeholder="e.g., test-1, sensor-12345" disabled={!!initialDeviceId} />
-                                <Button type="button" variant="outline" size="icon"
-                                    onClick={() => setDeviceId(crypto.randomUUID())}
-                                    title="Generate random GUID"
-                                    disabled={!!initialDeviceId}>
-                                    <RefreshCwIcon className="h-4 w-4" />
-                                </Button>
+                        <div className="space-y-4">
+                            <CardSelector
+                                label="Request type"
+                                value={selectedOperation}
+                                onChange={setSelectedOperation}
+                                options={CMP_ENROLLMENT_OPERATIONS}
+                                columns={2}
+                            />
+
+                            <div className="space-y-2">
+                                <Label htmlFor="cmp-device-id">Device ID</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input id="cmp-device-id" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} placeholder="e.g., test-1, sensor-12345" disabled={!!initialDeviceId} />
+                                    <Button type="button" variant="outline" size="icon"
+                                        onClick={() => setDeviceId(crypto.randomUUID())}
+                                        title="Generate random GUID"
+                                        disabled={!!initialDeviceId}>
+                                        <RefreshCwIcon className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
-                            <Alert className="mt-4">
-                                <Info className="h-4 w-4" />
-                                <AlertTitle>What this wizard does</AlertTitle>
-                                <AlertDescUI>
-                                    {requiresClientCert ? (
-                                        <>
-                                            The CMP enrollment flow needs a signer certificate that chains
-                                            to one of the CAs in this RA's <code className="font-mono">client_certificate_settings.validation_cas</code>.
-                                            The next step issues that bootstrap signer for you; the final step
-                                            renders the <code className="font-mono">openssl cmp</code> commands
-                                            for IR, KUR, and RR.
-                                        </>
-                                    ) : (
-                                        <>
-                                            This RA's <code className="font-mono">auth_mode</code> ({authMode}) does not
-                                            require a client-certificate signer for the IR{authMode === 'EXTERNAL_WEBHOOK' && ' — authorization is delegated to the configured webhook instead'}.
-                                            The next step is skipped automatically; the final step renders the
-                                            <code className="font-mono"> openssl cmp</code> commands for IR, KUR, and RR.
-                                        </>
-                                    )}
-                                </AlertDescUI>
-                            </Alert>
                         </div>
                     )}
 
                     {step === 2 && (
+                        <div className="space-y-6">
+                            <div>
+                                <p className="font-semibold">Flow variant</p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Configure confirmation and proof of possession for {CMP_OPERATION_NAMES[selectedOperation]}.
+                                </p>
+                            </div>
+
+                            <CardSelector
+                                label="Confirmation mode"
+                                value={confirmationMode}
+                                onChange={setConfirmationMode}
+                                options={confirmationModeOptions}
+                                columns={2}
+                            />
+
+                            <div className="space-y-2">
+                                <Label htmlFor="cmp-popo-method">Proof of possession</Label>
+
+                                {selectedOperation !== 'p10cr' && (
+                                    <>
+                                        <Select
+                                            value={popoMethod}
+                                            onValueChange={(value: CmpPopoMethod) => setPopoMethod(value)}
+                                        >
+                                            <SelectTrigger id="cmp-popo-method">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {CRMF_POPO_METHODS.map((method) => {
+                                                    const info = POPO_METHOD_INFO[method];
+                                                    const enabledForRequest = allowedPopoMethods.includes(method);
+                                                    const disabled =
+                                                        !enabledForRequest || info.requiresCkg
+                                                        || (method === 'trusted_ra' && !requiresClientCert);
+
+                                                    return (
+                                                        <SelectItem key={method} value={method} disabled={disabled}>
+                                                            {info.label}
+                                                            {!enabledForRequest ? ' (not enabled for this request)' : ''}
+                                                            {enabledForRequest && info.requiresCkg
+                                                                ? ' (central key generation only)'
+                                                                : ''}
+                                                            {enabledForRequest && method === 'trusted_ra' && !requiresClientCert
+                                                                ? ' (requires a signed request)'
+                                                                : ''}
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            All CRMF proof-of-possession methods are shown. Methods that are not enabled
+                                            for this request or require unsupported central key generation cannot be selected.
+                                            {' '}raVerified is intended for RA-proxy flows: EE → RA proxy
+                                            (verifies the EE and sets raVerified) → RA/CA.
+                                        </p>
+                                    </>
+                                )}
+
+                                {selectedOperation === 'p10cr' && (
+                                    <>
+                                        <Select value="pkcs10-self-signature" disabled>
+                                            <SelectTrigger id="cmp-popo-method">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="pkcs10-self-signature">
+                                                    PKCS #10 self-signature
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            P10CR proves possession through the signature embedded in the PKCS #10 certification request.
+                                        </p>
+                                    </>
+                                )}
+
+                                {selectedOperation !== 'p10cr' && usingTrustedRaPopo && (
+                                    <Alert variant="warning">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertTitle>Use raVerified only through a trusted RA proxy</AlertTitle>
+                                        <AlertDescUI className="text-xs">
+                                            Expected flow: EE → RA proxy (verifies possession and sets raVerified) → RA/CA.
+                                            The proxy&apos;s message-protection certificate must carry{' '}
+                                            <code className="font-mono">id-kp-cmcRA</code> and chain to a Validation CA.
+                                            A regular bootstrap certificate is not sufficient.
+                                        </AlertDescUI>
+                                    </Alert>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 3 && (
                         <div className="space-y-4">
                             {requiresClientCert ? (
                                 <>
@@ -777,7 +995,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                         </div>
                     )}
 
-                    {step === 3 && (
+                    {step === 4 && (
                         <div className="space-y-4">
                             <div>
                                 <Label>Bootstrap Certificate</Label>
@@ -802,7 +1020,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                         </div>
                     )}
 
-                    {step === 4 && (
+                    {step === 5 && (
                         <div className="space-y-6">
                             <Alert>
                                 <Info className="h-4 w-4" />
@@ -814,10 +1032,11 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                                 ? ' — no client authentication required; the bootstrap signer is optional.'
                                                 : ' — requests must be signed by a cert that chains to a Validation CA.'}
                                         </li>
-                                        <li><code className="font-mono">accept_implicit</code>: {String(acceptImplicit)}
-                                            {acceptImplicit
-                                                ? ' — the server grants implicit confirmation, so no certConf round-trip.'
-                                                : ' — openssl automatically sends an explicit certConf; confirm within the DMS confirmation_timeout or the cert is revoked.'}
+                                        <li><code className="font-mono">confirmation</code>: {confirmationMode}
+                                            {' '}(<code className="font-mono">accept_implicit</code>: {String(acceptImplicit)})
+                                            {usesImplicitConfirmation
+                                                ? ' — the request asks the server to skip the certConf round trip.'
+                                                : ' — openssl sends an explicit certConf within the DMS confirmation timeout.'}
                                         </li>
                                         <li><code className="font-mono">enforce_popo</code>: {String(enforcePopo)} — {popoMethod === 'trusted_ra'
                                             ? <>proof-of-possession is delegated to the message-protection signer via <code className="font-mono">-popo 0</code>.</>
@@ -902,44 +1121,6 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     Pin DMS Protection Certificate via <code className="font-mono">-srvcert</code> (Recommended)
                                 </Label>
                             </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="cmp-popo-method">Proof-of-possession method</Label>
-                                <Select value={popoMethod} onValueChange={(v: CmpPopoMethod) => setPopoMethod(v)}>
-                                    <SelectTrigger id="cmp-popo-method" className="max-w-xs"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {allowedPopoMethods.map((m) => {
-                                            const info = POPO_METHOD_INFO[m];
-                                            const disabled = info.requiresCkg || (m === 'trusted_ra' && !requiresClientCert);
-                                            return (
-                                                <SelectItem key={m} value={m} disabled={disabled}>
-                                                    {info.label}
-                                                    {info.requiresCkg ? ' (central key generation only)' : ''}
-                                                    {m === 'trusted_ra' && !requiresClientCert ? ' (needs a signed request)' : ''}
-                                                </SelectItem>
-                                            );
-                                        })}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    Only methods this DMS enables (<code className="font-mono">ir.proof_of_possession.allowed_methods</code>)
-                                    are listed. Challenge-response and encrypted-certificate delivery require the CA to generate the
-                                    device&apos;s key pair — not covered by this quick-start wizard, which always generates the key on the device.
-                                </p>
-                                {usingTrustedRaPopo && (
-                                    <Alert variant="warning" className="mt-2">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        <AlertTitle>Trusted-RA POPO needs an RA signer, not the bootstrap cert</AlertTitle>
-                                        <AlertDescUI className="text-xs">
-                                            <code className="font-mono">-popo 0</code> (raVerified) makes the DMS trust the message-protection
-                                            signer instead of a POPOSigningKey — but it only accepts that from a registration authority
-                                            certificate carrying <code className="font-mono">id-kp-cmcRA</code> and chaining to a Validation CA.
-                                            The bootstrap certificate this wizard issues is a plain end-entity cert, so the DMS will reject it
-                                            with <code className="font-mono">notAuthorized</code>. Sign the ir with a dedicated RA certificate, or
-                                            pick <code className="font-mono">signature</code> if this DMS allows it.
-                                        </AlertDescUI>
-                                    </Alert>
-                                )}
-                            </div>
                             <div>
                                 <Label>1. Initial Registration (IR)</Label>
                                 <p className="text-xs text-muted-foreground mb-1">
@@ -997,15 +1178,17 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 <ArrowLeft className="mr-2 h-4 w-4" />Back
                             </Button>
                         )}
-                        {step === 2 && requiresClientCert && (
+                        {step === 3 && requiresClientCert && (
                             <Button variant="secondary" onClick={handleSkipBootstrap}>
                                 Skip &amp; Use Existing
                             </Button>
                         )}
-                        {step < 4 ? (
+                        {step < 5 ? (
                             <Button onClick={handleNext} disabled={isGenerating}>
                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {step === 2 ? (requiresClientCert ? 'Issue Bootstrap Cert' : 'Next') : step === 3 ? 'Show Commands' : 'Next'}
+                                {step === 3
+                                    ? (requiresClientCert ? 'Issue Bootstrap Cert' : 'Next')
+                                    : step === 4 ? 'Show Commands' : 'Next'}
                             </Button>
                         ) : (
                             <Button onClick={() => onOpenChange(false)}>Finish</Button>
