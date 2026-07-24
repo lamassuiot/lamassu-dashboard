@@ -9,6 +9,7 @@ export interface CardSelectorOption<T extends string = string> {
   label: string;
   description?: string;
   icon: React.ElementType;
+  disabled?: boolean;
 }
 
 interface CardSelectorProps<T extends string = string> {
@@ -44,18 +45,19 @@ export function CardSelector<T extends string = string>({
         {options.map((opt) => {
           const Icon = opt.icon;
           const selected = value === opt.value;
+          const optionDisabled = disabled || opt.disabled;
           return (
             <button
               key={opt.value}
               type="button"
-              onClick={() => !disabled && onChange(opt.value)}
-              disabled={disabled}
+              onClick={() => !optionDisabled && onChange(opt.value)}
+              disabled={optionDisabled}
               className={cn(
                 "flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 selected
                   ? "border-primary bg-primary/5"
                   : "border-border bg-background hover:border-muted-foreground/50 hover:bg-muted/30",
-                disabled && "opacity-50 cursor-not-allowed"
+                optionDisabled && "opacity-50 cursor-not-allowed"
               )}
             >
               <div className="flex items-center gap-2">
