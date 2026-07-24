@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Editor from '@monaco-editor/react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeComplianceResult } from '@/lib/cbom-api';
@@ -53,6 +54,8 @@ import chiperInfo from '../../../../chiper_info.json';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { getCBOMType } from '@/lib/cbom-type';
 
 type CipherStrength = 'recommended' | 'secure' | 'weak' | 'insecure' | 'unknown';
 
@@ -497,6 +500,7 @@ function CBOMDetailsContent() {
   const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const monacoTheme = useMonacoTheme();
   const [cbom, setCbom] = useState<CBOMItem | null>(null);
   const [detailsData, setDetailsData] = useState<CBOMDetailsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -507,7 +511,7 @@ function CBOMDetailsContent() {
     primitive: [],
     location: [],
   });
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'raw'>('overview');
   const [assetViewMode, setAssetViewMode] = useState<AssetViewMode>('table');
   const [selectedNetworkNode, setSelectedNetworkNode] = useState<GraphNode | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<CBOMAsset | null>(null);
@@ -720,13 +724,8 @@ function CBOMDetailsContent() {
     return root;
   }, [groupedAssets]);
 
-  const isRealtimeCBOM = React.useMemo(() => {
-    const raw = detailsData as any;
-    const toolServices: any[] = raw?.bom?.metadata?.tools?.services ?? [];
-    return toolServices.some(
-      (svc: any) => svc?.name === 'LiveCapture' && svc?.provider?.name === 'Ikerlan_LKS',
-    );
-  }, [detailsData]);
+  const cbomType = React.useMemo(() => getCBOMType(detailsData), [detailsData]);
+  const isRealtimeCBOM = cbomType === 'realtime';
 
   const networkGraphData = React.useMemo((): { nodes: GraphNode[]; edges: GraphEdge[] } => {
     if (!isRealtimeCBOM || !detailsData) return { nodes: [], edges: [] };
@@ -903,10 +902,16 @@ function CBOMDetailsContent() {
     return { nodes, edges };
   }, [isRealtimeCBOM, detailsData]);
 
-  const cbomTypeLabel = isRealtimeCBOM ? 'Realtime capture' : 'Repository scan';
-  const cbomTypePillClass = isRealtimeCBOM
+  const cbomTypeLabel = cbomType === 'realtime'
+    ? 'Realtime capture'
+    : cbomType === 'filesystem'
+      ? 'Filesystem scan'
+      : 'Repository scan';
+  const cbomTypePillClass = cbomType === 'realtime'
     ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-    : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
+    : cbomType === 'filesystem'
+      ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+      : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
   const pqcSessionStat = React.useMemo(() => {
     if (!isRealtimeCBOM) return null;
     const protocolNodes = networkGraphData.nodes.filter((n) => !n.data?.isAgent);
@@ -914,6 +919,10 @@ function CBOMDetailsContent() {
     const protected_ = protocolNodes.filter((n) => n.data?.pqcProtected).length;
     return { protected: protected_, total };
   }, [isRealtimeCBOM, networkGraphData]);
+  const rawCbomJson = React.useMemo(
+    () => JSON.stringify(cbom?.data ?? cbom ?? {}, null, 2),
+    [cbom],
+  );
 
   const heroSummaryCards = [
     {
@@ -1119,12 +1128,17 @@ function CBOMDetailsContent() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'assets')} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'overview' | 'assets' | 'raw')}
+        className="w-full"
+      >
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {[
               { value: 'overview', label: 'Overview' },
               { value: 'assets', label: 'Assets' },
+              { value: 'raw', label: 'Raw' },
             ].map(({ value, label }) => (
               <TabsTrigger
                 key={value}
@@ -2164,6 +2178,32 @@ function CBOMDetailsContent() {
               </div>
             </div>{/* end Assets */}
             </div>{/* end space-y-6 */}
+          </TabsContent>
+
+          <TabsContent value="raw" className="mt-0 py-6">
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-md border">
+                <Editor
+                  height="65vh"
+                  language="json"
+                  value={rawCbomJson}
+                  theme={monacoTheme}
+                  options={{
+                    readOnly: true,
+                    domReadOnly: true,
+                    automaticLayout: true,
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    folding: true,
+                    fontSize: 13,
+                    tabSize: 2,
+                    renderValidationDecorations: 'off',
+                    ariaLabel: 'Raw CBOM JSON',
+                  }}
+                />
+              </div>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

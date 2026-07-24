@@ -28,10 +28,12 @@ import {
   storeCBOM,
 } from '@/lib/cbom-api';
 import { useToast } from '@/hooks/use-toast';
+import { CBOM_TYPES, getCBOMType, type CBOMType } from '@/lib/cbom-type';
 import {
   AlertCircle,
   ArrowRight,
   Check,
+  CircleHelp,
   ClipboardList,
   Download,
   ExternalLink,
@@ -64,6 +66,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const resolveProjectIdentifier = (cbomData: unknown): string => {
@@ -175,22 +183,7 @@ export default function CBOMPage() {
     { id: 'action', label: 'Action', visible: columnVisibility.action },
   ];
 
-  const CBOM_TYPES = ['gitrepo', 'filesystem', 'realtime'] as const;
-  type CBOMType = typeof CBOM_TYPES[number];
   const [cbomTypeFilter, setCbomTypeFilter] = useState<CBOMType | 'all'>('all');
-
-  const getCBOMType = (item: CBOMItem): CBOMType => {
-    // Resolve the raw BOM object from wherever it may be stored
-    const raw = item as any;
-    const bom = raw?.bom ?? raw?.data?.bom ?? raw?.data ?? raw;
-    const services: any[] = bom?.metadata?.tools?.services ?? [];
-    const isLiveCapture = services.some(
-      (svc: any) =>
-        svc?.name === 'LiveCapture' && svc?.provider?.name === 'Ikerlan_LKS',
-    );
-    if (isLiveCapture) return 'realtime';
-    return 'gitrepo';
-  };
 
   const filteredCboms = cbomTypeFilter === 'all'
     ? recentCboms
@@ -201,6 +194,7 @@ export default function CBOMPage() {
   };
 
   const [scanUrl, setScanUrl] = useState('');
+  const [isHelpDrawerOpen, setIsHelpDrawerOpen] = useState(false);
   const [isScanDrawerOpen, setIsScanDrawerOpen] = useState(false);
   const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false);
   const [advancedOptions, setAdvancedOptions] = useState(false);
@@ -491,7 +485,11 @@ export default function CBOMPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center space-x-2 self-start sm:self-center">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+          <Button onClick={() => setIsHelpDrawerOpen(true)} variant="outline">
+            <CircleHelp className="mr-2 h-4 w-4" />
+            Help
+          </Button>
           <Button onClick={loadRecentScans} variant="secondary" disabled={isLoadingTable}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isLoadingTable && 'animate-spin')} />
             Refresh List
@@ -502,10 +500,152 @@ export default function CBOMPage() {
           </Button>
           <Button onClick={() => setIsScanDrawerOpen(true)}>
             <Search className="mr-2 h-4 w-4" />
-            Scan CBOM
+            SCAN Git Repo
           </Button>
         </div>
       </div>
+
+      <ResponsivePanel
+        open={isHelpDrawerOpen}
+        onOpenChange={setIsHelpDrawerOpen}
+        title="CBOM help"
+        description="Choose the analysis method that matches the system or source you want to inspect."
+        sheetClassName="sm:!w-1/3 sm:!min-w-xl sm:!max-w-none"
+      >
+        <div className="px-6 py-5">
+          <p className="mb-4 text-sm text-muted-foreground">
+            There are three ways to generate a Cryptographic Bill of Materials (CBOM).
+          </p>
+
+          <Accordion type="single" collapsible className="rounded-lg">
+            <AccordionItem value="network">
+              <AccordionTrigger>
+                <span className="pr-2">Real-time network traffic</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 text-muted-foreground">
+                <p>
+                  Our live CBOM generator passively inspects TLS network packets from a live
+                  interface, or analyses an offline PCAP/PCAPng file, and emits a CycloneDX CBOM.
+                </p>
+
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground">Live capture example</p>
+                  <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs text-foreground">
+                    <code>{`python main.py --interface any --output cbom.json --interval 30 \\
+  --component-name my-service --component-version 1.0.0`}</code>
+                  </pre>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground">PCAP analysis example</p>
+                  <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs text-foreground">
+                    <code>python main.py --pcap capture.pcapng --output capture.cbom.json</code>
+                  </pre>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground">Available options</p>
+                  <dl className="divide-y rounded-md border text-xs">
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--pcap FILE</dt>
+                      <dd>Analyse an offline PCAP or PCAPng file instead of capturing live traffic.</dd>
+                    </div>
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--compact</dt>
+                      <dd>
+                        Group connections that share a TLS version and cipher. Without it, each
+                        unique SNI or destination is emitted as its own component.
+                      </dd>
+                    </div>
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--interface</dt>
+                      <dd>Select the network interface used for live capture.</dd>
+                    </div>
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--output</dt>
+                      <dd>Set the CBOM output file path.</dd>
+                    </div>
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--interval</dt>
+                      <dd>Set the live-capture flush interval in seconds.</dd>
+                    </div>
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--component-name</dt>
+                      <dd>Set the name of the CBOM metadata component.</dd>
+                    </div>
+                    <div className="grid gap-1 p-3 sm:grid-cols-[140px_1fr]">
+                      <dt className="font-mono text-foreground">--component-version</dt>
+                      <dd>Set the version of the CBOM metadata component.</dd>
+                    </div>
+                  </dl>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="filesystem">
+              <AccordionTrigger>
+                <span className="pr-2">Filesystem and container images</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 text-muted-foreground">
+                <p>
+                  Use{' '}
+                  <a
+                    href="https://github.com/cbomkit/cbomkit-theia"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-primary"
+                  >
+                    cbomkit-theia
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>{' '}
+                  to analyse filesystems, including operating-system directories and container
+                  images.
+                </p>
+
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground">Operating-system directory</p>
+                  <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs text-foreground">
+                    <code>./cbomkit-theia dir /etc/ssl/ &gt; os-ssl.cbom.json</code>
+                  </pre>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground">Container image</p>
+                  <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs text-foreground">
+                    <code>
+                      ./cbomkit-theia image ghcr.io/lamassuiot/lamassu-ca:3.7.0 &gt; docker-ca.cbom.json
+                    </code>
+                  </pre>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="git">
+              <AccordionTrigger>
+                <span className="pr-2">Git repository source code</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <p>
+                  Scan a Git repository for cryptographic assets directly from source code. Use
+                  the{' '}
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 align-baseline font-medium"
+                    onClick={() => {
+                      setIsHelpDrawerOpen(false);
+                      setIsScanDrawerOpen(true);
+                    }}
+                  >
+                    SCAN Git Repo
+                  </Button>{' '}
+                  button to start a scan.
+                </p>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+      </ResponsivePanel>
 
       <ResponsivePanel
         open={isUploadDrawerOpen}
@@ -568,7 +708,7 @@ export default function CBOMPage() {
       <ResponsivePanel
         open={isScanDrawerOpen}
         onOpenChange={setIsScanDrawerOpen}
-        title="Scan CBOM"
+        title="SCAN Git Repo"
         description="Scan a public or authenticated Git repository and persist the resulting CBOM."
         sheetClassName="lg:!w-[50vw] lg:!max-w-[50vw]"
       >
@@ -918,7 +1058,7 @@ export default function CBOMPage() {
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-12 text-center">
             <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
             <p className="text-sm font-medium text-muted-foreground">No CBOMs yet</p>
-            <p className="mt-0.5 text-xs text-muted-foreground/60">Use Upload CBOM or Scan CBOM to add your first scan.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground/60">Use Upload CBOM or SCAN Git Repo to add your first scan.</p>
           </div>
         )}
       </section>
