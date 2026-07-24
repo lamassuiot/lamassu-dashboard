@@ -32,17 +32,14 @@ import {
   Copy,
   Check,
   Tag,
-  Target,
 } from 'lucide-react';
 import { getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { FilterCriteriaDisplay } from '@/components/device-groups/FilterCriteriaDisplay';
 import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
-import { GroupLatestVersionsCard } from '@/components/device-groups/GroupLatestVersionsCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 
 export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
@@ -144,7 +141,6 @@ export default function DeviceGroupDetailsClient() {
   }
 
   const filterCount = group.criteria?.length ?? 0;
-  const dateFormat = getDisplayDateFormat(); // used by DateDisplay
 
   return (
     <BreadcrumbPage
@@ -238,7 +234,6 @@ export default function DeviceGroupDetailsClient() {
           <TabsList className={pageTabsListClass}>
             {([
               { value: 'members', icon: Monitor, label: 'Devices' },
-              { value: 'latest-versions', icon: Target, label: 'Latest Versions' },
               { value: 'info', icon: Info, label: 'Information' },
             ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
               <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
@@ -252,19 +247,6 @@ export default function DeviceGroupDetailsClient() {
         <div className="mt-6 pb-6">
           <TabsContent value="members" className="mt-0">
             <GroupMembersList groupId={group.id} />
-          </TabsContent>
-
-          <TabsContent value="latest-versions" className="mt-0">
-            <div className="py-6 space-y-3">
-              <div>
-                <p className="font-semibold">Latest Versions</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Which version of each pack every device in this group is running, versus the pack&apos;s latest.
-                  Update any outdated device to the latest from here.
-                </p>
-              </div>
-              <GroupLatestVersionsCard groupId={group.id} />
-            </div>
           </TabsContent>
 
           <TabsContent value="info" className="mt-0">
@@ -297,13 +279,13 @@ export default function DeviceGroupDetailsClient() {
                   <div className="py-3">
                     <p className="text-xs font-medium text-muted-foreground">Created</p>
                     <div className="mt-1">
-                      <DateDisplay date={group.created_at} formatString={dateFormat} showRelative className="text-sm font-medium" />
+                      <DateDisplay date={group.created_at} showRelative className="text-sm font-medium" />
                     </div>
                   </div>
                   <div className="py-3 last:pb-0">
                     <p className="text-xs font-medium text-muted-foreground">Last Updated</p>
                     <div className="mt-1">
-                      <DateDisplay date={group.updated_at} formatString={dateFormat} showRelative className="text-sm font-medium" />
+                      <DateDisplay date={group.updated_at} showRelative className="text-sm font-medium" />
                     </div>
                   </div>
                 </div>
