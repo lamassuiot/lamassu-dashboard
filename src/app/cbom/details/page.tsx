@@ -323,8 +323,8 @@ function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
               </span>
             </button>
             {!isCollapsed && (
-            <div style={{ paddingLeft: `${indent + 30}px` }}>
-              {node.entries.map((entry, i) => (
+              <div style={{ paddingLeft: `${indent + 30}px` }}>
+                {node.entries.map((entry, i) => (
                   <div
                     key={i}
                     className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-border/40 py-1 text-xs last:border-0"
@@ -358,7 +358,7 @@ function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
                     })}
                   </div>
                 ))}
-            </div>
+              </div>
             )}
           </div>
         );
