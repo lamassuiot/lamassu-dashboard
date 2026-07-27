@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   groupCBOMAssets,
+  groupCBOMAssetsByOid,
   type CBOMAssetForGrouping,
   type CBOMDependency,
 } from './cbom-assets';
@@ -195,5 +196,37 @@ describe('groupCBOMAssets', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].references).toHaveLength(2);
     expect(groups[0].bomRefs).toEqual(['legacy-ref']);
+  });
+});
+
+describe('groupCBOMAssetsByOid', () => {
+  it('groups assets that share a normalized OID', () => {
+    const first = algorithm('rsa-a', 'RSA public key', 'certs/a.pem');
+    const second = algorithm('rsa-b', 'RSA signature', 'certs/b.pem');
+    const third = algorithm('sha', 'SHA-256', 'src/hash.ts', 'hash');
+    first.cryptoProperties.oid = ' 1.2.840.113549.1.1.1 ';
+    second.cryptoProperties.oid = '1.2.840.113549.1.1.1';
+    third.cryptoProperties.oid = '2.16.840.1.101.3.4.2.1';
+
+    const groups = groupCBOMAssetsByOid([first, second, third]);
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0].references.map(({ asset }) => asset.name)).toEqual([
+      'RSA public key',
+      'RSA signature',
+    ]);
+    expect(groups[0].bomRefs).toEqual(['rsa-a', 'rsa-b']);
+    expect(groups[1].references).toHaveLength(1);
+  });
+
+  it('keeps assets without an OID in one group', () => {
+    const groups = groupCBOMAssetsByOid([
+      algorithm('rsa', 'RSA', 'src/rsa.ts'),
+      algorithm('aes', 'AES', 'src/aes.ts', 'block-cipher'),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].references).toHaveLength(2);
+    expect(groups[0].bomRefs).toEqual(['rsa', 'aes']);
   });
 });

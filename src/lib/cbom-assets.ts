@@ -49,6 +49,55 @@ const hashIdentity = (value: string): string => {
     .padStart(8, '0')}`;
 };
 
+const getAssetOid = (asset: CBOMAssetForGrouping): string => {
+  const rawAsset = asset as Record<string, unknown>;
+  const cryptoProperties = isRecord(rawAsset.cryptoProperties)
+    ? rawAsset.cryptoProperties
+    : null;
+  return typeof cryptoProperties?.oid === 'string'
+    ? cryptoProperties.oid.trim()
+    : '';
+};
+
+export const groupCBOMAssetsByOid = <T extends CBOMAssetForGrouping>(
+  assets: readonly T[],
+): GroupedCBOMAsset<T>[] => {
+  const assetsByOid = new Map<string, T[]>();
+
+  assets.forEach((asset) => {
+    const oid = getAssetOid(asset);
+    const groupKey = oid || 'missing-oid';
+    const groupedAssets = assetsByOid.get(groupKey) ?? [];
+    groupedAssets.push(asset);
+    assetsByOid.set(groupKey, groupedAssets);
+  });
+
+  return Array.from(assetsByOid.entries()).map(([groupKey, groupedAssets]) => {
+    const references = groupedAssets.map((asset) => ({
+      bomRef: asset['bom-ref'],
+      asset,
+      occurrences: [...(asset.evidence?.occurrences ?? [])],
+    }));
+
+    return {
+      key: `cbom-oid-group-${hashIdentity(groupKey)}`,
+      representative: groupedAssets[0],
+      references,
+      bomRefs: Array.from(
+        new Set(
+          references
+            .map((reference) => reference.bomRef)
+            .filter((bomRef): bomRef is string => Boolean(bomRef)),
+        ),
+      ),
+      occurrenceCount: references.reduce(
+        (total, reference) => total + reference.occurrences.length,
+        0,
+      ),
+    };
+  });
+};
+
 /**
  * Finds every component ref used inside an asset, regardless of the property
  * carrying it. This covers legacy fields such as `algorithmRef`,

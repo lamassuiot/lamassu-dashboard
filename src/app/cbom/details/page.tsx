@@ -68,7 +68,7 @@ import {
   type TLSWorkflowConnection,
 } from '@/components/cbom/TLSWorkflowInspector';
 import { TLSWorkflowSheet } from '@/components/cbom/TLSWorkflowSheet';
-import { groupCBOMAssets } from '@/lib/cbom-assets';
+import { groupCBOMAssets, groupCBOMAssetsByOid } from '@/lib/cbom-assets';
 import {
   buildCertificateHierarchy,
   type CertificateHierarchyStatus,
@@ -136,7 +136,7 @@ interface CBOMDetailsData {
   };
 }
 
-type FilterColumn = 'name' | 'type' | 'primitive' | 'location';
+type FilterColumn = 'name' | 'type' | 'primitive' | 'oid' | 'location';
 type AssetFilters = Record<FilterColumn, string[]>;
 type AssetViewMode = 'table' | 'file-tree' | 'network-graph' | 'network-table';
 type ComplianceLevel = QuantumSafeComplianceResult['complianceLevels'][number];
@@ -286,6 +286,15 @@ interface FileTreeViewProps {
 function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
+  const toggleNode = (path: string) => {
+    setCollapsed((previous) => {
+      const next = new Set(previous);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
   function renderNode(nodes: Map<string, FileTreeNode>, depth: number): React.ReactNode {
     return Array.from(nodes.entries()).map(([, node]) => {
       const isFile = node.children.size === 0;
@@ -295,16 +304,25 @@ function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
       if (isFile) {
         return (
           <div key={node.path}>
-            <div
-              className="flex items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-muted/40"
+            <button
+              type="button"
+              aria-expanded={!isCollapsed}
+              className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs hover:bg-muted/40"
               style={{ paddingLeft: `${indent + 8}px` }}
+              onClick={() => toggleNode(node.path)}
             >
+              {isCollapsed ? (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
               <FileCode className="h-3.5 w-3.5 shrink-0 text-blue-400" />
               <span className="font-mono text-foreground">{node.name}</span>
               <span className="ml-1 text-muted-foreground">
                 · {node.entries.length} usage{node.entries.length !== 1 ? 's' : ''}
               </span>
-            </div>
+            </button>
+            {!isCollapsed && (
             <div style={{ paddingLeft: `${indent + 30}px` }}>
               {node.entries.map((entry, i) => (
                   <div
@@ -341,6 +359,7 @@ function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
                   </div>
                 ))}
             </div>
+            )}
           </div>
         );
       }
@@ -354,14 +373,7 @@ function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
           <button
             className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs hover:bg-muted/40"
             style={{ paddingLeft: `${indent + 8}px` }}
-            onClick={() =>
-              setCollapsed((prev) => {
-                const next = new Set(prev);
-                if (next.has(node.path)) next.delete(node.path);
-                else next.add(node.path);
-                return next;
-              })
-            }
+            onClick={() => toggleNode(node.path)}
           >
             {isCollapsed ? (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -640,6 +652,10 @@ const getAssetFilterValue = (asset: CBOMAsset, column: FilterColumn): string => 
     return asset.cryptoProperties?.algorithmProperties?.primitive || '-';
   }
 
+  if (column === 'oid') {
+    return asset.cryptoProperties?.oid?.trim() || '-';
+  }
+
   const firstOccurrence = asset.evidence?.occurrences?.[0];
   const location = firstOccurrence?.location || '-';
   return location;
@@ -659,6 +675,7 @@ function CBOMDetailsContent() {
     name: [],
     type: [],
     primitive: [],
+    oid: [],
     location: [],
   });
   const [activeTab, setActiveTab] = useState<'overview' | 'workflow' | 'assets' | 'raw'>('overview');
@@ -675,6 +692,7 @@ function CBOMDetailsContent() {
     useState<string[]>(['quantum_safe']);
   const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
   const [groupByRef, setGroupByRef] = useState(false);
+  const [groupByOid, setGroupByOid] = useState(false);
   const [hierarchyMode, setHierarchyMode] = useState(false);
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
   const [collapsedHierarchyRows, setCollapsedHierarchyRows] = useState<Set<string>>(new Set());
@@ -815,6 +833,9 @@ function CBOMDetailsContent() {
       primitive: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'primitive')))).sort(
         (left, right) => left.localeCompare(right),
       ),
+      oid: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'oid')))).sort(
+        (left, right) => left.localeCompare(right),
+      ),
       location: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'location')))).sort(
         (left, right) => left.localeCompare(right),
       ),
@@ -840,6 +861,7 @@ function CBOMDetailsContent() {
     { key: 'name', label: 'Filter by Asset', placeholder: 'Filter by asset...' },
     { key: 'type', label: 'Filter by Type', placeholder: 'Filter by type...' },
     { key: 'primitive', label: 'Filter by Primitive', placeholder: 'Filter by primitive...' },
+    { key: 'oid', label: 'Filter by OID', placeholder: 'Filter by OID...' },
     { key: 'location', label: 'Filter by Location', placeholder: 'Filter by location...' },
   ];
 
@@ -857,6 +879,11 @@ function CBOMDetailsContent() {
     () => groupCBOMAssets(filteredAssets, detailsData?.bom?.dependencies, assets),
     [assets, detailsData?.bom?.dependencies, filteredAssets],
   );
+  const oidGroupedAssets = React.useMemo(
+    () => groupCBOMAssetsByOid(filteredAssets),
+    [filteredAssets],
+  );
+  const activeGroupedAssets = groupByOid ? oidGroupedAssets : groupedAssets;
   const certificateHierarchy = React.useMemo(
     () => buildCertificateHierarchy(assets),
     [assets],
@@ -1595,11 +1622,30 @@ function CBOMDetailsContent() {
                             checked={groupByRef}
                             onCheckedChange={(checked) => {
                               setGroupByRef(checked);
-                              if (checked) setHierarchyMode(false);
+                              if (checked) {
+                                setGroupByOid(false);
+                                setHierarchyMode(false);
+                              }
                             }}
                           />
                           <Label htmlFor="group-by-ref" className="cursor-pointer select-none text-xs">
                             Group by ref
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="group-by-oid"
+                            checked={groupByOid}
+                            onCheckedChange={(checked) => {
+                              setGroupByOid(checked);
+                              if (checked) {
+                                setGroupByRef(false);
+                                setHierarchyMode(false);
+                              }
+                            }}
+                          />
+                          <Label htmlFor="group-by-oid" className="cursor-pointer select-none text-xs">
+                            Group by OID
                           </Label>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1609,7 +1655,10 @@ function CBOMDetailsContent() {
                             disabled={certificateHierarchy.nodes.length === 0}
                             onCheckedChange={(checked) => {
                               setHierarchyMode(checked);
-                              if (checked) setGroupByRef(false);
+                              if (checked) {
+                                setGroupByRef(false);
+                                setGroupByOid(false);
+                              }
                             }}
                           />
                           <Label
@@ -2440,6 +2489,7 @@ function CBOMDetailsContent() {
                         name: [],
                         type: [],
                         primitive: [],
+                        oid: [],
                         location: [],
                       })
                     }
@@ -2504,13 +2554,15 @@ function CBOMDetailsContent() {
                         </>
                       ) : (
                         <>
-                          {groupByRef && <TableHead className="w-8" />}
+                          {(groupByRef || groupByOid) && <TableHead className="w-8" />}
                           <TableHead>Cryptographic asset</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Primitive</TableHead>
                           <TableHead className="w-40">OID</TableHead>
-                          {groupByRef ? (
-                            <TableHead className="text-right">References</TableHead>
+                          {groupByRef || groupByOid ? (
+                            <TableHead className="text-right">
+                              {groupByOid ? 'Assets' : 'References'}
+                            </TableHead>
                           ) : (
                             <TableHead>Location</TableHead>
                           )}
@@ -2636,10 +2688,11 @@ function CBOMDetailsContent() {
                           </TableRow>
                         );
                       })
-                      : groupByRef
-                        ? groupedAssets.map((group) => {
+                      : groupByRef || groupByOid
+                        ? activeGroupedAssets.map((group) => {
                         const asset = group.representative;
                         const typeLabel = formatAssetType(asset.cryptoProperties?.assetType || asset.type || '-');
+                        const groupOid = asset.cryptoProperties?.oid?.trim();
                         const rowKey = group.key;
                         const isExpanded = expandedRefs.has(rowKey);
                         const referenceRows = group.references.flatMap((reference, referenceIndex) => {
@@ -2694,11 +2747,14 @@ function CBOMDetailsContent() {
                                   {asset.cryptoProperties?.algorithmProperties?.primitive || '-'}
                                 </TableCell>
                                 <TableCell className="font-mono text-xs text-muted-foreground">
-                                  {asset.cryptoProperties?.oid || '-'}
+                                  {groupOid || '-'}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <Badge variant="secondary" className="rounded-md font-normal tabular-nums">
-                                    {group.references.length} ref{group.references.length === 1 ? '' : 's'}
+                                    {group.references.length}{' '}
+                                    {groupByOid
+                                      ? `asset${group.references.length === 1 ? '' : 's'}`
+                                      : `ref${group.references.length === 1 ? '' : 's'}`}
                                   </Badge>
                                   {group.occurrenceCount !== group.references.length && (
                                     <span className="ml-2 text-xs tabular-nums text-muted-foreground">
@@ -2720,9 +2776,15 @@ function CBOMDetailsContent() {
                                     <div className="mt-2 overflow-hidden rounded-md border bg-background">
                                       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
                                         <div className="flex items-baseline gap-2">
-                                          <span className="text-xs font-medium text-foreground">Linked assets</span>
+                                          <span className="text-xs font-medium text-foreground">
+                                            {groupByOid ? 'OID group' : 'Linked assets'}
+                                          </span>
                                           <span className="text-xs text-muted-foreground">
-                                            Complete bidirectional reference group
+                                            {groupByOid
+                                              ? groupOid
+                                                ? `Assets sharing OID ${groupOid}`
+                                                : 'Assets without an OID'
+                                              : 'Complete bidirectional reference group'}
                                           </span>
                                         </div>
                                         <span className="text-xs tabular-nums text-muted-foreground">
