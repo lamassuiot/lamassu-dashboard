@@ -16,7 +16,9 @@ import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, findCaById, signCertificate } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificate, fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import type { CertificateData } from '@/types/certificate';
+import { fetchDevices, type ApiDevice } from '@/lib/devices-api';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { CaVisualizerCard } from '../CaVisualizerCard';
@@ -506,7 +508,7 @@ interface CmpEnrollModalProps {
     className?: string;
 }
 
-type CmpEnrollmentOperation = 'ir' | 'cr' | 'kur' | 'p10cr';
+type CmpEnrollmentOperation = 'ir' | 'cr' | 'kur' | 'p10cr' | 'rr';
 type CmpConfirmationMode = 'implicit' | 'explicit';
 
 const CMP_ENROLLMENT_OPERATIONS: CardSelectorOption<CmpEnrollmentOperation>[] = [
@@ -534,6 +536,12 @@ const CMP_ENROLLMENT_OPERATIONS: CardSelectorOption<CmpEnrollmentOperation>[] = 
         description: 'PKCS #10 Certification Request. Request a certificate with a self-signed PKCS #10 CSR; authentication comes from the enrollment flow.',
         icon: ShieldCheck,
     },
+    {
+        value: 'rr',
+        label: 'Revocation Request (RR)',
+        description: 'Revocation Request. Revoke an existing certificate, authenticated by the certificate being revoked. No new certificate is issued.',
+        icon: ShieldCheck,
+    },
 ];
 
 const CMP_OPERATION_NAMES: Record<CmpEnrollmentOperation, string> = {
@@ -541,6 +549,7 @@ const CMP_OPERATION_NAMES: Record<CmpEnrollmentOperation, string> = {
     cr: 'Certification Request (CR)',
     kur: 'Key Update Request (KUR)',
     p10cr: 'PKCS #10 Certification Request (P10CR)',
+    rr: 'Revocation Request (RR)',
 };
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
@@ -660,6 +669,27 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const [pinProtectionCert, setPinProtectionCert] = useState(true);
     const [popoMethod, setPopoMethod] = useState<CmpPopoMethod>('signature');
 
+    // Existing issued certificates for this device (subject CN == deviceId).
+    // KUR renews one of these; RR can optionally revoke one. Unlike ir/cr, these
+    // operate on a certificate that already exists in the backend rather than
+    // one produced earlier in this same wizard session, so the operator selects
+    // it here instead of the command assuming a <deviceId>.crt file is present.
+    const [deviceCerts, setDeviceCerts] = useState<CertificateData[]>([]);
+    const [isLoadingDeviceCerts, setIsLoadingDeviceCerts] = useState(false);
+    // Serial of the existing cert the step-3 picker targets — the cert KUR
+    // renews or (when RR is the chosen operation) the cert RR revokes. Empty ⇒
+    // none selected (command falls back to a placeholder the operator fills in).
+    const [existingCertSerial, setExistingCertSerial] = useState('');
+    // Serial the step-5 RR *companion* revokes (only shown for ir/cr/kur/p10cr).
+    // Empty ⇒ the certificate the enrollment command above just issued.
+    const [revokeCertSerial, setRevokeCertSerial] = useState('');
+
+    // Existing devices registered under this RA, so step 1 can offer picking
+    // one (useful for kur/rr, which act on a device that already enrolled)
+    // instead of only typing/generating a fresh device ID.
+    const [raDevices, setRaDevices] = useState<ApiDevice[]>([]);
+    const [isLoadingRaDevices, setIsLoadingRaDevices] = useState(false);
+
     // ── Effects ─────────────────────────────────────────────────────────────
     useEffect(() => {
         if (!isOpen) return;
@@ -681,6 +711,64 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         };
         load();
     }, [isOpen]);
+
+    // Load the device's existing ACTIVE certificates (subject CN == deviceId)
+    // so KUR/RR can target a real, already-issued cert. Keyed on deviceId — for
+    // the common case it's a fixed GUID set once; a manual edit refetches, which
+    // is acceptable. Only the public certificate is fetched; the matching
+    // private key stays on the device and the operator supplies it themselves.
+    useEffect(() => {
+        if (!isOpen || !deviceId.trim()) { setDeviceCerts([]); return; }
+        let cancelled = false;
+        const load = async () => {
+            setIsLoadingDeviceCerts(true);
+            try {
+                const params = new URLSearchParams({ sort_by: 'valid_from', sort_mode: 'desc', page_size: '50' });
+                params.append('filter', 'status[equal]ACTIVE');
+                params.append('filter', `subject.common_name[equal]${deviceId.trim()}`);
+                const { certificates } = await fetchIssuedCertificates({ apiQueryString: params.toString() });
+                if (cancelled) return;
+                const leaves = certificates.filter((c) => !c.rawApiData?.is_ca);
+                setDeviceCerts(leaves);
+                // Default the KUR selection to the most recent cert; also reset
+                // if the previously-selected serial isn't in the new list (e.g.
+                // the device id changed), so we never keep a stale selection.
+                setExistingCertSerial((prev) =>
+                    leaves.some((c) => c.serialNumber === prev) ? prev : (leaves[0]?.serialNumber ?? ''));
+                setRevokeCertSerial((prev) =>
+                    leaves.some((c) => c.serialNumber === prev) ? prev : '');
+            } catch {
+                if (!cancelled) setDeviceCerts([]);
+            } finally {
+                if (!cancelled) setIsLoadingDeviceCerts(false);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, [isOpen, deviceId]);
+
+    // Load the devices registered under this RA so step 1 can offer selecting
+    // an existing one. Skipped when the wizard is opened for a fixed device
+    // (initialDeviceId), since the id is then locked.
+    useEffect(() => {
+        if (!isOpen || !ra?.id || initialDeviceId) { setRaDevices([]); return; }
+        let cancelled = false;
+        const load = async () => {
+            setIsLoadingRaDevices(true);
+            try {
+                const params = new URLSearchParams({ sort_by: 'creation_timestamp', sort_mode: 'desc', page_size: '100' });
+                params.append('filter', `dms_owner[equal]${ra.id}`);
+                const result = await fetchDevices(params);
+                if (!cancelled) setRaDevices(result.list ?? []);
+            } catch {
+                if (!cancelled) setRaDevices([]);
+            } finally {
+                if (!cancelled) setIsLoadingRaDevices(false);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, [isOpen, ra?.id, initialDeviceId]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -858,10 +946,20 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         if (step === 1) {
             if (!deviceId.trim()) { sileo.error({ title: 'Device ID required' }); return; }
             setBootstrapCn(deviceId.trim());
-            setStep(2);
+            // Revocation has no CRMF proof-of-possession or certConf to
+            // configure, so it skips the "Flow variant" step and goes straight
+            // to selecting the certificate to revoke.
+            setStep(selectedOperation === 'rr' ? 3 : 2);
         } else if (step === 2) {
             setStep(3);
         } else if (step === 3) {
+            if (selectedOperation === 'kur' || selectedOperation === 'rr') {
+                // KUR/RR act on an existing certificate (renew / revoke), not by
+                // a bootstrap cert — there is nothing to issue here, and no
+                // Credentials step. Jump straight to the commands.
+                setStep(5);
+                return;
+            }
             if (!requiresClientCert) {
                 // This RA's auth_mode doesn't validate a client certificate at
                 // all — there's nothing to issue, so behave like "Skip".
@@ -931,6 +1029,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
     const handleBack = () => {
         if (step === 5 && !bootstrapCertificate) setStep(3);
+        else if (step === 3 && selectedOperation === 'rr') setStep(1); // RR skipped step 2
         else setStep((p) => (p > 1 ? p - 1 : 1));
     };
 
@@ -1071,7 +1170,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // it immediately in step 2 avoids the confusing experience of a POPO selector
     // that shows a method selected yet marked disabled, with no visible reason
     // until several steps later.
-    const noUsablePopoWarning = !hasUsablePopo && !usingCkg && selectedOperation !== 'p10cr' && (
+    const noUsablePopoWarning = !hasUsablePopo && !usingCkg && selectedOperation !== 'p10cr' && selectedOperation !== 'rr' && (
         <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>No proof-of-possession method this wizard can produce</AlertTitle>
@@ -1135,6 +1234,13 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         : `curl -sf "${caApiBase}/cas?page_size=100" \\\n    | jq -r '.list[].certificate.certificate' \\\n    | while IFS= read -r c; do echo "$c" | base64 -d; done > enrollca.pem`;
 
     const fetchProtectionCert = `curl -sf "${caApiBase}/certificates/${(protectionSerial ?? '').toLowerCase()}" \\\n    | jq -r '.certificate' | base64 -d > srvcert.pem`;
+
+    // Fetch an issued certificate (public) by serial into outFile — used by
+    // KUR/RR, which operate on a cert that already exists in the backend. The
+    // certificates endpoint keys on the colon-stripped serial.
+    const certApiSerial = (s: string) => s.replace(/:/g, '').toLowerCase();
+    const fetchCertBySerial = (serial: string, outFile: string) =>
+        `curl -sf "${caApiBase}/certificates/${certApiSerial(serial)}" \\\n    | jq -r '.certificate' | base64 -d > ${outFile}`;
 
     // Verification flag lines shared by ir/kur/rr, each terminated with a line
     // continuation. RR ends on these flags, so it strips the trailing "\".
@@ -1246,21 +1352,44 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         `    --cert-out ${finalDeviceId}.crt`,
     ].join('\n');
 
+    const renewSerial = existingCertSerial || '<serial-of-cert-to-renew>';
+    // The fetch is offered COMMENTED, not run automatically: it must not
+    // overwrite the device's real certificate with one that may not match the
+    // OLDKEY the operator has (that produces openssl's "cert and key do not
+    // match"). Each command line is prefixed so the whole helper is inert
+    // until the operator deliberately uncomments it.
+    const kurFetchCommented = `#   ${fetchCertBySerial(renewSerial, '"$OLDCERT"').replace(/\n/g, '\n#   ')}`;
     const kurCommand = [
-        `# Key Update Request (kur) — renew the device cert with a fresh key. Per`,
-        `# RFC 9483 §4.1.3 the KUR is protected with the cert being updated, so`,
-        `# ${finalDeviceId}.crt is passed as both -cert (signer) and -oldcert.`,
-        `# Note: this requires the enrollment CA itself to be trusted as a CMP`,
-        `# signer — i.e. present in the RA's client_certificate_settings.validation_cas.`,
+        `# Key Update Request (kur) — renew a certificate with a fresh key.`,
+        `# Per RFC 9483 §4.1.3 the KUR is authenticated by the certificate being`,
+        `# renewed TOGETHER WITH the private key it was issued for — a matching`,
+        `# pair the device holds (the dashboard cannot supply the key). openssl`,
+        `# refuses locally with "cert and key do not match" if OLDCERT and OLDKEY`,
+        `# are not a pair, and the server rejects renewing a revoked/expired cert.`,
+        `# (KUR also requires the enrollment CA to be a trusted CMP signer, i.e.`,
+        `# present in client_certificate_settings.validation_cas.)`,
+        `#`,
+        `# Point these at the device's CURRENT matching cert+key. If it enrolled`,
+        `# via the IR command here, they are ${finalDeviceId}.crt / ${finalDeviceId}.key.`,
+        `# After a previous renewal, its current key is the -new.key that run`,
+        `# produced — set OLDKEY to that (and OLDCERT to its cert) instead.`,
+        `OLDCERT=${finalDeviceId}.crt`,
+        `OLDKEY=${finalDeviceId}.key`,
+        `#`,
+        `# If you don't have the certificate file, fetch the cert matching OLDKEY`,
+        `# (uncomment — make sure the serial is the cert your OLDKEY belongs to):`,
+        kurFetchCommented,
+        `#`,
+        `# Generate the fresh key the renewed certificate will use:`,
         newKeyCmd,
         ``,
         `openssl cmp \\`,
         `    -cmd kur \\`,
         `    -server ${cmpServerUrl} \\`,
         `    -path ${cmpServerPath} \\`,
-        `    -cert ${finalDeviceId}.crt -key ${finalDeviceId}.key \\`,
-        `    -extracerts ${finalDeviceId}.crt \\`,
-        `    -oldcert ${finalDeviceId}.crt \\`,
+        `    -cert "$OLDCERT" -key "$OLDKEY" \\`,
+        `    -extracerts "$OLDCERT" \\`,
+        `    -oldcert "$OLDCERT" \\`,
         `    -newkey ${finalDeviceId}-new.key \\`,
         ...verifyFlagLines,
         ...implicitLine,
@@ -1303,24 +1432,54 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         `    -certout ${finalDeviceId}.crt`,
     ].join('\n');
 
-    // RR revokes the certificate the SELECTED operation produced: kur writes
-    // "<id>-new.crt", every other enrollment writes "<id>.crt".
-    const revokeCertFile = selectedOperation === 'kur' ? `${finalDeviceId}-new.crt` : `${finalDeviceId}.crt`;
-    const revokeKeyFile = selectedOperation === 'kur' ? `${finalDeviceId}-new.key` : `${finalDeviceId}.key`;
+    // RR target. When RR is the CHOSEN operation, it revokes the certificate
+    // selected in step 3 (existingCertSerial). When RR is the step-5 COMPANION
+    // to an enrollment, it defaults to the certificate that enrollment just
+    // produced (kur writes "<id>-new.crt", every other enrollment "<id>.crt")
+    // — which the operator has in hand — but can instead target any of the
+    // device's existing issued certs (revokeCertSerial). Either "fetch an
+    // existing cert" case supplies the device-held key as revokecert.key.
+    const rrIsPrimary = selectedOperation === 'rr';
+    const rrSelectedSerial = rrIsPrimary ? existingCertSerial : revokeCertSerial;
+    const rrUsesSelectedCert = rrIsPrimary || revokeCertSerial !== '';
+    const rrFetchSerial = rrSelectedSerial || '<serial-of-cert-to-revoke>';
+    // Default companion target: the cert the enrollment above just issued (kur
+    // writes "<id>-new.crt", every other enrollment "<id>.crt") — the operator
+    // has that matching pair in hand, so RR can reference it directly.
+    const defaultRevokeCertFile = selectedOperation === 'kur' ? `${finalDeviceId}-new.crt` : `${finalDeviceId}.crt`;
+    const defaultRevokeKeyFile = selectedOperation === 'kur' ? `${finalDeviceId}-new.key` : `${finalDeviceId}.key`;
+    // Selecting a specific existing cert to revoke has the same matching-pair
+    // constraint as KUR: the key must be the one THAT cert was issued for, which
+    // the dashboard can't know. So use explicit REVCERT/REVKEY the operator sets,
+    // and offer the fetch commented so it never clobbers a good local cert.
+    const rrRevFetchCommented = `#   ${fetchCertBySerial(rrFetchSerial, '"$REVCERT"').replace(/\n/g, '\n#   ')}`;
     // RR issues no certificate, so its final flag is the last verification flag.
     const rrVerifyLines = verifyFlagLines.map((l, i) =>
         i === verifyFlagLines.length - 1 ? l.replace(/ \\$/, '') : l);
     const rrCommand = [
-        `# Revocation Request (rr) — revoke the certificate issued above.`,
-        `# Authenticated and identified by the cert being revoked.`,
+        `# Revocation Request (rr) — revoke a certificate.`,
+        ...(rrUsesSelectedCert ? [
+            `# Authenticated by the certificate being revoked TOGETHER WITH the private`,
+            `# key it was issued for — a matching pair the device holds (the dashboard`,
+            `# cannot supply the key). openssl refuses with "cert and key do not match"`,
+            `# if REVCERT and REVKEY are not a pair. Point them at that cert and its key:`,
+            `REVCERT=revokecert.crt`,
+            `REVKEY=revokecert.key`,
+            `#`,
+            `# If you don't have the certificate file, fetch the selected cert`,
+            `# (uncomment — its REVKEY must be the key this cert was issued for):`,
+            rrRevFetchCommented,
+            ``,
+        ] : []),
         ...(rrReason ? [`# This DMS restricts revocation reasons; pinned to "${rrReason}" (-revreason ${rrReasonCode}).`] : []),
+        ...(!rrUsesSelectedCert ? [`# Authenticated and identified by the cert the command above issued.`] : []),
         `openssl cmp \\`,
         `    -cmd rr \\`,
         `    -server ${cmpServerUrl} \\`,
         `    -path ${cmpServerPath} \\`,
-        `    -cert ${revokeCertFile} -key ${revokeKeyFile} \\`,
-        `    -extracerts ${revokeCertFile} \\`,
-        `    -oldcert ${revokeCertFile} \\`,
+        `    -cert ${rrUsesSelectedCert ? '"$REVCERT" -key "$REVKEY"' : `${defaultRevokeCertFile} -key ${defaultRevokeKeyFile}`} \\`,
+        `    -extracerts ${rrUsesSelectedCert ? '"$REVCERT"' : defaultRevokeCertFile} \\`,
+        `    -oldcert ${rrUsesSelectedCert ? '"$REVCERT"' : defaultRevokeCertFile} \\`,
         ...(rrReasonCode !== undefined ? [`    -revreason ${rrReasonCode} \\`] : []),
         ...rrVerifyLines,
     ].join('\n');
@@ -1331,7 +1490,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // actually selected). RR is shown alongside as the revocation companion for
     // whatever cert the chosen operation issues.
     const primaryEnrollCommand =
-        selectedOperation === 'kur' ? kurCommand
+        selectedOperation === 'rr' ? rrCommand
+        : selectedOperation === 'kur' ? kurCommand
         : selectedOperation === 'p10cr' ? p10crCommand
         : enrollCommand;
     const primaryEnrollLabel = CMP_OPERATION_NAMES[selectedOperation];
@@ -1349,8 +1509,16 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
                 <div className="pt-2">
                     <Stepper
-                        currentStep={step}
-                        steps={['Request', 'Flow variant', 'Bootstrap', 'Credentials', 'Commands']}
+                        currentStep={
+                            selectedOperation === 'rr' ? (step === 1 ? 1 : step === 3 ? 2 : 3)
+                            : selectedOperation === 'kur' && step === 5 ? 4
+                            : step
+                        }
+                        steps={
+                            selectedOperation === 'rr' ? ['Request', 'Certificate', 'Command']
+                            : selectedOperation === 'kur' ? ['Request', 'Flow variant', 'Certificate', 'Commands']
+                            : ['Request', 'Flow variant', 'Bootstrap', 'Credentials', 'Commands']
+                        }
                     />
                 </div>
 
@@ -1380,6 +1548,28 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
                             <div className="space-y-2">
                                 <Label htmlFor="cmp-device-id">Device ID</Label>
+                                {!initialDeviceId && (
+                                    <Select
+                                        value={raDevices.some((d) => d.id === deviceId) ? deviceId : ''}
+                                        onValueChange={setDeviceId}
+                                        disabled={isLoadingRaDevices || raDevices.length === 0}
+                                    >
+                                        <SelectTrigger id="cmp-device-select">
+                                            <SelectValue placeholder={
+                                                isLoadingRaDevices ? 'Loading devices…'
+                                                : raDevices.length === 0 ? 'No existing devices for this RA'
+                                                : 'Select an existing device from this RA…'
+                                            } />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {raDevices.map((d) => (
+                                                <SelectItem key={d.id} value={d.id}>
+                                                    {d.id}{d.status ? ` — ${d.status}` : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
                                 <div className="flex items-center gap-2">
                                     <Input id="cmp-device-id" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} placeholder="e.g., test-1, sensor-12345" disabled={!!initialDeviceId} />
                                     <Button type="button" variant="outline" size="icon"
@@ -1389,6 +1579,14 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         <RefreshCwIcon className="h-4 w-4" />
                                     </Button>
                                 </div>
+                                {!initialDeviceId && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Pick an existing device from this RA, type an ID, or generate a random one
+                                        {(selectedOperation === 'kur' || selectedOperation === 'rr')
+                                            ? ' — for renewal/revocation, choose the device whose certificate you are acting on.'
+                                            : '.'}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}
@@ -1507,7 +1705,49 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
                     {step === 3 && (
                         <div className="space-y-4">
-                            {requiresClientCert ? (
+                            {(selectedOperation === 'kur' || selectedOperation === 'rr') ? (
+                                <div className="space-y-2">
+                                    <Label htmlFor="cmp-renew-cert">Certificate to {selectedOperation === 'rr' ? 'revoke' : 'renew'}</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Active certificates issued to <code className="font-mono">CN={finalDeviceId}</code>.
+                                        The request is authenticated by this certificate <strong>and the exact private key
+                                        it was issued for</strong> — a matching pair the device holds (the dashboard never
+                                        has the key). The command below takes them as{' '}
+                                        <code className="font-mono">{selectedOperation === 'rr' ? 'REVCERT' : 'OLDCERT'}</code>/<code className="font-mono">{selectedOperation === 'rr' ? 'REVKEY' : 'OLDKEY'}</code>{' '}
+                                        for you to point at that pair; if the device was renewed before, its current key is
+                                        the <code className="font-mono">-new.key</code> from that run, not the original.
+                                    </p>
+                                    {isLoadingDeviceCerts && (
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading certificates…
+                                        </div>
+                                    )}
+                                    {!isLoadingDeviceCerts && deviceCerts.length === 0 && (
+                                        <Alert variant="warning">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            <AlertTitle>No active certificates found for this device</AlertTitle>
+                                            <AlertDescUI className="text-xs">
+                                                No <code className="font-mono">ACTIVE</code> certificate with{' '}
+                                                <code className="font-mono">CN={finalDeviceId}</code> was found on this backend.
+                                                You can still generate the command — it will contain a placeholder serial you
+                                                must replace with the certificate you are {selectedOperation === 'rr' ? 'revoking' : 'renewing'}.
+                                            </AlertDescUI>
+                                        </Alert>
+                                    )}
+                                    {!isLoadingDeviceCerts && deviceCerts.length > 0 && (
+                                        <Select value={existingCertSerial} onValueChange={setExistingCertSerial}>
+                                            <SelectTrigger id="cmp-renew-cert"><SelectValue placeholder="Select a certificate…" /></SelectTrigger>
+                                            <SelectContent>
+                                                {deviceCerts.map((c) => (
+                                                    <SelectItem key={c.serialNumber} value={c.serialNumber}>
+                                                        {c.serialNumber}{c.validTo ? ` — expires ${c.validTo.slice(0, 10)}` : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                </div>
+                            ) : requiresClientCert ? (
                                 <>
                                     <div>
                                         <Label htmlFor="cmp-bootstrap-cn">Bootstrap Common Name (CN)</Label>
@@ -1599,8 +1839,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 </Alert>
                             )}
 
+                            {selectedOperation !== 'rr' && (
                             <div className="border-t pt-4 space-y-4">
-                                <Label>Device key parameters (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
+                                <Label>{selectedOperation === 'kur' ? 'New device key parameters' : 'Device key parameters'} (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
 
                                 {selectedOperation === 'ir' && (
                                     <RadioGroup
@@ -1726,6 +1967,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     </Alert>
                                 )}
                             </div>
+                            )}
                         </div>
                     )}
 
@@ -1849,7 +2091,11 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             <div>
                                 <Label>{primaryEnrollLabel}</Label>
                                 <p className="text-xs text-muted-foreground mb-1">
-                                    {selectedOperation === 'kur'
+                                    {selectedOperation === 'rr'
+                                        ? <>Revoke the selected certificate. Authenticated by that certificate&apos;s private
+                                            key, which the device holds — supply it as{' '}
+                                            <code className="font-mono">revokecert.key</code>. No new certificate is issued.</>
+                                        : selectedOperation === 'kur'
                                         ? <>Renew an existing device certificate with a fresh key. The previously-issued
                                             cert authenticates the request — the enrollment CA must be in{' '}
                                             <code className="font-mono">validation_cas</code> for this to be accepted.</>
@@ -1907,12 +2153,29 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 </div>
                             )}
 
+                            {selectedOperation !== 'rr' && (
                             <div className="border-t pt-4">
                                 <Label>Revocation Request (RR)</Label>
                                 <p className="text-xs text-muted-foreground mb-1">
-                                    Companion command to revoke the certificate the {selectedOperation.toUpperCase()} above
-                                    issues — run it whenever you need to retire that certificate.
+                                    Companion command to revoke a certificate. By default it revokes the one the{' '}
+                                    {selectedOperation.toUpperCase()} above issues; or pick an existing certificate to revoke
+                                    instead — the command then fetches it and you supply its device-held key as{' '}
+                                    <code className="font-mono">revokecert.key</code>.
                                 </p>
+                                <div className="mb-2 space-y-1">
+                                    <Label htmlFor="cmp-revoke-cert" className="text-xs">Certificate to revoke</Label>
+                                    <Select value={revokeCertSerial || '__enrolled__'} onValueChange={(v) => setRevokeCertSerial(v === '__enrolled__' ? '' : v)}>
+                                        <SelectTrigger id="cmp-revoke-cert"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="__enrolled__">The certificate enrolled above</SelectItem>
+                                            {deviceCerts.map((c) => (
+                                                <SelectItem key={c.serialNumber} value={c.serialNumber}>
+                                                    {c.serialNumber}{c.validTo ? ` — expires ${c.validTo.slice(0, 10)}` : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 {!rrEnabled && (
                                     <Alert variant="warning" className="mb-2">
                                         <AlertTriangle className="h-4 w-4" />
@@ -1924,6 +2187,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 )}
                                 <CodeBlock content={rrCommand} textareaClassName="h-44" />
                             </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1938,7 +2202,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 <ArrowLeft className="mr-2 h-4 w-4" />Back
                             </Button>
                         )}
-                        {step === 3 && requiresClientCert && (
+                        {step === 3 && requiresClientCert && selectedOperation !== 'kur' && (
                             <Button variant="secondary" onClick={handleSkipBootstrap}>
                                 Skip &amp; Use Existing
                             </Button>
@@ -1947,7 +2211,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             <Button onClick={handleNext} disabled={isGenerating}>
                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 {step === 3
-                                    ? (requiresClientCert ? 'Issue Bootstrap Cert' : 'Next')
+                                    ? (selectedOperation === 'kur' ? 'Show Commands' : requiresClientCert ? 'Issue Bootstrap Cert' : 'Next')
                                     : step === 4 ? 'Show Commands' : 'Next'}
                             </Button>
                         ) : (
