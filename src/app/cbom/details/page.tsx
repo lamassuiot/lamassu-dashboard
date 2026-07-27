@@ -2497,6 +2497,7 @@ function CBOMDetailsContent() {
                           <TableHead className="w-10" />
                           <TableHead>Certificate</TableHead>
                           <TableHead>Issuer</TableHead>
+                          <TableHead className="w-40">OID</TableHead>
                           <TableHead className="w-44">Path status</TableHead>
                           <TableHead className="w-40 text-right">Files / refs</TableHead>
                           <ComplianceMatrixHeaders entries={complianceMatrix} />
@@ -2507,6 +2508,7 @@ function CBOMDetailsContent() {
                           <TableHead>Cryptographic asset</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Primitive</TableHead>
+                          <TableHead className="w-40">OID</TableHead>
                           {groupByRef ? (
                             <TableHead className="text-right">References</TableHead>
                           ) : (
@@ -2602,6 +2604,9 @@ function CBOMDetailsContent() {
                                 {row.node.issuerName || '-'}
                               </span>
                             </TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {asset.cryptoProperties?.oid || '-'}
+                            </TableCell>
                             <TableCell>
                               <Badge
                                 variant={
@@ -2688,6 +2693,9 @@ function CBOMDetailsContent() {
                                 <TableCell className="text-muted-foreground">
                                   {asset.cryptoProperties?.algorithmProperties?.primitive || '-'}
                                 </TableCell>
+                                <TableCell className="font-mono text-xs text-muted-foreground">
+                                  {asset.cryptoProperties?.oid || '-'}
+                                </TableCell>
                                 <TableCell className="text-right">
                                   <Badge variant="secondary" className="rounded-md font-normal tabular-nums">
                                     {group.references.length} ref{group.references.length === 1 ? '' : 's'}
@@ -2706,7 +2714,7 @@ function CBOMDetailsContent() {
                               {isExpanded && (
                                 <TableRow key={`${rowKey}-occurrences`} className="hover:bg-transparent">
                                   <TableCell
-                                    colSpan={5 + complianceColumnCount}
+                                    colSpan={6 + complianceColumnCount}
                                     className="bg-muted/20 px-10 pb-3 pt-0"
                                   >
                                     <div className="mt-2 overflow-hidden rounded-md border bg-background">
@@ -2727,6 +2735,7 @@ function CBOMDetailsContent() {
                                             <TableRow className="hover:bg-transparent">
                                               <TableHead className="h-8 px-3">Asset</TableHead>
                                               <TableHead className="h-8 w-36 px-3">Type</TableHead>
+                                              <TableHead className="h-8 w-40 px-3">OID</TableHead>
                                               <TableHead className="h-8 w-64 px-3">Reference</TableHead>
                                               <TableHead className="h-8 px-3">Location</TableHead>
                                               <ComplianceMatrixHeaders
@@ -2753,6 +2762,9 @@ function CBOMDetailsContent() {
                                                     || reference.asset.type
                                                     || '-',
                                                   )}
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                                                  {reference.asset.cryptoProperties?.oid || '-'}
                                                 </TableCell>
                                                 <TableCell className="max-w-64 px-3 py-2">
                                                   <code
@@ -2824,6 +2836,9 @@ function CBOMDetailsContent() {
                               <TableCell className="font-medium">{asset.name || '-'}</TableCell>
                               <TableCell>{typeLabel}</TableCell>
                               <TableCell>{asset.cryptoProperties?.algorithmProperties?.primitive || '-'}</TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {asset.cryptoProperties?.oid || '-'}
+                              </TableCell>
                               <TableCell>
                                 {location !== '-' ? (
                                   <span className="inline-flex items-center gap-1 text-primary">
