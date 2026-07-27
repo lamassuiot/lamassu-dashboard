@@ -210,25 +210,18 @@ export function CmpGenmPlannedCapabilities({
       <div className="space-y-2">
         <Label className="text-sm">Enabled information types</Label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {GENM_INFO_TYPES.map((t) => (
+          {GENM_INFO_TYPES.filter((t) => t.live).map((t) => (
             <div key={t.key} className="flex items-center justify-between rounded-md border p-2 text-sm">
-              <span className="flex items-center gap-2">
-                {t.label}
-                {!t.live && (
-                  <Badge variant="outline" className="text-[9px] text-muted-foreground">Unsupported</Badge>
-                )}
-              </span>
+              <span>{t.label}</span>
               <Switch
                 checked={informationTypes[t.key]}
-                disabled={!t.live}
                 onCheckedChange={(checked) => onInformationTypesChange({ ...informationTypes, [t.key]: checked })}
               />
             </div>
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          Types marked <em>Unsupported</em> are recognized by the protocol layer but have no data provider yet, so
-          the CA cannot answer them regardless of this toggle — those switches stay off and disabled.
+          Only the id-it information types the CA can actually answer are listed.
         </p>
       </div>
     </div>
@@ -532,7 +525,7 @@ export function CmpPlannedOperationTabs({
 
         <Separator />
 
-        <SettingsSection title="Trust & Migration" description="Extra CAs to accept as the signer of the certificate being renewed, beyond the current enrollment CA — useful when migrating between CA hierarchies.">
+        <SettingsSection title="Trust" description="Extra CAs to accept as the signer of the certificate being renewed, beyond the current enrollment CA — useful when migrating between CA hierarchies.">
           <div className="space-y-1.5">
             <Label>Additional trusted CAs for migration</Label>
             <div className="space-y-2">
@@ -570,25 +563,12 @@ export function CmpPlannedOperationTabs({
             </div>
             <Switch id="cmpCkgEnabled" checked={ckg.enabled} onCheckedChange={ckg.onEnabledChange} />
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label>Allowed recipient mechanisms</Label>
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] font-medium text-amber-600 dark:text-amber-400">Planned</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">The mechanism that wraps the generated key is currently chosen automatically from the recipient certificate's key type. Per-DMS control is not yet enforced.</p>
-            <div className="flex items-center justify-between rounded-md border p-2 opacity-70">
-              <span className="text-sm">RSA key transport (KTRI)</span><Switch checked disabled />
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-2 opacity-70">
-              <span className="text-sm">ECDH key agreement (KARI)</span><Switch checked disabled />
-            </div>
-          </div>
         </SettingsSection>
       </TabsContent>
 
       {/* ── Revocation Request / Response (RR/RP) ── */}
       <TabsContent value="rr" className="mt-0">
-        <SettingsSection title={operationTitle('RR / RP', 'Revocation')} description="Lets a device (or a trusted RA) revoke a certificate over CMP.">
+        <SettingsSection title="Revocation" description="Lets a device (or a trusted RA) revoke a certificate over CMP.">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
@@ -617,7 +597,7 @@ export function CmpPlannedOperationTabs({
 
         <Separator />
 
-        <SettingsSection title={operationTitle('RR / RP', 'Reasons & Recovery')} description="Which revocation reasons this DMS accepts, and whether a hold can be undone.">
+        <SettingsSection title="Reasons & Recovery" description="Which revocation reasons this DMS accepts, and whether a hold can be undone.">
           <PlannedRow label="Allowed revocation reasons">
             <CheckboxList
               options={REVOCATION_REASON_OPTIONS}
@@ -632,7 +612,7 @@ export function CmpPlannedOperationTabs({
 
       {/* ── Cross-Certification Request / Response (CCR/CCP) ── */}
       <TabsContent value="ccr" className="mt-0">
-        <SettingsSection title={operationTitle('CCR / CCP', 'Cross-Certification')} description="A privileged CA-to-CA operation. Disabled by default.">
+        <SettingsSection title="Cross-Certification" description="A privileged CA-to-CA operation. Disabled by default.">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
@@ -647,7 +627,7 @@ export function CmpPlannedOperationTabs({
 
         <Separator />
 
-        <SettingsSection title={operationTitle('CCR / CCP', 'Validity & Approval')} description="How long a cross-certificate may be valid for, and whether an administrator must approve it first.">
+        <SettingsSection title="Validity & Approval" description="How long a cross-certificate may be valid for, and whether an administrator must approve it first.">
           <PlannedRow label="Maximum validity">
             <DurationInput id="ccr-max-validity" label="" value={ccr.maximum_validity} onChange={(v) => onCcrChange({ maximum_validity: v })} placeholder="e.g., 8760h" />
           </PlannedRow>
