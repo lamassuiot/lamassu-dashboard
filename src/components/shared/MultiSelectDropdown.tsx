@@ -12,12 +12,14 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Option {
   value: string;
   label: string;
+  badge?: string;
 }
 
 interface MultiSelectDropdownProps {
@@ -96,7 +98,17 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
             onCheckedChange={() => handleSelect(option.value)}
             onSelect={(e) => e.preventDefault()} // Prevent menu from closing on item click
           >
-            {option.label}
+            <span className="flex w-full items-center justify-between gap-2">
+              <span>{option.label}</span>
+              {option.badge && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 rounded-sm px-1.5 py-0 text-xs font-normal text-muted-foreground"
+                >
+                  {option.badge}
+                </Badge>
+              )}
+            </span>
           </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuContent>

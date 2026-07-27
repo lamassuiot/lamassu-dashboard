@@ -1,6 +1,17 @@
 // src/lib/cbom-api.ts
 import { get_CBOM_API_BASE_URL, handleApiError } from './api-domains';
 
+function getComplianceCheckUrl(
+  policyIdentifier: string,
+  parameters: Record<string, string> = {},
+): string {
+  const params = new URLSearchParams({
+    ...parameters,
+    policyIdentifier,
+  });
+  return `${get_CBOM_API_BASE_URL()}/compliance/check?${params.toString()}`;
+}
+
 // CBOM Types
 export interface CBOMItem {
   projectIdentifier: string;
@@ -198,12 +209,7 @@ export async function checkStoredCBOMCompliance(
   policyIdentifier: string, 
   accessToken: string
 ): Promise<ComplianceCheckResult> {
-  const params = new URLSearchParams({
-    projectIdentifier,
-    policyIdentifier,
-  });
-  
-  const url = `${get_CBOM_API_BASE_URL()}/compliance/check?${params.toString()}`;
+  const url = getComplianceCheckUrl(policyIdentifier, { projectIdentifier });
   const response = await fetch(url, {
     headers: { 
       'Authorization': `Bearer ${accessToken}`,
@@ -224,10 +230,8 @@ export async function checkCBOMCompliance(
   policyIdentifier: string, 
   accessToken: string
 ): Promise<ComplianceCheckResult> {
-  const params = new URLSearchParams({ policyIdentifier });
   const body = typeof cbomData === 'string' ? cbomData : JSON.stringify(cbomData);
-  
-  const url = `${get_CBOM_API_BASE_URL()}/compliance/check?${params.toString()}`;
+  const url = getComplianceCheckUrl(policyIdentifier);
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -251,8 +255,7 @@ export async function runComplianceCheck(
   policyIdentifier: string,
   accessToken: string,
 ): Promise<QuantumSafeComplianceResult> {
-  const params = new URLSearchParams({ policyIdentifier });
-  const url = `${get_CBOM_API_BASE_URL()}/compliance/check?${params.toString()}`;
+  const url = getComplianceCheckUrl(policyIdentifier);
   const response = await fetch(url, {
     method: 'POST',
     headers: {

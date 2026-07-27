@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import {
   Table,
@@ -19,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { cn } from '@/lib/utils';
 import {
   CBOMItem,
@@ -91,6 +89,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
+
+const RECENT_CBOM_LIMIT = 25;
 
 const resolveProjectIdentifier = (cbomData: unknown): string => {
   if (!cbomData || typeof cbomData !== 'object') {
@@ -181,35 +181,12 @@ export default function CBOMPage() {
   const [isLoadingTable, setIsLoadingTable] = useState(true);
   const [tableError, setTableError] = useState<string | null>(null);
   const [recentCboms, setRecentCboms] = useState<CBOMItem[]>([]);
-  const [tableLimit, setTableLimit] = useState(5);
-
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    project: true,
-    cbomType: true,
-    date: true,
-    assets: true,
-    findings: true,
-    action: true,
-  });
-
-  const columns: ColumnConfig[] = [
-    { id: 'project', label: 'Project / Repository', visible: columnVisibility.project, disabled: true },
-    { id: 'cbomType', label: 'CBOM Type', visible: columnVisibility.cbomType },
-    { id: 'date', label: 'Date of Scan', visible: columnVisibility.date },
-    { id: 'assets', label: 'Total Assets', visible: columnVisibility.assets },
-    { id: 'findings', label: 'Findings', visible: columnVisibility.findings },
-    { id: 'action', label: 'Action', visible: columnVisibility.action },
-  ];
 
   const [cbomTypeFilter, setCbomTypeFilter] = useState<CBOMType | 'all'>('all');
 
   const filteredCboms = cbomTypeFilter === 'all'
     ? recentCboms
     : recentCboms.filter((item) => getCBOMType(item) === cbomTypeFilter);
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
-  };
 
   const [scanUrl, setScanUrl] = useState('');
   const [isHelpDrawerOpen, setIsHelpDrawerOpen] = useState(false);
@@ -259,7 +236,7 @@ export default function CBOMPage() {
     setIsLoadingTable(true);
     setTableError(null);
     try {
-      const data = await fetchRecentCBOMs(tableLimit, user.access_token);
+      const data = await fetchRecentCBOMs(RECENT_CBOM_LIMIT, user.access_token);
       setRecentCboms(Array.isArray(data) ? data : []);
     } catch (error) {
       setRecentCboms([]);
@@ -267,7 +244,7 @@ export default function CBOMPage() {
     } finally {
       setIsLoadingTable(false);
     }
-  }, [tableLimit, user?.access_token]);
+  }, [user?.access_token]);
 
   const handleDeleteCbom = useCallback(async () => {
     if (!cbomToDelete || !user?.access_token) return;
@@ -885,22 +862,6 @@ export default function CBOMPage() {
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-end gap-2">
-            {(recentCboms.length > 0 || isLoadingTable) && (
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="tableLimitSelect" className="text-xs text-muted-foreground whitespace-nowrap">Show</Label>
-                <Select value={String(tableLimit)} onValueChange={(v) => setTableLimit(Number(v))} disabled={isLoadingTable}>
-                  <SelectTrigger id="tableLimitSelect" className="h-8 w-[72px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             {recentCboms.length > 0 && (
               <div className="flex items-center gap-1">
                 <span className="mr-1 text-xs text-muted-foreground">Type:</span>
@@ -943,35 +904,19 @@ export default function CBOMPage() {
         )}
 
         {!tableError && recentCboms.length > 0 && (
-          <>
-            <div className="flex justify-end">
-              <ColumnSelector columns={columns} onColumnToggle={handleColumnToggle} align="end" />
-            </div>
-            <div className={cn(
-              'overflow-x-auto transition-opacity duration-300',
-              isLoadingTable && 'pointer-events-none opacity-50',
-            )}>
+          <div className={cn(
+            'overflow-x-auto transition-opacity duration-300',
+            isLoadingTable && 'pointer-events-none opacity-50',
+          )}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {columnVisibility.project && (
-                      <TableHead className="w-[300px]">Project / Repository</TableHead>
-                    )}
-                    {columnVisibility.cbomType && (
-                      <TableHead className="w-32">CBOM Type</TableHead>
-                    )}
-                    {columnVisibility.date && (
-                      <TableHead className="w-40">Date of Scan</TableHead>
-                    )}
-                    {columnVisibility.assets && (
-                      <TableHead className="w-28 text-right">Total Assets</TableHead>
-                    )}
-                    {columnVisibility.findings && (
-                      <TableHead className="w-28 text-right">Findings</TableHead>
-                    )}
-                    {columnVisibility.action && (
-                      <TableHead className="w-24 text-right">Actions</TableHead>
-                    )}
+                    <TableHead className="w-[300px]">Project / Repository</TableHead>
+                    <TableHead className="w-32">CBOM Type</TableHead>
+                    <TableHead className="w-40">Date of Scan</TableHead>
+                    <TableHead className="w-28 text-right">Total Assets</TableHead>
+                    <TableHead className="w-28 text-right">Findings</TableHead>
+                    <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -986,153 +931,140 @@ export default function CBOMPage() {
                     const rowSubtitle = filesystemScanInfo?.urn;
                     return (
                       <TableRow key={`${item.projectIdentifier}-${index}`} className="group">
-                        {columnVisibility.project && (
-                          <TableCell>
-                            <div className="flex min-w-0 items-center gap-2">
-                              {isDockerImageScan ? (
-                                <>
-                                  <Image
-                                    src={DockerLogoBlue}
-                                    width={20}
-                                    height={20}
-                                    alt=""
-                                    aria-hidden="true"
-                                    className="shrink-0 dark:hidden"
-                                  />
-                                  <Image
-                                    src={DockerLogoWhite}
-                                    width={20}
-                                    height={20}
-                                    alt=""
-                                    aria-hidden="true"
-                                    className="hidden shrink-0 dark:block"
-                                  />
-                                </>
-                              ) : cbomType === 'filesystem' ? (
-                                <FolderOpen className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
-                              ) : cbomType === 'realtime' ? (
-                                <EthernetPort className="h-5 w-5 shrink-0 text-purple-500" aria-hidden="true" />
-                              ) : (
-                                <GitGraph className="h-5 w-5 shrink-0 text-blue-500" aria-hidden="true" />
-                              )}
-                              <div className="flex min-w-0 flex-col">
-                                <div className="flex min-w-0 items-center gap-1.5">
-                                  <Link
-                                    href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
-                                    className="truncate text-sm font-medium hover:underline"
-                                    title={rowDisplayName}
-                                  >
-                                    {rowDisplayName}
-                                  </Link>
-                                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60" />
-                                </div>
-                                {rowSubtitle && (
-                                  <span className="truncate text-xs text-muted-foreground" title={rowSubtitle}>
-                                    {rowSubtitle}
-                                  </span>
-                                )}
+                        <TableCell>
+                          <div className="flex min-w-0 items-center gap-2">
+                            {isDockerImageScan ? (
+                              <>
+                                <Image
+                                  src={DockerLogoBlue}
+                                  width={20}
+                                  height={20}
+                                  alt=""
+                                  aria-hidden="true"
+                                  className="shrink-0 dark:hidden"
+                                />
+                                <Image
+                                  src={DockerLogoWhite}
+                                  width={20}
+                                  height={20}
+                                  alt=""
+                                  aria-hidden="true"
+                                  className="hidden shrink-0 dark:block"
+                                />
+                              </>
+                            ) : cbomType === 'filesystem' ? (
+                              <FolderOpen className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+                            ) : cbomType === 'realtime' ? (
+                              <EthernetPort className="h-5 w-5 shrink-0 text-purple-500" aria-hidden="true" />
+                            ) : (
+                              <GitGraph className="h-5 w-5 shrink-0 text-blue-500" aria-hidden="true" />
+                            )}
+                            <div className="flex min-w-0 flex-col">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <Link
+                                  href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
+                                  className="truncate text-sm font-medium hover:underline"
+                                  title={rowDisplayName}
+                                >
+                                  {rowDisplayName}
+                                </Link>
+                                <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60" />
                               </div>
+                              {rowSubtitle && (
+                                <span className="truncate text-xs text-muted-foreground" title={rowSubtitle}>
+                                  {rowSubtitle}
+                                </span>
+                              )}
                             </div>
-                          </TableCell>
-                        )}
-                        {columnVisibility.cbomType && (
-                          <TableCell className="w-32">
-                            <Badge
-                              variant="outline"
-                              className={
-                                cbomType === 'gitrepo'
-                                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs'
-                                  : cbomType === 'filesystem'
-                                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs'
-                                    : 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs'
-                              }
-                            >
-                              {cbomType}
-                            </Badge>
-                          </TableCell>
-                        )}
-                        {columnVisibility.date && (
-                          <TableCell className="w-40">
-                            {scanDate ? (
-                              <DateDisplay
-                                date={scanDate}
-                                formatString="dd/MM/yyyy HH:mm"
-                                className="text-xs"
-                                relativeClassName="text-xs"
-                              />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                        )}
-                        {columnVisibility.assets && (
-                          <TableCell className="w-28 text-right tabular-nums">
-                            {assetCount !== undefined ? (
-                              <span className="text-sm font-medium">{assetCount}</span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                        )}
-                        {columnVisibility.findings && (
-                          <TableCell className="w-28 text-right tabular-nums">
-                            {findingsCount !== undefined ? (
-                              <span className="text-sm font-medium">{findingsCount}</span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                        )}
-                        {columnVisibility.action && (
-                          <TableCell className="w-24 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">CBOM Actions</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    {assetCount !== undefined
-                                      ? `View ${assetCount} asset${assetCount !== 1 ? 's' : ''}`
-                                      : 'View Assets'}
-                                    <ArrowRight className="ml-auto h-3 w-3" />
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const dataStr = JSON.stringify(item.data || item, null, 2);
-                                    const blob = new Blob([dataStr], { type: 'application/json' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `cbom-${item.projectIdentifier}.json`;
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                  }}
-                                >
-                                  <Download className="mr-2 h-4 w-4" /> Download JSON
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => setCbomToDelete(item.projectIdentifier)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-32">
+                          <Badge
+                            variant="outline"
+                            className={
+                              cbomType === 'gitrepo'
+                                ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs'
+                                : cbomType === 'filesystem'
+                                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs'
+                                  : 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs'
+                            }
+                          >
+                            {cbomType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="w-40">
+                          {scanDate ? (
+                            <DateDisplay
+                              date={scanDate}
+                              formatString="dd/MM/yyyy HH:mm"
+                              className="text-xs"
+                              relativeClassName="text-xs"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-28 text-right tabular-nums">
+                          {assetCount !== undefined ? (
+                            <span className="text-sm font-medium">{assetCount}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-28 text-right tabular-nums">
+                          {findingsCount !== undefined ? (
+                            <span className="text-sm font-medium">{findingsCount}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-24 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                                <span className="sr-only">CBOM Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  {assetCount !== undefined
+                                    ? `View ${assetCount} asset${assetCount !== 1 ? 's' : ''}`
+                                    : 'View Assets'}
+                                  <ArrowRight className="ml-auto h-3 w-3" />
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  const dataStr = JSON.stringify(item.data || item, null, 2);
+                                  const blob = new Blob([dataStr], { type: 'application/json' });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `cbom-${item.projectIdentifier}.json`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" /> Download JSON
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setCbomToDelete(item.projectIdentifier)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
-            </div>
-          </>
+          </div>
         )}
 
         {!tableError && !isLoadingTable && filteredCboms.length === 0 && recentCboms.length > 0 && (

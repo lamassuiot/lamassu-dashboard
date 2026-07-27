@@ -7,7 +7,8 @@ import Image from 'next/image';
 import DockerLogoBlue from '@/app/docker_blue.svg';
 import DockerLogoWhite from '@/app/docker_white.svg';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeComplianceResult } from '@/lib/cbom-api';
+import { fetchCBOM, deleteCBOM, CBOMItem, type QuantumSafeComplianceResult } from '@/lib/cbom-api';
+import { runCompliancePolicyChecks } from '@/lib/cbom-compliance';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +25,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -139,6 +139,128 @@ interface CBOMDetailsData {
 type FilterColumn = 'name' | 'type' | 'primitive' | 'location';
 type AssetFilters = Record<FilterColumn, string[]>;
 type AssetViewMode = 'table' | 'file-tree' | 'network-graph' | 'network-table';
+type ComplianceLevel = QuantumSafeComplianceResult['complianceLevels'][number];
+
+const COMPLIANCE_POLICY_OPTIONS = [
+  { value: 'quantum_safe', label: 'quantum_safe' },
+  { value: 'pqc', label: 'pqc', badge: 'External Policy' },
+  { value: 'eccg_v2', label: 'eccg_v2', badge: 'External Policy' },
+] as const;
+
+interface ComplianceMatrixEntry {
+  policyId: string;
+  result: QuantumSafeComplianceResult;
+  findingsMap: Map<string, number>;
+}
+
+function buildComplianceFindingsMap(result: QuantumSafeComplianceResult): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const finding of result.findings) {
+    if (!map.has(finding.bomRef)) {
+      map.set(finding.bomRef, finding.levelId);
+    }
+  }
+  return map;
+}
+
+function getComplianceLevelsForRefs(
+  entry: ComplianceMatrixEntry,
+  bomRefs: Array<string | undefined>,
+): ComplianceLevel[] {
+  const levelIds = new Set(
+    bomRefs
+      .filter((bomRef): bomRef is string => Boolean(bomRef))
+      .map((bomRef) => entry.findingsMap.get(bomRef))
+      .filter((levelId): levelId is number => levelId !== undefined),
+  );
+
+  return Array.from(levelIds)
+    .map((levelId) => entry.result.complianceLevels.find((level) => level.id === levelId))
+    .filter((level): level is ComplianceLevel => Boolean(level));
+}
+
+function ComplianceLevelBadge({ level }: { level: ComplianceLevel }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+      style={{
+        borderColor: `${level.colorHex}88`,
+        color: level.colorHex,
+        background: `${level.colorHex}18`,
+      }}
+    >
+      {level.label}
+    </span>
+  );
+}
+
+function ComplianceMatrixHeaders({
+  entries,
+  className,
+}: {
+  entries: ComplianceMatrixEntry[];
+  className?: string;
+}) {
+  if (entries.length === 0) {
+    return <TableHead className={className}>Compliance</TableHead>;
+  }
+
+  return (
+    <>
+      {entries.map(({ policyId, result }) => (
+        <TableHead
+          key={policyId}
+          className={cn('min-w-32', className)}
+          title={`Compliance policy: ${result.policyName || policyId}`}
+        >
+          <span className="block text-xs font-medium text-foreground">
+            {result.policyName || policyId}
+          </span>
+          <span className="block text-xs font-normal text-muted-foreground">Compliance</span>
+        </TableHead>
+      ))}
+    </>
+  );
+}
+
+function ComplianceMatrixCells({
+  entries,
+  bomRefs,
+  className,
+}: {
+  entries: ComplianceMatrixEntry[];
+  bomRefs: Array<string | undefined>;
+  className?: string;
+}) {
+  if (entries.length === 0) {
+    return (
+      <TableCell className={className}>
+        <span className="text-xs text-muted-foreground">-</span>
+      </TableCell>
+    );
+  }
+
+  return (
+    <>
+      {entries.map((entry) => {
+        const levels = getComplianceLevelsForRefs(entry, bomRefs);
+        return (
+          <TableCell key={entry.policyId} className={className}>
+            {levels.length === 0 ? (
+              <span className="text-xs text-muted-foreground">-</span>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {levels.map((level) => (
+                  <ComplianceLevelBadge key={level.id} level={level} />
+                ))}
+              </div>
+            )}
+          </TableCell>
+        );
+      })}
+    </>
+  );
+}
 
 interface FileTreeEntry {
   assetName: string;
@@ -158,11 +280,10 @@ interface FileTreeNode {
 
 interface FileTreeViewProps {
   root: FileTreeNode;
-  complianceFindingsMap: Map<string, number>;
-  complianceResult: QuantumSafeComplianceResult | null;
+  complianceMatrix: ComplianceMatrixEntry[];
 }
 
-function FileTreeView({ root, complianceFindingsMap, complianceResult }: FileTreeViewProps) {
+function FileTreeView({ root, complianceMatrix }: FileTreeViewProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   function renderNode(nodes: Map<string, FileTreeNode>, depth: number): React.ReactNode {
@@ -185,13 +306,7 @@ function FileTreeView({ root, complianceFindingsMap, complianceResult }: FileTre
               </span>
             </div>
             <div style={{ paddingLeft: `${indent + 30}px` }}>
-              {node.entries.map((entry, i) => {
-                const levelId = entry.assetRef ? complianceFindingsMap.get(entry.assetRef) : undefined;
-                const level =
-                  levelId !== undefined
-                    ? complianceResult?.complianceLevels.find((l) => l.id === levelId)
-                    : undefined;
-                return (
+              {node.entries.map((entry, i) => (
                   <div
                     key={i}
                     className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-border/40 py-1 text-xs last:border-0"
@@ -206,21 +321,25 @@ function FileTreeView({ root, complianceFindingsMap, complianceResult }: FileTre
                     {entry.context && (
                       <span className="text-muted-foreground">{entry.context}</span>
                     )}
-                    {level && (
-                      <span
-                        className="inline-flex items-center rounded-full border px-1.5 py-px text-xs font-medium"
-                        style={{
-                          borderColor: `${level.colorHex}88`,
-                          color: level.colorHex,
-                          background: `${level.colorHex}18`,
-                        }}
-                      >
-                        {level.label}
-                      </span>
-                    )}
+                    {complianceMatrix.map((matrixEntry) => {
+                      const levels = getComplianceLevelsForRefs(matrixEntry, [entry.assetRef]);
+                      return (
+                        <span key={matrixEntry.policyId} className="inline-flex items-center gap-1">
+                          <span className="text-muted-foreground">
+                            {matrixEntry.result.policyName || matrixEntry.policyId}:
+                          </span>
+                          {levels.length === 0 ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : (
+                            levels.map((level) => (
+                              <ComplianceLevelBadge key={level.id} level={level} />
+                            ))
+                          )}
+                        </span>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                ))}
             </div>
           </div>
         );
@@ -550,8 +669,10 @@ function CBOMDetailsContent() {
     useState<TLSWorkflowConnection | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<CBOMAsset | null>(null);
   const [assetDetailOpen, setAssetDetailOpen] = useState(false);
-  const [complianceResult, setComplianceResult] = useState<QuantumSafeComplianceResult | null>(null);
-  const [compliancePolicyId, setCompliancePolicyId] = useState('quantum_safe');
+  const [complianceResults, setComplianceResults] =
+    useState<Record<string, QuantumSafeComplianceResult>>({});
+  const [selectedCompliancePolicyIds, setSelectedCompliancePolicyIds] =
+    useState<string[]>(['quantum_safe']);
   const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
   const [groupByRef, setGroupByRef] = useState(false);
   const [hierarchyMode, setHierarchyMode] = useState(false);
@@ -569,6 +690,7 @@ function CBOMDetailsContent() {
 
     const loadCBOM = async () => {
       setIsLoading(true);
+      setComplianceResults({});
       try {
         const data = await fetchCBOM(projectId, user.access_token);
         const model = buildDetailsModel(projectId, data);
@@ -628,18 +750,37 @@ function CBOMDetailsContent() {
   };
 
   const handleCheckCompliance = async () => {
-    if (!detailsData?.bom || !user?.access_token || !compliancePolicyId) return;
+    if (
+      !detailsData?.bom
+      || !user?.access_token
+      || selectedCompliancePolicyIds.length === 0
+    ) {
+      return;
+    }
+
     setIsCheckingCompliance(true);
     try {
-      const result = await runComplianceCheck(detailsData.bom, compliancePolicyId, user.access_token);
-      setComplianceResult(result);
-    } catch (error) {
-      console.error('Failed to check compliance:', error);
-      toast({
-        title: 'Compliance Check Failed',
-        description: error instanceof Error ? error.message : 'Failed to run compliance check',
-        variant: 'destructive',
+      const { results, failures } = await runCompliancePolicyChecks(
+        detailsData.bom,
+        selectedCompliancePolicyIds,
+        user.access_token,
+      );
+      const failedPolicies = failures.map((failure) => failure.policyId);
+      failures.forEach(({ policyId, reason }) => {
+        console.error(`Failed to check compliance policy ${policyId}:`, reason);
       });
+      setComplianceResults(results);
+
+      if (failedPolicies.length > 0) {
+        toast({
+          title:
+            failedPolicies.length === selectedCompliancePolicyIds.length
+              ? 'Compliance Checks Failed'
+              : 'Some Compliance Checks Failed',
+          description: `Failed policies: ${failedPolicies.join(', ')}`,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsCheckingCompliance(false);
     }
@@ -702,16 +843,15 @@ function CBOMDetailsContent() {
     { key: 'location', label: 'Filter by Location', placeholder: 'Filter by location...' },
   ];
 
-  const complianceFindingsMap = React.useMemo(() => {
-    const map = new Map<string, number>();
-    if (!complianceResult) return map;
-    for (const finding of complianceResult.findings) {
-      if (!map.has(finding.bomRef)) {
-        map.set(finding.bomRef, finding.levelId);
-      }
-    }
-    return map;
-  }, [complianceResult]);
+  const complianceMatrix = React.useMemo<ComplianceMatrixEntry[]>(
+    () => Object.entries(complianceResults).map(([policyId, result]) => ({
+      policyId,
+      result,
+      findingsMap: buildComplianceFindingsMap(result),
+    })),
+    [complianceResults],
+  );
+  const complianceColumnCount = Math.max(1, complianceMatrix.length);
 
   const groupedAssets = React.useMemo(
     () => groupCBOMAssets(filteredAssets, detailsData?.bom?.dependencies, assets),
@@ -1417,20 +1557,28 @@ function CBOMDetailsContent() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* Compliance controls */}
-                    <Select value={compliancePolicyId} onValueChange={setCompliancePolicyId}>
-                      <SelectTrigger className="h-9 w-44 text-sm">
-                        <SelectValue placeholder="Policy ID" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="quantum_safe">quantum_safe</SelectItem>
-                        <SelectItem value="pqc">pqc</SelectItem>
-                        <SelectItem value="eccg_v2">eccg_v2</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="w-52">
+                      <Label htmlFor="compliance-policy-selector" className="sr-only">
+                        Compliance policies
+                      </Label>
+                      <MultiSelectDropdown
+                        id="compliance-policy-selector"
+                        options={[...COMPLIANCE_POLICY_OPTIONS]}
+                        allOptionValues={COMPLIANCE_POLICY_OPTIONS.map((option) => option.value)}
+                        selectedValues={selectedCompliancePolicyIds}
+                        onChange={setSelectedCompliancePolicyIds}
+                        buttonText="Select policies..."
+                        className="h-9 text-sm"
+                      />
+                    </div>
                     <Button
                       size="sm"
                       onClick={handleCheckCompliance}
-                      disabled={isCheckingCompliance || !compliancePolicyId || !detailsData?.bom}
+                      disabled={
+                        isCheckingCompliance
+                        || selectedCompliancePolicyIds.length === 0
+                        || !detailsData?.bom
+                      }
                     >
                       {isCheckingCompliance ? (
                         <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Checking...</>
@@ -1511,36 +1659,80 @@ function CBOMDetailsContent() {
               </div>
 
               {/* Compliance results */}
-              {complianceResult ? (
-                <div className="space-y-3 mb-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                      complianceResult.globalComplianceStatus
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                    }`}>
-                      {complianceResult.globalComplianceStatus ? 'Compliant' : 'Non-Compliant'}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {complianceResult.complianceServiceName} · Policy <span className="font-medium text-foreground">{complianceResult.policyName}</span>
-                    </span>
-                    <div className="flex flex-wrap gap-2 ml-2">
-                      {complianceResult.complianceLevels.map((level) => {
-                        const count = Array.from(complianceFindingsMap.values()).filter((id) => id === level.id).length;
-                        return (
-                          <span key={level.id} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs" style={{ borderColor: `${level.colorHex}88`, color: level.colorHex }}>
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                            {level.label} · {count}
-                          </span>
-                        );
-                      })}
-                    </div>
+              {complianceMatrix.length > 0 ? (
+                <div className="mb-4 space-y-3">
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-52">Policy</TableHead>
+                          <TableHead className="w-32">Status</TableHead>
+                          <TableHead className="w-24 text-right">Findings</TableHead>
+                          <TableHead>Compliance levels</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {complianceMatrix.map(({ policyId, result, findingsMap }) => (
+                          <TableRow key={policyId}>
+                            <TableCell>
+                              <span className="block text-sm font-medium text-foreground">
+                                {result.policyName || policyId}
+                              </span>
+                              <span className="block font-mono text-xs text-muted-foreground">
+                                {policyId}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'rounded-md font-normal',
+                                  result.globalComplianceStatus
+                                    ? 'border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400'
+                                    : 'border-yellow-500/40 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
+                                )}
+                              >
+                                {result.globalComplianceStatus ? 'Compliant' : 'Non-compliant'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {result.findings.length}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-2">
+                                {result.complianceLevels.map((level) => {
+                                  const count = Array.from(findingsMap.values())
+                                    .filter((levelId) => levelId === level.id).length;
+                                  return (
+                                    <span
+                                      key={level.id}
+                                      className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs"
+                                      style={{
+                                        borderColor: `${level.colorHex}88`,
+                                        color: level.colorHex,
+                                      }}
+                                    >
+                                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                      {level.label} · {count}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                  {!complianceResult.globalComplianceStatus && (
+                  {complianceMatrix.some(({ result }) => !result.globalComplianceStatus) && (
                     <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2.5 dark:border-yellow-800 dark:bg-yellow-900/20">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
                       <p className="text-xs text-yellow-800 dark:text-yellow-300">
-                        This project contains asymmetric cryptographic algorithms that are not quantum-safe. Review the highlighted assets below.
+                        {complianceMatrix.filter(
+                          ({ result }) => !result.globalComplianceStatus,
+                        ).length}{' '}
+                        of {complianceMatrix.length} selected policies reported non-compliant assets.
+                        Review the policy matrix below.
                       </p>
                     </div>
                   )}
@@ -2209,8 +2401,7 @@ function CBOMDetailsContent() {
             <div className="rounded-md border">
               <FileTreeView
                 root={fileTree}
-                complianceFindingsMap={complianceFindingsMap}
-                complianceResult={complianceResult}
+                complianceMatrix={complianceMatrix}
               />
             </div>
           ) : (
@@ -2308,7 +2499,7 @@ function CBOMDetailsContent() {
                           <TableHead>Issuer</TableHead>
                           <TableHead className="w-44">Path status</TableHead>
                           <TableHead className="w-40 text-right">Files / refs</TableHead>
-                          <TableHead>Compliance</TableHead>
+                          <ComplianceMatrixHeaders entries={complianceMatrix} />
                         </>
                       ) : (
                         <>
@@ -2321,7 +2512,7 @@ function CBOMDetailsContent() {
                           ) : (
                             <TableHead>Location</TableHead>
                           )}
-                          <TableHead>Compliance</TableHead>
+                          <ComplianceMatrixHeaders entries={complianceMatrix} />
                         </>
                       )}
                     </TableRow>
@@ -2338,19 +2529,6 @@ function CBOMDetailsContent() {
                         const showSubjectName =
                           Boolean(row.node.subjectName)
                           && row.node.subjectName !== displayName;
-                        const hierarchyLevels = complianceResult
-                          ? Array.from(
-                            new Set(
-                              row.node.bomRefs
-                                .map((bomRef) => complianceFindingsMap.get(bomRef))
-                                .filter((levelId): levelId is number => levelId !== undefined),
-                            ),
-                          )
-                            .map((levelId) =>
-                              complianceResult.complianceLevels.find((level) => level.id === levelId),
-                            )
-                            .filter((level): level is NonNullable<typeof level> => Boolean(level))
-                          : [];
                         const toggleCollapsed = () => {
                           if (!hasChildren) return;
                           setCollapsedHierarchyRows((previous) => {
@@ -2446,27 +2624,10 @@ function CBOMDetailsContent() {
                                 {row.node.bomRefs.length} ref{row.node.bomRefs.length === 1 ? '' : 's'}
                               </span>
                             </TableCell>
-                            <TableCell>
-                              {!complianceResult || hierarchyLevels.length === 0 ? (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              ) : (
-                                <div className="flex flex-wrap gap-1">
-                                  {hierarchyLevels.map((level) => (
-                                    <span
-                                      key={level.id}
-                                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                                      style={{
-                                        borderColor: `${level.colorHex}88`,
-                                        color: level.colorHex,
-                                        background: `${level.colorHex}18`,
-                                      }}
-                                    >
-                                      {level.label}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </TableCell>
+                            <ComplianceMatrixCells
+                              entries={complianceMatrix}
+                              bomRefs={row.node.bomRefs}
+                            />
                           </TableRow>
                         );
                       })
@@ -2498,19 +2659,6 @@ function CBOMDetailsContent() {
                             return next;
                           });
                         };
-                        const groupLevels = complianceResult
-                          ? Array.from(
-                            new Set(
-                              group.bomRefs
-                                .map((bomRef) => complianceFindingsMap.get(bomRef))
-                                .filter((levelId): levelId is number => levelId !== undefined),
-                            ),
-                          )
-                            .map((levelId) =>
-                              complianceResult.complianceLevels.find((level) => level.id === levelId),
-                            )
-                            .filter((level): level is NonNullable<typeof level> => Boolean(level))
-                          : [];
 
                           return (
                             <React.Fragment key={rowKey}>
@@ -2550,27 +2698,17 @@ function CBOMDetailsContent() {
                                     </span>
                                   )}
                                 </TableCell>
-                                <TableCell>
-                                  {!complianceResult || groupLevels.length === 0 ? (
-                                    <span className="text-muted-foreground text-xs">-</span>
-                                  ) : (
-                                    <div className="flex flex-wrap gap-1">
-                                      {groupLevels.map((level) => (
-                                        <span
-                                          key={level.id}
-                                          className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
-                                          style={{ borderColor: `${level.colorHex}88`, color: level.colorHex, background: `${level.colorHex}18` }}
-                                        >
-                                          {level.label}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </TableCell>
+                                <ComplianceMatrixCells
+                                  entries={complianceMatrix}
+                                  bomRefs={group.bomRefs}
+                                />
                               </TableRow>
                               {isExpanded && (
                                 <TableRow key={`${rowKey}-occurrences`} className="hover:bg-transparent">
-                                  <TableCell colSpan={6} className="bg-muted/20 px-10 pb-3 pt-0">
+                                  <TableCell
+                                    colSpan={5 + complianceColumnCount}
+                                    className="bg-muted/20 px-10 pb-3 pt-0"
+                                  >
                                     <div className="mt-2 overflow-hidden rounded-md border bg-background">
                                       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
                                         <div className="flex items-baseline gap-2">
@@ -2583,32 +2721,27 @@ function CBOMDetailsContent() {
                                           {group.references.length} asset{group.references.length === 1 ? '' : 's'}
                                         </span>
                                       </div>
-                                      <Table className="text-xs">
-                                        <TableHeader className="bg-muted/30">
-                                          <TableRow className="hover:bg-transparent">
-                                            <TableHead className="h-8 px-3">Asset</TableHead>
-                                            <TableHead className="h-8 w-36 px-3">Type</TableHead>
-                                            <TableHead className="h-8 w-64 px-3">Reference</TableHead>
-                                            <TableHead className="h-8 px-3">Location</TableHead>
-                                            <TableHead className="h-8 w-32 px-3">Compliance</TableHead>
-                                            {showLine && <TableHead className="h-8 w-16 px-3 text-right">Line</TableHead>}
-                                            {showOffset && <TableHead className="h-8 w-16 px-3 text-right">Offset</TableHead>}
-                                            {showContext && <TableHead className="h-8 w-48 px-3">Context</TableHead>}
-                                          </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                          {referenceRows.map(({ key, reference, occurrence }) => {
-                                            const levelId = reference.bomRef
-                                              ? complianceFindingsMap.get(reference.bomRef)
-                                              : undefined;
-                                            const level = levelId !== undefined
-                                              ? complianceResult?.complianceLevels.find(
-                                                (complianceLevel) => complianceLevel.id === levelId,
-                                              )
-                                              : undefined;
-
-                                            return (
-                                              <TableRow key={key}>
+                                      <div className="overflow-x-auto">
+                                        <Table className="text-xs">
+                                          <TableHeader className="bg-muted/30">
+                                            <TableRow className="hover:bg-transparent">
+                                              <TableHead className="h-8 px-3">Asset</TableHead>
+                                              <TableHead className="h-8 w-36 px-3">Type</TableHead>
+                                              <TableHead className="h-8 w-64 px-3">Reference</TableHead>
+                                              <TableHead className="h-8 px-3">Location</TableHead>
+                                              <ComplianceMatrixHeaders
+                                                entries={complianceMatrix}
+                                                className="h-10 px-3"
+                                              />
+                                              {showLine && <TableHead className="h-8 w-16 px-3 text-right">Line</TableHead>}
+                                              {showOffset && <TableHead className="h-8 w-16 px-3 text-right">Offset</TableHead>}
+                                              {showContext && <TableHead className="h-8 w-48 px-3">Context</TableHead>}
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {referenceRows.map(({ key, reference, occurrence }) => {
+                                              return (
+                                                <TableRow key={key}>
                                                 <TableCell className="max-w-64 px-3 py-2 font-medium text-foreground">
                                                   <span className="block truncate" title={reference.asset.name}>
                                                     {reference.asset.name || '-'}
@@ -2637,22 +2770,11 @@ function CBOMDetailsContent() {
                                                     {occurrence?.location || '-'}
                                                   </span>
                                                 </TableCell>
-                                                <TableCell className="px-3 py-2">
-                                                  {!complianceResult || !level ? (
-                                                    <span className="text-xs text-muted-foreground">-</span>
-                                                  ) : (
-                                                    <span
-                                                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                                                      style={{
-                                                        borderColor: `${level.colorHex}88`,
-                                                        color: level.colorHex,
-                                                        background: `${level.colorHex}18`,
-                                                      }}
-                                                    >
-                                                      {level.label}
-                                                    </span>
-                                                  )}
-                                                </TableCell>
+                                                <ComplianceMatrixCells
+                                                  entries={complianceMatrix}
+                                                  bomRefs={[reference.bomRef]}
+                                                  className="px-3 py-2"
+                                                />
                                                 {showLine && (
                                                   <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                                                     {occurrence?.line ?? '-'}
@@ -2670,11 +2792,12 @@ function CBOMDetailsContent() {
                                                     </span>
                                                   </TableCell>
                                                 )}
-                                              </TableRow>
-                                            );
-                                          })}
-                                        </TableBody>
-                                      </Table>
+                                                </TableRow>
+                                              );
+                                            })}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -2688,10 +2811,6 @@ function CBOMDetailsContent() {
                         const location = firstOccurrence?.location || '-';
                         const line = firstOccurrence?.line;
                         const bomRef = asset['bom-ref'];
-                        const levelId = bomRef ? complianceFindingsMap.get(bomRef) : undefined;
-                        const level = levelId !== undefined
-                          ? complianceResult?.complianceLevels.find((l) => l.id === levelId)
-                          : undefined;
 
                           return (
                             <TableRow
@@ -2715,18 +2834,10 @@ function CBOMDetailsContent() {
                                   '-'
                                 )}
                               </TableCell>
-                              <TableCell>
-                                {!complianceResult || !level ? (
-                                  <span className="text-muted-foreground text-xs">-</span>
-                                ) : (
-                                  <span
-                                    className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
-                                    style={{ borderColor: `${level.colorHex}88`, color: level.colorHex, background: `${level.colorHex}18` }}
-                                  >
-                                    {level.label}
-                                  </span>
-                                )}
-                              </TableCell>
+                              <ComplianceMatrixCells
+                                entries={complianceMatrix}
+                                bomRefs={[bomRef]}
+                              />
                             </TableRow>
                           );
                         })}
