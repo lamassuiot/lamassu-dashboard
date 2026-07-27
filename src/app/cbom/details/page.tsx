@@ -3,12 +3,15 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Editor from '@monaco-editor/react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import DockerLogoBlue from '@/app/docker_blue.svg';
+import DockerLogoWhite from '@/app/docker_white.svg';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeComplianceResult } from '@/lib/cbom-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, Info } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, ExternalLink, EthernetPort, FileQuestion, GitGraph, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, Info } from 'lucide-react';
 import {
   GraphCanvas,
   Sphere,
@@ -54,7 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTr
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
-import { getCBOMType } from '@/lib/cbom-type';
+import { getCBOMType, getFilesystemScanInfo } from '@/lib/cbom-type';
 import {
   cipherStrengthBadge,
   getCipherStrength,
@@ -796,6 +799,18 @@ function CBOMDetailsContent() {
   }, [groupedAssets]);
 
   const cbomType = React.useMemo(() => getCBOMType(detailsData), [detailsData]);
+  const filesystemScanInfo = React.useMemo(
+    () => getFilesystemScanInfo(detailsData),
+    [detailsData],
+  );
+  const isDockerImageScan = filesystemScanInfo?.scanType === 'image';
+  const cbomIconContainerClass = isDockerImageScan
+    ? 'bg-blue-500/10'
+    : cbomType === 'filesystem'
+      ? 'bg-amber-500/10'
+      : cbomType === 'realtime'
+        ? 'bg-purple-500/10'
+        : 'bg-blue-500/10';
   const isRealtimeCBOM = cbomType === 'realtime';
 
   useEffect(() => {
@@ -1112,22 +1127,32 @@ function CBOMDetailsContent() {
 
   if (!cbom) {
     return (
-      <div className="w-full px-6 py-4">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>CBOM Not Found</CardTitle>
-            <CardDescription>The requested CBOM could not be found.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/cbom">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+      <BreadcrumbPage
+        className="flex h-full min-h-full flex-col"
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'CBOM', href: '/cbom' },
+          { label: 'Not found' },
+        ]}
+      >
+        <div className="flex flex-1 items-center justify-center px-4 py-12 text-center">
+          <div className="flex max-w-md flex-col items-center">
+            <FileQuestion className="mb-5 h-10 w-10 text-muted-foreground/60" aria-hidden="true" />
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              CBOM Not Found
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              The requested CBOM could not be found.
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-6">
+              <Link href="/cbom">
+                <ArrowLeft className="h-4 w-4" />
                 Back to CBOM List
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
@@ -1156,8 +1181,38 @@ function CBOMDetailsContent() {
 
           {/* Identity */}
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Shield className="h-6 w-6" />
+            <div
+              className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg',
+                cbomIconContainerClass,
+              )}
+            >
+              {isDockerImageScan ? (
+                <>
+                  <Image
+                    src={DockerLogoBlue}
+                    width={24}
+                    height={24}
+                    alt=""
+                    aria-hidden="true"
+                    className="dark:hidden"
+                  />
+                  <Image
+                    src={DockerLogoWhite}
+                    width={24}
+                    height={24}
+                    alt=""
+                    aria-hidden="true"
+                    className="hidden dark:block"
+                  />
+                </>
+              ) : cbomType === 'filesystem' ? (
+                <FolderOpen className="h-6 w-6 text-amber-500" aria-hidden="true" />
+              ) : cbomType === 'realtime' ? (
+                <EthernetPort className="h-6 w-6 text-purple-500" aria-hidden="true" />
+              ) : (
+                <GitGraph className="h-6 w-6 text-blue-500" aria-hidden="true" />
+              )}
             </div>
             <div className="min-w-0 space-y-2">
               <div>
@@ -2535,61 +2590,89 @@ function CBOMDetailsContent() {
                                             <TableHead className="h-8 w-36 px-3">Type</TableHead>
                                             <TableHead className="h-8 w-64 px-3">Reference</TableHead>
                                             <TableHead className="h-8 px-3">Location</TableHead>
+                                            <TableHead className="h-8 w-32 px-3">Compliance</TableHead>
                                             {showLine && <TableHead className="h-8 w-16 px-3 text-right">Line</TableHead>}
                                             {showOffset && <TableHead className="h-8 w-16 px-3 text-right">Offset</TableHead>}
                                             {showContext && <TableHead className="h-8 w-48 px-3">Context</TableHead>}
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {referenceRows.map(({ key, reference, occurrence }) => (
-                                            <TableRow key={key}>
-                                              <TableCell className="max-w-64 px-3 py-2 font-medium text-foreground">
-                                                <span className="block truncate" title={reference.asset.name}>
-                                                  {reference.asset.name || '-'}
-                                                </span>
-                                              </TableCell>
-                                              <TableCell className="px-3 py-2 text-muted-foreground">
-                                                {formatAssetType(
-                                                  reference.asset.cryptoProperties?.assetType
-                                                  || reference.asset.type
-                                                  || '-',
-                                                )}
-                                              </TableCell>
-                                              <TableCell className="max-w-64 px-3 py-2">
-                                                <code
-                                                  className="block truncate font-mono text-xs text-muted-foreground"
-                                                  title={reference.bomRef}
-                                                >
-                                                  {reference.bomRef || '-'}
-                                                </code>
-                                              </TableCell>
-                                              <TableCell className="max-w-96 px-3 py-2">
-                                                <span
-                                                  className="block truncate font-mono text-xs text-foreground"
-                                                  title={occurrence?.location}
-                                                >
-                                                  {occurrence?.location || '-'}
-                                                </span>
-                                              </TableCell>
-                                              {showLine && (
-                                                <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                                                  {occurrence?.line ?? '-'}
-                                                </TableCell>
-                                              )}
-                                              {showOffset && (
-                                                <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                                                  {occurrence?.offset ?? '-'}
-                                                </TableCell>
-                                              )}
-                                              {showContext && (
-                                                <TableCell className="max-w-48 px-3 py-2 text-muted-foreground">
-                                                  <span className="block truncate" title={occurrence?.additionalContext}>
-                                                    {occurrence?.additionalContext || '-'}
+                                          {referenceRows.map(({ key, reference, occurrence }) => {
+                                            const levelId = reference.bomRef
+                                              ? complianceFindingsMap.get(reference.bomRef)
+                                              : undefined;
+                                            const level = levelId !== undefined
+                                              ? complianceResult?.complianceLevels.find(
+                                                (complianceLevel) => complianceLevel.id === levelId,
+                                              )
+                                              : undefined;
+
+                                            return (
+                                              <TableRow key={key}>
+                                                <TableCell className="max-w-64 px-3 py-2 font-medium text-foreground">
+                                                  <span className="block truncate" title={reference.asset.name}>
+                                                    {reference.asset.name || '-'}
                                                   </span>
                                                 </TableCell>
-                                              )}
-                                            </TableRow>
-                                          ))}
+                                                <TableCell className="px-3 py-2 text-muted-foreground">
+                                                  {formatAssetType(
+                                                    reference.asset.cryptoProperties?.assetType
+                                                    || reference.asset.type
+                                                    || '-',
+                                                  )}
+                                                </TableCell>
+                                                <TableCell className="max-w-64 px-3 py-2">
+                                                  <code
+                                                    className="block truncate font-mono text-xs text-muted-foreground"
+                                                    title={reference.bomRef}
+                                                  >
+                                                    {reference.bomRef || '-'}
+                                                  </code>
+                                                </TableCell>
+                                                <TableCell className="max-w-96 px-3 py-2">
+                                                  <span
+                                                    className="block truncate font-mono text-xs text-foreground"
+                                                    title={occurrence?.location}
+                                                  >
+                                                    {occurrence?.location || '-'}
+                                                  </span>
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2">
+                                                  {!complianceResult || !level ? (
+                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                  ) : (
+                                                    <span
+                                                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                                                      style={{
+                                                        borderColor: `${level.colorHex}88`,
+                                                        color: level.colorHex,
+                                                        background: `${level.colorHex}18`,
+                                                      }}
+                                                    >
+                                                      {level.label}
+                                                    </span>
+                                                  )}
+                                                </TableCell>
+                                                {showLine && (
+                                                  <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                                    {occurrence?.line ?? '-'}
+                                                  </TableCell>
+                                                )}
+                                                {showOffset && (
+                                                  <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                                    {occurrence?.offset ?? '-'}
+                                                  </TableCell>
+                                                )}
+                                                {showContext && (
+                                                  <TableCell className="max-w-48 px-3 py-2 text-muted-foreground">
+                                                    <span className="block truncate" title={occurrence?.additionalContext}>
+                                                      {occurrence?.additionalContext || '-'}
+                                                    </span>
+                                                  </TableCell>
+                                                )}
+                                              </TableRow>
+                                            );
+                                          })}
                                         </TableBody>
                                       </Table>
                                     </div>
