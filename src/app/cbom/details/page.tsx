@@ -68,7 +68,14 @@ import {
   type TLSWorkflowConnection,
 } from '@/components/cbom/TLSWorkflowInspector';
 import { TLSWorkflowSheet } from '@/components/cbom/TLSWorkflowSheet';
-import { groupCBOMAssets, groupCBOMAssetsByOid } from '@/lib/cbom-assets';
+import {
+  groupCBOMAssets,
+  groupCBOMAssetsByOid,
+  groupCBOMAssetsByLocation,
+  groupCBOMAssetsByType,
+  groupCBOMAssetsByPrimitive,
+} from '@/lib/cbom-assets';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   buildCertificateHierarchy,
   type CertificateHierarchyStatus,
@@ -140,6 +147,43 @@ type FilterColumn = 'name' | 'type' | 'primitive' | 'oid' | 'location';
 type AssetFilters = Record<FilterColumn, string[]>;
 type AssetViewMode = 'table' | 'file-tree' | 'network-graph' | 'network-table';
 type ComplianceLevel = QuantumSafeComplianceResult['complianceLevels'][number];
+type GroupByOption = 'none' | 'ref' | 'oid' | 'location' | 'type' | 'primitive';
+
+const GROUP_BY_OPTIONS: Array<{ value: GroupByOption; label: string }> = [
+  { value: 'none', label: 'No grouping' },
+  { value: 'ref', label: 'Ref' },
+  { value: 'oid', label: 'OID' },
+  { value: 'location', label: 'Location' },
+  { value: 'type', label: 'Type' },
+  { value: 'primitive', label: 'Primitive' },
+];
+
+const GROUP_BY_PANEL_LABEL: Record<Exclude<GroupByOption, 'none'>, string> = {
+  ref: 'Linked assets',
+  oid: 'OID group',
+  location: 'Location group',
+  type: 'Type group',
+  primitive: 'Primitive group',
+};
+
+type GroupColumnKey = 'name' | 'type' | 'primitive' | 'oid' | 'location';
+
+const GROUP_COLUMN_LABEL: Record<GroupColumnKey, string> = {
+  name: 'Cryptographic asset',
+  type: 'Type',
+  primitive: 'Primitive',
+  oid: 'OID',
+  location: 'Location',
+};
+
+// The grouped-by column always leads, so the attribute assets share is visible first.
+const GROUP_COLUMN_ORDER: Record<Exclude<GroupByOption, 'none'>, GroupColumnKey[]> = {
+  ref: ['name', 'type', 'primitive', 'oid'],
+  oid: ['oid', 'name', 'type', 'primitive'],
+  type: ['type', 'name', 'primitive', 'oid'],
+  primitive: ['primitive', 'name', 'type', 'oid'],
+  location: ['location', 'name', 'type', 'primitive', 'oid'],
+};
 
 const COMPLIANCE_POLICY_OPTIONS = [
   { value: 'quantum_safe', label: 'quantum_safe' },
@@ -689,10 +733,9 @@ function CBOMDetailsContent() {
   const [complianceResults, setComplianceResults] =
     useState<Record<string, QuantumSafeComplianceResult>>({});
   const [selectedCompliancePolicyIds, setSelectedCompliancePolicyIds] =
-    useState<string[]>(['quantum_safe']);
+    useState<string[]>(COMPLIANCE_POLICY_OPTIONS.map((option) => option.value));
   const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
-  const [groupByRef, setGroupByRef] = useState(false);
-  const [groupByOid, setGroupByOid] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupByOption>('none');
   const [hierarchyMode, setHierarchyMode] = useState(false);
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
   const [collapsedHierarchyRows, setCollapsedHierarchyRows] = useState<Set<string>>(new Set());
@@ -883,7 +926,27 @@ function CBOMDetailsContent() {
     () => groupCBOMAssetsByOid(filteredAssets),
     [filteredAssets],
   );
-  const activeGroupedAssets = groupByOid ? oidGroupedAssets : groupedAssets;
+  const locationGroupedAssets = React.useMemo(
+    () => groupCBOMAssetsByLocation(filteredAssets),
+    [filteredAssets],
+  );
+  const typeGroupedAssets = React.useMemo(
+    () => groupCBOMAssetsByType(filteredAssets),
+    [filteredAssets],
+  );
+  const primitiveGroupedAssets = React.useMemo(
+    () => groupCBOMAssetsByPrimitive(filteredAssets),
+    [filteredAssets],
+  );
+  const activeGroupedAssets = groupBy === 'oid'
+    ? oidGroupedAssets
+    : groupBy === 'location'
+      ? locationGroupedAssets
+      : groupBy === 'type'
+        ? typeGroupedAssets
+        : groupBy === 'primitive'
+          ? primitiveGroupedAssets
+          : groupedAssets;
   const certificateHierarchy = React.useMemo(
     () => buildCertificateHierarchy(assets),
     [assets],
@@ -1323,6 +1386,8 @@ function CBOMDetailsContent() {
     );
   }
 
+  const heroDisplayName = filesystemScanInfo?.target ?? (detailsData?.projectIdentifier || cbom.projectIdentifier);
+
   return (
     <BreadcrumbPage
       className="space-y-5"
@@ -1383,9 +1448,14 @@ function CBOMDetailsContent() {
             </div>
             <div className="min-w-0 space-y-2">
               <div>
-                <h1 className="truncate text-2xl font-semibold tracking-tight" title={detailsData?.projectIdentifier || cbom.projectIdentifier}>
-                  {detailsData?.projectIdentifier || cbom.projectIdentifier}
+                <h1 className="truncate text-2xl font-semibold tracking-tight" title={heroDisplayName}>
+                  {heroDisplayName}
                 </h1>
+                {filesystemScanInfo?.urn && (
+                  <p className="truncate text-xs text-muted-foreground" title={filesystemScanInfo.urn}>
+                    {filesystemScanInfo.urn}
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-muted-foreground">
                   Inspect cryptographic assets, dependencies, network exposure, and compliance results for this CBOM.
                 </p>
@@ -1618,46 +1688,13 @@ function CBOMDetailsContent() {
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                           <Switch
-                            id="group-by-ref"
-                            checked={groupByRef}
-                            onCheckedChange={(checked) => {
-                              setGroupByRef(checked);
-                              if (checked) {
-                                setGroupByOid(false);
-                                setHierarchyMode(false);
-                              }
-                            }}
-                          />
-                          <Label htmlFor="group-by-ref" className="cursor-pointer select-none text-xs">
-                            Group by ref
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="group-by-oid"
-                            checked={groupByOid}
-                            onCheckedChange={(checked) => {
-                              setGroupByOid(checked);
-                              if (checked) {
-                                setGroupByRef(false);
-                                setHierarchyMode(false);
-                              }
-                            }}
-                          />
-                          <Label htmlFor="group-by-oid" className="cursor-pointer select-none text-xs">
-                            Group by OID
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
                             id="certificate-hierarchy"
                             checked={hierarchyMode}
                             disabled={certificateHierarchy.nodes.length === 0}
                             onCheckedChange={(checked) => {
                               setHierarchyMode(checked);
                               if (checked) {
-                                setGroupByRef(false);
-                                setGroupByOid(false);
+                                setGroupBy('none');
                               }
                             }}
                           />
@@ -2479,6 +2516,33 @@ function CBOMDetailsContent() {
                     />
                   </div>
                 ))}
+                <Separator orientation="vertical" className="h-9" />
+                <div className="flex flex-col gap-1 min-w-[160px]">
+                  <Label htmlFor="cbom-group-by-selector" className="text-xs text-muted-foreground">
+                    Group by
+                  </Label>
+                  <Select
+                    value={groupBy}
+                    onValueChange={(value) => {
+                      const nextGroupBy = value as GroupByOption;
+                      setGroupBy(nextGroupBy);
+                      if (nextGroupBy !== 'none') {
+                        setHierarchyMode(false);
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="cbom-group-by-selector" className="h-9 w-full text-sm">
+                      <SelectValue placeholder="No grouping" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GROUP_BY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 {hasSelectedFilters && (
                   <Button
                     variant="ghost"
@@ -2554,17 +2618,26 @@ function CBOMDetailsContent() {
                         </>
                       ) : (
                         <>
-                          {(groupByRef || groupByOid) && <TableHead className="w-8" />}
-                          <TableHead>Cryptographic asset</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Primitive</TableHead>
-                          <TableHead className="w-40">OID</TableHead>
-                          {groupByRef || groupByOid ? (
-                            <TableHead className="text-right">
-                              {groupByOid ? 'Assets' : 'References'}
-                            </TableHead>
+                          {groupBy !== 'none' ? (
+                            <>
+                              <TableHead className="w-8" />
+                              {GROUP_COLUMN_ORDER[groupBy].map((col) => (
+                                <TableHead key={col} className={col === 'oid' ? 'w-40' : undefined}>
+                                  {GROUP_COLUMN_LABEL[col]}
+                                </TableHead>
+                              ))}
+                              <TableHead className="text-right">
+                                {groupBy === 'ref' ? 'References' : 'Assets'}
+                              </TableHead>
+                            </>
                           ) : (
-                            <TableHead>Location</TableHead>
+                            <>
+                              <TableHead>Cryptographic asset</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Primitive</TableHead>
+                              <TableHead className="w-40">OID</TableHead>
+                              <TableHead>Location</TableHead>
+                            </>
                           )}
                           <ComplianceMatrixHeaders entries={complianceMatrix} />
                         </>
@@ -2688,11 +2761,28 @@ function CBOMDetailsContent() {
                           </TableRow>
                         );
                       })
-                      : groupByRef || groupByOid
+                      : groupBy !== 'none'
                         ? activeGroupedAssets.map((group) => {
                         const asset = group.representative;
                         const typeLabel = formatAssetType(asset.cryptoProperties?.assetType || asset.type || '-');
                         const groupOid = asset.cryptoProperties?.oid?.trim();
+                        const groupLocation = getAssetFilterValue(asset, 'location');
+                        const groupType = getAssetFilterValue(asset, 'type');
+                        const groupPrimitive = getAssetFilterValue(asset, 'primitive');
+                        const groupColumns = GROUP_COLUMN_ORDER[groupBy as Exclude<GroupByOption, 'none'>];
+                        const groupColumnContent: Record<GroupColumnKey, { className: string; content: React.ReactNode }> = {
+                          name: { className: 'font-medium text-foreground', content: asset.name || '-' },
+                          type: { className: 'text-muted-foreground', content: typeLabel },
+                          primitive: {
+                            className: 'text-muted-foreground',
+                            content: asset.cryptoProperties?.algorithmProperties?.primitive || '-',
+                          },
+                          oid: { className: 'font-mono text-xs text-muted-foreground', content: groupOid || '-' },
+                          location: {
+                            className: 'font-mono text-xs text-muted-foreground',
+                            content: groupLocation !== '-' ? groupLocation : '-',
+                          },
+                        };
                         const rowKey = group.key;
                         const isExpanded = expandedRefs.has(rowKey);
                         const referenceRows = group.references.flatMap((reference, referenceIndex) => {
@@ -2741,20 +2831,17 @@ function CBOMDetailsContent() {
                                       : <ChevronRight className="h-4 w-4" />}
                                   </Button>
                                 </TableCell>
-                                <TableCell className="font-medium text-foreground">{asset.name || '-'}</TableCell>
-                                <TableCell className="text-muted-foreground">{typeLabel}</TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {asset.cryptoProperties?.algorithmProperties?.primitive || '-'}
-                                </TableCell>
-                                <TableCell className="font-mono text-xs text-muted-foreground">
-                                  {groupOid || '-'}
-                                </TableCell>
+                                {groupColumns.map((col) => (
+                                  <TableCell key={col} className={groupColumnContent[col].className}>
+                                    {groupColumnContent[col].content}
+                                  </TableCell>
+                                ))}
                                 <TableCell className="text-right">
                                   <Badge variant="secondary" className="rounded-md font-normal tabular-nums">
                                     {group.references.length}{' '}
-                                    {groupByOid
-                                      ? `asset${group.references.length === 1 ? '' : 's'}`
-                                      : `ref${group.references.length === 1 ? '' : 's'}`}
+                                    {groupBy === 'ref'
+                                      ? `ref${group.references.length === 1 ? '' : 's'}`
+                                      : `asset${group.references.length === 1 ? '' : 's'}`}
                                   </Badge>
                                   {group.occurrenceCount !== group.references.length && (
                                     <span className="ml-2 text-xs tabular-nums text-muted-foreground">
@@ -2770,21 +2857,25 @@ function CBOMDetailsContent() {
                               {isExpanded && (
                                 <TableRow key={`${rowKey}-occurrences`} className="hover:bg-transparent">
                                   <TableCell
-                                    colSpan={6 + complianceColumnCount}
+                                    colSpan={groupColumns.length + 2 + complianceColumnCount}
                                     className="bg-muted/20 px-10 pb-3 pt-0"
                                   >
                                     <div className="mt-2 overflow-hidden rounded-md border bg-background">
                                       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
                                         <div className="flex items-baseline gap-2">
                                           <span className="text-xs font-medium text-foreground">
-                                            {groupByOid ? 'OID group' : 'Linked assets'}
+                                            {GROUP_BY_PANEL_LABEL[groupBy as Exclude<GroupByOption, 'none'>]}
                                           </span>
                                           <span className="text-xs text-muted-foreground">
-                                            {groupByOid
-                                              ? groupOid
-                                                ? `Assets sharing OID ${groupOid}`
-                                                : 'Assets without an OID'
-                                              : 'Complete bidirectional reference group'}
+                                            {groupBy === 'ref'
+                                              ? 'Complete bidirectional reference group'
+                                              : groupBy === 'oid'
+                                                ? (groupOid ? `Assets sharing OID ${groupOid}` : 'Assets without an OID')
+                                                : groupBy === 'location'
+                                                  ? (groupLocation !== '-' ? `Assets sharing location ${groupLocation}` : 'Assets without a location')
+                                                  : groupBy === 'type'
+                                                    ? (groupType !== '-' ? `Assets sharing type ${formatAssetType(groupType)}` : 'Assets without a type')
+                                                    : (groupPrimitive !== '-' ? `Assets sharing primitive ${groupPrimitive}` : 'Assets without a primitive')}
                                           </span>
                                         </div>
                                         <span className="text-xs tabular-nums text-muted-foreground">

@@ -59,20 +59,51 @@ const getAssetOid = (asset: CBOMAssetForGrouping): string => {
     : '';
 };
 
-export const groupCBOMAssetsByOid = <T extends CBOMAssetForGrouping>(
+const getAssetType = (asset: CBOMAssetForGrouping): string => {
+  const rawAsset = asset as Record<string, unknown>;
+  const cryptoProperties = isRecord(rawAsset.cryptoProperties)
+    ? rawAsset.cryptoProperties
+    : null;
+  const assetType = typeof cryptoProperties?.assetType === 'string'
+    ? cryptoProperties.assetType
+    : undefined;
+  const type = typeof rawAsset.type === 'string' ? rawAsset.type : undefined;
+  return (assetType || type || '').trim();
+};
+
+const getAssetPrimitive = (asset: CBOMAssetForGrouping): string => {
+  const rawAsset = asset as Record<string, unknown>;
+  const cryptoProperties = isRecord(rawAsset.cryptoProperties)
+    ? rawAsset.cryptoProperties
+    : null;
+  const algorithmProperties = isRecord(cryptoProperties?.algorithmProperties)
+    ? cryptoProperties.algorithmProperties
+    : null;
+  return typeof algorithmProperties?.primitive === 'string'
+    ? algorithmProperties.primitive.trim()
+    : '';
+};
+
+const getAssetLocation = (asset: CBOMAssetForGrouping): string =>
+  (asset.evidence?.occurrences?.[0]?.location ?? '').trim();
+
+const groupCBOMAssetsByAttribute = <T extends CBOMAssetForGrouping>(
   assets: readonly T[],
+  getKey: (asset: T) => string,
+  missingGroupKey: string,
+  keyPrefix: string,
 ): GroupedCBOMAsset<T>[] => {
-  const assetsByOid = new Map<string, T[]>();
+  const assetsByKey = new Map<string, T[]>();
 
   assets.forEach((asset) => {
-    const oid = getAssetOid(asset);
-    const groupKey = oid || 'missing-oid';
-    const groupedAssets = assetsByOid.get(groupKey) ?? [];
+    const value = getKey(asset);
+    const groupKey = value || missingGroupKey;
+    const groupedAssets = assetsByKey.get(groupKey) ?? [];
     groupedAssets.push(asset);
-    assetsByOid.set(groupKey, groupedAssets);
+    assetsByKey.set(groupKey, groupedAssets);
   });
 
-  return Array.from(assetsByOid.entries()).map(([groupKey, groupedAssets]) => {
+  return Array.from(assetsByKey.entries()).map(([groupKey, groupedAssets]) => {
     const references = groupedAssets.map((asset) => ({
       bomRef: asset['bom-ref'],
       asset,
@@ -80,7 +111,7 @@ export const groupCBOMAssetsByOid = <T extends CBOMAssetForGrouping>(
     }));
 
     return {
-      key: `cbom-oid-group-${hashIdentity(groupKey)}`,
+      key: `${keyPrefix}-${hashIdentity(groupKey)}`,
       representative: groupedAssets[0],
       references,
       bomRefs: Array.from(
@@ -97,6 +128,26 @@ export const groupCBOMAssetsByOid = <T extends CBOMAssetForGrouping>(
     };
   });
 };
+
+export const groupCBOMAssetsByOid = <T extends CBOMAssetForGrouping>(
+  assets: readonly T[],
+): GroupedCBOMAsset<T>[] =>
+  groupCBOMAssetsByAttribute(assets, getAssetOid, 'missing-oid', 'cbom-oid-group');
+
+export const groupCBOMAssetsByType = <T extends CBOMAssetForGrouping>(
+  assets: readonly T[],
+): GroupedCBOMAsset<T>[] =>
+  groupCBOMAssetsByAttribute(assets, getAssetType, 'missing-type', 'cbom-type-group');
+
+export const groupCBOMAssetsByPrimitive = <T extends CBOMAssetForGrouping>(
+  assets: readonly T[],
+): GroupedCBOMAsset<T>[] =>
+  groupCBOMAssetsByAttribute(assets, getAssetPrimitive, 'missing-primitive', 'cbom-primitive-group');
+
+export const groupCBOMAssetsByLocation = <T extends CBOMAssetForGrouping>(
+  assets: readonly T[],
+): GroupedCBOMAsset<T>[] =>
+  groupCBOMAssetsByAttribute(assets, getAssetLocation, 'missing-location', 'cbom-location-group');
 
 /**
  * Finds every component ref used inside an asset, regardless of the property
