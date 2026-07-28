@@ -2170,6 +2170,24 @@ function CBOMDetailsContent() {
                         </div>
                       )}
 
+                      {/* TLS 1.3 key-logged but still no certificate — actionable */}
+                      {(selectedNetworkNode.data?.authVisibility as string | undefined) === 'not-decrypted' && (
+                        <div className="py-3 first:pt-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">Certificate</p>
+                            <span className={`${chip} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium`}>
+                              Not decrypted
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                            A key-log was configured for this run, yet no certificate was recovered. This is
+                            actionable: the session may have been resumed via PSK (no Certificate sent by design),
+                            the secrets may never have reached the keylog (e.g. a libssl build that wasn&apos;t hooked),
+                            or the rolling-capture re-process may not have caught up yet.
+                          </p>
+                        </div>
+                      )}
+
                       {/* Offered Cipher Suites */}
                       {(selectedNetworkNode.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined)?.length ? (
                         <div className="py-3 first:pt-0">
@@ -2336,6 +2354,7 @@ function CBOMDetailsContent() {
                         const warning = n.data?.warning as string | undefined;
                         const endpoint = n.data?.endpoint as string | undefined;
                         const certificates = n.data?.certificates as CertificateInfo[] | undefined;
+                        const authVisibility = n.data?.authVisibility as string | undefined;
                         const workflowConnection = tlsWorkflowConnectionMap.get(n.id);
                         const cipherStrength = negotiatedCipherSuite ? getCipherStrength(negotiatedCipherSuite) : 'unknown';
                         const csBadge = cipherStrengthBadge[cipherStrength];
@@ -2463,6 +2482,19 @@ function CBOMDetailsContent() {
                                     </p>
                                   ))}
                                 </div>
+                              ) : authVisibility === 'not-decrypted' ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`${chip} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap cursor-default`}>
+                                      Not decrypted
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="max-w-[280px]">
+                                    A key-log was configured but no certificate was recovered for this connection.
+                                    Likely a PSK-resumed session (no Certificate sent), a libssl build whose secrets
+                                    never reached the keylog, or a rolling-capture lag — worth investigating.
+                                  </TooltipContent>
+                                </Tooltip>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
                                   {tlsVersion === '1.3' ? 'Encrypted (TLS 1.3)' : '—'}
