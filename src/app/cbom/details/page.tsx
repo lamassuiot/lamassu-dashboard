@@ -670,6 +670,8 @@ const getHierarchyStatusLabel = (
   switch (status) {
     case 'root':
       return 'Self-issued';
+    case 'verified':
+      return 'Verified issuer';
     case 'ambiguous':
       return `${issuerCandidateCount} issuer candidates`;
     case 'gap':
@@ -683,6 +685,15 @@ const getHierarchyStatusLabel = (
   }
 };
 
+const getAssetPrimitiveDisplay = (asset: CBOMAsset): string => {
+  if (asset.cryptoProperties?.assetType === 'protocol') {
+    const version = asset.cryptoProperties?.protocolProperties?.version;
+    return version ? `TLS ${version}` : '-';
+  }
+
+  return asset.cryptoProperties?.algorithmProperties?.primitive || '-';
+};
+
 const getAssetFilterValue = (asset: CBOMAsset, column: FilterColumn): string => {
   if (column === 'name') {
     return asset.name || '-';
@@ -693,7 +704,7 @@ const getAssetFilterValue = (asset: CBOMAsset, column: FilterColumn): string => 
   }
 
   if (column === 'primitive') {
-    return asset.cryptoProperties?.algorithmProperties?.primitive || '-';
+    return getAssetPrimitiveDisplay(asset);
   }
 
   if (column === 'oid') {
@@ -2574,7 +2585,8 @@ function CBOMDetailsContent() {
                   <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
                     <Info className="h-4 w-4 shrink-0" />
                     <span>
-                      Candidate hierarchy from issuer and subject names only. Paths are not cryptographically validated.
+                      Verified links come from the captured issuer certificate reference; remaining paths are candidates
+                      inferred from issuer and subject names only and are not cryptographically validated.
                     </span>
                   </div>
                   <div className="ml-auto flex flex-wrap items-center gap-3 text-muted-foreground">
@@ -2741,7 +2753,11 @@ function CBOMDetailsContent() {
                                       ? 'secondary'
                                       : 'outline'
                                 }
-                                className="rounded-md font-normal"
+                                className={`rounded-md font-normal${
+                                  row.status === 'verified'
+                                    ? ' border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                    : ''
+                                }`}
                               >
                                 {getHierarchyStatusLabel(row.status, row.node.parentIds.length)}
                               </Badge>
@@ -2775,7 +2791,7 @@ function CBOMDetailsContent() {
                           type: { className: 'text-muted-foreground', content: typeLabel },
                           primitive: {
                             className: 'text-muted-foreground',
-                            content: asset.cryptoProperties?.algorithmProperties?.primitive || '-',
+                            content: getAssetPrimitiveDisplay(asset),
                           },
                           oid: { className: 'font-mono text-xs text-muted-foreground', content: groupOid || '-' },
                           location: {
@@ -2988,7 +3004,7 @@ function CBOMDetailsContent() {
                             >
                               <TableCell className="font-medium">{asset.name || '-'}</TableCell>
                               <TableCell>{typeLabel}</TableCell>
-                              <TableCell>{asset.cryptoProperties?.algorithmProperties?.primitive || '-'}</TableCell>
+                              <TableCell>{getAssetPrimitiveDisplay(asset)}</TableCell>
                               <TableCell className="font-mono text-xs text-muted-foreground">
                                 {asset.cryptoProperties?.oid || '-'}
                               </TableCell>

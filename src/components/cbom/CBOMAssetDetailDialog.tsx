@@ -13,6 +13,7 @@ import {
 import { ExternalLink } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { CodeBlock } from '@/components/shared/CodeBlock';
 import {
     Table,
     TableBody,
@@ -42,9 +43,16 @@ export interface CBOMAssetDetail {
             parameterSetIdentifier?: string;
             cryptoFunctions?: string[];
         };
+        protocolProperties?: {
+            type?: string;
+            version?: string;
+        };
         certificateProperties?: {
+            certificateFormat?: string;
             issuerName?: string;
             subjectName?: string;
+            notValidBefore?: string;
+            notValidAfter?: string;
             subjectPublicKeyRef?: string;
             signatureAlgorithmRef?: string;
         };
@@ -56,6 +64,7 @@ export interface CBOMAssetDetail {
             algorithmRef?: string;
         };
     };
+    properties?: Array<{ name?: string; value?: string }>;
 }
 
 interface CodeContext {
@@ -294,6 +303,36 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
             : []),
     ];
 
+    const certificateProperties = asset.cryptoProperties?.certificateProperties;
+    const certificateFields: Array<{ label: string; value: string; mono?: boolean; wide?: boolean }> = [
+        ...(certificateProperties?.certificateFormat
+            ? [{ label: 'Certificate Format', value: certificateProperties.certificateFormat }]
+            : []),
+        ...(certificateProperties?.subjectName
+            ? [{ label: 'Subject', value: certificateProperties.subjectName, wide: true }]
+            : []),
+        ...(certificateProperties?.issuerName
+            ? [{ label: 'Issuer', value: certificateProperties.issuerName, wide: true }]
+            : []),
+        ...(certificateProperties?.notValidBefore
+            ? [{ label: 'Valid From', value: certificateProperties.notValidBefore, mono: true }]
+            : []),
+        ...(certificateProperties?.notValidAfter
+            ? [{ label: 'Valid Until', value: certificateProperties.notValidAfter, mono: true }]
+            : []),
+        ...(certificateProperties?.subjectPublicKeyRef
+            ? [{ label: 'Subject Public Key', value: certificateProperties.subjectPublicKeyRef, mono: true }]
+            : []),
+        ...(certificateProperties?.signatureAlgorithmRef
+            ? [{ label: 'Signature Algorithm', value: certificateProperties.signatureAlgorithmRef, mono: true }]
+            : []),
+    ];
+
+    const pemValue = (asset.properties ?? []).find((p) => p.name === 'live-cbom:pem')?.value;
+    const otherProperties = (asset.properties ?? []).filter(
+        (p) => p.name && p.name !== 'live-cbom:pem' && p.value,
+    );
+
     const isCompliant = complianceInfo.category === 'N/A';
 
     return (
@@ -347,6 +386,66 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
                             ))}
                         </dl>
                     </section>
+
+                    {certificateFields.length > 0 && (
+                        <>
+                            <Separator />
+                            <section className="px-6 py-5">
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                                    Certificate
+                                </h3>
+                                <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+                                    {certificateFields.map((field) => (
+                                        <div key={field.label} className={field.wide ? 'col-span-2' : ''}>
+                                            <dt className="text-xs text-muted-foreground mb-0.5">{field.label}</dt>
+                                            <dd className={`text-sm font-medium break-all${field.mono ? ' font-mono' : ''}`}>
+                                                {field.value}
+                                            </dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            </section>
+                        </>
+                    )}
+
+                    {pemValue && (
+                        <>
+                            <Separator />
+                            <section className="px-6 py-5">
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                                    PEM
+                                </h3>
+                                <CodeBlock
+                                    content={pemValue}
+                                    language="plaintext"
+                                    showDownload
+                                    downloadFilename={`${(asset.name || 'certificate').replace(/[^\w.-]+/g, '_')}.pem`}
+                                    downloadMimeType="application/x-pem-file"
+                                />
+                            </section>
+                        </>
+                    )}
+
+                    {otherProperties.length > 0 && (
+                        <>
+                            <Separator />
+                            <section className="px-6 py-5">
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                                    Other Properties
+                                </h3>
+                                <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+                                    {otherProperties.map((property, index) => (
+                                        <div key={`${property.name}-${index}`} className="col-span-2">
+                                            <dt className="text-xs text-muted-foreground mb-0.5">{property.name}</dt>
+                                            <dd className="text-sm font-medium break-all font-mono">
+                                                {property.value}
+                                            </dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            </section>
+                        </>
+                    )}
 
                     <Separator />
 

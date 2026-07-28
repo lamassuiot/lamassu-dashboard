@@ -24,11 +24,13 @@ export interface CertificateHierarchyAsset {
       value?: string;
     };
   };
+  properties?: Array<{ name?: string; value?: string }>;
 }
 
 export type CertificateHierarchyStatus =
   | 'root'
   | 'linked'
+  | 'verified'
   | 'ambiguous'
   | 'gap'
   | 'unnamed'
@@ -44,9 +46,11 @@ export interface CertificateHierarchyNode<T extends CertificateHierarchyAsset> {
   issuerName: string;
   subjectPublicKeyRef: string;
   signatureAlgorithmRef: string;
+  issuerCertificateRef: string;
   parentIds: string[];
   childIds: string[];
   isSelfIssued: boolean;
+  isRefLinked: boolean;
 }
 
 export interface CertificateHierarchyRow<T extends CertificateHierarchyAsset> {
@@ -97,15 +101,28 @@ const getNodeStatus = <T extends CertificateHierarchyAsset>(
   if (!node.subjectName) return 'unnamed';
   if (node.isSelfIssued) return 'root';
   if (node.parentIds.length === 0) return 'gap';
+  if (node.isRefLinked) return 'verified';
   if (node.parentIds.length > 1) return 'ambiguous';
   return 'linked';
 };
 
+const getIssuerCertificateRef = <T extends CertificateHierarchyAsset>(
+  certificate: T,
+): string =>
+  normalizeName(
+    certificate.properties?.find((property) => property.name === 'live-cbom:issuerCertificateRef')
+      ?.value,
+  );
+
 /**
- * Builds nominal certificate candidates using issuer-name to subject-name
- * matching only. It deliberately does not accept or inspect CycloneDX
- * dependencies because those edges describe cryptographic composition, not
- * issuer hierarchy.
+ * Builds the certificate hierarchy. When a certificate carries a
+ * `live-cbom:issuerCertificateRef` property that resolves to another
+ * certificate in the set, that ref is authoritative and used as the sole
+ * parent (status `verified`). Otherwise it falls back to nominal
+ * issuer-name/subject-name matching (status `linked`/`ambiguous`), since that
+ * is inferred rather than observed. It deliberately does not accept or
+ * inspect CycloneDX dependencies because those edges describe cryptographic
+ * composition, not issuer hierarchy.
  */
 export const buildCertificateHierarchy = <T extends CertificateHierarchyAsset>(
   assets: readonly T[],
@@ -141,12 +158,17 @@ export const buildCertificateHierarchy = <T extends CertificateHierarchyAsset>(
     ].join('\u0000');
     const existing = nodeByIdentity.get(identity);
 
+    const issuerCertificateRef = getIssuerCertificateRef(certificate);
+
     if (existing) {
       existing.assets.push(certificate);
       if (certificate['bom-ref'] && !existing.bomRefs.includes(certificate['bom-ref'])) {
         existing.bomRefs.push(certificate['bom-ref']);
       }
       existing.occurrences.push(...(certificate.evidence?.occurrences ?? []));
+      if (!existing.issuerCertificateRef && issuerCertificateRef) {
+        existing.issuerCertificateRef = issuerCertificateRef;
+      }
       return;
     }
 
@@ -160,15 +182,18 @@ export const buildCertificateHierarchy = <T extends CertificateHierarchyAsset>(
       issuerName,
       subjectPublicKeyRef,
       signatureAlgorithmRef,
+      issuerCertificateRef,
       parentIds: [],
       childIds: [],
       isSelfIssued: Boolean(subjectName && issuerName && subjectName === issuerName),
+      isRefLinked: false,
     });
   });
 
   const nodes = Array.from(nodeByIdentity.values());
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodesBySubject = new Map<string, CertificateHierarchyNode<T>[]>();
+  const nodeIdByBomRef = new Map<string, string>();
 
   nodes.forEach((node) => {
     if (!node.subjectName) return;
@@ -178,13 +203,31 @@ export const buildCertificateHierarchy = <T extends CertificateHierarchyAsset>(
   });
 
   nodes.forEach((node) => {
-    if (node.isSelfIssued || !node.subjectName || !node.issuerName) {
+    node.bomRefs.forEach((bomRef) => {
+      if (!nodeIdByBomRef.has(bomRef)) {
+        nodeIdByBomRef.set(bomRef, node.id);
+      }
+    });
+  });
+
+  nodes.forEach((node) => {
+    if (node.isSelfIssued || !node.subjectName) {
       return;
     }
 
-    node.parentIds = (nodesBySubject.get(node.issuerName) ?? []).map(
-      (candidate) => candidate.id,
-    );
+    const refTargetNodeId = node.issuerCertificateRef
+      ? nodeIdByBomRef.get(node.issuerCertificateRef)
+      : undefined;
+
+    if (refTargetNodeId && refTargetNodeId !== node.id) {
+      node.parentIds = [refTargetNodeId];
+      node.isRefLinked = true;
+    } else if (node.issuerName) {
+      node.parentIds = (nodesBySubject.get(node.issuerName) ?? []).map(
+        (candidate) => candidate.id,
+      );
+    }
+
     node.parentIds.forEach((parentId) => {
       const parent = nodeById.get(parentId);
       if (parent && !parent.childIds.includes(node.id)) {
