@@ -336,3 +336,48 @@ export const buildCertificateHierarchy = <T extends CertificateHierarchyAsset>(
     unnamedCount: nodes.filter((node) => !node.subjectName).length,
   };
 };
+
+export const getCertificateHierarchyStatusLabel = (
+  status: CertificateHierarchyStatus,
+  issuerCandidateCount: number,
+): string => {
+  switch (status) {
+    case 'root':
+      return 'Self-issued';
+    case 'verified':
+      return 'Verified issuer';
+    case 'ambiguous':
+      return `${issuerCandidateCount} issuer candidates`;
+    case 'gap':
+      return 'Issuer missing';
+    case 'unnamed':
+      return 'No subject name';
+    case 'cycle':
+      return 'Cycle detected';
+    default:
+      return 'Candidate';
+  }
+};
+
+export interface CertificateHierarchyStatusBadgeStyle {
+  variant: 'destructive' | 'secondary' | 'outline';
+  className?: string;
+}
+
+export const getCertificateHierarchyStatusBadgeStyle = (
+  status: CertificateHierarchyStatus,
+): CertificateHierarchyStatusBadgeStyle => {
+  if (status === 'gap' || status === 'cycle') {
+    return { variant: 'destructive' };
+  }
+  if (status === 'ambiguous') {
+    return { variant: 'secondary' };
+  }
+  if (status === 'verified') {
+    return {
+      variant: 'outline',
+      className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    };
+  }
+  return { variant: 'outline' };
+};

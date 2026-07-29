@@ -1,10 +1,20 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Info, Laptop, Server } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Info, Laptop, Server } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -17,6 +27,11 @@ import {
   getCipherStrength,
   type CipherStrength,
 } from '@/lib/cbom-network-colors';
+import {
+  buildCertificateHierarchy,
+  type CertificateHierarchyAsset,
+} from '@/lib/cbom-certificate-hierarchy';
+import { CertificateHierarchyGraphView } from '@/components/cbom/CertificateHierarchyGraphView';
 import { cn } from '@/lib/utils';
 
 export interface TLSWorkflowAlgorithm {
@@ -31,8 +46,12 @@ export interface TLSWorkflowCipherSuite {
 
 export interface TLSWorkflowCertificate {
   subjectName?: string;
+  issuerName?: string;
+  notValidBefore?: string;
+  notValidAfter?: string;
   subjectPublicKeyAlg?: string;
   signatureAlg?: string;
+  role?: 'client' | 'server';
 }
 
 export interface TLSWorkflowConnection {
@@ -49,6 +68,8 @@ export interface TLSWorkflowConnection {
   negotiatedAlgorithms?: TLSWorkflowAlgorithm[];
   certificates?: TLSWorkflowCertificate[];
   authVisibility?: string;
+  mtlsRequested?: boolean;
+  mtlsClientCertPresented?: boolean;
 }
 
 export interface TLSWorkflowValueGroup {
@@ -62,6 +83,7 @@ export interface TLSWorkflowStep {
   direction: 'client-to-server' | 'server-to-client';
   groups: TLSWorkflowValueGroup[];
   note?: string;
+  showsCertificates?: boolean;
 }
 
 export type TLSWorkflowValueTone =
@@ -102,6 +124,28 @@ const getConnectionLabel = (connection: TLSWorkflowConnection): string => {
   return connection.endpoint && connection.endpoint !== primary
     ? `${primary} — ${connection.endpoint}`
     : primary;
+};
+
+const toCertificateHierarchyAssets = (
+  certificates: TLSWorkflowCertificate[],
+): CertificateHierarchyAsset[] =>
+  certificates.map((certificate, index) => ({
+    'bom-ref': `tls-workflow-cert-${index}`,
+    name: certificate.subjectName,
+    cryptoProperties: {
+      assetType: 'certificate',
+      certificateProperties: {
+        subjectName: certificate.subjectName,
+        issuerName: certificate.issuerName,
+      },
+    },
+  }));
+
+const noopSelectCertificateAsset = () => {};
+
+const combineNotes = (...notes: Array<string | undefined>): string | undefined => {
+  const combined = notes.filter(Boolean).join(' ');
+  return combined || undefined;
 };
 
 const cipherSuiteGroupLabels = new Set([
@@ -240,6 +284,14 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
     connection.authVisibility === 'not-observed-passive'
       ? 'Certificate and CertificateVerify are encrypted in TLS 1.3 and were not visible to the passive capture.'
       : undefined;
+  const mtlsRequestNote = connection.mtlsRequested
+    ? 'The server also sent a CertificateRequest, asking the client to authenticate with its own certificate (mTLS).'
+    : undefined;
+  const mtlsResponseNote = connection.mtlsRequested
+    ? connection.mtlsClientCertPresented
+      ? 'The client presented a certificate in response to the CertificateRequest.'
+      : 'The client responded with an empty Certificate message, declining the CertificateRequest.'
+    : undefined;
 
   if (connection.version === '1.3') {
     return [
@@ -260,13 +312,15 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
         title: 'EncryptedExtensions, Certificate, CertificateVerify, Finished',
         direction: 'server-to-client',
         groups: compactGroups([...authenticationGroups, ...finishedGroups]),
-        note: hiddenAuthenticationNote,
+        note: combineNotes(hiddenAuthenticationNote, mtlsRequestNote),
+        showsCertificates: true,
       },
       {
         id: 'client-finished',
-        title: 'Finished',
+        title: connection.mtlsRequested ? 'Certificate, CertificateVerify, Finished' : 'Finished',
         direction: 'client-to-server',
         groups: finishedGroups,
+        note: mtlsResponseNote,
       },
       {
         id: 'client-application-data',
@@ -292,13 +346,19 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
     },
     {
       id: 'server-flight',
-      title: 'ServerHello, Certificate, ServerKeyExchange, ServerHelloDone',
+      title: connection.mtlsRequested
+        ? 'ServerHello, Certificate, ServerKeyExchange, CertificateRequest, ServerHelloDone'
+        : 'ServerHello, Certificate, ServerKeyExchange, ServerHelloDone',
       direction: 'server-to-client',
       groups: compactGroups([...serverSelectionGroups, ...authenticationGroups]),
+      note: mtlsRequestNote,
+      showsCertificates: true,
     },
     {
       id: 'client-key-exchange',
-      title: 'ClientKeyExchange, ChangeCipherSpec, Finished',
+      title: connection.mtlsRequested
+        ? 'Certificate, ClientKeyExchange, CertificateVerify, ChangeCipherSpec, Finished'
+        : 'ClientKeyExchange, ChangeCipherSpec, Finished',
       direction: 'client-to-server',
       groups: compactGroups([
         buildGroup('Key exchange', [
@@ -307,6 +367,7 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
         ]),
         ...finishedGroups,
       ]),
+      note: mtlsResponseNote,
     },
     {
       id: 'server-finished',
@@ -354,6 +415,18 @@ export function TLSWorkflowInspector({
     () => selectedConnection ? buildTLSWorkflowSteps(selectedConnection) : [],
     [selectedConnection],
   );
+  const certificateHierarchy = useMemo(() => {
+    const hierarchyAssets = toCertificateHierarchyAssets(selectedConnection?.certificates ?? []);
+    const hierarchy = buildCertificateHierarchy(hierarchyAssets);
+    const childrenByParent = new Map<string, string[]>();
+    hierarchy.rows.forEach((row) => {
+      if (!row.parentRowKey) return;
+      const childKeys = childrenByParent.get(row.parentRowKey) ?? [];
+      childKeys.push(row.key);
+      childrenByParent.set(row.parentRowKey, childKeys);
+    });
+    return { rows: hierarchy.rows, childrenByParent };
+  }, [selectedConnection?.certificates]);
 
   if (!selectedConnection) {
     return (
@@ -365,12 +438,25 @@ export function TLSWorkflowInspector({
 
   const serverLabel = selectedConnection.label || selectedConnection.endpoint || 'Server';
 
+  const mtlsBadge = selectedConnection.mtlsRequested ? (
+    <Badge
+      variant="outline"
+      className={
+        selectedConnection.mtlsClientCertPresented
+          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+          : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+      }
+    >
+      mTLS {selectedConnection.mtlsClientCertPresented ? 'presented' : 'declined'}
+    </Badge>
+  ) : null;
+
   return (
-    <div className={cn('space-y-5', compact ? 'py-3' : 'py-6')}>
+    <div className={cn('space-y-4', compact ? 'py-3' : 'py-6')}>
       {!compact ? (
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="font-semibold">TLS handshake workflow</p>
+            <p className="text-sm font-semibold">TLS handshake workflow</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Observed cryptographic choices mapped to the TLS message that advertises or selects them.
             </p>
@@ -380,6 +466,7 @@ export function TLSWorkflowInspector({
             {selectedConnection.version ? (
               <Badge variant="outline">TLS {selectedConnection.version}</Badge>
             ) : null}
+            {mtlsBadge}
             {showConnectionSelector && connections.length > 1 ? (
               <Select value={selectedConnection.id} onValueChange={setSelectedConnectionId}>
                 <SelectTrigger className="w-72">
@@ -396,10 +483,12 @@ export function TLSWorkflowInspector({
             ) : null}
           </div>
         </div>
+      ) : mtlsBadge ? (
+        <div className="flex items-center justify-end">{mtlsBadge}</div>
       ) : null}
 
       {!compact ? (
-        <Alert>
+        <Alert className="py-2.5">
           <Info className="h-4 w-4" />
           <AlertDescription>
             This CBOM summarizes a connection rather than individual packet timestamps. The message
@@ -411,16 +500,21 @@ export function TLSWorkflowInspector({
 
       <div className="overflow-x-auto rounded-md border">
         <div className={cn('bg-background', compact ? 'min-w-lg' : 'min-w-2xl')}>
-          <div className="grid grid-cols-2 border-b bg-muted/30">
-            <div className="flex items-center justify-center gap-2 px-4 py-4">
-              <Laptop className="h-5 w-5 text-primary" />
-              <span className="font-medium">Client</span>
+          <div className="grid grid-cols-2 border-b bg-muted/20">
+            <div className="flex items-center justify-center gap-2 px-4 py-2.5">
+              <Laptop className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-foreground">Client</span>
             </div>
-            <div className="flex min-w-0 items-center justify-center gap-2 px-4 py-4">
-              <Server className="h-5 w-5 text-muted-foreground" />
-              <span className="truncate font-medium" title={serverLabel}>{serverLabel}</span>
+            <div className="flex min-w-0 items-center justify-center gap-2 border-l px-4 py-2.5">
+              <Server className="h-3.5 w-3.5 text-muted-foreground" />
+              <span
+                className="truncate text-xs font-semibold uppercase tracking-wide text-foreground"
+                title={serverLabel}
+              >
+                {serverLabel}
+              </span>
               {selectedConnection.endpoint ? (
-                <span className="truncate font-mono text-xs text-muted-foreground">
+                <span className="truncate font-mono text-[11px] text-muted-foreground">
                   {selectedConnection.endpoint}
                 </span>
               ) : null}
@@ -437,32 +531,29 @@ export function TLSWorkflowInspector({
               return (
                 <div
                   key={step.id}
-                  className={cn(
-                    'relative border-b last:border-b-0',
-                    compact ? 'min-h-32' : 'min-h-36',
-                  )}
+                  className="relative border-b last:border-b-0"
                 >
-                  <div className="absolute inset-y-0 left-1/4 border-l border-border" />
-                  <div className="absolute inset-y-0 left-3/4 border-l border-border" />
+                  <div className="absolute inset-y-0 left-1/4 border-l border-border/70" />
+                  <div className="absolute inset-y-0 left-3/4 border-l border-border/70" />
 
-                  <div className={cn('absolute inset-x-1/4 top-5 flex items-center', directionClass)}>
+                  <div className={cn('absolute inset-x-1/4 top-[15px] flex items-center', directionClass)}>
                     {clientToServer ? (
                       <>
-                        <div className="h-px flex-1 bg-current" />
-                        <ArrowRight className="h-4 w-4 shrink-0" />
+                        <div className="h-px flex-1 bg-current opacity-40" />
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                       </>
                     ) : (
                       <>
-                        <ArrowLeft className="h-4 w-4 shrink-0" />
-                        <div className="h-px flex-1 bg-current" />
+                        <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+                        <div className="h-px flex-1 bg-current opacity-40" />
                       </>
                     )}
                   </div>
 
                   <span
                     className={cn(
-                      'absolute top-2 z-10 flex size-7 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-xs font-semibold',
-                      clientToServer ? 'left-1/4 border-primary text-primary' : 'left-3/4',
+                      'absolute top-2 z-10 flex size-6 -translate-x-1/2 items-center justify-center rounded-full border bg-background font-mono text-[11px] font-medium text-muted-foreground',
+                      clientToServer ? 'left-1/4' : 'left-3/4',
                     )}
                   >
                     {index + 1}
@@ -470,23 +561,112 @@ export function TLSWorkflowInspector({
 
                   <div
                     className={cn(
-                      'relative z-10 mx-auto px-3 pb-5 pt-11',
+                      'relative z-10 mx-auto px-3 pb-4 pt-9',
                       compact ? 'w-3/5' : 'w-1/2',
                     )}
                   >
-                    <div className="rounded-md border bg-card p-3">
+                    <div>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium">{step.title}</p>
-                        <span className="text-xs text-muted-foreground">
-                          {clientToServer ? 'Client → Server' : 'Server → Client'}
-                        </span>
+                        {step.showsCertificates && selectedConnection.certificates?.length ? (
+                          <Sheet>
+                            <SheetTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-7 text-xs">
+                                <FileText className="mr-1.5 h-3.5 w-3.5" />
+                                View certificate{selectedConnection.certificates.length > 1 ? 's' : ''}
+                              </Button>
+                            </SheetTrigger>
+                            <SheetContent side="right" className="flex flex-col gap-0 p-0 sm:!w-[50vw] sm:!max-w-none">
+                              <SheetHeader className="border-b">
+                                <SheetTitle>Certificates sent</SheetTitle>
+                                <SheetDescription>
+                                  Certificate chain observed in this message, as reported by the CBOM.
+                                </SheetDescription>
+                              </SheetHeader>
+                              <Tabs defaultValue="decoded" className="flex min-h-0 flex-1 flex-col">
+                                <TabsList className="mx-6 mt-4 w-fit">
+                                  <TabsTrigger value="decoded">Decoded</TabsTrigger>
+                                  <TabsTrigger value="hierarchy">Hierarchy</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="decoded" className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                                  <div className="space-y-4">
+                                    {selectedConnection.certificates.map((certificate, certificateIndex) => (
+                                      <div
+                                        key={certificateIndex}
+                                        className={cn(
+                                          'space-y-2',
+                                          certificateIndex > 0 ? 'border-t pt-3' : undefined,
+                                        )}
+                                      >
+                                        {certificate.role ? (
+                                          <Badge variant="outline" className="rounded-md font-normal capitalize">
+                                            {certificate.role} certificate
+                                          </Badge>
+                                        ) : null}
+                                        {certificate.subjectName ? (
+                                          <div>
+                                            <p className="text-xs text-muted-foreground">Subject</p>
+                                            <p className="mt-0.5 break-all font-mono text-xs">{certificate.subjectName}</p>
+                                          </div>
+                                        ) : null}
+                                        {certificate.issuerName ? (
+                                          <div>
+                                            <p className="text-xs text-muted-foreground">Issuer</p>
+                                            <p className="mt-0.5 break-all font-mono text-xs">{certificate.issuerName}</p>
+                                          </div>
+                                        ) : null}
+                                        {certificate.notValidBefore || certificate.notValidAfter ? (
+                                          <div className="flex gap-4">
+                                            {certificate.notValidBefore ? (
+                                              <div>
+                                                <p className="text-xs text-muted-foreground">Valid from</p>
+                                                <p className="mt-0.5 font-mono text-xs">{certificate.notValidBefore}</p>
+                                              </div>
+                                            ) : null}
+                                            {certificate.notValidAfter ? (
+                                              <div>
+                                                <p className="text-xs text-muted-foreground">Valid to</p>
+                                                <p className="mt-0.5 font-mono text-xs">{certificate.notValidAfter}</p>
+                                              </div>
+                                            ) : null}
+                                          </div>
+                                        ) : null}
+                                        {certificate.subjectPublicKeyAlg ? (
+                                          <div>
+                                            <p className="text-xs text-muted-foreground">Public key algorithm</p>
+                                            <p className="mt-0.5 font-mono text-xs">{certificate.subjectPublicKeyAlg}</p>
+                                          </div>
+                                        ) : null}
+                                        {certificate.signatureAlg ? (
+                                          <div>
+                                            <p className="text-xs text-muted-foreground">Signature algorithm</p>
+                                            <p className="mt-0.5 font-mono text-xs">{certificate.signatureAlg}</p>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TabsContent>
+                                <TabsContent value="hierarchy" className="min-h-0 flex-1 overflow-hidden px-6 py-4">
+                                  <CertificateHierarchyGraphView
+                                    rows={certificateHierarchy.rows}
+                                    childrenByParent={certificateHierarchy.childrenByParent}
+                                    onSelectAsset={noopSelectCertificateAsset}
+                                  />
+                                </TabsContent>
+                              </Tabs>
+                            </SheetContent>
+                          </Sheet>
+                        ) : null}
                       </div>
 
                       {step.groups.length > 0 ? (
-                        <div className="mt-3 space-y-3">
+                        <div className="mt-3 space-y-2.5">
                           {step.groups.map((group) => (
                             <div key={group.label}>
-                              <p className="text-xs text-muted-foreground">{group.label}</p>
+                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                {group.label}
+                              </p>
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {group.values.map((value) => {
                                   const tone = getTLSWorkflowValueTone(
@@ -518,7 +698,7 @@ export function TLSWorkflowInspector({
                       )}
 
                       {step.note ? (
-                        <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+                        <p className="mt-3 border-t pt-2.5 text-xs italic text-muted-foreground">
                           {step.note}
                         </p>
                       ) : null}

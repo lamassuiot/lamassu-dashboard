@@ -26,7 +26,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -75,11 +74,13 @@ import {
   groupCBOMAssetsByType,
   groupCBOMAssetsByPrimitive,
 } from '@/lib/cbom-assets';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   buildCertificateHierarchy,
-  type CertificateHierarchyStatus,
+  getCertificateHierarchyStatusLabel,
+  getCertificateHierarchyStatusBadgeStyle,
 } from '@/lib/cbom-certificate-hierarchy';
+import { CertificateHierarchyGraphView } from '@/components/cbom/CertificateHierarchyGraphView';
 
 const chip = 'inline-flex items-center rounded border px-2 py-0.5 text-xs';
 const networkDetailChipClass = `${chip} border-border/70 bg-muted/40 font-mono text-foreground`;
@@ -145,7 +146,7 @@ interface CBOMDetailsData {
 
 type FilterColumn = 'name' | 'type' | 'primitive' | 'oid' | 'location';
 type AssetFilters = Record<FilterColumn, string[]>;
-type AssetViewMode = 'table' | 'file-tree' | 'network-graph' | 'network-table';
+type AssetViewMode = 'table' | 'assets-table' | 'file-tree' | 'certificate-graph' | 'tls-flow' | 'network-graph' | 'network-table';
 type ComplianceLevel = QuantumSafeComplianceResult['complianceLevels'][number];
 type GroupByOption = 'none' | 'ref' | 'oid' | 'location' | 'type' | 'primitive';
 
@@ -548,6 +549,7 @@ interface CertificateInfo {
   notValidAfter?: string;
   subjectPublicKeyAlg?: string;
   signatureAlg?: string;
+  role?: 'client' | 'server';
 }
 
 interface PqcResult {
@@ -663,28 +665,6 @@ const formatAssetType = (value: string): string => {
     .join(' ');
 };
 
-const getHierarchyStatusLabel = (
-  status: CertificateHierarchyStatus,
-  issuerCandidateCount: number,
-): string => {
-  switch (status) {
-    case 'root':
-      return 'Self-issued';
-    case 'verified':
-      return 'Verified issuer';
-    case 'ambiguous':
-      return `${issuerCandidateCount} issuer candidates`;
-    case 'gap':
-      return 'Issuer missing';
-    case 'unnamed':
-      return 'No subject name';
-    case 'cycle':
-      return 'Cycle detected';
-    default:
-      return 'Candidate';
-  }
-};
-
 const getAssetPrimitiveDisplay = (asset: CBOMAsset): string => {
   if (asset.cryptoProperties?.assetType === 'protocol') {
     const version = asset.cryptoProperties?.protocolProperties?.version;
@@ -733,8 +713,8 @@ function CBOMDetailsContent() {
     oid: [],
     location: [],
   });
-  const [activeTab, setActiveTab] = useState<'overview' | 'workflow' | 'assets' | 'raw'>('overview');
-  const [assetViewMode, setAssetViewMode] = useState<AssetViewMode>('table');
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'raw'>('overview');
+  const [assetViewMode, setAssetViewMode] = useState<AssetViewMode>('assets-table');
   const [selectedNetworkNode, setSelectedNetworkNode] = useState<GraphNode | null>(null);
   const [networkInspectorMode, setNetworkInspectorMode] = useState<'overview' | 'workflow'>('overview');
   const [workflowSheetConnection, setWorkflowSheetConnection] =
@@ -747,7 +727,6 @@ function CBOMDetailsContent() {
     useState<string[]>(COMPLIANCE_POLICY_OPTIONS.map((option) => option.value));
   const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByOption>('none');
-  const [hierarchyMode, setHierarchyMode] = useState(false);
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
   const [collapsedHierarchyRows, setCollapsedHierarchyRows] = useState<Set<string>>(new Set());
   const [expandedSuites, setExpandedSuites] = useState<Set<string>>(new Set());
@@ -1053,12 +1032,11 @@ function CBOMDetailsContent() {
         ? 'bg-purple-500/10'
         : 'bg-blue-500/10';
   const isRealtimeCBOM = cbomType === 'realtime';
-
-  useEffect(() => {
-    if (!isRealtimeCBOM && activeTab === 'workflow') {
-      setActiveTab('overview');
-    }
-  }, [activeTab, isRealtimeCBOM]);
+  // "Certificate - Table" (realtime only) always renders the issuer hierarchy;
+  // every other mode that reaches the shared table branch (the generic
+  // "Assets Ref - Table", and "Table" for non-realtime CBOMs) renders the flat,
+  // filterable/groupable asset list.
+  const hierarchyMode = isRealtimeCBOM && assetViewMode === 'table';
 
   const networkGraphData = React.useMemo((): { nodes: GraphNode[]; edges: GraphEdge[] } => {
     if (!isRealtimeCBOM || !detailsData) return { nodes: [], edges: [] };
@@ -1142,6 +1120,10 @@ function CBOMDetailsContent() {
       ]);
       const authVisibility =
         props.find((p: any) => p.name === 'live-cbom:tls.auth.visibility')?.value ?? '';
+      const mtlsRequested =
+        props.find((p: any) => p.name === 'live-cbom:tls.mtls.requested')?.value === 'true';
+      const mtlsClientCertPresented =
+        props.find((p: any) => p.name === 'live-cbom:tls.mtls.clientCertPresented')?.value === 'true';
 
       const cipherSuites = getProtocolStringList(protocolProperties, ['cipherSuites']);
 
@@ -1190,6 +1172,9 @@ function CBOMDetailsContent() {
           const cp = c.cryptoProperties?.certificateProperties as Record<string, any> | undefined;
           const pubKeyComp = cp?.subjectPublicKeyRef ? componentMap.get(cp.subjectPublicKeyRef) : null;
           const sigAlgComp = cp?.signatureAlgorithmRef ? componentMap.get(cp.signatureAlgorithmRef) : null;
+          const certRole = (c.properties ?? []).find(
+            (p: any) => p.name === 'live-cbom:tls.certificateRole',
+          )?.value;
           return {
             subjectName: cp?.subjectName ?? '',
             issuerName: cp?.issuerName ?? '',
@@ -1197,6 +1182,7 @@ function CBOMDetailsContent() {
             notValidAfter: cp?.notValidAfter,
             subjectPublicKeyAlg: pubKeyComp?.name ?? cp?.subjectPublicKeyRef ?? '',
             signatureAlg: sigAlgComp?.name ?? cp?.signatureAlgorithmRef ?? '',
+            role: certRole === 'client' || certRole === 'server' ? certRole : undefined,
           } satisfies CertificateInfo;
         });
 
@@ -1215,6 +1201,8 @@ function CBOMDetailsContent() {
           offeredGroups,
           offeredSignatureAlgorithms,
           authVisibility,
+          mtlsRequested,
+          mtlsClientCertPresented,
           cipherSuites,
           negotiatedAlgorithms,
           offeredCipherSuites,
@@ -1256,6 +1244,8 @@ function CBOMDetailsContent() {
         negotiatedAlgorithms: node.data?.negotiatedAlgorithms as NegotiatedAlg[] | undefined,
         certificates: node.data?.certificates as CertificateInfo[] | undefined,
         authVisibility: node.data?.authVisibility as string | undefined,
+        mtlsRequested: node.data?.mtlsRequested as boolean | undefined,
+        mtlsClientCertPresented: node.data?.mtlsClientCertPresented as boolean | undefined,
       })),
     [networkGraphData],
   );
@@ -1542,14 +1532,13 @@ function CBOMDetailsContent() {
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as 'overview' | 'workflow' | 'assets' | 'raw')}
+        onValueChange={(value) => setActiveTab(value as 'overview' | 'assets' | 'raw')}
         className="w-full"
       >
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {[
               { value: 'overview', label: 'Overview' },
-              ...(isRealtimeCBOM ? [{ value: 'workflow', label: 'TLS Workflow' }] : []),
               { value: 'assets', label: 'Assets' },
               { value: 'raw', label: 'Raw' },
             ].map(({ value, label }) => (
@@ -1640,12 +1629,6 @@ function CBOMDetailsContent() {
 
           </TabsContent>
 
-          {isRealtimeCBOM ? (
-            <TabsContent value="workflow" className="mt-0">
-              <TLSWorkflowInspector connections={tlsWorkflowConnections} />
-            </TabsContent>
-          ) : null}
-
           <TabsContent value="assets" className="mt-0">
             <div className="space-y-4">
 
@@ -1695,62 +1678,56 @@ function CBOMDetailsContent() {
                       )}
                     </Button>
 
-                    {assetViewMode === 'table' && (
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="certificate-hierarchy"
-                            checked={hierarchyMode}
-                            disabled={certificateHierarchy.nodes.length === 0}
-                            onCheckedChange={(checked) => {
-                              setHierarchyMode(checked);
-                              if (checked) {
-                                setGroupBy('none');
-                              }
-                            }}
-                          />
-                          <Label
-                            htmlFor="certificate-hierarchy"
-                            className={cn(
-                              'select-none text-xs',
-                              certificateHierarchy.nodes.length > 0
-                                ? 'cursor-pointer'
-                                : 'cursor-not-allowed text-muted-foreground',
-                            )}
-                          >
-                            Hierarchy
-                          </Label>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
-                      <Button
-                        variant={assetViewMode === 'table' ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="h-7 rounded-sm px-3 text-xs"
-                        onClick={() => setAssetViewMode('table')}
+                    {isRealtimeCBOM ? (
+                      <Select
+                        value={assetViewMode}
+                        onValueChange={(value) => setAssetViewMode(value as AssetViewMode)}
                       >
-                        Table
-                      </Button>
-                      <Button
-                        variant={(isRealtimeCBOM ? assetViewMode === 'network-graph' : assetViewMode === 'file-tree') ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="h-7 rounded-sm px-3 text-xs"
-                        onClick={() => setAssetViewMode(isRealtimeCBOM ? 'network-graph' : 'file-tree')}
-                      >
-                        {isRealtimeCBOM ? 'Network Graph' : 'File Tree'}
-                      </Button>
-                      {isRealtimeCBOM && (
+                        <SelectTrigger id="cbom-view-mode-selector" className="h-9 w-48 text-xs">
+                          <SelectValue placeholder="View mode..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Assets</SelectLabel>
+                            <SelectItem value="assets-table">Assets Ref - Table</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Certificate</SelectLabel>
+                            <SelectItem value="table">Certificate - Table</SelectItem>
+                            <SelectItem value="certificate-graph">Certificate - Graph</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>TLS</SelectLabel>
+                            <SelectItem value="tls-flow">TLS - Flow</SelectItem>
+                            <SelectItem value="network-graph">TLS - Network Graph</SelectItem>
+                            <SelectItem value="network-table">TLS - Table</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
                         <Button
-                          variant={assetViewMode === 'network-table' ? 'secondary' : 'ghost'}
+                          variant={
+                            assetViewMode === 'table' || assetViewMode === 'assets-table'
+                              ? 'secondary'
+                              : 'ghost'
+                          }
                           size="sm"
                           className="h-7 rounded-sm px-3 text-xs"
-                          onClick={() => setAssetViewMode('network-table')}
+                          onClick={() => setAssetViewMode('table')}
                         >
-                          Network Table
+                          Table
                         </Button>
-                      )}
-                    </div>
+                        <Button
+                          variant={assetViewMode === 'file-tree' ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-7 rounded-sm px-3 text-xs"
+                          onClick={() => setAssetViewMode('file-tree')}
+                        >
+                          File Tree
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1839,6 +1816,17 @@ function CBOMDetailsContent() {
                 <div>
           {assets.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cryptographic assets found in this CBOM.</p>
+          ) : assetViewMode === 'certificate-graph' ? (
+            <CertificateHierarchyGraphView
+              rows={hierarchyRows}
+              childrenByParent={hierarchyChildrenByParent}
+              onSelectAsset={(asset) => {
+                setSelectedAsset(asset);
+                setAssetDetailOpen(true);
+              }}
+            />
+          ) : assetViewMode === 'tls-flow' ? (
+            <TLSWorkflowInspector connections={tlsWorkflowConnections} />
           ) : assetViewMode === 'network-graph' ? (
             networkGraphData.nodes.length === 0 ? (
               <div className="p-4 border border-dashed rounded-md text-sm text-muted-foreground">
@@ -2114,6 +2102,11 @@ function CBOMDetailsContent() {
                           <div className="mt-1 space-y-3">
                             {(selectedNetworkNode.data.certificates as CertificateInfo[]).map((cert, idx) => (
                               <div key={idx} className={`space-y-2 ${idx > 0 ? 'pt-3 border-t border-border/30' : ''}`}>
+                                {cert.role && (
+                                  <Badge variant="outline" className="rounded-md font-normal capitalize">
+                                    {cert.role} certificate
+                                  </Badge>
+                                )}
                                 {cert.subjectName && (
                                   <div>
                                     <p className="text-xs text-muted-foreground/60">Subject</p>
@@ -2184,6 +2177,31 @@ function CBOMDetailsContent() {
                             actionable: the session may have been resumed via PSK (no Certificate sent by design),
                             the secrets may never have reached the keylog (e.g. a libssl build that wasn&apos;t hooked),
                             or the rolling-capture re-process may not have caught up yet.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* mTLS — server requested a client certificate */}
+                      {(selectedNetworkNode.data?.mtlsRequested as boolean | undefined) && (
+                        <div className="py-3 first:pt-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">Mutual TLS</p>
+                            <span
+                              className={cn(
+                                chip,
+                                'font-medium',
+                                selectedNetworkNode.data?.mtlsClientCertPresented
+                                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                  : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                              )}
+                            >
+                              {selectedNetworkNode.data?.mtlsClientCertPresented ? 'Client cert presented' : 'Client cert declined'}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                            {selectedNetworkNode.data?.mtlsClientCertPresented
+                              ? 'The server sent a CertificateRequest and the client authenticated with its own certificate.'
+                              : 'The server sent a CertificateRequest but the client responded with an empty Certificate message — mutual TLS was requested but not fulfilled.'}
                           </p>
                         </div>
                       )}
@@ -2355,6 +2373,8 @@ function CBOMDetailsContent() {
                         const endpoint = n.data?.endpoint as string | undefined;
                         const certificates = n.data?.certificates as CertificateInfo[] | undefined;
                         const authVisibility = n.data?.authVisibility as string | undefined;
+                        const mtlsRequested = n.data?.mtlsRequested as boolean | undefined;
+                        const mtlsClientCertPresented = n.data?.mtlsClientCertPresented as boolean | undefined;
                         const workflowConnection = tlsWorkflowConnectionMap.get(n.id);
                         const cipherStrength = negotiatedCipherSuite ? getCipherStrength(negotiatedCipherSuite) : 'unknown';
                         const csBadge = cipherStrengthBadge[cipherStrength];
@@ -2474,32 +2494,59 @@ function CBOMDetailsContent() {
 
                             {/* Auth / Certificate — subject for TLS 1.2, note for TLS 1.3 */}
                             <TableCell className="max-w-[180px]">
-                              {certificates?.length ? (
-                                <div className="space-y-0.5">
-                                  {certificates.map((cert, i) => (
-                                    <p key={i} className="font-mono text-xs truncate" title={cert.subjectName}>
-                                      {cert.subjectName || '—'}
-                                    </p>
-                                  ))}
-                                </div>
-                              ) : authVisibility === 'not-decrypted' ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className={`${chip} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap cursor-default`}>
-                                      Not decrypted
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" className="max-w-[280px]">
-                                    A key-log was configured but no certificate was recovered for this connection.
-                                    Likely a PSK-resumed session (no Certificate sent), a libssl build whose secrets
-                                    never reached the keylog, or a rolling-capture lag — worth investigating.
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  {tlsVersion === '1.3' ? 'Encrypted (TLS 1.3)' : '—'}
-                                </span>
-                              )}
+                              <div className="space-y-1">
+                                {certificates?.length ? (
+                                  <div className="space-y-0.5">
+                                    {certificates.map((cert, i) => (
+                                      <p key={i} className="font-mono text-xs truncate" title={cert.subjectName}>
+                                        {cert.subjectName || '—'}
+                                        {cert.role ? (
+                                          <span className="ml-1 text-muted-foreground/60">({cert.role})</span>
+                                        ) : null}
+                                      </p>
+                                    ))}
+                                  </div>
+                                ) : authVisibility === 'not-decrypted' ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`${chip} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap cursor-default`}>
+                                        Not decrypted
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="max-w-[280px]">
+                                      A key-log was configured but no certificate was recovered for this connection.
+                                      Likely a PSK-resumed session (no Certificate sent), a libssl build whose secrets
+                                      never reached the keylog, or a rolling-capture lag — worth investigating.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    {tlsVersion === '1.3' ? 'Encrypted (TLS 1.3)' : '—'}
+                                  </span>
+                                )}
+                                {mtlsRequested ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className={cn(
+                                          chip,
+                                          'font-medium whitespace-nowrap cursor-default',
+                                          mtlsClientCertPresented
+                                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                            : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                        )}
+                                      >
+                                        mTLS {mtlsClientCertPresented ? 'presented' : 'declined'}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="max-w-[280px]">
+                                      {mtlsClientCertPresented
+                                        ? 'The server sent a CertificateRequest and the client presented a client certificate.'
+                                        : 'The server sent a CertificateRequest but the client responded with an empty Certificate message — mutual TLS was requested but not fulfilled.'}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : null}
+                              </div>
                             </TableCell>
 
                             <TableCell className="text-right">
@@ -2566,13 +2613,7 @@ function CBOMDetailsContent() {
                   </Label>
                   <Select
                     value={groupBy}
-                    onValueChange={(value) => {
-                      const nextGroupBy = value as GroupByOption;
-                      setGroupBy(nextGroupBy);
-                      if (nextGroupBy !== 'none') {
-                        setHierarchyMode(false);
-                      }
-                    }}
+                    onValueChange={(value) => setGroupBy(value as GroupByOption)}
                   >
                     <SelectTrigger id="cbom-group-by-selector" className="h-9 w-full text-sm">
                       <SelectValue placeholder="No grouping" />
@@ -2778,20 +2819,10 @@ function CBOMDetailsContent() {
                             </TableCell>
                             <TableCell>
                               <Badge
-                                variant={
-                                  row.status === 'gap' || row.status === 'cycle'
-                                    ? 'destructive'
-                                    : row.status === 'ambiguous'
-                                      ? 'secondary'
-                                      : 'outline'
-                                }
-                                className={`rounded-md font-normal${
-                                  row.status === 'verified'
-                                    ? ' border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                    : ''
-                                }`}
+                                variant={getCertificateHierarchyStatusBadgeStyle(row.status).variant}
+                                className={cn('rounded-md font-normal', getCertificateHierarchyStatusBadgeStyle(row.status).className)}
                               >
-                                {getHierarchyStatusLabel(row.status, row.node.parentIds.length)}
+                                {getCertificateHierarchyStatusLabel(row.status, row.node.parentIds.length)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
