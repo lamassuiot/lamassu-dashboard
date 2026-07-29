@@ -41,7 +41,7 @@ import {
 import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
-import type { CmpPopoMethod, CmpRevocationReason } from '@/lib/dms-api';
+import type { CmpPopoMethod, CmpRevocationReason, CmpGenmInformationTypes } from '@/lib/dms-api';
 import { RfcLink } from './RfcLink';
 import { CardSelector, type CardSelectorOption } from './CardSelector';
 
@@ -494,6 +494,16 @@ interface ApiRaItem {
                     enabled?: boolean;
                     allowed_reasons?: CmpRevocationReason[];
                 };
+                // General Messages (genm/genp, RFC 9483 §4.3). The wizard reads
+                // access_policy to decide whether the genm try-it commands need a
+                // signed request, and information_types to list one command per
+                // endpoint the DMS actually answers.
+                genm?: {
+                    enabled?: boolean;
+                    access_policy?: 'public_discovery' | 'require_signed';
+                    information_types?: Partial<CmpGenmInformationTypes>;
+                    preferred_symmetric_algorithm?: string;
+                };
             };
         };
     };
@@ -508,8 +518,49 @@ interface CmpEnrollModalProps {
     className?: string;
 }
 
-type CmpEnrollmentOperation = 'ir' | 'cr' | 'kur' | 'p10cr' | 'rr';
+type CmpEnrollmentOperation = 'ir' | 'cr' | 'kur' | 'p10cr' | 'rr' | 'genm';
 type CmpConfirmationMode = 'implicit' | 'explicit';
+
+// The genm support messages the wizard can drive from `openssl cmp -cmd genm
+// -infotype <name>`. openssl prepends `id-it-` to the name and resolves it via
+// its OBJ database, so each `opensslName` is the suffix of a known id-it-*
+// short name. `since` flags the OpenSSL version that first shipped the OBJ
+// entry (the older discovery types resolve on any 3.x). supported_languages is
+// intentionally absent: its request MUST carry the offered language list, which
+// `openssl cmp -infotype` cannot attach, so a plain command would be rejected.
+//
+// `outputFlags` supplies the extra flags openssl requires (or accepts) to save
+// that response's payload — verified empirically against `openssl cmp -help`
+// and by running each -infotype against a throwaway server: caCerts,
+// rootCaCert, certReqTemplate and crlStatusList each hard-fail client-side
+// ("Missing -X option") without them; signKeyPairTypes/encKeyPairTypes/
+// preferredSymmAlg/currentCRL have no dedicated output (openssl only warns
+// "No specific support for -infotype X available" and still sends the
+// request), so they're left undefined.
+const GENM_INFOTYPE_COMMANDS: { key: keyof CmpGenmInformationTypes; opensslName: string; label: string; since?: string; outputFlags?: string[] }[] = [
+    { key: 'ca_certificates', opensslName: 'caCerts', label: 'CA certificates', since: '3.2', outputFlags: [`-cacertsout cacerts.pem`] },
+    { key: 'signing_key_types', opensslName: 'signKeyPairTypes', label: 'Signing key types' },
+    { key: 'encryption_key_types', opensslName: 'encKeyPairTypes', label: 'Encryption key types' },
+    { key: 'preferred_symmetric_algorithm', opensslName: 'preferredSymmAlg', label: 'Preferred symmetric algorithm' },
+    {
+        key: 'root_ca_update', opensslName: 'rootCaCert', label: 'Root CA update', since: '3.4',
+        // -newwithnew is mandatory (openssl refuses to build the request without
+        // it); -newwithold/-oldwithnew are optional but capture the full
+        // RFC 9483 §4.3.2 RootCaKeyUpdateValue when the CA returns them.
+        outputFlags: [`-newwithnew newwithnew.crt`, `-newwithold newwithold.crt`, `-oldwithnew oldwithnew.crt`],
+    },
+    {
+        key: 'certificate_request_template', opensslName: 'certReqTemplate', label: 'Certificate request template', since: '3.4',
+        outputFlags: [`-template certtemplate.der`, `-keyspec keyspec.der`],
+    },
+    { key: 'current_crl', opensslName: 'currentCRL', label: 'Current CRL' },
+    {
+        key: 'crl_update', opensslName: 'crlStatusList', label: 'CRL update', since: '3.4',
+        // -crlcert names a certificate to identify the target CA (its issuer);
+        // the enrollment CA cert itself works since it's self-issued.
+        outputFlags: [`-crlcert enrollca.pem`, `-crlout crl.der`],
+    },
+];
 
 const CMP_ENROLLMENT_OPERATIONS: CardSelectorOption<CmpEnrollmentOperation>[] = [
     {
@@ -542,6 +593,12 @@ const CMP_ENROLLMENT_OPERATIONS: CardSelectorOption<CmpEnrollmentOperation>[] = 
         description: 'Revocation Request. Revoke an existing certificate, authenticated by the certificate being revoked. No new certificate is issued.',
         icon: ShieldCheck,
     },
+    {
+        value: 'genm',
+        label: 'General Messages (GENM/GENP)',
+        description: 'Informational queries. Try each id-it support message this RA answers (CA certs, root CA update, CRLs, cert request template…). No certificate is issued.',
+        icon: Info,
+    },
 ];
 
 const CMP_OPERATION_NAMES: Record<CmpEnrollmentOperation, string> = {
@@ -550,6 +607,7 @@ const CMP_OPERATION_NAMES: Record<CmpEnrollmentOperation, string> = {
     kur: 'Key Update Request (KUR)',
     p10cr: 'PKCS #10 Certification Request (P10CR)',
     rr: 'Revocation Request (RR)',
+    genm: 'General Messages (GENM/GENP)',
 };
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
@@ -668,6 +726,12 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // Step 5: command rendering options
     const [pinProtectionCert, setPinProtectionCert] = useState(true);
     const [popoMethod, setPopoMethod] = useState<CmpPopoMethod>('signature');
+    // Which single id-it information type the step-5 genm/genp selector renders a
+    // command for (mirrors the step-1 request-type picker: one request at a
+    // time). Never reset explicitly — effectiveGenmType below falls back to the
+    // first RA-enabled type, so a stale/empty value self-heals when the RA or its
+    // enabled information_types change.
+    const [selectedGenmType, setSelectedGenmType] = useState<keyof CmpGenmInformationTypes | ''>('');
 
     // Existing issued certificates for this device (subject CN == deviceId).
     // KUR renews one of these; RR can optionally revoke one. Unlike ir/cr, these
@@ -944,6 +1008,21 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
     const handleNext = async () => {
         if (step === 1) {
+            // General messages are informational and device-agnostic: no device
+            // ID or POPO/flow-variant config. When this RA requires signed genm
+            // AND has a validation CA to issue from, route through the same
+            // Bootstrap (3) / Credentials (4) flow ir/cr use to get a real
+            // certificate; otherwise (unsigned, or signed but no CA available)
+            // jump straight to the commands.
+            if (selectedOperation === 'genm') {
+                if (genmUsesIssuedCert) {
+                    setBootstrapCn('genm-client');
+                    setStep(3);
+                } else {
+                    setStep(5);
+                }
+                return;
+            }
             if (!deviceId.trim()) { sileo.error({ title: 'Device ID required' }); return; }
             setBootstrapCn(deviceId.trim());
             // Revocation has no CRMF proof-of-possession or certConf to
@@ -960,7 +1039,11 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                 setStep(5);
                 return;
             }
-            if (!requiresClientCert) {
+            // genm reaches step 3 ONLY when genmUsesIssuedCert is already true
+            // (see step 1 above) — always proceed with real issuance there,
+            // regardless of the enrollment auth_mode (requiresClientCert is about
+            // ir/cr/kur's OWN protection requirement, unrelated to genm's).
+            if (selectedOperation !== 'genm' && !requiresClientCert) {
                 // This RA's auth_mode doesn't validate a client certificate at
                 // all — there's nothing to issue, so behave like "Skip".
                 handleSkipBootstrap();
@@ -1028,9 +1111,18 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     };
 
     const handleBack = () => {
-        if (step === 5 && !bootstrapCertificate) setStep(3);
-        else if (step === 3 && selectedOperation === 'rr') setStep(1); // RR skipped step 2
-        else setStep((p) => (p > 1 ? p - 1 : 1));
+        if (step === 5 && selectedOperation === 'genm') {
+            // genm reached step 5 either directly from step 1 (unsigned, or
+            // signed with no CA to issue from) or via the Bootstrap/Credentials
+            // flow (genmUsesIssuedCert) — go back to wherever it actually came from.
+            setStep(genmUsesIssuedCert ? (bootstrapCertificate ? 4 : 3) : 1);
+        } else if (step === 5 && !bootstrapCertificate) {
+            setStep(3);
+        } else if (step === 3 && (selectedOperation === 'rr' || selectedOperation === 'genm')) {
+            setStep(1); // RR and genm both skip step 2 (Flow variant)
+        } else {
+            setStep((p) => (p > 1 ? p - 1 : 1));
+        }
     };
 
     // ── Command rendering ──────────────────────────────────────────────────
@@ -1496,6 +1588,107 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         : enrollCommand;
     const primaryEnrollLabel = CMP_OPERATION_NAMES[selectedOperation];
 
+    // ── General Messages (genm) try-it commands ──────────────────────────────
+    // One `openssl cmp -cmd genm` per id-it support message this DMS answers.
+    //
+    // genm protection is governed SOLELY by GENM.access_policy, independent of
+    // the enrollment auth_mode: a DMS can require client-certificate enrollment
+    // yet still answer capability-discovery genm unauthenticated
+    // (public_discovery). Only require_signed forces a signed request.
+    const genmAccessPolicy = cmp?.genm?.access_policy ?? 'public_discovery';
+    const genmRequiresSigned = genmAccessPolicy === 'require_signed';
+    // When signing is required, prefer a REAL certificate issued from one of
+    // this RA's trusted CAs — reusing the exact same Bootstrap (step 3) /
+    // Credentials (step 4) flow ir/cr already use — over a synthetic one.
+    // genm itself doesn't chain-validate its signer (see cmp_genmsg.go), so a
+    // throwaway self-signed cert WOULD also satisfy the server; it's only used
+    // as a last resort when this RA has no validation_cas configured at all
+    // (nothing to issue from), so the wizard still produces a working command
+    // regardless of how the RA happens to be set up.
+    const genmUsesIssuedCert = genmRequiresSigned && selectableSigners.length > 0;
+    const genmUsesSelfSignedCert = genmRequiresSigned && selectableSigners.length === 0;
+    // Step 3 (Bootstrap) renders the CA/key-issuance form for whichever
+    // operation actually needs a signer at that step — ir/cr/p10cr per
+    // requiresClientCert (their own enrollment auth_mode), or genm per
+    // genmUsesIssuedCert (genm only ever reaches step 3 when that's true).
+    const stepThreeShowsBootstrapForm = selectedOperation === 'genm' ? genmUsesIssuedCert : requiresClientCert;
+    const genmInformationTypes = cmp?.genm?.information_types;
+    const genmEnabledCommands = GENM_INFOTYPE_COMMANDS.filter((t) => genmInformationTypes?.[t.key]);
+    // The genm/genp step lets the operator pick ONE of the id-it types this RA
+    // answers and shows just that command (a genm exchange carries a single
+    // -infotype). effectiveGenmType falls back to the first enabled type so the
+    // selection always resolves to a real, RA-answerable info type — no reset
+    // effect needed when the RA (and thus genmEnabledCommands) changes.
+    const effectiveGenmType: keyof CmpGenmInformationTypes | '' =
+        genmEnabledCommands.some((c) => c.key === selectedGenmType)
+            ? selectedGenmType
+            : (genmEnabledCommands[0]?.key ?? '');
+    const selectedGenmCommand = genmEnabledCommands.find((c) => c.key === effectiveGenmType);
+    const genmSelectorOptions: CardSelectorOption<keyof CmpGenmInformationTypes>[] = genmEnabledCommands.map((t) => ({
+        value: t.key,
+        label: t.label,
+        description: `openssl -infotype ${t.opensslName}${t.since ? ` · OpenSSL ${t.since}+` : ''}`,
+        icon: Info,
+    }));
+    // Verify flags with the trailing "\" stripped from the last line — genm ends
+    // on them, like rr.
+    const genmVerifyLines = verifyFlagLines.map((l, i) =>
+        i === verifyFlagLines.length - 1 ? l.replace(/ \\$/, '') : l);
+
+    // Filenames the signed genm commands reference: the real cert/key produced
+    // by the Bootstrap/Credentials steps (same files ir/cr download) when one
+    // was issued, otherwise the self-signed fallback pair.
+    const genmCertFile = genmUsesIssuedCert ? 'bootstrap.crt' : 'genm.crt';
+    const genmKeyFile = genmUsesIssuedCert ? 'bootstrap.key' : 'genm.key';
+
+    let genmStepCounter = 0;
+    // The self-signed generation step only appears when there's no RA CA to
+    // issue from — otherwise the cert already came from steps 3-4 above.
+    const genmSignerStepNumber = genmUsesSelfSignedCert ? ++genmStepCounter : null;
+    const genmTrustAnchorStepNumber = ++genmStepCounter;
+    const genmProtectionCertStepNumber = usesSrvcert ? ++genmStepCounter : null;
+    const genmSetupCommand = [
+        ...(genmSignerStepNumber !== null ? [
+            `# ${genmSignerStepNumber}. This RA has no client_certificate_settings.validation_cas to`,
+            `#    issue a real certificate from, so generate a throwaway self-signed`,
+            `#    one instead. genm doesn't chain-validate its signer (unlike`,
+            `#    ir/cr/kur), so any cert/key pair satisfies the protection requirement.`,
+            `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \\`,
+            `    -keyout ${genmKeyFile} -out ${genmCertFile} -days 1 -subj "/CN=genm-client"`,
+            ``,
+        ] : []),
+        `# ${genmTrustAnchorStepNumber}. Fetch the enrollment CA — openssl's trust anchor for verifying the`,
+        `#    server's signed CMP (genp) responses.`,
+        ...(protectionCaDiffersFromEnrollmentCa ? [
+            `#    The protection certificate is issued by a DIFFERENT CA than the`,
+            `#    enrollment CA, so both are fetched into the same trust store.`,
+        ] : []),
+        fetchTrustAnchor,
+        ...(genmProtectionCertStepNumber !== null ? [
+            ``,
+            `# ${genmProtectionCertStepNumber}. Pin the DMS protection certificate so openssl checks the exact`,
+            `#    server identity via -srvcert.`,
+            fetchProtectionCert,
+        ] : []),
+    ].join('\n');
+    const buildGenmCommand = (opensslName: string, outputFlags?: string[]) => [
+        `openssl cmp \\`,
+        `    -cmd genm \\`,
+        `    -infotype ${opensslName} \\`,
+        `    -server ${cmpServerUrl} \\`,
+        `    -path ${cmpServerPath} \\`,
+        ...(genmRequiresSigned
+            ? [`    -cert ${genmCertFile} -key ${genmKeyFile} \\`, `    -extracerts ${genmCertFile} \\`]
+            // A genm has no certificate template to carry a subject, but openssl
+            // cmp still needs SOME way to fill the PKIHeader sender field when no
+            // -cert is given — otherwise it refuses with "must give -ref if no
+            // -cert and no -subject given". -subject is a generic placeholder
+            // identity here, not a certificate request.
+            : [`    -unprotected_requests \\`, `    -subject "/CN=genm-client" \\`]),
+        ...(outputFlags ?? []).map((f) => `    ${f} \\`),
+        ...genmVerifyLines,
+    ].join('\n');
+
     // ── Panel layout ───────────────────────────────────────────────────────
     const panelContent = (
         <>
@@ -1510,12 +1703,20 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                 <div className="pt-2">
                     <Stepper
                         currentStep={
-                            selectedOperation === 'rr' ? (step === 1 ? 1 : step === 3 ? 2 : 3)
+                            selectedOperation === 'genm'
+                                ? (genmUsesIssuedCert
+                                    ? (step === 1 ? 1 : step === 3 ? 2 : step === 4 ? 3 : 4)
+                                    : (step === 1 ? 1 : 2))
+                            : selectedOperation === 'rr' ? (step === 1 ? 1 : step === 3 ? 2 : 3)
                             : selectedOperation === 'kur' && step === 5 ? 4
                             : step
                         }
                         steps={
-                            selectedOperation === 'rr' ? ['Request', 'Certificate', 'Command']
+                            selectedOperation === 'genm'
+                                ? (genmUsesIssuedCert
+                                    ? ['Request', 'Signer', 'Credentials', 'General messages']
+                                    : ['Request', 'General messages'])
+                            : selectedOperation === 'rr' ? ['Request', 'Certificate', 'Command']
                             : selectedOperation === 'kur' ? ['Request', 'Flow variant', 'Certificate', 'Commands']
                             : ['Request', 'Flow variant', 'Bootstrap', 'Credentials', 'Commands']
                         }
@@ -1546,6 +1747,27 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 columns={2}
                             />
 
+                            {selectedOperation === 'genm' ? (
+                                <Alert>
+                                    <Info className="h-4 w-4" />
+                                    <AlertTitle>Informational queries — no device needed</AlertTitle>
+                                    <AlertDescUI className="text-xs">
+                                        General messages ask the CA about its capabilities and don&apos;t issue a
+                                        device certificate, so there&apos;s no device ID.
+                                        {genmUsesIssuedCert
+                                            ? <> This RA requires general messages to be signed, so the next steps
+                                                issue a short-lived certificate from one of its trusted CAs to
+                                                protect the request — the same flow used for ir/cr.</>
+                                            : genmUsesSelfSignedCert
+                                            ? <> This RA requires general messages to be signed, but has no
+                                                validation CA configured to issue a real certificate from, so the
+                                                next step generates a throwaway self-signed one instead — genm
+                                                doesn&apos;t validate its signer&apos;s identity, so this is sufficient.</>
+                                            : <> The next step lists one <code className="font-mono">openssl cmp -cmd genm</code>{' '}
+                                                command per id-it information type this RA is configured to answer.</>}
+                                    </AlertDescUI>
+                                </Alert>
+                            ) : (
                             <div className="space-y-2">
                                 <Label htmlFor="cmp-device-id">Device ID</Label>
                                 {!initialDeviceId && (
@@ -1588,6 +1810,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     </p>
                                 )}
                             </div>
+                            )}
                         </div>
                     )}
 
@@ -1596,9 +1819,139 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             <div>
                                 <p className="font-semibold">Flow variant</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Configure confirmation and proof of possession for {CMP_OPERATION_NAMES[selectedOperation]}.
+                                    Configure key generation, confirmation, and proof of possession for {CMP_OPERATION_NAMES[selectedOperation]}.
                                 </p>
                             </div>
+
+                            {selectedOperation !== 'rr' && selectedOperation !== 'genm' && (
+                            <div className="space-y-4">
+                                <Label>{selectedOperation === 'kur' ? 'New device key parameters' : 'Device key parameters'} (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
+
+                                {selectedOperation === 'ir' && (
+                                    <RadioGroup
+                                        value={keygenMethod}
+                                        onValueChange={(v) => setKeygenMethod(v as 'device' | 'server')}
+                                        className="grid grid-cols-2 gap-4"
+                                    >
+                                        <div>
+                                            <RadioGroupItem value="device" id="cmp-keygen-device" className="peer sr-only" />
+                                            <Label
+                                                htmlFor="cmp-keygen-device"
+                                                className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 text-center hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            >
+                                                Generate key on device
+                                            </Label>
+                                        </div>
+                                        <div>
+                                            <RadioGroupItem value="server" id="cmp-keygen-server" className="peer sr-only" disabled={!ckgAvailable} />
+                                            <Label
+                                                htmlFor="cmp-keygen-server"
+                                                className={cn(
+                                                    'flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 text-center',
+                                                    ckgAvailable
+                                                        ? 'hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary'
+                                                        : 'cursor-not-allowed opacity-50',
+                                                )}
+                                            >
+                                                Generate key on server
+                                                {!ckgAvailable && (
+                                                    <Badge variant="destructive" className="mt-2">
+                                                        {!requiresClientCert ? 'Requires a signed request' : 'Not Supported by RA'}
+                                                    </Badge>
+                                                )}
+                                            </Label>
+                                        </div>
+                                    </RadioGroup>
+                                )}
+
+                                {selectedOperation === 'ir' && ckgAvailable && (
+                                    <p className="text-xs text-muted-foreground">
+                                        &quot;Generate key on device&quot; and &quot;Generate key on server&quot; (central key
+                                        generation) are mutually exclusive enrollment modes. Central key generation has the
+                                        server create the key, so there is no device-held key to prove possession of —
+                                        choosing it <strong>replaces</strong> the proof-of-possession method
+                                        {popoMethod === 'encrypted_certificate'
+                                            ? <> you picked below (<code className="font-mono">encrypted_certificate</code>)</>
+                                            : null}
+                                        {' '}with implicit possession (<RfcLink rfc={9483} section="4.1.6" />). This is why
+                                        both appear even when the DMS only allows device-key proof-of-possession methods:
+                                        they are two independent ways this DMS lets you enrol.
+                                    </p>
+                                )}
+
+                                {keygenMethod === 'device' ? (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <Label htmlFor="cmp-dev-key-type">Device Key Type</Label>
+                                            <Select value={deviceKeygenType} onValueChange={handleDeviceKeygenTypeChange}>
+                                                <SelectTrigger id="cmp-dev-key-type"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    {KEY_TYPE_OPTIONS.map((opt) => (
+                                                        <SelectItem
+                                                            key={opt.value}
+                                                            value={opt.value}
+                                                            disabled={popoMethod === 'encrypted_certificate' && opt.value !== 'RSA'}
+                                                        >
+                                                            {opt.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {popoMethod === 'encrypted_certificate' && (
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Locked to RSA — encrypted_certificate POPO only exists for
+                                                    keyEncipherment (RSA) keys.
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="cmp-dev-key-spec">{deviceKeygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
+                                            <Select value={deviceKeygenSpec} onValueChange={setDeviceKeygenSpec}>
+                                                <SelectTrigger id="cmp-dev-key-spec"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    {currentDeviceKeySpecOptions.map((opt) => (
+                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Alert>
+                                        <Info className="h-4 w-4" />
+                                        <AlertTitle>Central key generation (<RfcLink rfc={9483} section="4.1.6" />)</AlertTitle>
+                                        <AlertDescUI className="space-y-1 text-xs">
+                                            <p>
+                                                The server generates the key pair and delivers it confidentiality-protected to the
+                                                bootstrap signer (RSA-OAEP/KTRI or ECDH/KARI, per{' '}
+                                                <RfcLink rfc={5652} section="6.2" />, chosen automatically from its key type) — openssl
+                                                has no flag to request a specific algorithm, so it defaults to RSA-2048 unless this DMS
+                                                is configured otherwise.
+                                            </p>
+                                            <p>
+                                                Because the bootstrap signer is also the decryption recipient, the wizard requests{' '}
+                                                <code className="font-mono">KeyAgreement</code> alongside its signing usage when it's an
+                                                EC key (an RSA signer already carries <code className="font-mono">KeyEncipherment</code>).
+                                            </p>
+                                            <p className="text-amber-600 dark:text-amber-400">
+                                                Known limitation: <code className="font-mono">openssl cmp</code>&apos;s CLI only
+                                                consumes a bare key as the delivered content, while <RfcLink rfc={9483} section="4.1.6" />{' '}
+                                                (and the compliance test suite this DMS is validated against) require the key wrapped in
+                                                an AsymmetricKeyPackage. The two requirements are mutually exclusive for a single
+                                                response, and this DMS stays spec-compliant — so <code className="font-mono">openssl cmp</code>{' '}
+                                                itself will fail with a decode error (&quot;failed extracting central gen key&quot;). It
+                                                treats that as fatal to the whole exchange, so it writes neither{' '}
+                                                <code className="font-mono">-newkeyout</code> nor <code className="font-mono">-certout</code>{' '}
+                                                — even though the issued certificate is present in the response. The final step generates
+                                                a small recovery script (using only standard <code className="font-mono">openssl cms</code>{' '}
+                                                primitives) that recovers the key directly from the raw saved response instead — no
+                                                other CMP client needed.
+                                            </p>
+                                        </AlertDescUI>
+                                    </Alert>
+                                )}
+                            </div>
+                            )}
 
                             <CardSelector
                                 label="Confirmation mode"
@@ -1616,10 +1969,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         <Info className="h-4 w-4" />
                                         <AlertTitle>Not applicable — central key generation selected</AlertTitle>
                                         <AlertDescUI className="text-xs">
-                                            You selected &quot;Generate key on server&quot; for this ir in the next step. Central
+                                            You selected &quot;Generate key on server&quot; above for this ir. Central
                                             key generation has no CRMF proof of possession to choose — possession is implicit in
                                             successfully decrypting the delivered key (RFC 9483 §4.1.6). Switch back to
-                                            &quot;Generate key on device&quot; there to pick a POPO method instead.
+                                            &quot;Generate key on device&quot; above to pick a POPO method instead.
                                         </AlertDescUI>
                                     </Alert>
                                 ) : selectedOperation !== 'p10cr' && (
@@ -1747,8 +2100,19 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         </Select>
                                     )}
                                 </div>
-                            ) : requiresClientCert ? (
+                            ) : stepThreeShowsBootstrapForm ? (
                                 <>
+                                    {selectedOperation === 'genm' && (
+                                        <Alert>
+                                            <Info className="h-4 w-4" />
+                                            <AlertDescUI className="text-xs">
+                                                genm doesn&apos;t actually validate its signer&apos;s identity, so any
+                                                certificate would satisfy the protection requirement — issuing from an
+                                                RA-trusted CA here just gives you a real, verifiable certificate
+                                                instead of an ad-hoc one.
+                                            </AlertDescUI>
+                                        </Alert>
+                                    )}
                                     <div>
                                         <Label htmlFor="cmp-bootstrap-cn">Bootstrap Common Name (CN)</Label>
                                         <Input id="cmp-bootstrap-cn" value={bootstrapCn} onChange={(e) => setBootstrapCn(e.target.value)} />
@@ -1782,8 +2146,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     <div>
                                         <Label htmlFor="cmp-bs-signer">Bootstrap Signer (must be in validation_cas)</Label>
                                         <p className="text-xs text-muted-foreground mb-2">
-                                            Only CAs configured on this RA's CMP <code className="font-mono">client_certificate_settings.validation_cas</code> are listed —
-                                            using anything else would make the DMS reject the enrollment.
+                                            Only CAs configured on this RA's CMP <code className="font-mono">client_certificate_settings.validation_cas</code> are listed
+                                            {selectedOperation === 'genm'
+                                                ? <> as a source of real, RA-trusted certificates.</>
+                                                : <> — using anything else would make the DMS reject the enrollment.</>}
                                         </p>
                                         {selectableSigners.length === 0 && !isLoadingDependencies && (
                                             <Alert variant="destructive">
@@ -1838,136 +2204,6 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     </AlertDescUI>
                                 </Alert>
                             )}
-
-                            {selectedOperation !== 'rr' && (
-                            <div className="border-t pt-4 space-y-4">
-                                <Label>{selectedOperation === 'kur' ? 'New device key parameters' : 'Device key parameters'} (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
-
-                                {selectedOperation === 'ir' && (
-                                    <RadioGroup
-                                        value={keygenMethod}
-                                        onValueChange={(v) => setKeygenMethod(v as 'device' | 'server')}
-                                        className="grid grid-cols-2 gap-4"
-                                    >
-                                        <div>
-                                            <RadioGroupItem value="device" id="cmp-keygen-device" className="peer sr-only" />
-                                            <Label
-                                                htmlFor="cmp-keygen-device"
-                                                className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 text-center hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                                            >
-                                                Generate key on device
-                                            </Label>
-                                        </div>
-                                        <div>
-                                            <RadioGroupItem value="server" id="cmp-keygen-server" className="peer sr-only" disabled={!ckgAvailable} />
-                                            <Label
-                                                htmlFor="cmp-keygen-server"
-                                                className={cn(
-                                                    'flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 text-center',
-                                                    ckgAvailable
-                                                        ? 'hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary'
-                                                        : 'cursor-not-allowed opacity-50',
-                                                )}
-                                            >
-                                                Generate key on server
-                                                {!ckgAvailable && (
-                                                    <Badge variant="destructive" className="mt-2">
-                                                        {!requiresClientCert ? 'Requires a signed request' : 'Not Supported by RA'}
-                                                    </Badge>
-                                                )}
-                                            </Label>
-                                        </div>
-                                    </RadioGroup>
-                                )}
-
-                                {selectedOperation === 'ir' && ckgAvailable && (
-                                    <p className="text-xs text-muted-foreground">
-                                        &quot;Generate key on device&quot; and &quot;Generate key on server&quot; (central key
-                                        generation) are mutually exclusive enrollment modes. Central key generation has the
-                                        server create the key, so there is no device-held key to prove possession of —
-                                        choosing it <strong>replaces</strong> the proof-of-possession method
-                                        {popoMethod === 'encrypted_certificate'
-                                            ? <> you picked (<code className="font-mono">encrypted_certificate</code>)</>
-                                            : null}
-                                        {' '}with implicit possession (<RfcLink rfc={9483} section="4.1.6" />). This is why
-                                        both appear even when the DMS only allows device-key proof-of-possession methods:
-                                        they are two independent ways this DMS lets you enrol.
-                                    </p>
-                                )}
-
-                                {keygenMethod === 'device' ? (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="cmp-dev-key-type">Device Key Type</Label>
-                                            <Select value={deviceKeygenType} onValueChange={handleDeviceKeygenTypeChange}>
-                                                <SelectTrigger id="cmp-dev-key-type"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    {KEY_TYPE_OPTIONS.map((opt) => (
-                                                        <SelectItem
-                                                            key={opt.value}
-                                                            value={opt.value}
-                                                            disabled={popoMethod === 'encrypted_certificate' && opt.value !== 'RSA'}
-                                                        >
-                                                            {opt.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            {popoMethod === 'encrypted_certificate' && (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Locked to RSA — encrypted_certificate POPO only exists for
-                                                    keyEncipherment (RSA) keys.
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="cmp-dev-key-spec">{deviceKeygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
-                                            <Select value={deviceKeygenSpec} onValueChange={setDeviceKeygenSpec}>
-                                                <SelectTrigger id="cmp-dev-key-spec"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    {currentDeviceKeySpecOptions.map((opt) => (
-                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <Alert>
-                                        <Info className="h-4 w-4" />
-                                        <AlertTitle>Central key generation (<RfcLink rfc={9483} section="4.1.6" />)</AlertTitle>
-                                        <AlertDescUI className="space-y-1 text-xs">
-                                            <p>
-                                                The server generates the key pair and delivers it confidentiality-protected to the
-                                                bootstrap signer (RSA-OAEP/KTRI or ECDH/KARI, per{' '}
-                                                <RfcLink rfc={5652} section="6.2" />, chosen automatically from its key type) — openssl
-                                                has no flag to request a specific algorithm, so it defaults to RSA-2048 unless this DMS
-                                                is configured otherwise.
-                                            </p>
-                                            <p>
-                                                Because the bootstrap signer is also the decryption recipient, the wizard requests{' '}
-                                                <code className="font-mono">KeyAgreement</code> alongside its signing usage when it's an
-                                                EC key (an RSA signer already carries <code className="font-mono">KeyEncipherment</code>).
-                                            </p>
-                                            <p className="text-amber-600 dark:text-amber-400">
-                                                Known limitation: <code className="font-mono">openssl cmp</code>&apos;s CLI only
-                                                consumes a bare key as the delivered content, while <RfcLink rfc={9483} section="4.1.6" />{' '}
-                                                (and the compliance test suite this DMS is validated against) require the key wrapped in
-                                                an AsymmetricKeyPackage. The two requirements are mutually exclusive for a single
-                                                response, and this DMS stays spec-compliant — so <code className="font-mono">openssl cmp</code>{' '}
-                                                itself will fail with a decode error (&quot;failed extracting central gen key&quot;). It
-                                                treats that as fatal to the whole exchange, so it writes neither{' '}
-                                                <code className="font-mono">-newkeyout</code> nor <code className="font-mono">-certout</code>{' '}
-                                                — even though the issued certificate is present in the response. The final step generates
-                                                a small recovery script (using only standard <code className="font-mono">openssl cms</code>{' '}
-                                                primitives) that recovers the key directly from the raw saved response instead — no
-                                                other CMP client needed.
-                                            </p>
-                                        </AlertDescUI>
-                                    </Alert>
-                                )}
-                            </div>
-                            )}
                         </div>
                     )}
 
@@ -1996,7 +2232,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                         </div>
                     )}
 
-                    {step === 5 && (
+                    {step === 5 && selectedOperation !== 'genm' && (
                         <div className="space-y-6">
                             <Alert>
                                 <Info className="h-4 w-4" />
@@ -2190,6 +2426,117 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             )}
                         </div>
                     )}
+
+                    {step === 5 && selectedOperation === 'genm' && (
+                        <div className="space-y-6">
+                            <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertTitle>General message queries for {ra?.name}</AlertTitle>
+                                <AlertDescUI className="text-xs space-y-1">
+                                    <p>
+                                        <code className="font-mono">genm.access_policy</code>: {genmAccessPolicy}
+                                        {genmUsesIssuedCert
+                                            ? <> — this RA requires signature-protected general messages, so each command
+                                                below signs with the certificate issued in the previous steps
+                                                (<code className="font-mono">bootstrap.crt</code>/<code className="font-mono">bootstrap.key</code>).
+                                                Any certificate would have worked: unlike ir/cr/kur, genm does not
+                                                chain-validate the signer against a trusted CA — an RA-issued one was
+                                                used anyway so it&apos;s a real, verifiable credential.</>
+                                            : genmUsesSelfSignedCert
+                                            ? <> — this RA requires signature-protected general messages, but has no
+                                                validation CA configured to issue from, so each command below signs
+                                                with a throwaway self-signed certificate
+                                                (<code className="font-mono">genm.crt</code>/<code className="font-mono">genm.key</code>)
+                                                generated in the setup step. genm does not chain-validate its signer,
+                                                so this is sufficient.</>
+                                            : <> — genm is answered unauthenticated regardless of the DMS enrollment
+                                                auth mode, so requests are sent with <code className="font-mono">-unprotected_requests</code>.
+                                                The accompanying <code className="font-mono">-subject</code> is just a placeholder sender
+                                                identity openssl requires in the message header; it has no effect on the query.</>}
+                                    </p>
+                                    <p>
+                                        Choose which general message to run below — each sets{' '}
+                                        <code className="font-mono">-infotype</code> to one id-it type this RA
+                                        answers. openssl maps that name to <code className="font-mono">id-it-&lt;name&gt;</code>;
+                                        the newer types are flagged with the OpenSSL version that first recognized them.
+                                    </p>
+                                </AlertDescUI>
+                            </Alert>
+
+                            {!(cmp?.genm?.enabled ?? true) && (
+                                <Alert variant="warning">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertTitle>General messages are disabled on this DMS</AlertTitle>
+                                    <AlertDescUI className="text-xs">
+                                        <code className="font-mono">genm.enabled</code> is off, so the DMS rejects every general
+                                        message. Enable it in this RA&apos;s GENM settings before using the commands below.
+                                    </AlertDescUI>
+                                </Alert>
+                            )}
+
+                            {!protectionSerial && (
+                                <Alert variant="warning">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertTitle>Responses will be unprotected</AlertTitle>
+                                    <AlertDescUI className="text-xs">
+                                        This RA has no <code className="font-mono">protection_certificate</code>, so genp responses
+                                        are unsigned. <code className="font-mono">openssl cmp</code> may report{' '}
+                                        <code className="font-mono">missing protection</code>; the returned data is still shown.
+                                        Configure a protection certificate to get signed, verifiable responses.
+                                    </AlertDescUI>
+                                </Alert>
+                            )}
+
+                            <div>
+                                <Label>Setup{genmUsesSelfSignedCert ? ' — signer certificate and trust anchor' : ' — trust anchor'}</Label>
+                                <p className="text-xs text-muted-foreground mb-1">
+                                    Run once; the command below reuses
+                                    {genmUsesIssuedCert
+                                        ? <> <code className="font-mono">bootstrap.crt</code>/<code className="font-mono">bootstrap.key</code> (from the previous steps) and</>
+                                        : genmUsesSelfSignedCert
+                                        ? <> <code className="font-mono">genm.crt</code>/<code className="font-mono">genm.key</code> and</>
+                                        : null}{' '}
+                                    <code className="font-mono">enrollca.pem</code>
+                                    {usesSrvcert ? <> and <code className="font-mono">srvcert.pem</code></> : null}.
+                                </p>
+                                <CodeBlock content={genmSetupCommand} textareaClassName="h-40" />
+                            </div>
+
+                            {genmEnabledCommands.length === 0 ? (
+                                <Alert>
+                                    <Info className="h-4 w-4" />
+                                    <AlertDescUI className="text-xs">
+                                        No queryable id-it information types are enabled for this RA (or the only enabled one,
+                                        supported languages, can&apos;t be driven by <code className="font-mono">openssl cmp</code>,
+                                        which cannot attach the required language list). Enable information types in this RA&apos;s
+                                        GENM settings.
+                                    </AlertDescUI>
+                                </Alert>
+                            ) : (
+                                <div className="space-y-4">
+                                    <CardSelector
+                                        label="General message to run"
+                                        value={effectiveGenmType as keyof CmpGenmInformationTypes}
+                                        onChange={setSelectedGenmType}
+                                        options={genmSelectorOptions}
+                                        columns={2}
+                                    />
+                                    {selectedGenmCommand && (
+                                        <div className="border-t pt-4">
+                                            <div className="flex items-center gap-2">
+                                                <Label>{selectedGenmCommand.label}</Label>
+                                                <code className="font-mono text-xs text-muted-foreground">-infotype {selectedGenmCommand.opensslName}</code>
+                                                {selectedGenmCommand.since && (
+                                                    <Badge variant="outline" className="text-[10px]">OpenSSL {selectedGenmCommand.since}+</Badge>
+                                                )}
+                                            </div>
+                                            <CodeBlock content={buildGenmCommand(selectedGenmCommand.opensslName, selectedGenmCommand.outputFlags)} textareaClassName="h-40" />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -2202,7 +2549,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 <ArrowLeft className="mr-2 h-4 w-4" />Back
                             </Button>
                         )}
-                        {step === 3 && requiresClientCert && selectedOperation !== 'kur' && (
+                        {step === 3 && stepThreeShowsBootstrapForm && selectedOperation !== 'kur' && (
                             <Button variant="secondary" onClick={handleSkipBootstrap}>
                                 Skip &amp; Use Existing
                             </Button>
@@ -2211,7 +2558,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             <Button onClick={handleNext} disabled={isGenerating}>
                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 {step === 3
-                                    ? (selectedOperation === 'kur' ? 'Show Commands' : requiresClientCert ? 'Issue Bootstrap Cert' : 'Next')
+                                    ? (selectedOperation === 'kur' ? 'Show Commands'
+                                        : selectedOperation === 'genm' ? 'Issue Certificate'
+                                        : requiresClientCert ? 'Issue Bootstrap Cert' : 'Next')
                                     : step === 4 ? 'Show Commands' : 'Next'}
                             </Button>
                         ) : (
