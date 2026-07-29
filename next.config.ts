@@ -4,6 +4,22 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   output: 'export', // Add this line to enable static HTML export
+  turbopack: {
+    resolveAlias: {
+      child_process: {
+        browser: './src/lib/packet-analyzer/node-module-shim.ts',
+      },
+      crypto: {
+        browser: './src/lib/packet-analyzer/node-module-shim.ts',
+      },
+      fs: {
+        browser: './src/lib/packet-analyzer/node-module-shim.ts',
+      },
+      path: {
+        browser: './src/lib/packet-analyzer/node-module-shim.ts',
+      },
+    },
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -24,6 +40,19 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  webpack: (config, {isServer}) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        child_process: false,
+        crypto: false,
+        fs: false,
+        path: false,
+      };
+    }
+
+    return config;
   },
 };
 

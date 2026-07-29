@@ -304,7 +304,13 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
     ];
 
     const certificateProperties = asset.cryptoProperties?.certificateProperties;
+    const certificateRole = (asset.properties ?? []).find(
+        (p) => p.name === 'live-cbom:tls.certificateRole',
+    )?.value;
     const certificateFields: Array<{ label: string; value: string; mono?: boolean; wide?: boolean }> = [
+        ...(certificateRole
+            ? [{ label: 'Role', value: capitalizeWords(certificateRole) }]
+            : []),
         ...(certificateProperties?.certificateFormat
             ? [{ label: 'Certificate Format', value: certificateProperties.certificateFormat }]
             : []),
@@ -330,7 +336,7 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
 
     const pemValue = (asset.properties ?? []).find((p) => p.name === 'live-cbom:pem')?.value;
     const otherProperties = (asset.properties ?? []).filter(
-        (p) => p.name && p.name !== 'live-cbom:pem' && p.value,
+        (p) => p.name && p.name !== 'live-cbom:pem' && p.name !== 'live-cbom:tls.certificateRole' && p.value,
     );
 
     const isCompliant = complianceInfo.category === 'N/A';

@@ -97,6 +97,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'packet-analyzer': "Packet Analyzer",
   'job-manager': "Job Manager",
   'jobs': "Jobs",
   'workflows': "Workflows",
@@ -176,6 +177,7 @@ const navigationConfig: NavGroup[] = [
     label: 'TOOLS',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+      { href: '/tools/packet-analyzer', label: 'Packet Analyzer', icon: Network },
       { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen },
     ],
   },

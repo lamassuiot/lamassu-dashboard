@@ -3,8 +3,10 @@
   "version": "4.2.0",
   "private": true,
   "scripts": {
+    "wiregasm:assets": "node scripts/copy-wiregasm-assets.mjs",
+    "predev": "npm run wiregasm:assets",
     "dev": "next dev --turbopack -p 9002",
-    "prebuild": "node scripts/generate-version.js",
+    "prebuild": "node scripts/generate-version.js && npm run wiregasm:assets",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -14,10 +16,11 @@
     "test:watch": "vitest watch",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && npm run wiregasm:assets",
     "version:generate": "node scripts/generate-version.js"
   },
   "dependencies": {
+    "@goodtools/wiregasm": "1.9.1",
     "@dagrejs/dagre": "^1.1.3",
     "@hookform/resolvers": "^4.1.3",
     "@monaco-editor/react": "^4.6.0",
