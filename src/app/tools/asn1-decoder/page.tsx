@@ -241,10 +241,15 @@ function ensurePyodideScript() {
   });
 }
 
-function loadPemDer(bytes: Uint8Array) {
+// Strips PEM armor when present and returns the raw DER bytes alongside the
+// label from the "-----BEGIN X-----" header (e.g. "CERTIFICATE REQUEST"), if
+// any — the label is a strong hint for which ASN.1 type to try first, but
+// input without one (raw DER/binary) still needs type detection downstream.
+function loadPemDer(bytes: Uint8Array): { der: Uint8Array; pemLabel: string | null } {
   const text = new TextDecoder('ascii', { fatal: false }).decode(bytes).trimStart();
-  if (!text.startsWith('-----')) {
-    return bytes;
+  const headerMatch = text.match(/^-----BEGIN ([^-]+)-----/);
+  if (!headerMatch) {
+    return { der: bytes, pemLabel: null };
   }
 
   const base64Body = text
@@ -253,7 +258,7 @@ function loadPemDer(bytes: Uint8Array) {
     .join('');
 
   const binary = atob(base64Body);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return { der: Uint8Array.from(binary, (character) => character.charCodeAt(0)), pemLabel: headerMatch[1].trim() };
 }
 
 export default function Asn1DecoderPage() {
@@ -327,9 +332,23 @@ def _suppress():
         sys.stdout = old
 
 with _suppress():
-    from cmp_comp import PKIXCMP_2023
+    from cmp_comp import (
+        PKIXCMP_2023,
+        PKIX1Explicit_2009,
+        PKCS_10,
+        CryptographicMessageSyntax_2010,
+        PKIXCRMF_2009,
+    )
 
+# Every ASN.1 type the decoder can auto-detect against, beyond the CMP
+# PKIMessage this tool was originally built for.
 PKIMessage = PKIXCMP_2023.PKIMessage
+Certificate = PKIX1Explicit_2009.Certificate
+CertificateList = PKIX1Explicit_2009.CertificateList
+SubjectPublicKeyInfo = PKIX1Explicit_2009.SubjectPublicKeyInfo
+CertificationRequest = PKCS_10.CertificationRequest
+ContentInfo = CryptographicMessageSyntax_2010.ContentInfo
+PrivateKeyInfo = PKIXCRMF_2009.PrivateKeyInfo
 `);
 
         pyodideRef.current = pyodide;
@@ -362,8 +381,9 @@ PKIMessage = PKIXCMP_2023.PKIMessage
       throw new Error('Decoder is not ready yet.');
     }
 
-    const der = loadPemDer(bytes);
+    const { der, pemLabel } = loadPemDer(bytes);
     pyodide.globals.set('_der_bytes', der);
+    pyodide.globals.set('_pem_label', pemLabel ?? '');
 
     const result = await pyodide.runPythonAsync(`
 import io
@@ -379,9 +399,62 @@ def _suppress():
     finally:
         sys.stdout = old
 
+# Candidates this decoder can recognize, tried in order. A PEM header (if any)
+# reorders this list so its declared type is tried first; a fully-consuming
+# decode (no leftover bytes) wins outright, otherwise the candidate that
+# consumed the most bytes is used as a best-effort guess.
+_CANDIDATES = [
+    ('PKIMessage', PKIMessage, 'CMP PKIMessage'),
+    ('Certificate', Certificate, 'X.509 Certificate'),
+    ('CertificateList', CertificateList, 'X.509 CRL'),
+    ('CertificationRequest', CertificationRequest, 'PKCS#10 Certificate Request'),
+    ('ContentInfo', ContentInfo, 'PKCS#7 / CMS ContentInfo'),
+    ('SubjectPublicKeyInfo', SubjectPublicKeyInfo, 'SubjectPublicKeyInfo'),
+    ('PrivateKeyInfo', PrivateKeyInfo, 'PKCS#8 PrivateKeyInfo'),
+]
+_PEM_LABEL_MAP = {
+    'CERTIFICATE': 'Certificate',
+    'X509 CERTIFICATE': 'Certificate',
+    'TRUSTED CERTIFICATE': 'Certificate',
+    'X509 CRL': 'CertificateList',
+    'CRL': 'CertificateList',
+    'CERTIFICATE REQUEST': 'CertificationRequest',
+    'NEW CERTIFICATE REQUEST': 'CertificationRequest',
+    'PKCS7': 'ContentInfo',
+    'PKCS #7 SIGNED DATA': 'ContentInfo',
+    'PUBLIC KEY': 'SubjectPublicKeyInfo',
+    'PRIVATE KEY': 'PrivateKeyInfo',
+    'PKIXCMP': 'PKIMessage',
+    'PKI MESSAGE': 'PKIMessage',
+}
+
 der = bytes(_der_bytes)
+_hint_key = _PEM_LABEL_MAP.get(str(_pem_label).strip().upper())
+_ordered = sorted(_CANDIDATES, key=lambda c: c[0] != _hint_key) if _hint_key else _CANDIDATES
+
+_target = None
+_target_label = None
+_best = None
 with _suppress():
-    PKIMessage.from_der(der)
+    for _key, _obj, _label in _ordered:
+        try:
+            _obj.from_der(der)
+            _consumed = len(_obj.to_der())
+        except Exception:
+            continue
+        if _consumed == len(der):
+            _target, _target_label = _obj, _label
+            break
+        if _best is None or _consumed > _best[0]:
+            _best = (_consumed, _obj, _label)
+    else:
+        if _best is not None:
+            _target, _target_label = _best[1], _best[2] + ' (best-effort match, trailing bytes unconsumed)'
+        else:
+            # Nothing decoded cleanly against any known type — fall back to
+            # the CMP parser so its error message surfaces to the user.
+            PKIMessage.from_der(der)
+            _target, _target_label = PKIMessage, 'CMP PKIMessage'
 
 if ${hexAnnotated ? 'True' : 'False'}:
     def _fmt_hex(data):
@@ -449,11 +522,11 @@ if ${hexAnnotated ? 'True' : 'False'}:
             parts[-1] = parts[-1][:-2]
         return f'{{  -- hex: {hex_str} --\\n' + ''.join(parts) + '\\n}'
 
-    result = _render_obj(PKIMessage, PKIMessage._val)
+    result = _render_obj(_target, _target._val)
 else:
-    result = PKIMessage.to_asn1()
+    result = _target.to_asn1()
 
-result
+f'-- Detected type: {_target_label} --\\n\\n' + result
 `);
 
     return String(result);
@@ -613,7 +686,7 @@ result
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">ASN1 Decoder</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Inspect CMP PKIMessage payloads from DER or PEM input using the compiled ASN.1 module from the public assets directory.
+              Inspect DER or PEM input — certificates, CRLs, CSRs, PKCS#7, public/private keys, and CMP PKIMessage — using the compiled ASN.1 module from the public assets directory. The type is auto-detected from a PEM header or, if absent, from the raw DER structure itself.
             </p>
           </div>
         </div>

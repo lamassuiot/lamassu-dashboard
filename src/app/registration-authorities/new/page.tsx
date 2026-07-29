@@ -31,12 +31,13 @@ import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
-import { DurationInput } from '@/components/shared/DurationInput';
+import { DurationInput, isValidPositiveDuration } from '@/components/shared/DurationInput';
 import {
   createOrUpdateRa, fetchRaById,
   type ApiRaCmpSettings, type ApiRaEstSettings, type ApiRaItem, type RaCreationPayload,
   type CmpIrSettings, type CmpCrSettings, type CmpP10crSettings, type CmpRrSettings, type CmpCcrSettings,
   type CmpKeyPolicy, type CmpIdentityChangePolicy, type CmpGenmAccessPolicy, type CmpGenmInformationTypes,
+  type CmpPreferredSymmetricAlgorithm,
 } from '@/lib/dms-api';
 import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
@@ -208,6 +209,7 @@ function createDefaultCmpGenmInformationTypes(): CmpGenmInformationTypes {
 function createDefaultCmpCcr(): CmpCcrSettings {
   return {
     enabled: false,
+    requester_mode: 'any',
     trusted_requester_ca_ids: [],
     require_ca_certificate: true,
     require_proof_of_possession: true,
@@ -217,6 +219,13 @@ function createDefaultCmpCcr(): CmpCcrSettings {
     workflow: 'administrator_approval',
   };
 }
+
+// Fallbacks used both as the initial state for a brand-new RA and, on edit,
+// whenever a stored renewal delta comes back empty or zero-length (e.g. '0s') —
+// a zero delta is never meaningful, so it's treated as unset rather than shown.
+const DEFAULT_ALLOWED_RENEWAL_DELTA = '100d';
+const DEFAULT_PREVENTIVE_RENEWAL_DELTA = '31d';
+const DEFAULT_CRITICAL_RENEWAL_DELTA = '7d';
 
 
 function hslToHex(h: number, s: number, l: number) {
@@ -297,13 +306,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [cmpRr, setCmpRr] = useState<CmpRrSettings>(createDefaultCmpRr);
   const [cmpGenmAccessPolicy, setCmpGenmAccessPolicy] = useState<CmpGenmAccessPolicy>('public_discovery');
   const [cmpGenmInformationTypes, setCmpGenmInformationTypes] = useState<CmpGenmInformationTypes>(createDefaultCmpGenmInformationTypes);
+  const [cmpGenmPreferredSymmAlg, setCmpGenmPreferredSymmAlg] = useState<CmpPreferredSymmetricAlgorithm>('aes256_cbc');
   const [cmpCcr, setCmpCcr] = useState<CmpCcrSettings>(createDefaultCmpCcr);
+  const [ccrTrustedRequesterCAs, setCcrTrustedRequesterCAs] = useState<CA[]>([]);
 
   const [revokeOnReEnroll, setRevokeOnReEnroll] = useState(true);
   const [allowExpiredRenewal, setAllowExpiredRenewal] = useState(true);
-  const [allowedRenewalDelta, setAllowedRenewalDelta] = useState('100d');
-  const [preventiveRenewalDelta, setPreventiveRenewalDelta] = useState('31d');
-  const [criticalRenewalDelta, setCriticalRenewalDelta] = useState('7d');
+  const [allowedRenewalDelta, setAllowedRenewalDelta] = useState(DEFAULT_ALLOWED_RENEWAL_DELTA);
+  const [preventiveRenewalDelta, setPreventiveRenewalDelta] = useState(DEFAULT_PREVENTIVE_RENEWAL_DELTA);
+  const [criticalRenewalDelta, setCriticalRenewalDelta] = useState(DEFAULT_CRITICAL_RENEWAL_DELTA);
   const [additionalValidationCAs, setAdditionalValidationCAs] = useState<CA[]>([]);
   const [enableKeyGeneration, setEnableKeyGeneration] = useState(false);
   const [serverKeygenType, setServerKeygenType] = useState('RSA');
@@ -322,6 +333,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [isEnrollmentCaModalOpen, setIsEnrollmentCaModalOpen] = useState(false);
   const [isAdditionalValidationCaModalOpen, setIsAdditionalValidationCaModalOpen] = useState(false);
   const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
+  const [isCcrTrustedRequesterCaModalOpen, setIsCcrTrustedRequesterCaModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
@@ -492,7 +504,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             setCmpRr(cmpSettings.rr ?? createDefaultCmpRr());
             setCmpGenmAccessPolicy(cmpSettings.genm?.access_policy ?? 'public_discovery');
             setCmpGenmInformationTypes(cmpSettings.genm?.information_types ?? createDefaultCmpGenmInformationTypes());
+            setCmpGenmPreferredSymmAlg(cmpSettings.genm?.preferred_symmetric_algorithm ?? 'aes256_cbc');
             setCmpCcr(cmpSettings.ccr ?? createDefaultCmpCcr());
+            setCcrTrustedRequesterCAs((cmpSettings.ccr?.trusted_requester_ca_ids ?? []).map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
         } else {
             void hydrateProtectionCertificate(undefined);
         }
@@ -531,9 +545,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         setRevokeOnReEnroll(reenrollment_settings.revoke_on_reenrollment);
         setAllowExpiredRenewal(reenrollment_settings.enable_expired_renewal);
-        setAllowedRenewalDelta(reenrollment_settings.reenrollment_delta);
-        setPreventiveRenewalDelta(reenrollment_settings.preventive_delta);
-        setCriticalRenewalDelta(reenrollment_settings.critical_delta);
+        setAllowedRenewalDelta(isValidPositiveDuration(reenrollment_settings.reenrollment_delta) ? reenrollment_settings.reenrollment_delta : DEFAULT_ALLOWED_RENEWAL_DELTA);
+        setPreventiveRenewalDelta(isValidPositiveDuration(reenrollment_settings.preventive_delta) ? reenrollment_settings.preventive_delta : DEFAULT_PREVENTIVE_RENEWAL_DELTA);
+        setCriticalRenewalDelta(isValidPositiveDuration(reenrollment_settings.critical_delta) ? reenrollment_settings.critical_delta : DEFAULT_CRITICAL_RENEWAL_DELTA);
         setAdditionalValidationCAs((reenrollment_settings.additional_validation_cas ?? []).map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
 
         setEnableKeyGeneration(server_keygen_settings.enabled);
@@ -663,9 +677,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             genm: {
               enabled: true,
               access_policy: cmpGenmAccessPolicy,
-              information_types: cmpGenmInformationTypes,
+              // protocol_encryption_certificate is hidden and hard-disabled
+              // server-side; force it false so the UI never persists a
+              // misleading "enabled" value (e.g. loaded from older API data).
+              information_types: { ...cmpGenmInformationTypes, protocol_encryption_certificate: false },
+              preferred_symmetric_algorithm: cmpGenmPreferredSymmAlg,
             },
-            ccr: cmpCcr,
+            ccr: { ...cmpCcr, trusted_requester_ca_ids: ccrTrustedRequesterCAs.map(ca => ca.id) },
           },
           effectiveCmpAuthSettings,
         )
@@ -743,6 +761,17 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const handleRemoveAdditionalValidationCa = (caId: string) => {
     setAdditionalValidationCAs(prev => prev.filter(vca => vca.id !== caId));
+  }
+
+  const handleAddCcrTrustedRequesterCa = (ca: CA) => {
+    if (!ccrTrustedRequesterCAs.some(tca => tca.id === ca.id)) {
+        setCcrTrustedRequesterCAs(prev => [...prev, ca]);
+    }
+    setIsCcrTrustedRequesterCaModalOpen(false);
+  }
+
+  const handleRemoveCcrTrustedRequesterCa = (caId: string) => {
+    setCcrTrustedRequesterCAs(prev => prev.filter(tca => tca.id !== caId));
   }
 
   const handleAddManagedCa = (ca: CA) => {
@@ -920,6 +949,37 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         </div>
       )}
     </div>
+  );
+
+  // Enrollment CA/profile + device-level enrollment defaults, hoisted out of
+  // CMP's "General" tab and into "Enrollment" — they govern how a device
+  // enrolls, so they belong alongside IR/CR/P10CR/KUR rather than under
+  // general DMS config.
+  const cmpEnrollmentGeneralSection = (
+    <>
+      <SettingsSection title="Enrollment CA & Profile" description="The CA that signs issued certificates, and the issuance profile CMP operations use.">
+        {enrollmentCaProfileSection}
+      </SettingsSection>
+
+      <Separator />
+
+      <SettingsSection title="Device Policy" description="DMS-wide defaults for re-enrolling an existing device and proving key possession.">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5 flex-1">
+            <Label htmlFor="cmpAllowOverride">Allow Replaceable Enrollment</Label>
+            <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
+          </div>
+          <Switch id="cmpAllowOverride" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5 flex-1">
+            <Label htmlFor="cmpEnforcePopoGeneral">Enforce Proof-of-Possession (POPO)</Label>
+            <p className="text-xs text-muted-foreground">Require the CRMF CertReqMsg to carry a valid POPO signature proving private key ownership (<RfcLink rfc={9483} section="4.1" />).</p>
+          </div>
+          <Switch id="cmpEnforcePopoGeneral" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
+        </div>
+      </SettingsSection>
+    </>
   );
 
   const formContent = (
@@ -1295,31 +1355,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
           {/* ── General ── */}
           <TabsContent value="general" className="mt-6">
-            <SettingsSection title="Enrollment CA & Profile" description="The CA that signs issued certificates, and the issuance profile CMP operations use.">
-              {enrollmentCaProfileSection}
-            </SettingsSection>
-
-            <Separator />
-
-            <SettingsSection title="Device Policy" description="DMS-wide defaults for re-enrolling an existing device and proving key possession.">
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-0.5 flex-1">
-                  <Label htmlFor="cmpAllowOverride">Allow Replaceable Enrollment</Label>
-                  <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
-                </div>
-                <Switch id="cmpAllowOverride" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-0.5 flex-1">
-                  <Label htmlFor="cmpEnforcePopoGeneral">Enforce Proof-of-Possession (POPO)</Label>
-                  <p className="text-xs text-muted-foreground">Require the CRMF CertReqMsg to carry a valid POPO signature proving private key ownership (<RfcLink rfc={9483} section="4.1" />).</p>
-                </div>
-                <Switch id="cmpEnforcePopoGeneral" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
-              </div>
-            </SettingsSection>
-
-            <Separator />
-
             <SettingsSection title="Authentication & Protection" description="How incoming requests are authenticated, and which certificate signs outgoing CMP responses.">
               <EstAuthSettingsEditor
                 idPrefix="cmp-enrollment"
@@ -1425,7 +1460,11 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             onRrChange={(patch) => setCmpRr((prev) => ({ ...prev, ...patch }))}
             ccr={cmpCcr}
             onCcrChange={(patch) => setCmpCcr((prev) => ({ ...prev, ...patch }))}
+            ccrTrustedRequesterCAs={ccrTrustedRequesterCAs}
+            onRemoveCcrTrustedRequesterCa={handleRemoveCcrTrustedRequesterCa}
+            onAddCcrTrustedRequesterCa={() => setIsCcrTrustedRequesterCaModalOpen(true)}
             availableProfiles={availableProfiles}
+            enrollmentGeneralSection={cmpEnrollmentGeneralSection}
           />
 
           {/* ── General Messages (GENM/GENP) ── */}
@@ -1469,6 +1508,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 onAccessPolicyChange={setCmpGenmAccessPolicy}
                 informationTypes={cmpGenmInformationTypes}
                 onInformationTypesChange={setCmpGenmInformationTypes}
+                preferredSymmetricAlgorithm={cmpGenmPreferredSymmAlg}
+                onPreferredSymmetricAlgorithmChange={setCmpGenmPreferredSymmAlg}
               />
             </SettingsSection>
           </TabsContent>
@@ -1495,6 +1536,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         errorCAs={errorDependencies}
         loadCAsAction={loadDependencies}
         onCaSelected={handleAddAdditionalValidationCa}
+        allCryptoEngines={allCryptoEngines}
+      />
+      <CaSelectorModal
+        isOpen={isCcrTrustedRequesterCaModalOpen}
+        onOpenChange={setIsCcrTrustedRequesterCaModalOpen}
+        title="Add Trusted Requesting CA"
+        description="Select a CA allowed to request cross-certification from this DMS."
+        availableCAs={availableCAsForSelection}
+        isLoadingCAs={isLoadingDependencies}
+        errorCAs={errorDependencies}
+        loadCAsAction={loadDependencies}
+        onCaSelected={handleAddCcrTrustedRequesterCa}
         allCryptoEngines={allCryptoEngines}
       />
       <CaSelectorModal

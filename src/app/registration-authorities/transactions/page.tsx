@@ -10,7 +10,8 @@ import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { CmpTransactionsPanel } from '@/components/ra/CmpTransactionsPanel';
 import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificatesPanel';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 // The CMP transaction lifecycle is now fully persisted:
 //
@@ -85,25 +86,16 @@ export default function RaCmpTransactionsPage() {
             )}
 
             <Tabs defaultValue="active" className="w-full">
-                <div className="border-b">
-                    <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-                        <TabsTrigger
-                            value="active"
-                            className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                        >
-                            <ListOrdered className="mr-2 h-4 w-4" />Active Enrollments
+                <div className="border-b overflow-x-auto overflow-y-hidden">
+                    <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
+                        <TabsTrigger value="active" className={pageTabsTriggerClass}>
+                            <ListOrdered className="h-4 w-4" />Active Enrollments
                         </TabsTrigger>
-                        <TabsTrigger
-                            value="completed"
-                            className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                        >
-                            <CheckCircle2 className="mr-2 h-4 w-4" />Completed Enrollments
+                        <TabsTrigger value="completed" className={pageTabsTriggerClass}>
+                            <CheckCircle2 className="h-4 w-4" />Completed Enrollments
                         </TabsTrigger>
-                        <TabsTrigger
-                            value="certificates"
-                            className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                        >
-                            <FileText className="mr-2 h-4 w-4" />Issued Certificates
+                        <TabsTrigger value="certificates" className={pageTabsTriggerClass}>
+                            <FileText className="h-4 w-4" />Issued Certificates
                         </TabsTrigger>
                     </TabsList>
                 </div>

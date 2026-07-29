@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Info, PlusCircle, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Info, PlusCircle, Settings2, X, AlertTriangle } from 'lucide-react';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { Separator } from '@/components/ui/separator';
 import { SettingsSection } from '@/components/shared/SettingsSection';
@@ -22,8 +23,19 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type {
   CmpIrSettings, CmpCrSettings, CmpP10crSettings, CmpRrSettings, CmpCcrSettings,
   CmpKeyPolicy, CmpIdentityChangePolicy, CmpGenmAccessPolicy, CmpGenmInformationTypes,
-  CmpPopoMethod, CmpRevocationReason, CmpPolicyOverrides,
+  CmpPopoMethod, CmpRevocationReason, CmpPolicyOverrides, CmpPreferredSymmetricAlgorithm,
 } from '@/lib/dms-api';
+
+// AES variants offered for the id-it-preferredSymmAlg response. CBC is the
+// traditional CMS content-encryption cipher; GCM is the AEAD alternative.
+const PREFERRED_SYMM_ALG_OPTIONS: { value: CmpPreferredSymmetricAlgorithm; label: string }[] = [
+  { value: 'aes128_cbc', label: 'AES-128-CBC' },
+  { value: 'aes192_cbc', label: 'AES-192-CBC' },
+  { value: 'aes256_cbc', label: 'AES-256-CBC' },
+  { value: 'aes128_gcm', label: 'AES-128-GCM' },
+  { value: 'aes192_gcm', label: 'AES-192-GCM' },
+  { value: 'aes256_gcm', label: 'AES-256-GCM' },
+];
 
 // Phase 2 of the CMP settings redesign: the backend now has a nested
 // per-operation schema (core/pkg/models/dms_cmp_operations.go) that persists
@@ -143,7 +155,7 @@ export function CmpKurPlannedPolicy({
   onIdentityChangePolicyChange: (v: CmpIdentityChangePolicy) => void;
 }) {
   return (
-    <div className="space-y-4 rounded-md border border-dashed p-4">
+    <div className="space-y-4">
       <SectionHeader title="Key & identity policy" badge={false}>
         Constrain how much a key update may change relative to the certificate being replaced.
       </SectionHeader>
@@ -178,23 +190,32 @@ const GENM_INFO_TYPES: { key: keyof CmpGenmInformationTypes; label: string; live
   { key: 'encryption_key_types', label: 'Encryption key types', live: true },
   { key: 'preferred_symmetric_algorithm', label: 'Preferred symmetric algorithm', live: true },
   { key: 'supported_languages', label: 'Supported languages', live: true },
-  { key: 'root_ca_update', label: 'Root CA update', live: false },
-  { key: 'certificate_request_template', label: 'Certificate request template', live: false },
-  { key: 'current_crl', label: 'Current CRL', live: false },
-  { key: 'crl_update', label: 'CRL update', live: false },
+  { key: 'root_ca_update', label: 'Root CA update', live: true },
+  { key: 'certificate_request_template', label: 'Certificate request template', live: true },
+  { key: 'current_crl', label: 'Current CRL', live: true },
+  { key: 'crl_update', label: 'CRL update', live: true },
+  // Hard-disabled server-side for the time being (genmInfoTypeEnabled rejects
+  // it): Lamassu does not provision a dedicated protocol-encryption certificate,
+  // so the CA has nothing real to return. Kept hidden (live: false) — and the
+  // save path forces its flag to false — until it is actually implemented.
+  // (id-it-revPassphrase is likewise disabled server-side, but it has no config
+  // flag or toggle, so there is nothing to represent here.)
   { key: 'protocol_encryption_certificate', label: 'Protocol encryption certificate', live: false },
 ];
 
 export function CmpGenmPlannedCapabilities({
   accessPolicy, onAccessPolicyChange, informationTypes, onInformationTypesChange,
+  preferredSymmetricAlgorithm, onPreferredSymmetricAlgorithmChange,
 }: {
   accessPolicy: CmpGenmAccessPolicy;
   onAccessPolicyChange: (v: CmpGenmAccessPolicy) => void;
   informationTypes: CmpGenmInformationTypes;
   onInformationTypesChange: (v: CmpGenmInformationTypes) => void;
+  preferredSymmetricAlgorithm: CmpPreferredSymmetricAlgorithm;
+  onPreferredSymmetricAlgorithmChange: (v: CmpPreferredSymmetricAlgorithm) => void;
 }) {
   return (
-    <div className="space-y-4 rounded-md border border-dashed p-4">
+    <div className="space-y-4">
       <SectionHeader title="General message capabilities" badge={false}>
         Which id-it information types the CA answers, and who may ask.
       </SectionHeader>
@@ -213,10 +234,34 @@ export function CmpGenmPlannedCapabilities({
           {GENM_INFO_TYPES.filter((t) => t.live).map((t) => (
             <div key={t.key} className="flex items-center justify-between rounded-md border p-2 text-sm">
               <span>{t.label}</span>
-              <Switch
-                checked={informationTypes[t.key]}
-                onCheckedChange={(checked) => onInformationTypesChange({ ...informationTypes, [t.key]: checked })}
-              />
+              <div className="flex items-center gap-1">
+                {t.key === 'preferred_symmetric_algorithm' && informationTypes.preferred_symmetric_algorithm && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Choose algorithm">
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64" align="end">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Algorithm advertised in the response</Label>
+                        <Select value={preferredSymmetricAlgorithm} onValueChange={(v: CmpPreferredSymmetricAlgorithm) => onPreferredSymmetricAlgorithmChange(v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {PREFERRED_SYMM_ALG_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+                <Switch
+                  checked={informationTypes[t.key]}
+                  onCheckedChange={(checked) => onInformationTypesChange({ ...informationTypes, [t.key]: checked })}
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -290,14 +335,22 @@ interface CmpPlannedOperationTabsProps {
   onRrChange: (patch: Partial<CmpRrSettings>) => void;
   ccr: CmpCcrSettings;
   onCcrChange: (patch: Partial<CmpCcrSettings>) => void;
+  ccrTrustedRequesterCAs: CA[];
+  onRemoveCcrTrustedRequesterCa: (id: string) => void;
+  onAddCcrTrustedRequesterCa: () => void;
   // Issuance profiles selectable as a per-operation profile pin. Empty is fine
   // — the picker still offers "Inherit DMS default".
   availableProfiles?: ProfileOption[];
+  // Enrollment CA & Profile + Device Policy — enrollment-scoped defaults,
+  // hoisted by the page and rendered ahead of the per-operation sections
+  // since they're enrollment options, not general DMS config.
+  enrollmentGeneralSection: React.ReactNode;
 }
 
 export function CmpPlannedOperationTabs({
   ir, onIrChange, cr, onCrChange, p10cr, onP10crChange, kur, ckg, rr, onRrChange, ccr, onCcrChange,
-  availableProfiles = [],
+  ccrTrustedRequesterCAs, onRemoveCcrTrustedRequesterCa, onAddCcrTrustedRequesterCa,
+  availableProfiles = [], enrollmentGeneralSection,
 }: CmpPlannedOperationTabsProps) {
   // These three overrides are LIVE (enforced by the backend for ir/cr):
   // workflow → EffectiveWorkflow, confirmation → EffectiveAcceptImplicit, and
@@ -308,7 +361,7 @@ export function CmpPlannedOperationTabs({
     issuanceProfileId: CmpPolicyOverrides['issuance_profile_id'],
     onChange: (patch: Partial<CmpPolicyOverrides>) => void,
   ) => (
-    <div className="space-y-4 rounded-md border p-4">
+    <div className="space-y-4">
       <SectionHeader title="Workflow & confirmation overrides" badge={false}>
         Override the DMS-wide defaults from the General tab for just this operation.
       </SectionHeader>
@@ -359,6 +412,10 @@ export function CmpPlannedOperationTabs({
           controls (no field mirroring) — they're grouped into this one tab
           because all three answer "how does a device get a certificate?". */}
       <TabsContent value="enrollment" className="mt-0">
+        {enrollmentGeneralSection}
+
+        <Separator />
+
         <SettingsSection title={operationTitle('IR / IP', 'Initialization')} description="Used for the initial bootstrap of a brand-new device into the PKI.">
           <PlannedRow label="Device registration" description="How devices are provisioned when they present an initialization request.">
             <Select value={ir.registration_mode} onValueChange={(v: CmpIrSettings['registration_mode']) => onIrChange({ registration_mode: v })}>
@@ -627,6 +684,48 @@ export function CmpPlannedOperationTabs({
 
         <Separator />
 
+        <SettingsSection title="Trusted Requesting CAs" description="Decide whether any CA may request cross-certification, or only a specific allow-list.">
+          <PlannedRow label="Who may request">
+            <Select value={ccr.requester_mode} onValueChange={(v: CmpCcrSettings['requester_mode']) => onCcrChange({ requester_mode: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any CA (no restriction)</SelectItem>
+                <SelectItem value="restricted">Only CAs on the allow-list below</SelectItem>
+              </SelectContent>
+            </Select>
+          </PlannedRow>
+
+          <div className="space-y-1.5">
+            <Label>Allow-listed CAs</Label>
+            <div className="space-y-2">
+              {ccrTrustedRequesterCAs.length > 0 ? ccrTrustedRequesterCAs.map(ca => (
+                <div key={ca.id} className="flex items-center gap-2 group">
+                  <CaVisualizerCard ca={ca} allCryptoEngines={kur.allCryptoEngines} className="flex-grow shadow-none border-border" />
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => onRemoveCcrTrustedRequesterCa(ca.id)}><X className="h-4 w-4" /></Button>
+                </div>
+              )) : <p className="text-sm text-muted-foreground italic">No CAs added yet.</p>}
+            </div>
+            <Button type="button" variant="secondary" onClick={onAddCcrTrustedRequesterCa}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Trusted Requesting CA
+            </Button>
+            {ccr.requester_mode === 'any' && (
+              <p className="text-xs text-muted-foreground">
+                Not enforced while "Who may request" is set to Any CA above.
+              </p>
+            )}
+            {ccr.requester_mode === 'restricted' && ccrTrustedRequesterCAs.length === 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  No CA is allow-listed — every cross-certification request will be rejected until you add at least one.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </SettingsSection>
+
+        <Separator />
+
         <SettingsSection title="Validity & Approval" description="How long a cross-certificate may be valid for, and whether an administrator must approve it first.">
           <PlannedRow label="Maximum validity">
             <DurationInput id="ccr-max-validity" label="" value={ccr.maximum_validity} onChange={(v) => onCcrChange({ maximum_validity: v })} placeholder="e.g., 8760h" />
@@ -641,8 +740,8 @@ export function CmpPlannedOperationTabs({
             </Select>
           </PlannedRow>
           <p className="text-xs text-muted-foreground">
-            Trusted requesting CAs, subject/name constraints, and a pinned issuance profile are enforced by the
-            backend but not yet exposed here as editable fields.
+            Subject/name constraints and a pinned issuance profile are enforced by the backend but not yet exposed
+            here as editable fields.
           </p>
         </SettingsSection>
       </TabsContent>
