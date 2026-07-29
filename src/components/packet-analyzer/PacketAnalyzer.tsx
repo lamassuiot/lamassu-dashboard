@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Cpu,
   FileUp,
   Filter,
   HardDrive,
@@ -22,18 +21,21 @@ import {
   Search,
   ShieldCheck,
 } from 'lucide-react';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import {
   formatBytes,
   formatCaptureDuration,
@@ -286,18 +288,23 @@ export function PacketAnalyzer() {
     (pageIndex + 1) * PAGE_SIZE < framesPage.matched && !isLoadingFrames;
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="size-4 text-primary" />
-            Local packet analysis
+    <div className="space-y-6">
+      <Card className="gap-0 border py-0 shadow-none ring-0">
+        <CardHeader className="flex flex-col items-start gap-3 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <ShieldCheck className="size-3.5 text-primary" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold leading-none">
+                Local packet analysis
+              </span>
+              <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                Captures stay in your browser and are not uploaded to Lamassu.
+              </span>
+            </span>
           </CardTitle>
-          <CardDescription>
-            Captures are dissected inside your browser and are not uploaded to
-            Lamassu.
-          </CardDescription>
-          <CardAction className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Badge
               variant={engineState === 'error' ? 'destructive' : 'secondary'}
             >
@@ -312,16 +319,16 @@ export function PacketAnalyzer() {
                 ? `Wireshark ${engineInfo?.wiresharkVersion ?? ''}`
                 : engineStatus}
             </Badge>
-          </CardAction>
+          </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="p-4">
           <div
             className={cn(
-              'relative grid min-h-44 place-items-center rounded-xl border border-dashed p-6 text-center transition-colors',
+              'relative grid min-h-52 place-items-center rounded-md border border-dashed p-6 text-center transition-colors',
               isDragging
                 ? 'border-primary bg-primary/5'
-                : 'border-border bg-muted/20',
+                : 'border-border bg-muted/10',
               engineState !== 'ready' && 'cursor-not-allowed opacity-70',
             )}
             onDragEnter={(event) => {
@@ -410,21 +417,19 @@ export function PacketAnalyzer() {
           </div>
 
           {error ? (
-            <div
-              role="alert"
-              className="mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <Alert variant="destructive" className="mt-4">
+              <AlertCircle />
+              <AlertTitle>Packet analyzer error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
         </CardContent>
       </Card>
 
       {capture ? (
         <>
-          <Card className="gap-0 py-0">
-            <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center">
+          <Card className="gap-0 border py-0 shadow-none ring-0">
+            <div className="flex flex-col gap-3 border-b bg-muted/30 p-4 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Filter className="size-4 shrink-0 text-muted-foreground" />
                 <Input
@@ -476,7 +481,7 @@ export function PacketAnalyzer() {
 
             <div className="relative h-[390px] overflow-auto">
               {isLoadingFrames ? (
-                <div className="absolute inset-0 z-20 grid place-items-center bg-background/70 backdrop-blur-[1px]">
+                <div className="absolute inset-0 z-20 grid place-items-center bg-background/80">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" />
                     Applying packet filter…
@@ -485,7 +490,7 @@ export function PacketAnalyzer() {
               ) : null}
 
               <table className="w-full min-w-[960px] border-collapse text-xs">
-                <thead className="sticky top-0 z-10 bg-muted/95 text-foreground shadow-sm backdrop-blur">
+                <thead className="sticky top-0 z-10 bg-muted text-foreground shadow-sm">
                   <tr>
                     {(engineInfo?.columns ?? []).map((column) => (
                       <th
@@ -510,7 +515,7 @@ export function PacketAnalyzer() {
                         className={cn(
                           'cursor-pointer border-b border-border/60 transition-[filter,box-shadow] hover:brightness-95 dark:hover:brightness-110',
                           selected &&
-                            'relative z-[1] shadow-[inset_3px_0_0_var(--primary),inset_0_0_0_1px_var(--primary)]',
+                            'relative z-[1] outline outline-2 -outline-offset-2 outline-primary',
                         )}
                         style={{ backgroundColor, color }}
                         onClick={() => void openFrame(frame.number)}
@@ -576,8 +581,8 @@ export function PacketAnalyzer() {
           </Card>
 
           <div className="grid min-h-[430px] gap-5 xl:grid-cols-2">
-            <Card className="min-h-0 gap-0 py-0">
-              <CardHeader className="border-b py-4">
+            <Card className="min-h-0 gap-0 border py-0 shadow-none ring-0">
+              <CardHeader className="border-b bg-muted/30 px-4 py-3">
                 <CardTitle>Protocol details</CardTitle>
                 <CardDescription>
                   Packet {selectedFrameNumber ?? '—'} · double-click a field to
@@ -605,8 +610,8 @@ export function PacketAnalyzer() {
               </CardContent>
             </Card>
 
-            <Card className="min-h-0 gap-0 py-0">
-              <CardHeader className="border-b py-4">
+            <Card className="min-h-0 gap-0 border py-0 shadow-none ring-0">
+              <CardHeader className="border-b bg-muted/30 px-4 py-3">
                 <CardTitle>Packet bytes</CardTitle>
                 <CardDescription>
                   Select a protocol field to highlight its raw bytes.
@@ -631,33 +636,33 @@ export function PacketAnalyzer() {
         </>
       ) : null}
 
-      <div className="rounded-xl border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="flex items-center gap-2">
-            <Cpu className="size-3.5" />
-            Powered by Wiregasm and Wireshark WebAssembly.
-          </span>
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <a
-              href="/wiregasm/LICENSE.txt"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-4 hover:text-foreground"
-            >
-              GPL-2.0 license
-            </a>
-            <Separator orientation="vertical" className="hidden h-3 sm:block" />
-            <a
-              href="/wiregasm/SOURCE.txt"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-4 hover:text-foreground"
-            >
-              Corresponding source
-            </a>
-          </span>
-        </div>
-      </div>
+      <footer className="flex flex-col gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          Powered by Wiregasm and Wireshark WebAssembly.
+        </p>
+        <nav
+          aria-label="Packet analyzer attribution"
+          className="flex flex-wrap items-center gap-2"
+        >
+          <a
+            href="/wiregasm/LICENSE.txt"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            GPL-2.0 license
+          </a>
+          <span aria-hidden="true">·</span>
+          <a
+            href="/wiregasm/SOURCE.txt"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            Corresponding source
+          </a>
+        </nav>
+      </footer>
     </div>
   );
 }

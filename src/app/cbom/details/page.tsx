@@ -1032,11 +1032,10 @@ function CBOMDetailsContent() {
         ? 'bg-purple-500/10'
         : 'bg-blue-500/10';
   const isRealtimeCBOM = cbomType === 'realtime';
-  // "Certificate - Table" (realtime only) always renders the issuer hierarchy;
-  // every other mode that reaches the shared table branch (the generic
-  // "Assets Ref - Table", and "Table" for non-realtime CBOMs) renders the flat,
-  // filterable/groupable asset list.
-  const hierarchyMode = isRealtimeCBOM && assetViewMode === 'table';
+  // "Certificate - Table" always renders the issuer hierarchy, for every CBOM type;
+  // the generic "Assets Ref - Table" mode that shares this branch renders the flat,
+  // filterable/groupable asset list instead.
+  const hierarchyMode = assetViewMode === 'table';
 
   const networkGraphData = React.useMemo((): { nodes: GraphNode[]; edges: GraphEdge[] } => {
     if (!isRealtimeCBOM || !detailsData) return { nodes: [], edges: [] };
@@ -1678,56 +1677,39 @@ function CBOMDetailsContent() {
                       )}
                     </Button>
 
-                    {isRealtimeCBOM ? (
-                      <Select
-                        value={assetViewMode}
-                        onValueChange={(value) => setAssetViewMode(value as AssetViewMode)}
-                      >
-                        <SelectTrigger id="cbom-view-mode-selector" className="h-9 w-48 text-xs">
-                          <SelectValue placeholder="View mode..." />
-                        </SelectTrigger>
-                        <SelectContent>
+                    <Select
+                      value={assetViewMode}
+                      onValueChange={(value) => setAssetViewMode(value as AssetViewMode)}
+                    >
+                      <SelectTrigger id="cbom-view-mode-selector" className="h-9 w-48 text-xs">
+                        <SelectValue placeholder="View mode..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Assets</SelectLabel>
+                          <SelectItem value="assets-table">Assets Ref - Table</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Certificate</SelectLabel>
+                          <SelectItem value="table">Certificate - Table</SelectItem>
+                          <SelectItem value="certificate-graph">Certificate - Graph</SelectItem>
+                        </SelectGroup>
+                        {!isRealtimeCBOM ? (
                           <SelectGroup>
-                            <SelectLabel>Assets</SelectLabel>
-                            <SelectItem value="assets-table">Assets Ref - Table</SelectItem>
+                            <SelectLabel>Files</SelectLabel>
+                            <SelectItem value="file-tree">File Tree</SelectItem>
                           </SelectGroup>
-                          <SelectGroup>
-                            <SelectLabel>Certificate</SelectLabel>
-                            <SelectItem value="table">Certificate - Table</SelectItem>
-                            <SelectItem value="certificate-graph">Certificate - Graph</SelectItem>
-                          </SelectGroup>
+                        ) : null}
+                        {isRealtimeCBOM ? (
                           <SelectGroup>
                             <SelectLabel>TLS</SelectLabel>
                             <SelectItem value="tls-flow">TLS - Flow</SelectItem>
                             <SelectItem value="network-graph">TLS - Network Graph</SelectItem>
                             <SelectItem value="network-table">TLS - Table</SelectItem>
                           </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
-                        <Button
-                          variant={
-                            assetViewMode === 'table' || assetViewMode === 'assets-table'
-                              ? 'secondary'
-                              : 'ghost'
-                          }
-                          size="sm"
-                          className="h-7 rounded-sm px-3 text-xs"
-                          onClick={() => setAssetViewMode('table')}
-                        >
-                          Table
-                        </Button>
-                        <Button
-                          variant={assetViewMode === 'file-tree' ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className="h-7 rounded-sm px-3 text-xs"
-                          onClick={() => setAssetViewMode('file-tree')}
-                        >
-                          File Tree
-                        </Button>
-                      </div>
-                    )}
+                        ) : null}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

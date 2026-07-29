@@ -12,11 +12,11 @@ export default function PacketAnalyzerPage() {
         { label: 'Tools' },
         { label: 'Packet Analyzer' },
       ]}
-      className="space-y-5 pb-8"
+      className="space-y-6 pb-8"
     >
       <div className="flex items-start gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-          <Network className="size-5" />
+        <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+          <Network className="h-8 w-8 text-primary" />
         </div>
         <div>
           <h1 className="text-2xl font-headline font-semibold">
