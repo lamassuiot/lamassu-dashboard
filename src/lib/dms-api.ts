@@ -74,7 +74,11 @@ export type CmpIdentityChangePolicy = 'forbid' | 'san_only' | 'subject_and_san';
 export type CmpRevocationAuthorization = 'self_only' | 'self_and_trusted_ra';
 export type CmpRevocationReason = 'unspecified' | 'key_compromise' | 'ca_compromise' | 'affiliation_changed' | 'superseded' | 'cessation_of_operation';
 export type CmpGenmAccessPolicy = 'public_discovery' | 'require_signed';
+export type CmpPreferredSymmetricAlgorithm =
+    | 'aes128_cbc' | 'aes192_cbc' | 'aes256_cbc'
+    | 'aes128_gcm' | 'aes192_gcm' | 'aes256_gcm';
 export type CmpCcrWorkflow = 'direct' | 'administrator_approval';
+export type CmpCcrRequesterMode = 'any' | 'restricted';
 export type CmpInheritableWorkflow = 'inherit' | 'direct' | 'phased';
 export type CmpInheritableConfirmation = 'inherit' | 'implicit' | 'explicit';
 
@@ -164,9 +168,16 @@ export interface CmpGenmSettings {
     enabled: boolean;
     access_policy: CmpGenmAccessPolicy;
     information_types: CmpGenmInformationTypes;
+    // AES variant advertised in the id-it-preferredSymmAlg response. Only
+    // meaningful when information_types.preferred_symmetric_algorithm is on.
+    preferred_symmetric_algorithm: CmpPreferredSymmetricAlgorithm;
 }
 export interface CmpCcrSettings {
     enabled: boolean;
+    // 'any' (default): RequireCACertificate is the only gate — the allow-list
+    // below is ignored. 'restricted': only CAs on the allow-list may request
+    // cross-certification; an empty allow-list then authorizes no one.
+    requester_mode: CmpCcrRequesterMode;
     trusted_requester_ca_ids: string[];
     require_ca_certificate: boolean;
     require_proof_of_possession: boolean;
