@@ -17,25 +17,25 @@ import {
   Filter,
   HardDrive,
   Loader2,
+  Maximize2,
+  Minimize2,
   RotateCcw,
   Search,
-  ShieldCheck,
 } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable';
+import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import {
   formatBytes,
   formatCaptureDuration,
@@ -50,6 +50,7 @@ import type {
   WiregasmEngineInfo,
 } from '@/lib/packet-analyzer/types';
 import { WiregasmWorkerClient } from '@/lib/packet-analyzer/wiregasm-client';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { cn } from '@/lib/utils';
 import { HexViewer } from './HexViewer';
 import { ProtocolTree } from './ProtocolTree';
@@ -69,6 +70,11 @@ export function PacketAnalyzer() {
   const clientRef = useRef<WiregasmWorkerClient | null>(null);
   const frameRequestRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const analysisContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const isWideLayout = useMediaQuery('(min-width: 1280px)');
+  const isRegularLayout = useMediaQuery('(min-width: 768px)');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [engineState, setEngineState] = useState<EngineState>('loading');
   const [engineStatus, setEngineStatus] = useState(
@@ -130,6 +136,22 @@ export function PacketAnalyzer() {
       void client.dispose();
     };
   }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === analysisContainerRef.current);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void analysisContainerRef.current?.requestFullscreen();
+    }
+  };
 
   const openFrame = useCallback(async (number: number) => {
     const client = clientRef.current;
@@ -287,48 +309,57 @@ export function PacketAnalyzer() {
   const canGoForward =
     (pageIndex + 1) * PAGE_SIZE < framesPage.matched && !isLoadingFrames;
 
-  return (
-    <div className="space-y-6">
-      <Card className="gap-0 border py-0 shadow-none ring-0">
-        <CardHeader className="flex flex-col items-start gap-3 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
-              <ShieldCheck className="size-3.5 text-primary" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold leading-none">
-                Local packet analysis
-              </span>
-              <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                Captures stay in your browser and are not uploaded to Lamassu.
-              </span>
-            </span>
-          </CardTitle>
-          <div className="flex shrink-0 items-center gap-2">
-            <Badge
-              variant={engineState === 'error' ? 'destructive' : 'secondary'}
-            >
-              {engineState === 'loading' ? (
-                <Loader2 className="animate-spin" />
-              ) : engineState === 'ready' ? (
-                <CheckCircle2 />
-              ) : (
-                <AlertCircle />
-              )}
-              {engineState === 'ready'
-                ? `Wireshark ${engineInfo?.wiresharkVersion ?? ''}`
-                : engineStatus}
-            </Badge>
-          </div>
-        </CardHeader>
+  // Larger viewports have room to give the table more relative height and to
+  // split protocol/bytes side-by-side; narrower ones stack everything instead.
+  const analysisHeightClass = isWideLayout
+    ? 'h-[720px]'
+    : isRegularLayout
+    ? 'h-[820px]'
+    : 'h-[960px]';
+  const tableDefaultSize = isWideLayout ? 60 : isRegularLayout ? 50 : 35;
+  const detailPanelsDirection = isWideLayout ? 'horizontal' : 'vertical';
+  const protocolDefaultSize = isWideLayout ? 50 : 55;
 
-        <CardContent className="p-4">
+  const pillClass = 'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium';
+  const engineToneClass =
+    engineState === 'ready'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+      : engineState === 'error'
+      ? 'bg-destructive/10 text-destructive'
+      : 'bg-muted/80 text-muted-foreground';
+
+  return (
+    <div className="flex flex-col">
+      {/* Section: Capture */}
+      <div className="grid grid-cols-1 gap-10 py-6 lg:grid-cols-3">
+        <div className="space-y-3">
+          <div>
+            <p className="font-semibold">Local packet analysis</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Captures stay in your browser and are not uploaded to Lamassu.
+            </p>
+          </div>
+          <span className={cn(pillClass, engineToneClass)}>
+            {engineState === 'loading' ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : engineState === 'ready' ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <AlertCircle className="h-3 w-3" />
+            )}
+            {engineState === 'ready'
+              ? `Wireshark ${engineInfo?.wiresharkVersion ?? ''}`
+              : engineStatus}
+          </span>
+        </div>
+
+        <div className="space-y-4 lg:col-span-2">
           <div
             className={cn(
-              'relative grid min-h-52 place-items-center rounded-md border border-dashed p-6 text-center transition-colors',
+              'relative grid min-h-52 place-items-center rounded-xl border-2 border-dashed p-6 text-center transition-colors',
               isDragging
                 ? 'border-primary bg-primary/5'
-                : 'border-border bg-muted/10',
+                : 'border-border/60 bg-muted/10',
               engineState !== 'ready' && 'cursor-not-allowed opacity-70',
             )}
             onDragEnter={(event) => {
@@ -362,21 +393,7 @@ export function PacketAnalyzer() {
               <div className="w-full space-y-4">
                 <div className="flex flex-col items-center gap-2">
                   <HardDrive className="size-8 text-primary" />
-                  <div className="min-w-0">
-                    <p className="break-all font-medium">{capture.filename}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {formatBytes(capture.file_length)} ·{' '}
-                      {capture.packet_count.toLocaleString()} packets
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Badge variant="outline">{capture.file_type}</Badge>
-                  <Badge variant="outline">{capture.file_encap_type}</Badge>
-                  <Badge variant="outline">
-                    {formatCaptureDuration(capture.elapsed_time)}
-                  </Badge>
+                  <p className="break-all font-medium">{capture.filename}</p>
                 </div>
 
                 <Button
@@ -416,20 +433,41 @@ export function PacketAnalyzer() {
             )}
           </div>
 
+          {capture ? (
+            <DetailInfoRows>
+              <DetailInfoRow label="Size" value={formatBytes(capture.file_length)} className="first:pt-0" />
+              <DetailInfoRow label="Packets" value={capture.packet_count.toLocaleString()} />
+              <DetailInfoRow label="File Type" value={capture.file_type} />
+              <DetailInfoRow label="Encapsulation" value={capture.file_encap_type} />
+              <DetailInfoRow label="Duration" value={formatCaptureDuration(capture.elapsed_time)} className="last:pb-0" />
+            </DetailInfoRows>
+          ) : null}
+
           {error ? (
-            <Alert variant="destructive" className="mt-4">
-              <AlertCircle />
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
               <AlertTitle>Packet analyzer error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {capture ? (
         <>
-          <Card className="gap-0 border py-0 shadow-none ring-0">
-            <div className="flex flex-col gap-3 border-b bg-muted/30 p-4 lg:flex-row lg:items-center">
+          <Separator />
+
+          {/* Section: Packets & Analysis */}
+          <div className="space-y-4 py-6">
+            <div>
+              <p className="font-semibold">Packets & Analysis</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Filter captured frames, then inspect the protocol tree and raw bytes
+                for the selected packet. Drag a divider to resize.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Filter className="size-4 shrink-0 text-muted-foreground" />
                 <Input
@@ -471,81 +509,163 @@ export function PacketAnalyzer() {
             </div>
 
             {filterError ? (
-              <div
-                role="alert"
-                className="border-b bg-destructive/5 px-4 py-2 text-xs text-destructive"
-              >
+              <p role="alert" className="text-xs text-destructive">
                 {filterError}
-              </div>
+              </p>
             ) : null}
 
-            <div className="relative h-[390px] overflow-auto">
-              {isLoadingFrames ? (
-                <div className="absolute inset-0 z-20 grid place-items-center bg-background/80">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="size-4 animate-spin" />
-                    Applying packet filter…
-                  </div>
-                </div>
-              ) : null}
+            <div
+              ref={analysisContainerRef}
+              className={cn(
+                'relative',
+                isFullscreen ? 'h-screen bg-background p-4' : analysisHeightClass,
+                'overflow-hidden rounded-lg border',
+              )}
+            >
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute right-3 top-3 z-30 shadow-sm"
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? <Minimize2 /> : <Maximize2 />}
+              {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            </Button>
+            <ResizablePanelGroup
+              key={`${tableDefaultSize}-${detailPanelsDirection}`}
+              direction="vertical"
+            >
+              <ResizablePanel defaultSize={tableDefaultSize} minSize={20}>
+                <div className="relative h-full overflow-auto">
+                  {isLoadingFrames ? (
+                    <div className="absolute inset-0 z-20 grid place-items-center bg-background/80">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="size-4 animate-spin" />
+                        Applying packet filter…
+                      </div>
+                    </div>
+                  ) : null}
 
-              <table className="w-full min-w-[960px] border-collapse text-xs">
-                <thead className="sticky top-0 z-10 bg-muted text-foreground shadow-sm">
-                  <tr>
-                    {(engineInfo?.columns ?? []).map((column) => (
-                      <th
-                        key={column}
-                        className="h-9 border-b px-2 text-left font-medium"
-                      >
-                        {column}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {framesPage.frames.map((frame: PacketFrame) => {
-                    const selected = frame.number === selectedFrameNumber;
-                    const backgroundColor = wiregasmColor(frame.bg);
-                    const color = wiregasmColor(frame.fg);
-
-                    return (
-                      <tr
-                        key={frame.number}
-                        aria-selected={selected}
-                        className={cn(
-                          'cursor-pointer border-b border-border/60 transition-[filter,box-shadow] hover:brightness-95 dark:hover:brightness-110',
-                          selected &&
-                            'relative z-[1] outline outline-2 -outline-offset-2 outline-primary',
-                        )}
-                        style={{ backgroundColor, color }}
-                        onClick={() => void openFrame(frame.number)}
-                      >
-                        {frame.columns.map((column, index) => (
-                          <td
-                            key={`${frame.number}-${index}`}
-                            className={cn(
-                              'max-w-[420px] truncate px-2 py-1.5 font-mono',
-                              index === frame.columns.length - 1 && 'min-w-72',
-                            )}
-                            title={column}
+                  <table className="w-full min-w-[960px] border-collapse text-xs">
+                    <thead className="sticky top-0 z-10 bg-muted text-foreground shadow-sm">
+                      <tr>
+                        {(engineInfo?.columns ?? []).map((column) => (
+                          <th
+                            key={column}
+                            className="h-9 border-b px-2 text-left font-medium"
                           >
                             {column}
-                          </td>
+                          </th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {framesPage.frames.map((frame: PacketFrame) => {
+                        const selected = frame.number === selectedFrameNumber;
+                        const backgroundColor = wiregasmColor(frame.bg);
+                        const color = wiregasmColor(frame.fg);
 
-              {!isLoadingFrames && framesPage.frames.length === 0 ? (
-                <div className="grid h-72 place-items-center text-sm text-muted-foreground">
-                  No packets match this display filter.
+                        return (
+                          <tr
+                            key={frame.number}
+                            aria-selected={selected}
+                            className={cn(
+                              'cursor-pointer border-b border-border/60 transition-[filter,box-shadow] hover:brightness-95 dark:hover:brightness-110',
+                              selected &&
+                                'relative z-[1] outline outline-2 -outline-offset-2 outline-primary',
+                            )}
+                            style={{ backgroundColor, color }}
+                            onClick={() => void openFrame(frame.number)}
+                          >
+                            {frame.columns.map((column, index) => (
+                              <td
+                                key={`${frame.number}-${index}`}
+                                className={cn(
+                                  'max-w-[420px] truncate px-2 py-1.5 font-mono',
+                                  index === frame.columns.length - 1 && 'min-w-72',
+                                )}
+                                title={column}
+                              >
+                                {column}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {!isLoadingFrames && framesPage.frames.length === 0 ? (
+                    <div className="grid h-72 place-items-center text-sm text-muted-foreground">
+                      No packets match this display filter.
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              </ResizablePanel>
+
+              <ResizableHandle withHandle />
+
+              <ResizablePanel defaultSize={100 - tableDefaultSize} minSize={20}>
+                <ResizablePanelGroup direction={detailPanelsDirection}>
+                  <ResizablePanel defaultSize={protocolDefaultSize} minSize={20}>
+                    <div className="flex h-full flex-col">
+                      <div className="shrink-0 border-b bg-muted/30 px-4 py-3">
+                        <p className="text-sm font-semibold">Protocol details</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Packet {selectedFrameNumber ?? '—'} · double-click a field
+                          to use its display filter
+                        </p>
+                      </div>
+                      <div className="flex-1 overflow-auto px-3 py-2">
+                        {isLoadingFrame ? (
+                          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                            <span className="flex items-center gap-2">
+                              <Loader2 className="size-4 animate-spin" />
+                              Dissecting packet…
+                            </span>
+                          </div>
+                        ) : (
+                          <ProtocolTree
+                            nodes={frameDetails?.tree ?? []}
+                            selection={protocolSelection}
+                            onSelect={setProtocolSelection}
+                            onApplyFilter={(filter) => applyFilter(filter)}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </ResizablePanel>
+
+                  <ResizableHandle withHandle />
+
+                  <ResizablePanel defaultSize={100 - protocolDefaultSize} minSize={20}>
+                    <div className="flex h-full flex-col">
+                      <div className="shrink-0 border-b bg-muted/30 px-4 py-3">
+                        <p className="text-sm font-semibold">Packet bytes</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Select a protocol field to highlight its raw bytes.
+                        </p>
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        {isLoadingFrame ? (
+                          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                            <Loader2 className="size-4 animate-spin" />
+                          </div>
+                        ) : (
+                          <HexViewer
+                            dataSources={frameDetails?.data_sources ?? []}
+                            selection={protocolSelection}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </ResizablePanel>
+            </ResizablePanelGroup>
             </div>
 
-            <div className="flex flex-col gap-2 border-t px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <span>
                 {framesPage.matched.toLocaleString()} matching packets · showing
                 up to {PAGE_SIZE.toLocaleString()} per page
@@ -578,65 +698,13 @@ export function PacketAnalyzer() {
                 </Button>
               </div>
             </div>
-          </Card>
-
-          <div className="grid min-h-[430px] gap-5 xl:grid-cols-2">
-            <Card className="min-h-0 gap-0 border py-0 shadow-none ring-0">
-              <CardHeader className="border-b bg-muted/30 px-4 py-3">
-                <CardTitle>Protocol details</CardTitle>
-                <CardDescription>
-                  Packet {selectedFrameNumber ?? '—'} · double-click a field to
-                  use its display filter
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="min-h-0 flex-1 px-0">
-                <div className="h-[365px] overflow-auto px-3 py-2">
-                  {isLoadingFrame ? (
-                    <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="size-4 animate-spin" />
-                        Dissecting packet…
-                      </span>
-                    </div>
-                  ) : (
-                    <ProtocolTree
-                      nodes={frameDetails?.tree ?? []}
-                      selection={protocolSelection}
-                      onSelect={setProtocolSelection}
-                      onApplyFilter={(filter) => applyFilter(filter)}
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="min-h-0 gap-0 border py-0 shadow-none ring-0">
-              <CardHeader className="border-b bg-muted/30 px-4 py-3">
-                <CardTitle>Packet bytes</CardTitle>
-                <CardDescription>
-                  Select a protocol field to highlight its raw bytes.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="min-h-0 flex-1 px-0">
-                <div className="h-[365px]">
-                  {isLoadingFrame ? (
-                    <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" />
-                    </div>
-                  ) : (
-                    <HexViewer
-                      dataSources={frameDetails?.data_sources ?? []}
-                      selection={protocolSelection}
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </>
       ) : null}
 
-      <footer className="flex flex-col gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between">
+      <Separator />
+
+      <footer className="flex flex-col gap-2 pt-5 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between">
         <p>
           Powered by Wiregasm and Wireshark WebAssembly.
         </p>

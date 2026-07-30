@@ -12,20 +12,22 @@ export default function PacketAnalyzerPage() {
         { label: 'Tools' },
         { label: 'Packet Analyzer' },
       ]}
-      className="space-y-6 pb-8"
+      className="space-y-5"
     >
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-          <Network className="h-8 w-8 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-headline font-semibold">
-            Packet Analyzer
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Inspect packet captures locally with Wireshark display filters,
-            protocol trees, and synchronized raw bytes.
-          </p>
+      <div className="pb-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+            <Network className="h-7 w-7 text-primary" />
+          </div>
+          <div className="min-w-0 space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Packet Analyzer
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Inspect packet captures locally with Wireshark display filters,
+              protocol trees, and synchronized raw bytes.
+            </p>
+          </div>
         </div>
       </div>
 
