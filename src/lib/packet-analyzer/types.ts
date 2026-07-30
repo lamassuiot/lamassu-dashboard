@@ -60,6 +60,50 @@ export interface PacketFrameDetails {
   follow: string[][];
 }
 
+export type TlsCode = string;
+
+export interface CbomObservation {
+  schemaVersion: '1.0';
+  streamId?: string;
+  srcIp: string;
+  dstIp: string;
+  srcPort: number;
+  dstPort: number;
+  tcpSyn?: boolean;
+  clientHello?: {
+    sni?: string;
+    cipherSuites: Array<{ id: TlsCode; name?: string }>;
+    supportedVersions: TlsCode[];
+    supportedGroups: TlsCode[];
+    signatureAlgorithms: TlsCode[];
+  };
+  serverHello?: {
+    version: TlsCode;
+    cipherSuite: TlsCode;
+    cipherName?: string;
+    keyShareGroup?: TlsCode;
+  };
+  certificates?: Array<{ derHex: string }>;
+  certificateRequested?: boolean;
+}
+
+export interface CbomObservationBatch {
+  observations: CbomObservation[];
+  matchedFrames: number;
+}
+
+export interface CbomGenerationOptions {
+  componentName: string;
+  componentVersion?: string;
+  compact?: boolean;
+  keylogAvailable?: boolean;
+}
+
+export interface CbomGenerationResult {
+  json: string;
+  observations: number;
+}
+
 export interface FilterValidation {
   ok: boolean;
   error: string;
@@ -78,6 +122,7 @@ export type WiregasmWorkerAction =
   | 'load'
   | 'frames'
   | 'frame'
+  | 'cbom-observations'
   | 'check-filter'
   | 'dispose';
 
@@ -97,4 +142,19 @@ export interface WiregasmWorkerResult {
 export interface WiregasmWorkerStatus {
   kind: 'status';
   status: string;
+}
+
+export type CbomWorkerAction = 'generate' | 'dispose';
+
+export interface CbomWorkerRequest {
+  id: number;
+  action: CbomWorkerAction;
+  payload?: Record<string, unknown>;
+}
+
+export interface CbomWorkerResult {
+  id: number;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
 }

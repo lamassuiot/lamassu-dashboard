@@ -136,6 +136,31 @@ export async function fetchRecentCBOMs(limit: number, accessToken: string): Prom
 }
 
 /**
+ * Best-effort derivation of a project identifier from raw CBOM data, for
+ * uploads/imports where the caller doesn't already know one.
+ */
+export function resolveProjectIdentifier(cbomData: unknown): string {
+  if (!cbomData || typeof cbomData !== 'object') {
+    return `uploaded-${Date.now()}`;
+  }
+
+  const data = cbomData as Record<string, unknown>;
+  const metadata = data.metadata as Record<string, unknown> | undefined;
+  const component = metadata?.component as Record<string, unknown> | undefined;
+
+  const candidates = [
+    data.projectIdentifier,
+    data.serialNumber,
+    component?.purl,
+    component?.['bom-ref'],
+    component?.name,
+  ];
+
+  const selected = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+  return (selected as string | undefined) || `uploaded-${Date.now()}`;
+}
+
+/**
  * Store a CBOM
  * @param projectIdentifier - Unique identifier for the project
  * @param cbomData - CBOM data as JSON string or object

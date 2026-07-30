@@ -171,13 +171,13 @@ const navigationConfig: NavGroup[] = [
     label: 'CBOM',
     items: [
       { href: '/cbom', label: 'CBOM Manager', icon: Package },
+      { href: '/tools/packet-analyzer', label: 'Packet Analyzer', icon: Network },
     ],
   },
   {
     label: 'TOOLS',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
-      { href: '/tools/packet-analyzer', label: 'Packet Analyzer', icon: Network },
       { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen },
     ],
   },

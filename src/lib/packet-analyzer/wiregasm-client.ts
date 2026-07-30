@@ -1,4 +1,5 @@
 import type {
+  CbomObservationBatch,
   CaptureLoadResult,
   FilterValidation,
   PacketFrameDetails,
@@ -89,6 +90,10 @@ export class WiregasmWorkerClient {
 
   checkFilter(filter: string): Promise<FilterValidation> {
     return this.request<FilterValidation>('check-filter', { filter });
+  }
+
+  cbomObservations(): Promise<CbomObservationBatch> {
+    return this.request<CbomObservationBatch>('cbom-observations');
   }
 
   async dispose(): Promise<void> {

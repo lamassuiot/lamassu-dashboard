@@ -23,6 +23,7 @@ import {
   CBOMItem,
   deleteCBOM,
   fetchRecentCBOMs,
+  resolveProjectIdentifier,
   startCBOMWebSocketScan,
   storeCBOM,
 } from '@/lib/cbom-api';
@@ -91,27 +92,6 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const RECENT_CBOM_LIMIT = 25;
-
-const resolveProjectIdentifier = (cbomData: unknown): string => {
-  if (!cbomData || typeof cbomData !== 'object') {
-    return `uploaded-${Date.now()}`;
-  }
-
-  const data = cbomData as Record<string, unknown>;
-  const metadata = data.metadata as Record<string, unknown> | undefined;
-  const component = metadata?.component as Record<string, unknown> | undefined;
-
-  const candidates = [
-    data.projectIdentifier,
-    data.serialNumber,
-    component?.purl,
-    component?.['bom-ref'],
-    component?.name,
-  ];
-
-  const selected = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
-  return (selected as string | undefined) || `uploaded-${Date.now()}`;
-};
 
 const getComponents = (item: CBOMItem): any[] | undefined => {
   // The API returns the full object at the item level: { projectIdentifier, bom: { components } }

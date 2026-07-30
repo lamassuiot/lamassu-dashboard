@@ -9,7 +9,7 @@ export default function PacketAnalyzerPage() {
     <BreadcrumbPage
       items={[
         { label: 'Home', href: '/' },
-        { label: 'Tools' },
+        { label: 'CBOM', href: '/cbom' },
         { label: 'Packet Analyzer' },
       ]}
       className="space-y-5"

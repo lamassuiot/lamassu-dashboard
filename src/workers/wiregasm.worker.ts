@@ -4,13 +4,18 @@ import { Wiregasm, vectorToArray } from '@goodtools/wiregasm';
 import loadWiregasm from '@goodtools/wiregasm/dist/wiregasm';
 import type { Vector } from '@goodtools/wiregasm';
 import type {
+  CbomObservation,
+  PacketFramesPage,
+  ProtocolNode,
   WiregasmWorkerRequest,
   WiregasmWorkerResult,
   WiregasmWorkerStatus,
 } from '@/lib/packet-analyzer/types';
+import { observationFromProtocolTree } from '@/lib/packet-analyzer/cbom-observations';
 
 const WASM_ASSET_NAME = 'wiregasm.wasm.gz';
 const DATA_ASSET_NAME = 'wiregasm.data.gz';
+const CBOM_FRAME_BATCH_SIZE = 250;
 
 let analyzer: Wiregasm | null = null;
 let initialization: Promise<Wiregasm> | null = null;
@@ -201,6 +206,39 @@ const handleRequest = async (
         throw new Error('A valid packet number is required.');
       }
       return serialize(instance.frame(number));
+    }
+    case 'cbom-observations': {
+      if (!activeCapturePath) {
+        throw new Error('Load a packet capture before generating a CBOM.');
+      }
+
+      const observations: CbomObservation[] = [];
+      let skip = 0;
+      let matchedFrames = 0;
+
+      postStatus('Finding TLS handshake frames…');
+      do {
+        const page = serialize<PacketFramesPage>(
+          instance.frames('tls.handshake', skip, CBOM_FRAME_BATCH_SIZE),
+        );
+        matchedFrames = page.matched;
+
+        for (const frame of page.frames) {
+          const rawFrame = instance.frame(frame.number);
+          const tree = serialize<ProtocolNode[]>(rawFrame.tree);
+          const observation = observationFromProtocolTree(tree);
+          if (observation) observations.push(observation);
+        }
+
+        skip += page.frames.length;
+        if (page.frames.length === 0) break;
+        postStatus(
+          `Reading TLS handshakes… ${Math.min(skip, matchedFrames)}/${matchedFrames}`,
+        );
+      } while (skip < matchedFrames);
+
+      postStatus('TLS observations ready');
+      return { observations, matchedFrames };
     }
     case 'check-filter': {
       const filter =

@@ -17,6 +17,7 @@
 /.next/
 /out/
 /public/wiregasm/
+/public/python/
 
 # production
 /build

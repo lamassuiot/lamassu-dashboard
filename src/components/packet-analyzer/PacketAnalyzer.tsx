@@ -8,11 +8,15 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CloudUpload,
+  Download,
+  FileJson2,
   FileUp,
   Filter,
   HardDrive,
@@ -35,12 +39,21 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable';
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import {
   formatBytes,
   formatCaptureDuration,
   wiregasmColor,
 } from '@/lib/packet-analyzer/format';
+import { CbomWorkerClient } from '@/lib/packet-analyzer/cbom-client';
 import type {
   CaptureSummary,
   PacketFrame,
@@ -51,6 +64,9 @@ import type {
 } from '@/lib/packet-analyzer/types';
 import { WiregasmWorkerClient } from '@/lib/packet-analyzer/wiregasm-client';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { resolveProjectIdentifier, storeCBOM } from '@/lib/cbom-api';
 import { cn } from '@/lib/utils';
 import { HexViewer } from './HexViewer';
 import { ProtocolTree } from './ProtocolTree';
@@ -68,9 +84,11 @@ const isSupportedCapture = (file: File) =>
 
 export function PacketAnalyzer() {
   const clientRef = useRef<WiregasmWorkerClient | null>(null);
+  const cbomClientRef = useRef<CbomWorkerClient | null>(null);
   const frameRequestRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const analysisContainerRef = useRef<HTMLDivElement | null>(null);
+  const pageDragCounterRef = useRef(0);
 
   const isWideLayout = useMediaQuery('(min-width: 1280px)');
   const isRegularLayout = useMediaQuery('(min-width: 768px)');
@@ -101,7 +119,22 @@ export function PacketAnalyzer() {
   const [isLoadingCapture, setIsLoadingCapture] = useState(false);
   const [isLoadingFrames, setIsLoadingFrames] = useState(false);
   const [isLoadingFrame, setIsLoadingFrame] = useState(false);
+  const [isGeneratingCbom, setIsGeneratingCbom] = useState(false);
+  const [cbomStatus, setCbomStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [generatedCbom, setGeneratedCbom] = useState<{
+    json: string;
+    filename: string;
+    observations: number;
+    matchedFrames: number;
+  } | null>(null);
+  const [isCbomSheetOpen, setIsCbomSheetOpen] = useState(false);
+  const [isImportingCbom, setIsImportingCbom] = useState(false);
+
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     let mounted = true;
@@ -134,6 +167,9 @@ export function PacketAnalyzer() {
       mounted = false;
       clientRef.current = null;
       void client.dispose();
+      const cbomClient = cbomClientRef.current;
+      cbomClientRef.current = null;
+      if (cbomClient) void cbomClient.dispose();
     };
   }, []);
 
@@ -257,6 +293,7 @@ export function PacketAnalyzer() {
       setProtocolSelection(null);
       setFilterInput('');
       setAppliedFilter('');
+      setCbomStatus(null);
 
       try {
         const buffer = await file.arrayBuffer();
@@ -284,11 +321,34 @@ export function PacketAnalyzer() {
     event.target.value = '';
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handlePageDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (engineState !== 'ready' || !event.dataTransfer.types.includes('Files')) return;
     event.preventDefault();
+    pageDragCounterRef.current += 1;
+    setIsDragging(true);
+  };
+
+  const handlePageDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (engineState !== 'ready' || !event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+  };
+
+  const handlePageDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    pageDragCounterRef.current = Math.max(0, pageDragCounterRef.current - 1);
+    if (pageDragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handlePageDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    pageDragCounterRef.current = 0;
     setIsDragging(false);
     const file = event.dataTransfer.files?.[0];
-    if (file) {
+    if (file && engineState === 'ready') {
       void loadCapture(file);
     }
   };
@@ -302,6 +362,104 @@ export function PacketAnalyzer() {
     setFilterInput('');
     setFilterError(null);
     void loadFrames('', 0);
+  };
+
+  const generateCbom = useCallback(async () => {
+    const wiregasmClient = clientRef.current;
+    if (!wiregasmClient || !capture || isGeneratingCbom) return;
+
+    setError(null);
+    setIsGeneratingCbom(true);
+    setCbomStatus('Collecting TLS observations…');
+
+    let cbomClient = cbomClientRef.current;
+    if (!cbomClient) {
+      cbomClient = new CbomWorkerClient(setCbomStatus);
+      cbomClientRef.current = cbomClient;
+    }
+
+    try {
+      const batch = await wiregasmClient.cbomObservations();
+      const result = await cbomClient.generate(batch.observations, {
+        componentName: capture.filename,
+        componentVersion: '1.0.0',
+        keylogAvailable: false,
+      });
+
+      const captureName =
+        capture.filename.replace(/\.(?:pcapng?|cap)$/i, '') || 'capture';
+
+      setGeneratedCbom({
+        json: result.json,
+        filename: `${captureName}-cbom.json`,
+        observations: result.observations,
+        matchedFrames: batch.matchedFrames,
+      });
+      setIsCbomSheetOpen(true);
+      setCbomStatus(
+        `Generated CBOM from ${result.observations.toLocaleString()} TLS observations across ${batch.matchedFrames.toLocaleString()} frames.`,
+      );
+    } catch (generationError) {
+      setCbomStatus(null);
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : 'Unable to generate a CBOM from this capture.',
+      );
+    } finally {
+      setIsGeneratingCbom(false);
+    }
+  }, [capture, isGeneratingCbom]);
+
+  const handleDownloadCbom = () => {
+    if (!generatedCbom) return;
+
+    const blob = new Blob([generatedCbom.json], {
+      type: 'application/vnd.cyclonedx+json',
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = generatedCbom.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handleImportCbom = async () => {
+    if (!generatedCbom) return;
+
+    if (!user?.access_token) {
+      toast({
+        title: 'Import failed',
+        description: 'You must be signed in to import a CBOM.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsImportingCbom(true);
+    try {
+      const parsedCbom = JSON.parse(generatedCbom.json);
+      const projectIdentifier = resolveProjectIdentifier(parsedCbom);
+      await storeCBOM(projectIdentifier, parsedCbom, user.access_token);
+      toast({
+        title: 'Imported to CBOM Manager',
+        description: `Stored CBOM for ${projectIdentifier}`,
+      });
+      setIsCbomSheetOpen(false);
+      router.push(`/cbom/details?projectId=${encodeURIComponent(projectIdentifier)}`);
+    } catch (importError) {
+      toast({
+        title: 'Import failed',
+        description:
+          importError instanceof Error ? importError.message : 'Failed to import CBOM.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsImportingCbom(false);
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(framesPage.matched / PAGE_SIZE));
@@ -329,7 +487,25 @@ export function PacketAnalyzer() {
       : 'bg-muted/80 text-muted-foreground';
 
   return (
-    <div className="flex flex-col">
+    <div
+      className="relative flex flex-col"
+      onDragEnter={handlePageDragEnter}
+      onDragOver={handlePageDragOver}
+      onDragLeave={handlePageDragLeave}
+      onDrop={handlePageDrop}
+    >
+      {isDragging && engineState === 'ready' ? (
+        <div className="pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background/90 backdrop-blur-sm">
+          <FileUp className="size-10 text-primary" />
+          <p className="text-lg font-semibold">
+            {capture ? 'Release to re-analyze this capture' : 'Release to analyze this capture'}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            PCAP, PCAPNG, or CAP · up to {formatBytes(MAX_CAPTURE_SIZE)}
+          </p>
+        </div>
+      ) : null}
+
       {/* Section: Capture */}
       <div className="grid grid-cols-1 gap-10 py-6 lg:grid-cols-3">
         <div className="space-y-3">
@@ -362,13 +538,6 @@ export function PacketAnalyzer() {
                 : 'border-border/60 bg-muted/10',
               engineState !== 'ready' && 'cursor-not-allowed opacity-70',
             )}
-            onDragEnter={(event) => {
-              event.preventDefault();
-              if (engineState === 'ready') setIsDragging(true);
-            }}
-            onDragOver={(event) => event.preventDefault()}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
           >
             <input
               ref={fileInputRef}
@@ -396,13 +565,35 @@ export function PacketAnalyzer() {
                   <p className="break-all font-medium">{capture.filename}</p>
                 </div>
 
-                <Button
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <RotateCcw />
-                  Replace capture
-                </Button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={isGeneratingCbom}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <RotateCcw />
+                    Replace capture
+                  </Button>
+                  <Button
+                    disabled={isGeneratingCbom}
+                    onClick={() => void generateCbom()}
+                  >
+                    {isGeneratingCbom ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <FileJson2 />
+                    )}
+                    {isGeneratingCbom ? 'Generating CBOM…' : 'Generate CBOM'}
+                  </Button>
+                </div>
+                {cbomStatus ? (
+                  <p
+                    aria-live="polite"
+                    className="text-xs text-muted-foreground"
+                  >
+                    {cbomStatus}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-3">
@@ -731,6 +922,44 @@ export function PacketAnalyzer() {
           </a>
         </nav>
       </footer>
+
+      <Sheet open={isCbomSheetOpen} onOpenChange={setIsCbomSheetOpen}>
+        <SheetContent
+          side="right"
+          className="!w-[720px] flex flex-col p-0 sm:!max-w-[720px]"
+        >
+          <SheetHeader className="shrink-0 border-b px-6 pt-6 pb-4">
+            <SheetTitle>Generated CBOM</SheetTitle>
+            <SheetDescription>
+              {generatedCbom
+                ? `From ${generatedCbom.observations.toLocaleString()} TLS observations across ${generatedCbom.matchedFrames.toLocaleString()} frames.`
+                : 'Review the CycloneDX CBOM generated from this capture.'}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-auto px-6 py-4">
+            <pre className="whitespace-pre-wrap break-words rounded-lg border bg-muted/30 p-4 font-mono text-xs">
+              {generatedCbom
+                ? JSON.stringify(JSON.parse(generatedCbom.json), null, 2)
+                : ''}
+            </pre>
+          </div>
+
+          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4">
+            <Button variant="outline" onClick={handleDownloadCbom} disabled={!generatedCbom}>
+              <Download />
+              Download JSON
+            </Button>
+            <Button
+              onClick={() => void handleImportCbom()}
+              disabled={!generatedCbom || isImportingCbom}
+            >
+              {isImportingCbom ? <Loader2 className="animate-spin" /> : <CloudUpload />}
+              {isImportingCbom ? 'Importing…' : 'Import to CBOM Manager'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
