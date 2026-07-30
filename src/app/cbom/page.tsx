@@ -214,9 +214,11 @@ export default function CBOMPage() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isDraggingFileOverTable, setIsDraggingFileOverTable] = useState(false);
 
   const websocketRef = useRef<WebSocket | null>(null);
   const finishedRef = useRef(false);
+  const tableDragCounterRef = useRef(0);
   // Track detection count in a ref so onClose always reads the latest value (avoids stale closure).
   const scanDetectionsRef = useRef(0);
   // Store the latest finishScan implementation in a ref so the WebSocket onClose
@@ -467,6 +469,43 @@ export default function CBOMPage() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleTableDragEnter = (event: React.DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) {
+      return;
+    }
+    event.preventDefault();
+    tableDragCounterRef.current += 1;
+    setIsDraggingFileOverTable(true);
+  };
+
+  const handleTableDragOver = (event: React.DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) {
+      return;
+    }
+    event.preventDefault();
+  };
+
+  const handleTableDragLeave = (event: React.DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) {
+      return;
+    }
+    event.preventDefault();
+    tableDragCounterRef.current = Math.max(0, tableDragCounterRef.current - 1);
+    if (tableDragCounterRef.current === 0) {
+      setIsDraggingFileOverTable(false);
+    }
+  };
+
+  const handleTableDrop = (event: React.DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) {
+      return;
+    }
+    event.preventDefault();
+    tableDragCounterRef.current = 0;
+    setIsDraggingFileOverTable(false);
+    handleUploadFile(event.dataTransfer.files?.[0]);
   };
 
   if (!isLoggedIn) {
@@ -888,26 +927,45 @@ export default function CBOMPage() {
             )}
         </div>
 
-        {tableError && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error Loading CBOMs</AlertTitle>
-            <AlertDescription>{tableError}</AlertDescription>
-          </Alert>
-        )}
+        <div
+          className="relative"
+          onDragEnter={handleTableDragEnter}
+          onDragOver={handleTableDragOver}
+          onDragLeave={handleTableDragLeave}
+          onDrop={handleTableDrop}
+        >
+          {isDraggingFileOverTable && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-primary/8">
+              <FileUp className="h-6 w-6 text-primary" />
+              <p className="text-sm font-medium text-foreground">Release to upload CBOM</p>
+            </div>
+          )}
 
-        {isLoadingTable && recentCboms.length === 0 && (
-          <div className="flex items-center justify-center rounded-lg border bg-muted/10 py-10">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Loading CBOMs...</span>
-          </div>
-        )}
-
-        {!tableError && recentCboms.length > 0 && (
           <div className={cn(
-            'overflow-x-auto transition-opacity duration-300',
-            isLoadingTable && 'pointer-events-none opacity-50',
+            'transition-opacity duration-150',
+            isDraggingFileOverTable && 'pointer-events-none opacity-30',
           )}>
+
+          {tableError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading CBOMs</AlertTitle>
+              <AlertDescription>{tableError}</AlertDescription>
+            </Alert>
+          )}
+
+          {isLoadingTable && recentCboms.length === 0 && (
+            <div className="flex items-center justify-center rounded-lg border bg-muted/10 py-10">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading CBOMs...</span>
+            </div>
+          )}
+
+          {!tableError && recentCboms.length > 0 && (
+            <div className={cn(
+              'overflow-x-auto transition-opacity duration-300',
+              isLoadingTable && 'pointer-events-none opacity-50',
+            )}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1082,6 +1140,8 @@ export default function CBOMPage() {
             <p className="mt-0.5 text-xs text-muted-foreground/60">Use Upload CBOM or SCAN Git Repo to add your first scan.</p>
           </div>
         )}
+          </div>
+        </div>
       </section>
 
       <AlertDialog open={cbomToDelete !== null} onOpenChange={(open) => { if (!open) setCbomToDelete(null); }}>
