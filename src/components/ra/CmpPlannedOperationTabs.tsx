@@ -136,6 +136,9 @@ const REVOCATION_REASON_OPTIONS: { value: CmpRevocationReason; label: string }[]
   { value: 'cessation_of_operation', label: 'Cessation of operation' },
   { value: 'superseded', label: 'Superseded' },
   { value: 'affiliation_changed', label: 'Affiliation changed' },
+  { value: 'ca_compromise', label: 'CA compromise' },
+  { value: 'privilege_withdrawn', label: 'Privilege withdrawn' },
+  { value: 'aa_compromise', label: 'AA compromise' },
 ];
 
 function toggleValue<T>(list: T[], value: T): T[] {

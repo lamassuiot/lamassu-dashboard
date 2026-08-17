@@ -72,7 +72,7 @@ export type CmpCertificateBehavior = 'additional' | 'replace';
 export type CmpKeyPolicy = 'require_new_key' | 'permit_reuse';
 export type CmpIdentityChangePolicy = 'forbid' | 'san_only' | 'subject_and_san';
 export type CmpRevocationAuthorization = 'self_only' | 'self_and_trusted_ra';
-export type CmpRevocationReason = 'unspecified' | 'key_compromise' | 'ca_compromise' | 'affiliation_changed' | 'superseded' | 'cessation_of_operation';
+export type CmpRevocationReason = 'unspecified' | 'key_compromise' | 'ca_compromise' | 'affiliation_changed' | 'superseded' | 'cessation_of_operation' | 'privilege_withdrawn' | 'aa_compromise';
 export type CmpGenmAccessPolicy = 'public_discovery' | 'require_signed';
 export type CmpPreferredSymmetricAlgorithm =
     | 'aes128_cbc' | 'aes192_cbc' | 'aes256_cbc'

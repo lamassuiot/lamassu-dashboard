@@ -188,6 +188,7 @@ function createDefaultCmpRr(): CmpRrSettings {
     authorization: 'self_only',
     allow_revival: false,
     allow_expired_target: true,
+    // Mirrors resolveRR's backend default (core/pkg/models/dms_cmp_settings.go).
     allowed_reasons: ['unspecified', 'key_compromise', 'cessation_of_operation', 'superseded'],
     trusted_ra: { validation_ca_ids: [], require_cmc_ra_eku: true },
   };
