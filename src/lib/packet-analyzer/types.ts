@@ -60,31 +60,97 @@ export interface PacketFrameDetails {
   follow: string[][];
 }
 
-export type TlsCode = string;
+export type TlsObservationStatus =
+  | 'observed'
+  | 'observed_encrypted_record'
+  | 'decrypted'
+  | 'inferred'
+  | 'encrypted_unavailable'
+  | 'capture_incomplete'
+  | 'unsupported_by_dissector'
+  | 'malformed'
+  | 'not_present'
+  | 'not_applicable';
+
+export type TlsObservationPresence =
+  | 'confirmed'
+  | 'expected'
+  | 'unknown'
+  | 'absent'
+  | 'not_applicable';
+
+export interface TlsObservationDirection {
+  source: 'client' | 'server';
+  destination: 'client' | 'server';
+}
+
+export interface TlsObservationKeyShare {
+  group: string;
+  encoded_length_bytes?: number;
+}
+
+export interface TlsObservationCertificate {
+  position: number;
+  der_hex?: string;
+}
+
+export interface TlsObservationPhase {
+  sequence?: number;
+  direction?: TlsObservationDirection;
+  status: TlsObservationStatus;
+  presence?: TlsObservationPresence;
+  frame_numbers?: number[];
+  reason?: string;
+  server_name?: {
+    value: string | null;
+    status: TlsObservationStatus;
+    source: string;
+    ech_protected?: boolean;
+    outer_value?: string | null;
+    reason?: string;
+  };
+  offered?: {
+    versions?: string[];
+    cipher_suites?: string[];
+    supported_groups?: string[];
+    key_shares?: TlsObservationKeyShare[];
+    signature_schemes?: string[];
+    certificate_signature_schemes?: string[];
+    psk_key_exchange_modes?: Array<'psk_ke' | 'psk_dhe_ke'>;
+    psk_identity_count?: number;
+  };
+  selected?: Record<string, unknown> | null;
+  requested?: Record<string, unknown> | null;
+  chain?: TlsObservationCertificate[] | null;
+}
+
+export type TlsObservationPhaseName =
+  | 'client_hello'
+  | 'hello_retry_request'
+  | 'server_hello'
+  | 'encrypted_extensions'
+  | 'server_certificate'
+  | 'server_key_exchange'
+  | 'server_certificate_verify'
+  | 'certificate_request'
+  | 'client_certificate'
+  | 'client_key_exchange'
+  | 'client_certificate_verify';
 
 export interface CbomObservation {
-  schemaVersion: '1.0';
-  streamId?: string;
-  srcIp: string;
-  dstIp: string;
-  srcPort: number;
-  dstPort: number;
-  tcpSyn?: boolean;
-  clientHello?: {
-    sni?: string;
-    cipherSuites: Array<{ id: TlsCode; name?: string }>;
-    supportedVersions: TlsCode[];
-    supportedGroups: TlsCode[];
-    signatureAlgorithms: TlsCode[];
+  schema: 'tls-crypto-observation/1.1';
+  flow: {
+    transport: 'TCP';
+    ip_version?: 4 | 6;
+    tcp_stream?: number | string;
+    endpoints: {
+      client: { ip: string; port: number };
+      server: { ip: string; port: number };
+    };
   };
-  serverHello?: {
-    version: TlsCode;
-    cipherSuite: TlsCode;
-    cipherName?: string;
-    keyShareGroup?: TlsCode;
-  };
-  certificates?: Array<{ derHex: string }>;
-  certificateRequested?: boolean;
+  inspection?: Record<string, unknown>;
+  phases: Partial<Record<TlsObservationPhaseName, TlsObservationPhase[]>>;
+  summary?: Record<string, unknown>;
 }
 
 export interface CbomObservationBatch {

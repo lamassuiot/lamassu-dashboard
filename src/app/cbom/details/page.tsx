@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -84,6 +85,54 @@ import { CertificateHierarchyGraphView } from '@/components/cbom/CertificateHier
 
 const chip = 'inline-flex items-center rounded border px-2 py-0.5 text-xs';
 const networkDetailChipClass = `${chip} border-border/70 bg-muted/40 font-mono text-foreground`;
+
+const tlsAuthVisibilityPresentation: Record<
+  string,
+  { label: string; description: string; className: string }
+> = {
+  encrypted_unavailable: {
+    label: 'Encrypted unavailable',
+    description:
+      'TLS 1.3 encrypted the Certificate and CertificateVerify phases, and no usable traffic secrets were available.',
+    className:
+      'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300',
+  },
+  'not-observed-passive': {
+    label: 'Encrypted (passive)',
+    description:
+      'Certificate and CertificateVerify were encrypted and unavailable to the passive capture.',
+    className:
+      'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300',
+  },
+  'not-decrypted': {
+    label: 'Not decrypted',
+    description:
+      'A key log was configured, but this connection did not yield a server Certificate phase. The session may be PSK-resumed or its traffic secret may be missing.',
+    className:
+      'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  },
+  capture_incomplete: {
+    label: 'Capture incomplete',
+    description:
+      'The capture ended before the server authentication phases could be inspected.',
+    className:
+      'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  },
+  unsupported_by_dissector: {
+    label: 'Unsupported',
+    description:
+      'The packet dissector could not expose the server authentication phase.',
+    className:
+      'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  },
+  not_applicable: {
+    label: 'Not applicable',
+    description:
+      'Certificate authentication was not applicable, for example because the server selected a PSK.',
+    className:
+      'border-border/70 bg-muted/40 text-muted-foreground',
+  },
+};
 
 function NetworkDetailSection({
   title,
@@ -715,6 +764,8 @@ function CBOMDetailsContent() {
   });
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'raw'>('overview');
   const [assetViewMode, setAssetViewMode] = useState<AssetViewMode>('assets-table');
+  const [tableHighlightAgreed, setTableHighlightAgreed] = useState(true);
+  const [tableShowStrengthColors, setTableShowStrengthColors] = useState(true);
   const [selectedNetworkNode, setSelectedNetworkNode] = useState<GraphNode | null>(null);
   const [networkInspectorMode, setNetworkInspectorMode] = useState<'overview' | 'workflow'>('overview');
   const [workflowSheetConnection, setWorkflowSheetConnection] =
@@ -1117,6 +1168,25 @@ function CBOMDetailsContent() {
         'live-cbom:tls.client.signatureAlgorithms',
         'live-cbom:tls.server.signatureAlgorithms',
       ]);
+      const offeredCertificateSignatureAlgorithms = getPropertyStringList(props, [
+        'live-cbom:tls.offered.certificateSignatureAlgorithms',
+      ]);
+      const offeredKeyShareGroups = getPropertyStringList(props, [
+        'live-cbom:tls.offered.keyShareGroups',
+      ]);
+      const offeredPskKeyExchangeModes = getPropertyStringList(props, [
+        'live-cbom:tls.offered.pskKeyExchangeModes',
+      ]);
+      const serverHandshakeSignatureScheme =
+        props.find((p: any) => p.name === 'live-cbom:tls.server.handshakeSignatureScheme')?.value ?? '';
+      const clientHandshakeSignatureScheme =
+        props.find((p: any) => p.name === 'live-cbom:tls.client.handshakeSignatureScheme')?.value ?? '';
+      const clientAuthAcceptedSignatureAlgorithms = getPropertyStringList(props, [
+        'live-cbom:tls.clientAuth.acceptedSignatureAlgorithms',
+      ]);
+      const clientAuthAcceptedCertificateSignatureAlgorithms = getPropertyStringList(props, [
+        'live-cbom:tls.clientAuth.acceptedCertificateSignatureAlgorithms',
+      ]);
       const authVisibility =
         props.find((p: any) => p.name === 'live-cbom:tls.auth.visibility')?.value ?? '';
       const mtlsRequested =
@@ -1198,7 +1268,14 @@ function CBOMDetailsContent() {
           serverSelectedVersion,
           negotiatedGroup,
           offeredGroups,
+          offeredKeyShareGroups,
           offeredSignatureAlgorithms,
+          offeredCertificateSignatureAlgorithms,
+          offeredPskKeyExchangeModes,
+          serverHandshakeSignatureScheme,
+          clientHandshakeSignatureScheme,
+          clientAuthAcceptedSignatureAlgorithms,
+          clientAuthAcceptedCertificateSignatureAlgorithms,
           authVisibility,
           mtlsRequested,
           mtlsClientCertPresented,
@@ -1238,8 +1315,21 @@ function CBOMDetailsContent() {
         offeredCipherSuites: node.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined,
         negotiatedGroup: node.data?.negotiatedGroup as string | undefined,
         offeredGroups: node.data?.offeredGroups as string[] | undefined,
+        offeredKeyShareGroups: node.data?.offeredKeyShareGroups as string[] | undefined,
         offeredSignatureAlgorithms:
           node.data?.offeredSignatureAlgorithms as string[] | undefined,
+        offeredCertificateSignatureAlgorithms:
+          node.data?.offeredCertificateSignatureAlgorithms as string[] | undefined,
+        offeredPskKeyExchangeModes:
+          node.data?.offeredPskKeyExchangeModes as string[] | undefined,
+        serverHandshakeSignatureScheme:
+          node.data?.serverHandshakeSignatureScheme as string | undefined,
+        clientHandshakeSignatureScheme:
+          node.data?.clientHandshakeSignatureScheme as string | undefined,
+        clientAuthAcceptedSignatureAlgorithms:
+          node.data?.clientAuthAcceptedSignatureAlgorithms as string[] | undefined,
+        clientAuthAcceptedCertificateSignatureAlgorithms:
+          node.data?.clientAuthAcceptedCertificateSignatureAlgorithms as string[] | undefined,
         negotiatedAlgorithms: node.data?.negotiatedAlgorithms as NegotiatedAlg[] | undefined,
         certificates: node.data?.certificates as CertificateInfo[] | undefined,
         authVisibility: node.data?.authVisibility as string | undefined,
@@ -2135,33 +2225,26 @@ function CBOMDetailsContent() {
                         </div>
                       ) : null}
 
-                      {/* TLS 1.3 passive capture */}
-                      {(selectedNetworkNode.data?.authVisibility as string | undefined) === 'not-observed-passive' && (
-                        <div className="py-3 first:pt-0">
-                          <p className="text-xs font-medium text-muted-foreground">Certificate</p>
-                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                            Certificate &amp; CertificateVerify signature were encrypted (TLS 1.3 EncryptedExtensions) — not observable from a passive capture.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* TLS 1.3 key-logged but still no certificate — actionable */}
-                      {(selectedNetworkNode.data?.authVisibility as string | undefined) === 'not-decrypted' && (
-                        <div className="py-3 first:pt-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">Certificate</p>
-                            <span className={`${chip} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium`}>
-                              Not decrypted
-                            </span>
+                      {/* TLS authentication visibility from the phased observation status */}
+                      {(() => {
+                        const visibility = selectedNetworkNode.data?.authVisibility as string | undefined;
+                        const presentation = visibility
+                          ? tlsAuthVisibilityPresentation[visibility]
+                          : undefined;
+                        return presentation ? (
+                          <div className="py-3 first:pt-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-medium text-muted-foreground">Certificate</p>
+                              <span className={`${chip} ${presentation.className} font-medium`}>
+                                {presentation.label}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                              {presentation.description}
+                            </p>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                            A key-log was configured for this run, yet no certificate was recovered. This is
-                            actionable: the session may have been resumed via PSK (no Certificate sent by design),
-                            the secrets may never have reached the keylog (e.g. a libssl build that wasn&apos;t hooked),
-                            or the rolling-capture re-process may not have caught up yet.
-                          </p>
-                        </div>
-                      )}
+                        ) : null;
+                      })()}
 
                       {/* mTLS — server requested a client certificate */}
                       {(selectedNetworkNode.data?.mtlsRequested as boolean | undefined) && (
@@ -2269,14 +2352,107 @@ function CBOMDetailsContent() {
                         </div>
                       ) : null}
 
-                      {/* Signature Algorithms */}
-                      {(selectedNetworkNode.data?.offeredSignatureAlgorithms as string[] | undefined)?.length ? (
+                      {/* ClientHello key shares */}
+                      {(selectedNetworkNode.data?.offeredKeyShareGroups as string[] | undefined)?.length ? (
                         <div className="py-3 first:pt-0">
-                          <p className="text-xs font-medium text-muted-foreground">Signature Algorithms</p>
+                          <p className="text-xs font-medium text-muted-foreground">Key Shares</p>
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).map((alg: string) => (
-                              <span key={alg} className={networkDetailChipClass}>{alg}</span>
+                            {(selectedNetworkNode.data.offeredKeyShareGroups as string[]).map((group: string) => (
+                              <span key={group} className={networkDetailChipClass}>{group}</span>
                             ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Signature schemes and the signatures actually selected */}
+                      {(
+                        (selectedNetworkNode.data?.offeredSignatureAlgorithms as string[] | undefined)?.length
+                        || (selectedNetworkNode.data?.offeredCertificateSignatureAlgorithms as string[] | undefined)?.length
+                        || selectedNetworkNode.data?.serverHandshakeSignatureScheme
+                        || selectedNetworkNode.data?.clientHandshakeSignatureScheme
+                      ) ? (
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Signature Schemes</p>
+                          <div className="mt-1 space-y-2">
+                            {(selectedNetworkNode.data?.offeredSignatureAlgorithms as string[] | undefined)?.length ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">ClientHello handshake offers</p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).map((alg: string) => (
+                                    <span key={alg} className={networkDetailChipClass}>{alg}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {(selectedNetworkNode.data?.offeredCertificateSignatureAlgorithms as string[] | undefined)?.length ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">ClientHello certificate signatures</p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(selectedNetworkNode.data.offeredCertificateSignatureAlgorithms as string[]).map((alg: string) => (
+                                    <span key={alg} className={networkDetailChipClass}>{alg}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {selectedNetworkNode.data?.serverHandshakeSignatureScheme ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">Server selected</p>
+                                <span className={`${networkDetailChipClass} mt-1 border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300`}>
+                                  {selectedNetworkNode.data.serverHandshakeSignatureScheme as string}
+                                </span>
+                              </div>
+                            ) : null}
+                            {selectedNetworkNode.data?.clientHandshakeSignatureScheme ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">Client selected</p>
+                                <span className={`${networkDetailChipClass} mt-1 border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300`}>
+                                  {selectedNetworkNode.data.clientHandshakeSignatureScheme as string}
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* PSK and CertificateRequest constraints */}
+                      {(
+                        (selectedNetworkNode.data?.offeredPskKeyExchangeModes as string[] | undefined)?.length
+                        || (selectedNetworkNode.data?.clientAuthAcceptedSignatureAlgorithms as string[] | undefined)?.length
+                        || (selectedNetworkNode.data?.clientAuthAcceptedCertificateSignatureAlgorithms as string[] | undefined)?.length
+                      ) ? (
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Authentication Constraints</p>
+                          <div className="mt-1 space-y-2">
+                            {(selectedNetworkNode.data?.offeredPskKeyExchangeModes as string[] | undefined)?.length ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">PSK key exchange modes</p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(selectedNetworkNode.data.offeredPskKeyExchangeModes as string[]).map((mode: string) => (
+                                    <span key={mode} className={networkDetailChipClass}>{mode}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {(selectedNetworkNode.data?.clientAuthAcceptedSignatureAlgorithms as string[] | undefined)?.length ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">Accepted client signatures</p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(selectedNetworkNode.data.clientAuthAcceptedSignatureAlgorithms as string[]).map((alg: string) => (
+                                    <span key={alg} className={networkDetailChipClass}>{alg}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {(selectedNetworkNode.data?.clientAuthAcceptedCertificateSignatureAlgorithms as string[] | undefined)?.length ? (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground/60">Accepted client certificate signatures</p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(selectedNetworkNode.data.clientAuthAcceptedCertificateSignatureAlgorithms as string[]).map((alg: string) => (
+                                    <span key={alg} className={networkDetailChipClass}>{alg}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}
@@ -2304,7 +2480,18 @@ function CBOMDetailsContent() {
                 No network connections found in this CBOM.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Switch size="sm" checked={tableHighlightAgreed} onCheckedChange={setTableHighlightAgreed} />
+                    Highlight agreed values
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Switch size="sm" checked={tableShowStrengthColors} onCheckedChange={setTableShowStrengthColors} />
+                    Strength colors
+                  </label>
+                </div>
+                <div className="overflow-x-auto">
                 <TooltipProvider>
                 <Table>
                   <TableHeader>
@@ -2316,8 +2503,8 @@ function CBOMDetailsContent() {
                         { label: 'PQC',                  tip: 'Post-Quantum Cryptography status. "PQC Ln" means a NIST-level-n quantum-safe KEM was used; "Classical" means no PQC.' },
                         { label: 'Cipher Suite',         tip: 'Server-selected cipher suite (badge color = strength). Below: offered suite strength breakdown — count per category (R=Recommended, S=Secure, W=Weak, I=Insecure).' },
                         { label: 'In-use Algorithms',    tip: 'Cryptographic primitives decomposed from the negotiated cipher suite (e.g. AES-256-GCM, ECDHE, SHA-384).' },
-                        { label: 'Supported Groups',     tip: 'Named groups advertised by the client in the supported_groups extension. The actually-used group is highlighted.' },
-                        { label: 'Signature Algorithms', tip: 'Signature schemes listed by the client in the signature_algorithms extension.' },
+                        { label: 'Groups / Key Shares',  tip: 'Named groups advertised by the client. A "share" marker identifies groups for which the ClientHello carried key material; the negotiated group is highlighted.' },
+                        { label: 'Signature Schemes',    tip: 'Handshake and certificate signature schemes offered by the client, plus schemes actually selected by the server or client.' },
                         { label: 'Auth / Certificate',   tip: 'Server certificate and authentication details observed during the handshake.' },
                       ] as { label: string; tip: string }[]).map(({ label, tip }) => (
                         <TableHead key={label} className="whitespace-nowrap">
@@ -2346,7 +2533,18 @@ function CBOMDetailsContent() {
                         const negotiatedCipherSuite = n.data?.negotiatedCipherSuite as string | undefined;
                         const negotiatedGroup = n.data?.negotiatedGroup as string | undefined;
                         const offeredGroups = n.data?.offeredGroups as string[] | undefined;
+                        const offeredKeyShareGroups = n.data?.offeredKeyShareGroups as string[] | undefined;
                         const offeredSignatureAlgorithms = n.data?.offeredSignatureAlgorithms as string[] | undefined;
+                        const offeredCertificateSignatureAlgorithms =
+                          n.data?.offeredCertificateSignatureAlgorithms as string[] | undefined;
+                        const serverHandshakeSignatureScheme =
+                          n.data?.serverHandshakeSignatureScheme as string | undefined;
+                        const clientHandshakeSignatureScheme =
+                          n.data?.clientHandshakeSignatureScheme as string | undefined;
+                        const clientAuthAcceptedSignatureAlgorithms =
+                          n.data?.clientAuthAcceptedSignatureAlgorithms as string[] | undefined;
+                        const clientAuthAcceptedCertificateSignatureAlgorithms =
+                          n.data?.clientAuthAcceptedCertificateSignatureAlgorithms as string[] | undefined;
                         const offeredCipherSuites = n.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined;
                         const pqcProtected = n.data?.pqcProtected as boolean | undefined;
                         const pqcLevel = n.data?.pqcLevel as number | undefined;
@@ -2360,6 +2558,47 @@ function CBOMDetailsContent() {
                         const workflowConnection = tlsWorkflowConnectionMap.get(n.id);
                         const cipherStrength = negotiatedCipherSuite ? getCipherStrength(negotiatedCipherSuite) : 'unknown';
                         const csBadge = cipherStrengthBadge[cipherStrength];
+                        const csBadgeClassName = tableShowStrengthColors
+                          ? csBadge.className
+                          : cipherStrengthBadge.unknown.className;
+                        const displayedGroups = Array.from(new Set([
+                          ...(offeredGroups ?? []),
+                          ...(offeredKeyShareGroups ?? []),
+                        ]));
+                        const keyShareGroups = new Set(offeredKeyShareGroups ?? []);
+                        const signatureDetails = [
+                          {
+                            label: 'Handshake offers',
+                            values: offeredSignatureAlgorithms ?? [],
+                          },
+                          {
+                            label: 'Certificate offers',
+                            values: offeredCertificateSignatureAlgorithms ?? [],
+                          },
+                          {
+                            label: 'Server selected',
+                            values: serverHandshakeSignatureScheme
+                              ? [serverHandshakeSignatureScheme]
+                              : [],
+                          },
+                          {
+                            label: 'Client selected',
+                            values: clientHandshakeSignatureScheme
+                              ? [clientHandshakeSignatureScheme]
+                              : [],
+                          },
+                          {
+                            label: 'Client auth accepted',
+                            values: clientAuthAcceptedSignatureAlgorithms ?? [],
+                          },
+                          {
+                            label: 'Client certificate accepted',
+                            values: clientAuthAcceptedCertificateSignatureAlgorithms ?? [],
+                          },
+                        ].filter(({ values }) => values.length > 0);
+                        const authPresentation = authVisibility
+                          ? tlsAuthVisibilityPresentation[authVisibility]
+                          : undefined;
 
                         // Cipher suite strength distribution for offered suites
                         const offeredSuiteCounts = (offeredCipherSuites ?? []).reduce<Record<CipherStrength, number>>(
@@ -2409,7 +2648,7 @@ function CBOMDetailsContent() {
                             <TableCell className="min-w-[200px]">
                               {negotiatedCipherSuite ? (
                                 <div className="flex flex-col items-start gap-1.5">
-                                  <span className={`${chip} font-mono font-medium ${csBadge.className}`}>
+                                  <span className={`${chip} font-mono font-medium ${csBadgeClassName}`}>
                                     {negotiatedCipherSuite}
                                   </span>
                                   {offeredCipherSuites?.length ? (
@@ -2419,7 +2658,7 @@ function CBOMDetailsContent() {
                                         .map((s) => (
                                           <span key={s} className="flex items-center gap-0.5">
                                             <span className="text-[10px] text-muted-foreground leading-none">{offeredSuiteCounts[s]}</span>
-                                            <span className={`rounded px-1 py-0.5 text-[10px] font-bold leading-none ${cipherStrengthBadge[s].compactClass}`}>{cipherStrengthBadge[s].short}</span>
+                                            <span className={`rounded px-1 py-0.5 text-[10px] font-bold leading-none ${tableShowStrengthColors ? cipherStrengthBadge[s].compactClass : cipherStrengthBadge.unknown.compactClass}`}>{cipherStrengthBadge[s].short}</span>
                                           </span>
                                         ))}
                                     </div>
@@ -2443,32 +2682,52 @@ function CBOMDetailsContent() {
                               </div>
                             </TableCell>
 
-                            {/* Supported groups — supported_groups extension, negotiated one highlighted */}
+                            {/* Supported groups and the subset carrying ClientHello key shares */}
                             <TableCell className="min-w-[160px]">
                               <div className="flex flex-wrap gap-1">
-                                {(offeredGroups ?? []).map((g) => {
-                                  const isUsed = g === negotiatedGroup;
+                                {displayedGroups.map((g) => {
+                                  const isUsed = tableHighlightAgreed && g === negotiatedGroup;
+                                  const hasKeyShare = keyShareGroups.has(g);
                                   return (
                                     <span
                                       key={g}
                                       className={`${chip} font-mono whitespace-nowrap ${isUsed ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : 'border-border/70 bg-muted/40 text-foreground'}`}
                                     >
-                                      {g}{isUsed ? ' ✓' : ''}
+                                      {g}
+                                      {hasKeyShare ? (
+                                        <span className="ml-1 text-[9px] font-sans opacity-60">share</span>
+                                      ) : null}
+                                      {isUsed ? ' ✓' : ''}
                                     </span>
                                   );
                                 })}
-                                {!offeredGroups?.length && <span className="text-muted-foreground">—</span>}
+                                {displayedGroups.length === 0 && <span className="text-muted-foreground">—</span>}
                               </div>
                             </TableCell>
 
-                            {/* Signature algorithms — signature_algorithms extension from ClientHello */}
-                            <TableCell className="min-w-[160px]">
-                              {offeredSignatureAlgorithms?.length ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {offeredSignatureAlgorithms.map((alg) => (
-                                    <span key={alg} className={`${networkDetailChipClass} whitespace-nowrap`}>
-                                      {alg}
-                                    </span>
+                            {/* Offered, accepted, and actually selected signature schemes */}
+                            <TableCell className="min-w-[220px]">
+                              {signatureDetails.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {signatureDetails.map(({ label, values }) => (
+                                    <div key={label}>
+                                      <p className="text-[10px] text-muted-foreground/60">{label}</p>
+                                      <div className="mt-0.5 flex flex-wrap gap-1">
+                                        {values.map((alg) => (
+                                          <span
+                                            key={`${label}-${alg}`}
+                                            className={cn(
+                                              networkDetailChipClass,
+                                              'whitespace-nowrap',
+                                              label.endsWith('selected')
+                                                && 'border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300',
+                                            )}
+                                          >
+                                            {alg}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
                                   ))}
                                 </div>
                               ) : <span className="text-muted-foreground">—</span>}
@@ -2488,17 +2747,15 @@ function CBOMDetailsContent() {
                                       </p>
                                     ))}
                                   </div>
-                                ) : authVisibility === 'not-decrypted' ? (
+                                ) : authPresentation ? (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className={`${chip} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap cursor-default`}>
-                                        Not decrypted
+                                      <span className={`${chip} ${authPresentation.className} font-medium whitespace-nowrap cursor-default`}>
+                                        {authPresentation.label}
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent side="left" className="max-w-[280px]">
-                                      A key-log was configured but no certificate was recovered for this connection.
-                                      Likely a PSK-resumed session (no Certificate sent), a libssl build whose secrets
-                                      never reached the keylog, or a rolling-capture lag — worth investigating.
+                                      {authPresentation.description}
                                     </TooltipContent>
                                   </Tooltip>
                                 ) : (
@@ -2553,6 +2810,7 @@ function CBOMDetailsContent() {
                   </TableBody>
                 </Table>
                 </TooltipProvider>
+                </div>
               </div>
             )
           ) : assetViewMode === 'file-tree' ? (

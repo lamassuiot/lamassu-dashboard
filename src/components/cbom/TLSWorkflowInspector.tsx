@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, FileText, Info, Laptop, Server } from 'lucide-re
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   Sheet,
   SheetContent,
@@ -64,7 +65,14 @@ export interface TLSWorkflowConnection {
   offeredCipherSuites?: TLSWorkflowCipherSuite[];
   negotiatedGroup?: string;
   offeredGroups?: string[];
+  offeredKeyShareGroups?: string[];
   offeredSignatureAlgorithms?: string[];
+  offeredCertificateSignatureAlgorithms?: string[];
+  offeredPskKeyExchangeModes?: string[];
+  serverHandshakeSignatureScheme?: string;
+  clientHandshakeSignatureScheme?: string;
+  clientAuthAcceptedSignatureAlgorithms?: string[];
+  clientAuthAcceptedCertificateSignatureAlgorithms?: string[];
   negotiatedAlgorithms?: TLSWorkflowAlgorithm[];
   certificates?: TLSWorkflowCertificate[];
   authVisibility?: string;
@@ -159,19 +167,34 @@ const versionGroupLabels = new Set([
 ]);
 
 const keyExchangeGroupLabels = new Set([
-  'Supported groups / key shares',
+  'Supported groups',
+  'Key shares',
   'Selected group / key share',
   'Key exchange / KEM',
   'Key exchange',
 ]);
 
+export interface TLSWorkflowToneOptions {
+  /** Emphasize the value that matches the negotiated/agreed selection. Defaults to true. */
+  highlightAgreed?: boolean;
+  /** Color cipher suite badges by cryptographic strength. Defaults to true. */
+  showStrengthColors?: boolean;
+}
+
 export function getTLSWorkflowValueTone(
   groupLabel: string,
   value: string,
   connection: TLSWorkflowConnection,
+  options: TLSWorkflowToneOptions = {},
 ): TLSWorkflowValueTone {
+  const { highlightAgreed = true, showStrengthColors = true } = options;
+
   if (cipherSuiteGroupLabels.has(groupLabel)) {
-    return getCipherStrength(value);
+    return showStrengthColors ? getCipherStrength(value) : 'neutral';
+  }
+
+  if (!highlightAgreed) {
+    return 'neutral';
   }
 
   if (
@@ -260,8 +283,14 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
     buildGroup('Supported versions', connection.supportedVersions ?? []),
     buildGroup('Offered cipher suites', offeredSuites),
     buildGroup('Offered algorithms', offeredAlgorithms),
-    buildGroup('Supported groups / key shares', connection.offeredGroups ?? []),
-    buildGroup('Signature schemes', connection.offeredSignatureAlgorithms ?? []),
+    buildGroup('Supported groups', connection.offeredGroups ?? []),
+    buildGroup('Key shares', connection.offeredKeyShareGroups ?? []),
+    buildGroup('Handshake signature schemes', connection.offeredSignatureAlgorithms ?? []),
+    buildGroup(
+      'Certificate signature schemes',
+      connection.offeredCertificateSignatureAlgorithms ?? [],
+    ),
+    buildGroup('PSK key exchange modes', connection.offeredPskKeyExchangeModes ?? []),
   ]);
   const serverSelectionGroups = compactGroups([
     buildGroup('Selected version', [connection.version]),
@@ -271,8 +300,22 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
   ]);
   const authenticationGroups = compactGroups([
     buildGroup('Authentication algorithms', authenticationAlgorithms),
+    buildGroup('Server handshake signature', [connection.serverHandshakeSignatureScheme]),
     buildGroup('Certificate public key', certificatePublicKeys),
     buildGroup('Certificate signature', certificateSignatures),
+  ]);
+  const clientAuthenticationRequestGroups = compactGroups([
+    buildGroup(
+      'Accepted client signature schemes',
+      connection.clientAuthAcceptedSignatureAlgorithms ?? [],
+    ),
+    buildGroup(
+      'Accepted client certificate signatures',
+      connection.clientAuthAcceptedCertificateSignatureAlgorithms ?? [],
+    ),
+  ]);
+  const clientAuthenticationGroups = compactGroups([
+    buildGroup('Client handshake signature', [connection.clientHandshakeSignatureScheme]),
   ]);
   const protectionGroups = compactGroups([
     buildGroup('Traffic protection', trafficProtectionAlgorithms),
@@ -280,10 +323,23 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
   const finishedGroups = compactGroups([
     buildGroup('Transcript / Finished', transcriptAlgorithms),
   ]);
-  const hiddenAuthenticationNote =
-    connection.authVisibility === 'not-observed-passive'
-      ? 'Certificate and CertificateVerify are encrypted in TLS 1.3 and were not visible to the passive capture.'
-      : undefined;
+  const hiddenAuthenticationNote = (() => {
+    switch (connection.authVisibility) {
+      case 'encrypted_unavailable':
+      case 'not-observed-passive':
+        return 'Certificate and CertificateVerify are encrypted in TLS 1.3 and were unavailable to the passive capture.';
+      case 'not-decrypted':
+        return 'TLS decryption was configured, but this connection did not yield a server Certificate phase.';
+      case 'capture_incomplete':
+        return 'The capture ended before server authentication could be inspected.';
+      case 'unsupported_by_dissector':
+        return 'The packet dissector could not expose the server authentication phase.';
+      case 'not_applicable':
+        return 'Certificate authentication was not applicable, for example because the server selected a PSK.';
+      default:
+        return undefined;
+    }
+  })();
   const mtlsRequestNote = connection.mtlsRequested
     ? 'The server also sent a CertificateRequest, asking the client to authenticate with its own certificate (mTLS).'
     : undefined;
@@ -311,7 +367,11 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
         id: 'server-authentication',
         title: 'EncryptedExtensions, Certificate, CertificateVerify, Finished',
         direction: 'server-to-client',
-        groups: compactGroups([...authenticationGroups, ...finishedGroups]),
+        groups: compactGroups([
+          ...authenticationGroups,
+          ...clientAuthenticationRequestGroups,
+          ...finishedGroups,
+        ]),
         note: combineNotes(hiddenAuthenticationNote, mtlsRequestNote),
         showsCertificates: true,
       },
@@ -319,7 +379,7 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
         id: 'client-finished',
         title: connection.mtlsRequested ? 'Certificate, CertificateVerify, Finished' : 'Finished',
         direction: 'client-to-server',
-        groups: finishedGroups,
+        groups: compactGroups([...clientAuthenticationGroups, ...finishedGroups]),
         note: mtlsResponseNote,
       },
       {
@@ -350,7 +410,11 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
         ? 'ServerHello, Certificate, ServerKeyExchange, CertificateRequest, ServerHelloDone'
         : 'ServerHello, Certificate, ServerKeyExchange, ServerHelloDone',
       direction: 'server-to-client',
-      groups: compactGroups([...serverSelectionGroups, ...authenticationGroups]),
+      groups: compactGroups([
+        ...serverSelectionGroups,
+        ...authenticationGroups,
+        ...clientAuthenticationRequestGroups,
+      ]),
       note: mtlsRequestNote,
       showsCertificates: true,
     },
@@ -365,6 +429,7 @@ export function buildTLSWorkflowSteps(connection: TLSWorkflowConnection): TLSWor
           connection.negotiatedGroup,
           ...keyExchangeAlgorithms,
         ]),
+        ...clientAuthenticationGroups,
         ...finishedGroups,
       ]),
       note: mtlsResponseNote,
@@ -402,6 +467,8 @@ export function TLSWorkflowInspector({
   showConnectionSelector = true,
 }: TLSWorkflowInspectorProps) {
   const [selectedConnectionId, setSelectedConnectionId] = useState(connections[0]?.id ?? '');
+  const [highlightAgreed, setHighlightAgreed] = useState(true);
+  const [showStrengthColors, setShowStrengthColors] = useState(true);
 
   useEffect(() => {
     if (!connections.some((connection) => connection.id === selectedConnectionId)) {
@@ -486,6 +553,17 @@ export function TLSWorkflowInspector({
       ) : mtlsBadge ? (
         <div className="flex items-center justify-end">{mtlsBadge}</div>
       ) : null}
+
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5">
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Switch size="sm" checked={highlightAgreed} onCheckedChange={setHighlightAgreed} />
+          Highlight agreed values
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Switch size="sm" checked={showStrengthColors} onCheckedChange={setShowStrengthColors} />
+          Strength colors
+        </label>
+      </div>
 
       {!compact ? (
         <Alert className="py-2.5">
@@ -673,6 +751,7 @@ export function TLSWorkflowInspector({
                                     group.label,
                                     value,
                                     selectedConnection,
+                                    { highlightAgreed, showStrengthColors },
                                   );
                                   return (
                                     <code

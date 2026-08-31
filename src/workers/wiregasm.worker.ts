@@ -226,7 +226,7 @@ const handleRequest = async (
         for (const frame of page.frames) {
           const rawFrame = instance.frame(frame.number);
           const tree = serialize<ProtocolNode[]>(rawFrame.tree);
-          const observation = observationFromProtocolTree(tree);
+          const observation = observationFromProtocolTree(tree, frame.number);
           if (observation) observations.push(observation);
         }
 

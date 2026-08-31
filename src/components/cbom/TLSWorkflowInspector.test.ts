@@ -28,7 +28,14 @@ const baseConnection: TLSWorkflowConnection = {
     },
   ],
   offeredGroups: ['X25519MLKEM768', 'x25519'],
+  offeredKeyShareGroups: ['X25519MLKEM768'],
   offeredSignatureAlgorithms: ['rsa_pss_rsae_sha256'],
+  offeredCertificateSignatureAlgorithms: ['rsa_pss_rsae_sha256'],
+  offeredPskKeyExchangeModes: ['psk_dhe_ke'],
+  serverHandshakeSignatureScheme: 'rsa_pss_rsae_sha256',
+  clientHandshakeSignatureScheme: 'ecdsa_secp256r1_sha256',
+  clientAuthAcceptedSignatureAlgorithms: ['ecdsa_secp256r1_sha256'],
+  clientAuthAcceptedCertificateSignatureAlgorithms: ['rsa_pss_rsae_sha256'],
   negotiatedCipherSuite: 'TLS_AES_128_GCM_SHA256',
   negotiatedGroup: 'X25519MLKEM768',
   negotiatedAlgorithms: [
@@ -55,8 +62,24 @@ describe('buildTLSWorkflowSteps', () => {
       .toContain('TLS_AES_128_GCM_SHA256');
     expect(steps[0].groups.find((group) => group.label === 'Offered algorithms')?.values)
       .toEqual(['AES-128-GCM', 'SHA-256', 'AES-256-GCM', 'SHA-384']);
+    expect(steps[0].groups.find((group) => group.label === 'Key shares')?.values)
+      .toEqual(['X25519MLKEM768']);
+    expect(
+      steps[0].groups.find((group) => group.label === 'Certificate signature schemes')?.values,
+    ).toEqual(['rsa_pss_rsae_sha256']);
+    expect(steps[0].groups.find((group) => group.label === 'PSK key exchange modes')?.values)
+      .toEqual(['psk_dhe_ke']);
     expect(steps[1].groups.find((group) => group.label === 'Key exchange / KEM')?.values)
       .toEqual(['X25519MLKEM768', 'ML-KEM-768']);
+    expect(
+      steps[2].groups.find((group) => group.label === 'Server handshake signature')?.values,
+    ).toEqual(['rsa_pss_rsae_sha256']);
+    expect(
+      steps[2].groups.find((group) => group.label === 'Accepted client signature schemes')?.values,
+    ).toEqual(['ecdsa_secp256r1_sha256']);
+    expect(
+      steps[3].groups.find((group) => group.label === 'Client handshake signature')?.values,
+    ).toEqual(['ecdsa_secp256r1_sha256']);
   });
 
   it('uses the TLS 1.2 full-handshake sequence', () => {
@@ -103,7 +126,7 @@ describe('getTLSWorkflowValueTone', () => {
     ).toBe('tls-version');
     expect(
       getTLSWorkflowValueTone(
-        'Supported groups / key shares',
+        'Supported groups',
         'X25519MLKEM768',
         baseConnection,
       ),
