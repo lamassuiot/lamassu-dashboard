@@ -31,32 +31,15 @@ import { cn } from '@/lib/utils';
 //     emits at every CMP state transition) so the snapshots cover Received →
 //     Parsed → Validated → Responded → AwaitingCertConf/LogicallyComplete →
 //     Confirmed/Rejected.
-//   • Snapshots are ordered LATEST FIRST per the product requirement, the
-//     inverse of the job page convention.
+//   • Snapshots are ordered oldest-first, same convention as the job details
+//     page, so the two pages read consistently.
 //   • The CMP request / response DER for each snapshot lives in the WFX
 //     status context as base64 (keys: cmpRequestB64, cmpResponseB64,
 //     certConfB64, pkiConfB64). Asn1Viewer decodes them via the shared
 //     Pyodide + pycrate runtime so the user sees a fully ASN.1-decoded view.
 
-// State-badge styling — same conventions as CmpTransactionsPanel.
-const stateBadgeVariant = (state: string): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } => {
-    switch (state) {
-        case 'ISSUED':
-            return { variant: 'outline', className: 'text-blue-600 border-blue-300 dark:border-blue-700' };
-        case 'PENDING':
-            return { variant: 'outline', className: 'text-amber-600 border-amber-300 dark:border-amber-700' };
-        case 'CONFIRMED':
-            return { variant: 'outline', className: 'text-emerald-600 border-emerald-300 dark:border-emerald-700' };
-        case 'REVOKED':
-        case 'ISSUE_FAILED':
-            return { variant: 'destructive' };
-        default:
-            return { variant: 'secondary' };
-    }
-};
-
-// Reverse the WFX history into a latest-first timeline. The current `status`
-// (which may not yet be in the history array) is prepended as the most recent
+// Build an oldest-first timeline from the WFX history. The current `status`
+// (which may not yet be in the history array) is appended as the most recent
 // snapshot when it differs from the latest history entry.
 interface CmpStatusSnapshot {
     id: string;
@@ -66,7 +49,7 @@ interface CmpStatusSnapshot {
     context: Record<string, unknown>;
 }
 
-function buildSnapshotsLatestFirst(job: WfxJob): CmpStatusSnapshot[] {
+function buildStatusSnapshots(job: WfxJob): CmpStatusSnapshot[] {
     const historyAsc = [...(job.history ?? [])]
         .map((entry, index) => ({ entry, index }))
         .sort((a, b) => {
@@ -130,8 +113,7 @@ function buildSnapshotsLatestFirst(job: WfxJob): CmpStatusSnapshot[] {
         }
     }
 
-    // Latest first.
-    return merged.reverse();
+    return merged;
 }
 
 function uniqueConsecutive(states: string[]): string[] {
@@ -274,16 +256,16 @@ export default function CmpTransactionDetailsPage() {
         }
     };
 
-    const snapshots = useMemo(() => (job ? buildSnapshotsLatestFirst(job) : []), [job]);
+    const snapshots = useMemo(() => (job ? buildStatusSnapshots(job) : []), [job]);
     const followedStates = useMemo(() => (job ? getFollowedStates(job) : []), [job]);
 
-    // Default-select the most recent snapshot (which is index 0, since we sort
-    // latest-first). Reset whenever snapshots changes.
+    // Default-select the most recent snapshot (the last one, since snapshots
+    // are ordered oldest-first). Reset whenever snapshots changes.
     useEffect(() => {
-        setSelectedSnapshotId(snapshots[0]?.id ?? null);
+        setSelectedSnapshotId(snapshots[snapshots.length - 1]?.id ?? null);
     }, [snapshots]);
 
-    const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId) ?? snapshots[0];
+    const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId) ?? snapshots[snapshots.length - 1];
     // Per-snapshot CMP messages: switching the selected state above swaps the
     // ASN.1 viewer payload to whatever wire message was captured at that
     // exact transition. States with no wire payload render an empty list and
@@ -368,13 +350,6 @@ export default function CmpTransactionDetailsPage() {
         );
     }
 
-    const badge = stateBadgeVariant(tx.state);
-    const opLabel = tx.request_type ? tx.request_type : tx.is_reenrollment ? 'kur' : 'ir/cr';
-    const summaryCards = [
-        { label: 'State', value: tx.state, hint: 'Current transaction state' },
-        { label: 'Operation', value: opLabel.toUpperCase(), hint: 'CMP body that started the transaction' },
-    ];
-
     return (
         <div className="w-full space-y-5 pb-8">
             <DetailBreadcrumbRow
@@ -391,50 +366,30 @@ export default function CmpTransactionDetailsPage() {
                 }
             />
 
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-                <div className="flex flex-1 items-start gap-4 min-w-0">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary">
-                        <ClipboardList className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-2">
-                        <h1 className="break-all text-2xl font-semibold tracking-tight font-mono">{tx.transaction_id}</h1>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant={badge.variant} className={badge.className}>{tx.state}</Badge>
-                            <Badge variant="secondary" className="font-mono text-xs uppercase">{opLabel}</Badge>
-                            {tx.subject_common_name && (
-                                <Badge variant="outline" className="text-xs">
-                                    CN: <span className="font-mono ml-1">{tx.subject_common_name}</span>
-                                </Badge>
-                            )}
-                        </div>
-                        {tx.state === 'PENDING' && (
-                            <div className="flex flex-wrap items-center gap-2 pt-1">
-                                <Button size="sm" onClick={handleApprove} disabled={approving || rejecting}>
-                                    {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                                    Approve issuance
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setRejectReason(''); setRejectOpen(true); }} disabled={approving || rejecting}>
-                                    {rejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
-                                    Reject
-                                </Button>
-                                <span className="text-xs text-muted-foreground">Phased workflow — issuance is held until an administrator approves or rejects.</span>
-                            </div>
-                        )}
-                    </div>
+            <div className="flex items-start gap-4 min-w-0">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary">
+                    <ClipboardList className="h-5 w-5" />
                 </div>
-
-                <div className="flex flex-wrap gap-4 xl:flex-1 xl:justify-end xl:border-l xl:pl-6">
-                    {summaryCards.map((item, index) => (
-                        <div key={item.label} className={cn('min-w-[140px]', index > 0 && 'border-l pl-4')}>
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                {item.label}
-                            </p>
-                            <p className="mt-1 truncate text-2xl font-semibold tracking-tight" title={item.value}>
-                                {item.value}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{item.hint}</p>
+                <div className="min-w-0 flex-1 space-y-2">
+                    <h1 className="break-all text-2xl font-semibold tracking-tight font-mono">{tx.transaction_id}</h1>
+                    {tx.subject_common_name && (
+                        <Badge variant="outline" className="text-xs">
+                            CN: <span className="font-mono ml-1">{tx.subject_common_name}</span>
+                        </Badge>
+                    )}
+                    {tx.state === 'PENDING' && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <Button size="sm" onClick={handleApprove} disabled={approving || rejecting}>
+                                {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                Approve issuance
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setRejectReason(''); setRejectOpen(true); }} disabled={approving || rejecting}>
+                                {rejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                                Reject
+                            </Button>
+                            <span className="text-xs text-muted-foreground">Phased workflow — issuance is held until an administrator approves or rejects.</span>
                         </div>
-                    ))}
+                    )}
                 </div>
             </div>
 
@@ -474,7 +429,7 @@ export default function CmpTransactionDetailsPage() {
                         {snapshots.length > 0 && (
                             <div className="border-t pt-4">
                                 <div className="mb-3">
-                                    <p className="text-sm font-medium">Reported transitions (latest first)</p>
+                                    <p className="text-sm font-medium">Reported transitions</p>
                                     <p className="text-xs text-muted-foreground">
                                         Select a snapshot to inspect the CMP message and context recorded at that point.
                                     </p>
