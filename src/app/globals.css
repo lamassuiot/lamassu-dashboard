@@ -47,8 +47,8 @@
   --radius-sm: calc(var(--radius) - 4px);
 
   /* Typography */
-  --font-body: 'Inter', sans-serif;
-  --font-headline: 'Inter', sans-serif;
+  --font-body: var(--font-sans);
+  --font-headline: var(--font-sans);
   --font-code: monospace, monospace;
 
   /* Height */
@@ -370,6 +370,7 @@
   }
   html {
     @apply font-sans;
+    --font-sans: var(--font-inter);
   }
 }
 

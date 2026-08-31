@@ -32,7 +32,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check } from 'lucide-react';
+import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check, FileCode2, Type, ZoomIn, Minus, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
@@ -62,10 +68,15 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
-import { Roboto, Inter } from "next/font/google";
+import { Roboto, Inter, JetBrains_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { UIPreferencesProvider } from '@/contexts/UIPreferencesContext';
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-roboto' });
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
+const ibmPlexSans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-ibm-plex-sans' });
+const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' });
 
 type DecodedClaims = Record<string, unknown>;
 
@@ -281,6 +292,15 @@ const UnauthenticatedLayoutContent = () => {
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
+  const {
+    fontFamily,
+    setFontFamily,
+    displayScale,
+    increaseDisplayScale,
+    decreaseDisplayScale,
+    minDisplayScale,
+    maxDisplayScale,
+  } = useUIPreferences();
   const pathname = usePathname();
   const router = useRouter();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -489,6 +509,52 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                     />
                   </div>
                 </div>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Type className="mr-2 h-4 w-4" />
+                    <span>Font</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuRadioGroup value={fontFamily} onValueChange={(value) => setFontFamily(value as UIFontFamily)}>
+                      <DropdownMenuRadioItem value="inter">Inter (Default)</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="roboto">Roboto</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="ibm-plex-sans">IBM Plex Sans</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="manrope">Manrope</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="jetbrains-mono">JetBrains Mono</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ZoomIn className="mr-2 h-4 w-4" />
+                    <span>Display Scale</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={decreaseDisplayScale}
+                        disabled={displayScale <= minDisplayScale}
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </Button>
+                      <span className="text-sm font-medium tabular-nums w-12 text-center">{displayScale}%</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={increaseDisplayScale}
+                        disabled={displayScale >= maxDisplayScale}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
                   <User className="mr-2 h-4 w-4" />
@@ -880,7 +946,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable, roboto.variable, jetbrainsMono.variable, ibmPlexSans.variable, manrope.variable)}>
       <head>
         <Script src="/config.js" strategy="beforeInteractive" />
         <title>LamassuIoT Certificate Manager</title>
@@ -895,12 +961,14 @@ export default function RootLayout({
         <ConfigProvider>
           <AuthProvider>
             <ThemeProvider>
-              <IdentifierDisplayProvider>
-                <React.Suspense fallback={<LoadingState />}>
-                  <InnerLayout>{children}</InnerLayout>
-                </React.Suspense>
-                <ThemedToaster offset={{ top: 40 }} />
-              </IdentifierDisplayProvider>
+              <UIPreferencesProvider>
+                <IdentifierDisplayProvider>
+                  <React.Suspense fallback={<LoadingState />}>
+                    <InnerLayout>{children}</InnerLayout>
+                  </React.Suspense>
+                  <ThemedToaster offset={{ top: 40 }} />
+                </IdentifierDisplayProvider>
+              </UIPreferencesProvider>
             </ThemeProvider>
           </AuthProvider>
         </ConfigProvider>
