@@ -9,7 +9,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -392,55 +391,50 @@ export default function CmpTransactionDetailsPage() {
                 }
             />
 
-            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                <div className="h-1 w-full bg-primary" />
-                <div className="p-6">
-                    <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex items-start gap-4">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary">
-                                <ClipboardList className="h-6 w-6" />
-                            </div>
-                            <div className="min-w-0 space-y-2">
-                                <h1 className="break-all text-2xl font-semibold tracking-tight font-mono">{tx.transaction_id}</h1>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant={badge.variant} className={badge.className}>{tx.state}</Badge>
-                                    <Badge variant="secondary" className="font-mono text-xs uppercase">{opLabel}</Badge>
-                                    {tx.subject_common_name && (
-                                        <Badge variant="outline" className="text-xs">
-                                            CN: <span className="font-mono ml-1">{tx.subject_common_name}</span>
-                                        </Badge>
-                                    )}
-                                </div>
-                                {tx.state === 'PENDING' && (
-                                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                                        <Button size="sm" onClick={handleApprove} disabled={approving || rejecting}>
-                                            {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                                            Approve issuance
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => { setRejectReason(''); setRejectOpen(true); }} disabled={approving || rejecting}>
-                                            {rejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
-                                            Reject
-                                        </Button>
-                                        <span className="text-xs text-muted-foreground">Phased workflow — issuance is held until an administrator approves or rejects.</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4 sm:grid-cols-2 xl:min-w-[360px]">
-                            {summaryCards.map((item, index) => (
-                                <div key={item.label} className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}>
-                                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        {item.label}
-                                    </p>
-                                    <p className="mt-1 truncate text-2xl font-semibold tracking-tight" title={item.value}>
-                                        {item.value}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">{item.hint}</p>
-                                </div>
-                            ))}
-                        </div>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+                <div className="flex flex-1 items-start gap-4 min-w-0">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary">
+                        <ClipboardList className="h-5 w-5" />
                     </div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <h1 className="break-all text-2xl font-semibold tracking-tight font-mono">{tx.transaction_id}</h1>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={badge.variant} className={badge.className}>{tx.state}</Badge>
+                            <Badge variant="secondary" className="font-mono text-xs uppercase">{opLabel}</Badge>
+                            {tx.subject_common_name && (
+                                <Badge variant="outline" className="text-xs">
+                                    CN: <span className="font-mono ml-1">{tx.subject_common_name}</span>
+                                </Badge>
+                            )}
+                        </div>
+                        {tx.state === 'PENDING' && (
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <Button size="sm" onClick={handleApprove} disabled={approving || rejecting}>
+                                    {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                    Approve issuance
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => { setRejectReason(''); setRejectOpen(true); }} disabled={approving || rejecting}>
+                                    {rejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                                    Reject
+                                </Button>
+                                <span className="text-xs text-muted-foreground">Phased workflow — issuance is held until an administrator approves or rejects.</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 xl:flex-1 xl:justify-end xl:border-l xl:pl-6">
+                    {summaryCards.map((item, index) => (
+                        <div key={item.label} className={cn('min-w-[140px]', index > 0 && 'border-l pl-4')}>
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                {item.label}
+                            </p>
+                            <p className="mt-1 truncate text-2xl font-semibold tracking-tight" title={item.value}>
+                                {item.value}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{item.hint}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -472,7 +466,7 @@ export default function CmpTransactionDetailsPage() {
                 icon={Workflow}
                 title="CMP Workflow"
                 description="WFX workflow with the path travelled by this transaction highlighted. Newest state first."
-                contentClassName="p-5"
+                withCard={false}
             >
                 {job?.workflow ? (
                     <div className="space-y-4">
@@ -536,17 +530,17 @@ export default function CmpTransactionDetailsPage() {
                                     {asn1Panels.length > 0 ? (
                                         <div className={cn('grid gap-4', asn1Panels.length > 1 && 'xl:grid-cols-2')}>
                                             {asn1Panels.map(panel => (
-                                                <Card key={panel.key} className="overflow-hidden rounded-lg shadow-sm">
-                                                    <CardHeader className="border-b border-border py-3">
-                                                        <CardTitle className="text-sm">{panel.title}</CardTitle>
-                                                        <CardDescription className="text-xs">
+                                                <div key={panel.key} className="overflow-hidden rounded-md border">
+                                                    <div className="border-b px-3 py-2">
+                                                        <p className="text-sm font-medium">{panel.title}</p>
+                                                        <p className="text-xs text-muted-foreground">
                                                             {panel.description}
-                                                        </CardDescription>
-                                                    </CardHeader>
-                                                    <CardContent className="p-3">
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-3">
                                                         <Asn1Viewer data={panel.der} height="24rem" />
-                                                    </CardContent>
-                                                </Card>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     ) : (
@@ -584,6 +578,7 @@ export default function CmpTransactionDetailsPage() {
                     icon={Info}
                     title="Transaction Identity"
                     description="Persistent fields stored on the CMP transaction row."
+                    withCard={false}
                 >
                         <DetailInfoRows>
                             <DetailInfoRow
@@ -652,6 +647,7 @@ export default function CmpTransactionDetailsPage() {
                                 : `Context reported when the workflow entered ${selectedSnapshot.state}.`
                             : 'Select a snapshot above.'
                     }
+                    withCard={false}
                 >
                     {selectedSnapshot && Object.keys(selectedSnapshot.context).length > 0 ? (
                         <DetailInfoRows>
