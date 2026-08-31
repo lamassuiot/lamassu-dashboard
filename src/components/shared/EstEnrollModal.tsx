@@ -30,22 +30,24 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import { CaSelectorModal } from './CaSelectorModal';
 
-// Re-defining RA type here to avoid complex imports, but ideally this would be shared
+// Re-defining RA type here to avoid complex imports, but ideally this would be shared.
+// This modal is EST-only, so it only cares about the est_settings container.
 interface ApiRaItem {
   id: string;
   name: string;
   settings: {
-    enrollment_settings: {
-      enrollment_ca: string;
-      est_rfc7030_settings?: {
+    protocol: string;
+    est_settings?: {
+      enrollment_settings: {
+        enrollment_ca: string;
         client_certificate_settings?: {
             validation_cas: string[];
         }
+      },
+      server_keygen_settings?: {
+          enabled: boolean;
       }
-    },
-    server_keygen_settings?: {
-        enabled: boolean;
-    }
+    } | null;
   }
 }
 
@@ -114,7 +116,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     // Step 5 state
     const [validateServerCert, setValidateServerCert] = useState(false);
 
-    const isServerKeygenSupported = ra?.settings.server_keygen_settings?.enabled === true;
+    const isServerKeygenSupported = ra?.settings.est_settings?.server_keygen_settings?.enabled === true;
 
     const loadDependencies = async () => {
         setIsLoadingDependencies(true);
@@ -159,7 +161,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             
             // Auto-select CA based on RA config
             if (ra && availableCAs.length > 0) {
-                const validationCaIds = ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas || [];
+                const validationCaIds = ra.settings.est_settings?.enrollment_settings.client_certificate_settings?.validation_cas || [];
                 
                 const signers = validationCaIds
                     .map(id => findCaById(id, availableCAs))

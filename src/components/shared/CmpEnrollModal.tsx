@@ -416,17 +416,18 @@ if __name__ == "__main__":
 `;
 
 // Subset of the RA shape we read for CMP enrollment. Mirrors the structure
-// EstEnrollModal uses but pivots on lwc_rfc9483_settings instead of the EST
-// branch. validation_cas is the list the DMS chain-validates the CMP signer
-// against (RFC-9483 mirror of EST mTLS auth), so the bootstrap signer picker
-// only shows CAs from that list.
+// EstEnrollModal uses but pivots on the cmp_settings container instead of the
+// EST branch. validation_cas is the list the DMS chain-validates the CMP
+// signer against (RFC-9483 mirror of EST mTLS auth), so the bootstrap signer
+// picker only shows CAs from that list.
 interface ApiRaItem {
     id: string;
     name: string;
     settings: {
-        enrollment_settings: {
-            enrollment_ca: string;
-            lwc_rfc9483_settings?: {
+        protocol: string;
+        cmp_settings?: {
+            enrollment_settings: {
+                enrollment_ca: string;
                 client_certificate_settings?: {
                     validation_cas: string[];
                 };
@@ -505,7 +506,7 @@ interface ApiRaItem {
                     preferred_symmetric_algorithm?: string;
                 };
             };
-        };
+        } | null;
     };
 }
 
@@ -857,7 +858,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
         if (ra && availableCAs.length > 0) {
             const validationCaIds =
-                ra.settings.enrollment_settings.lwc_rfc9483_settings?.client_certificate_settings?.validation_cas ?? [];
+                ra.settings.cmp_settings?.enrollment_settings.client_certificate_settings?.validation_cas ?? [];
             const signers = validationCaIds
                 .map((id) => findCaById(id, availableCAs))
                 .filter((c): c is CA => !!c);
@@ -890,7 +891,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         setDeviceKeygenType('EC');
         setDeviceKeygenSpec('P-256');
 
-        const resetCmp = ra?.settings.enrollment_settings.lwc_rfc9483_settings;
+        const resetCmp = ra?.settings.cmp_settings?.enrollment_settings;
         const selectedSettings =
             selectedOperation === 'ir' ? resetCmp?.ir
             : selectedOperation === 'cr' ? resetCmp?.cr
@@ -956,7 +957,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     useEffect(() => {
         setProtectionCertIssuerCaId(null);
         if (!isOpen) return;
-        const serial = ra?.settings.enrollment_settings.lwc_rfc9483_settings?.protection_certificate;
+        const serial = ra?.settings.cmp_settings?.enrollment_settings.protection_certificate;
         if (!serial) return;
         let isCancelled = false;
         fetchIssuedCertificate(serial)
@@ -1149,8 +1150,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // enrollment CA (verifies the server's signed CMP responses + the issued
     // chain), -srvcert is added only when a protection cert is configured, and
     // -implicit_confirm is sent only when the DMS accepts it.
-    const cmp = ra?.settings.enrollment_settings.lwc_rfc9483_settings;
-    const enrollmentCaId = ra?.settings.enrollment_settings.enrollment_ca;
+    const cmp = ra?.settings.cmp_settings?.enrollment_settings;
+    const enrollmentCaId = cmp?.enrollment_ca;
     const protectionSerial = cmp?.protection_certificate;
     const acceptImplicit = cmp?.accept_implicit ?? false;
     const selectedOperationSettings =
@@ -2156,7 +2157,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                                 <AlertTriangle className="h-4 w-4" />
                                                 <AlertTitle>No Validation CAs configured</AlertTitle>
                                                 <AlertDescUI>
-                                                    This RA has no CAs in <code className="font-mono">lwc_rfc9483_settings.client_certificate_settings.validation_cas</code>.
+                                                    This RA has no CAs in <code className="font-mono">cmp_settings.enrollment_settings.client_certificate_settings.validation_cas</code>.
                                                     Add at least one before issuing a bootstrap signer, otherwise
                                                     the DMS will refuse the IR.
                                                 </AlertDescUI>

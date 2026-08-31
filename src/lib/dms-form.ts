@@ -1,10 +1,10 @@
 import type { ApiSigningProfile } from '@/lib/ca-data';
-import type { ApiRaEstSettings } from '@/lib/dms-api';
+import type { ESTAuthSettings } from '@/lib/dms-api';
 import type { SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 
 const INDEFINITE_DATE_API_VALUE = '9999-12-31T23:59:59.999Z';
 
-export function createDefaultEstAuthSettings(allowExpired = false): ApiRaEstSettings {
+export function createDefaultEstAuthSettings(allowExpired = false): ESTAuthSettings {
   return {
     auth_mode: 'CLIENT_CERTIFICATE',
     client_certificate_settings: {
@@ -27,16 +27,16 @@ export function createDefaultEstAuthSettings(allowExpired = false): ApiRaEstSett
 }
 
 export function normalizeEstAuthSettings(
-  settings: ApiRaEstSettings | undefined,
+  settings: ESTAuthSettings | undefined,
   allowExpired = false,
-): ApiRaEstSettings {
+): ESTAuthSettings {
   const defaults = createDefaultEstAuthSettings(allowExpired);
   const raw = settings as unknown as ({
     auth_mode?: string;
-    client_certificate_settings?: ApiRaEstSettings['client_certificate_settings'];
-    external_webhook_settings?: ApiRaEstSettings['external_webhook_settings'];
+    client_certificate_settings?: ESTAuthSettings['client_certificate_settings'];
+    external_webhook_settings?: ESTAuthSettings['external_webhook_settings'];
   }) | undefined;
-  const authModeMap: Record<string, ApiRaEstSettings['auth_mode']> = {
+  const authModeMap: Record<string, ESTAuthSettings['auth_mode']> = {
     CLIENT_CERTIFICATE: 'CLIENT_CERTIFICATE',
     client_certificate: 'CLIENT_CERTIFICATE',
     EXTERNAL_WEBHOOK: 'EXTERNAL_WEBHOOK',
@@ -176,7 +176,7 @@ export function parseJsonObject(value: string): Record<string, any> {
 
 export function validateEstAuthSettings(
   label: string,
-  settings: ApiRaEstSettings,
+  settings: ESTAuthSettings,
   requireValidationCa = false,
 ): string | null {
   const includesClientCertificate = settings.auth_mode === 'CLIENT_CERTIFICATE'
@@ -215,9 +215,9 @@ export function validateEstAuthSettings(
 }
 
 export function withDefaultValidationCa(
-  settings: ApiRaEstSettings,
+  settings: ESTAuthSettings,
   validationCaId: string,
-): ApiRaEstSettings {
+): ESTAuthSettings {
   const includesClientCertificate = settings.auth_mode === 'CLIENT_CERTIFICATE'
     || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const clientSettings = settings.client_certificate_settings;

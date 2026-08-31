@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, Settings2 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ArrowRight, Settings2 } from "lucide-react";
 import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortDirection } from '@/app/registration-authorities/page';
@@ -19,6 +19,12 @@ import { findCaById } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { parseISO, isPast, formatDistanceToNowStrict } from 'date-fns';
 import type { ColumnConfig } from '@/components/ui/column-selector';
+
+function getEnrollmentSettings(ra: ApiRaItem) {
+  return ra.settings.protocol === 'CMP_RFC9483'
+    ? ra.settings.cmp_settings.enrollment_settings
+    : ra.settings.est_settings.enrollment_settings;
+}
 
 interface SortConfig {
   column: SortableColumn;
@@ -116,7 +122,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                 <TableCell className="w-12">
                   <div className="flex justify-center">
                     {(() => {
-                      const profile = ra.settings.enrollment_settings.device_provisioning_profile;
+                      const profile = getEnrollmentSettings(ra).device_provisioning_profile;
                       const IconComponent = getLucideIconByName(profile.icon);
                       const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
                       
@@ -151,7 +157,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
               {columnVisibility.protocol && (
                 <TableCell className="hidden md:table-cell">
                   {(() => {
-                    const p = ra.settings.enrollment_settings.protocol;
+                    const p = ra.settings.protocol;
                     if (p === 'EST_RFC7030') return <Badge variant="secondary" className="text-xs">EST</Badge>;
                     if (p === 'CMP_RFC9483') return <Badge variant="secondary" className="text-xs">CMP</Badge>;
                     return <Badge variant="outline" className="text-xs">None</Badge>;
@@ -161,7 +167,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
               {columnVisibility.enrollmentCA && (
                 <TableCell className="max-w-[280px]">
                   {(() => {
-                    const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
+                    const ca = findCaById(getEnrollmentSettings(ra).enrollment_ca, allCAs);
                     if (!ca) return <span className="text-muted-foreground text-sm">—</span>;
                     const expiryDate = parseISO(ca.expires);
                     const isRevoked = ca.status === 'revoked';
@@ -193,7 +199,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
               )}
               {columnVisibility.authMode && (
                 <TableCell className="hidden lg:table-cell">
-                  <Badge variant="secondary">{(ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode || ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode)?.replaceAll('_', ' ') || 'N/A'}</Badge>
+                  <Badge variant="secondary">{getEnrollmentSettings(ra).auth_mode?.replaceAll('_', ' ') || 'N/A'}</Badge>
                 </TableCell>
               )}
               {columnVisibility.createdAt && (
@@ -202,6 +208,19 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                 </TableCell>
               )}
               <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                {ra.settings.protocol === 'CMP_RFC9483' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="View Transactions"
+                    className="h-8 w-8"
+                    onClick={() => router.push(`/registration-authorities/transactions?raId=${ra.id}`)}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    <span className="sr-only">View Transactions</span>
+                  </Button>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" title="More actions" className="h-8 w-8">
@@ -226,11 +245,8 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                     {/* Protocol-aware enrollment menus: only the protocol
                         actually configured on the RA is offered, so the
                         operator can't accidentally click EST commands on a
-                        CMP-only DMS (or vice versa). The fallback `auth_mode`
-                        presence check guards against older RAs that may have
-                        been migrated without the top-level protocol field. */}
-                    {(ra.settings.enrollment_settings.protocol === 'EST_RFC7030'
-                        || !!ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode) && (
+                        CMP-only DMS (or vice versa). */}
+                    {ra.settings.protocol === 'EST_RFC7030' && (
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
                           <TerminalSquare className="mr-2 h-4 w-4" />
@@ -251,8 +267,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         </DropdownMenuPortal>
                       </DropdownMenuSub>
                     )}
-                    {(ra.settings.enrollment_settings.protocol === 'CMP_RFC9483'
-                        || !!ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode) && (
+                    {ra.settings.protocol === 'CMP_RFC9483' && (
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
                           <TerminalSquare className="mr-2 h-4 w-4" />
@@ -280,6 +295,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                </div>
               </TableCell>
             </TableRow>
           ))}

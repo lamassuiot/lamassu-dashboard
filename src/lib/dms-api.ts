@@ -27,7 +27,10 @@ export interface ApiRaWebhookHttpClient {
         key: string;
     };
 }
-export interface ApiRaEstSettings {
+// EST auth fields, shared as-is by both ESTEnrollmentSettings and
+// ESTReEnrollmentSettings (each protocol's enrollment/re-enrollment block
+// carries its own copy of these on the wire, but the shape is identical).
+export interface ESTAuthSettings {
     auth_mode: 'CLIENT_CERTIFICATE' | 'EXTERNAL_WEBHOOK' | 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' | 'NO_AUTH';
     client_certificate_settings?: {
         chain_level_validation: number;
@@ -136,12 +139,8 @@ export interface CmpP10crSettings {
 }
 export interface CmpKurSettings {
     enabled: boolean;
-    renewal_window: string;
-    allow_expired_certificate: boolean;
-    additional_validation_ca_ids: string[];
     key_policy: CmpKeyPolicy;
     identity_change_policy: CmpIdentityChangePolicy;
-    revoke_superseded_certificate: boolean;
     policy_overrides: CmpPolicyOverrides;
 }
 export interface CmpRrSettings {
@@ -187,7 +186,23 @@ export interface CmpCcrSettings {
     workflow: CmpCcrWorkflow;
 }
 
-export interface ApiRaCmpSettings {
+// Fields common to both protocols' enrollment_settings block. Declared once
+// so they aren't duplicated across ESTEnrollmentSettings/CMPEnrollmentSettings
+// even though the wire JSON repeats them inside each container.
+export interface CommonEnrollmentSettings {
+    registration_mode: string;
+    enrollment_ca: string;
+    enable_replaceable_enrollment: boolean;
+    verify_csr_signature?: boolean; // Optional field for backwards compatibility
+    device_provisioning_profile: {
+        icon: string;
+        icon_color: string;
+        metadata?: Record<string, any> | null;
+        tags: string[];
+    };
+}
+export interface ESTEnrollmentSettings extends CommonEnrollmentSettings, ESTAuthSettings {}
+export interface CMPEnrollmentSettings extends CommonEnrollmentSettings {
     // When true, the server skips the certConf round-trip if the EE asks for
     // implicit confirmation (id-it-implicitConfirm in generalInfo). When false
     // (default), the EE must send an explicit certConf within
@@ -221,8 +236,7 @@ export interface ApiRaCmpSettings {
     workflow?: string;
     // Per-operation settings (RFC 9483 message types). See the block above —
     // mostly persisted-only today; ir/cr central_key_generation.enabled bridges
-    // to server_key_gen_enabled above, and kur's renewal fields bridge to
-    // ApiRaReEnrollmentSettings.
+    // to server_key_gen_enabled above.
     ir?: CmpIrSettings;
     cr?: CmpCrSettings;
     p10cr?: CmpP10crSettings;
@@ -231,23 +245,8 @@ export interface ApiRaCmpSettings {
     genm?: CmpGenmSettings;
     ccr?: CmpCcrSettings;
 }
-export interface ApiRaEnrollmentSettings {
-    registration_mode: string;
-    enrollment_ca: string;
-    protocol: string;
-    enable_replaceable_enrollment: boolean;
-    verify_csr_signature?: boolean; // Optional field for backwards compatibility
-    est_rfc7030_settings?: ApiRaEstSettings;
-    lwc_rfc9483_settings?: ApiRaCmpSettings;
-    device_provisioning_profile: {
-        icon: string;
-        icon_color: string;
-        metadata?: Record<string, any> | null;
-        tags: string[];
-    };
-}
-export interface ApiRaReEnrollmentSettings {
-    est_rfc7030_settings?: ApiRaEstSettings;
+// Fields common to both protocols' reenrollment_settings block.
+export interface CommonReEnrollmentSettings {
     revoke_on_reenrollment: boolean;
     enable_expired_renewal: boolean;
     critical_delta: string;
@@ -255,9 +254,13 @@ export interface ApiRaReEnrollmentSettings {
     reenrollment_delta: string;
     additional_validation_cas: string[];
 }
-export interface ApiRaSettings {
-    enrollment_settings: ApiRaEnrollmentSettings;
-    reenrollment_settings: ApiRaReEnrollmentSettings;
+export interface ESTReEnrollmentSettings extends CommonReEnrollmentSettings, ESTAuthSettings {}
+// CMP's KUR authenticates via the request's own message protection, so there
+// is no separate auth block here — this is a plain alias of the common shape.
+export type CMPReEnrollmentSettings = CommonReEnrollmentSettings;
+export interface ESTSettings {
+    enrollment_settings: ESTEnrollmentSettings;
+    reenrollment_settings: ESTReEnrollmentSettings;
     server_keygen_settings: {
         enabled: boolean;
         key?: {
@@ -273,6 +276,20 @@ export interface ApiRaSettings {
     issuance_profile_id?: string;
     issuance_profile?: ApiSigningProfile | null;
 }
+export interface CMPSettings {
+    enrollment_settings: CMPEnrollmentSettings;
+    reenrollment_settings: CMPReEnrollmentSettings;
+    ca_distribution_settings: {
+        include_enrollment_ca: boolean;
+        include_system_ca: boolean;
+        managed_cas: string[];
+    };
+    issuance_profile_id?: string;
+    issuance_profile?: ApiSigningProfile | null;
+}
+export type ApiRaSettings =
+    | { protocol: 'EST_RFC7030'; est_settings: ESTSettings; cmp_settings: null }
+    | { protocol: 'CMP_RFC9483'; cmp_settings: CMPSettings; est_settings: null };
 export interface ApiRaItem {
     id: string;
     name: string;
