@@ -4,10 +4,12 @@ import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Maximize, Minimize } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Shared ASN.1 decoder UI extracted from /tools/asn1-decoder so it can be
 // embedded in any view that needs to show a decoded CMP PKIMessage (e.g. the
@@ -330,7 +332,26 @@ export const Asn1Viewer: React.FC<Asn1ViewerProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [output, setOutput] = useState('');
     const [hexMode, setHexMode] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const pyodideRef = useRef<PyodideInstance | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const onChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
+        document.addEventListener('fullscreenchange', onChange);
+        return () => document.removeEventListener('fullscreenchange', onChange);
+    }, []);
+
+    const toggleFullscreen = useCallback(() => {
+        if (!containerRef.current) return;
+        if (document.fullscreenElement === containerRef.current) {
+            document.exitFullscreen();
+        } else {
+            containerRef.current.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        }
+    }, []);
 
     // Resolve `data` to a Uint8Array, normalising the base64-string form.
     const bytes = useMemo<Uint8Array | null>(() => {
@@ -393,23 +414,38 @@ export const Asn1Viewer: React.FC<Asn1ViewerProps> = ({
             : { label: 'Ready', variant: 'outline' as const };
 
     return (
-        <div className="space-y-3">
+        <div
+            ref={containerRef}
+            className={cn('space-y-3', isFullscreen && 'flex h-screen flex-col bg-background p-4')}
+        >
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant={readyBadge.variant}>{readyBadge.label}</Badge>
                     <span>{bytes.byteLength} bytes</span>
                 </div>
-                {!hideHexToggle && (
-                    <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="asn1-hex-mode"
-                            checked={hexMode}
-                            onCheckedChange={(checked) => setHexMode(checked === true)}
-                            disabled={isInitializing || isParsing}
-                        />
-                        <Label htmlFor="asn1-hex-mode" className="text-xs">Hex-annotated</Label>
-                    </div>
-                )}
+                <div className="flex items-center gap-3">
+                    {!hideHexToggle && (
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="asn1-hex-mode"
+                                checked={hexMode}
+                                onCheckedChange={(checked) => setHexMode(checked === true)}
+                                disabled={isInitializing || isParsing}
+                            />
+                            <Label htmlFor="asn1-hex-mode" className="text-xs">Hex-annotated</Label>
+                        </div>
+                    )}
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={toggleFullscreen}
+                        title={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'}
+                    >
+                        {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+                    </Button>
+                </div>
             </div>
 
             {error && (
@@ -420,25 +456,27 @@ export const Asn1Viewer: React.FC<Asn1ViewerProps> = ({
                 </Alert>
             )}
 
-            <MonacoEditor
-                height={height}
-                beforeMount={configureAsn1Monaco}
-                defaultLanguage={ASN1_LANGUAGE_ID}
-                value={output || (isInitializing ? 'Loading decoder…' : isParsing ? 'Parsing…' : 'No decoded output yet.')}
-                theme={asn1MonacoTheme}
-                options={{
-                    readOnly: true,
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    wordWrap: 'on',
-                    lineNumbers: 'on',
-                    folding: true,
-                    renderLineHighlight: 'none',
-                    overviewRulerBorder: false,
-                    automaticLayout: true,
-                    fontSize: 12,
-                }}
-            />
+            <div className={cn(isFullscreen && 'min-h-0 flex-1')}>
+                <MonacoEditor
+                    height={isFullscreen ? '100%' : height}
+                    beforeMount={configureAsn1Monaco}
+                    defaultLanguage={ASN1_LANGUAGE_ID}
+                    value={output || (isInitializing ? 'Loading decoder…' : isParsing ? 'Parsing…' : 'No decoded output yet.')}
+                    theme={asn1MonacoTheme}
+                    options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        wordWrap: 'on',
+                        lineNumbers: 'on',
+                        folding: true,
+                        renderLineHighlight: 'none',
+                        overviewRulerBorder: false,
+                        automaticLayout: true,
+                        fontSize: 12,
+                    }}
+                />
+            </div>
         </div>
     );
 };
