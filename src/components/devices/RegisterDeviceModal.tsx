@@ -70,7 +70,9 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
         setSelectedRa(ra);
         
         // Update device profile from RA settings
-        const profile = ra.settings.enrollment_settings.device_provisioning_profile;
+        const profile = (ra.settings.protocol === 'CMP_RFC9483'
+          ? ra.settings.cmp_settings.enrollment_settings
+          : ra.settings.est_settings.enrollment_settings).device_provisioning_profile;
         setTags(profile.tags || []);
         setIconName(profile.icon || 'Cpu');
         const [parsedIconColor, parsedBgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ApiRaEstSettings } from '@/lib/dms-api';
+import type { ESTAuthSettings } from '@/lib/dms-api';
 import {
   buildInlineIssuanceProfile,
   normalizeEstAuthSettings,
@@ -24,7 +24,7 @@ describe('DMS form helpers', () => {
           oidc: { client_id: 'client', client_secret: 'secret', well_known: 'https://issuer/.well-known' },
         },
       },
-    } as unknown as ApiRaEstSettings;
+    } as unknown as ESTAuthSettings;
 
     const normalized = normalizeEstAuthSettings(legacy);
 

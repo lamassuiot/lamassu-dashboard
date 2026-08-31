@@ -63,7 +63,9 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
       const ras: ApiRaItem[] = await fetchAllRegistrationAuthorities();
       
       const options: DmsOption[] = ras.map((ra) => {
-        const profile = ra.settings.enrollment_settings.device_provisioning_profile;
+        const profile = (ra.settings.protocol === 'CMP_RFC9483'
+          ? ra.settings.cmp_settings.enrollment_settings
+          : ra.settings.est_settings.enrollment_settings).device_provisioning_profile;
         const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
         
         return {

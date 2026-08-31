@@ -414,7 +414,7 @@ export function CmpPlannedOperationTabs({
           2-col settings layout. ir/cr/p10cr keep entirely separate state and
           controls (no field mirroring) — they're grouped into this one tab
           because all three answer "how does a device get a certificate?". */}
-      <TabsContent value="enrollment" className="mt-0">
+      <TabsContent value="enrollment" className="mt-6">
         {enrollmentGeneralSection}
 
         <Separator />
@@ -627,7 +627,7 @@ export function CmpPlannedOperationTabs({
       </TabsContent>
 
       {/* ── Revocation Request / Response (RR/RP) ── */}
-      <TabsContent value="rr" className="mt-0">
+      <TabsContent value="rr" className="mt-6">
         <SettingsSection title="Revocation" description="Lets a device (or a trusted RA) revoke a certificate over CMP.">
           <Alert>
             <Info className="h-4 w-4" />
@@ -671,7 +671,7 @@ export function CmpPlannedOperationTabs({
       </TabsContent>
 
       {/* ── Cross-Certification Request / Response (CCR/CCP) ── */}
-      <TabsContent value="ccr" className="mt-0">
+      <TabsContent value="ccr" className="mt-6">
         <SettingsSection title="Cross-Certification" description="A privileged CA-to-CA operation. Disabled by default.">
           <Alert>
             <Info className="h-4 w-4" />

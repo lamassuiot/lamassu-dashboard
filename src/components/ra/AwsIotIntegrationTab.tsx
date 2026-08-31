@@ -189,13 +189,16 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
   }, [currentPolicies, LmsRemediationPolicyName]);
 
   const loadCaData = useCallback(async () => {
-    if (!ra?.settings.enrollment_settings.enrollment_ca) return;
+    const enrollmentCaId = ra && (ra.settings.protocol === 'CMP_RFC9483'
+      ? ra.settings.cmp_settings.enrollment_settings.enrollment_ca
+      : ra.settings.est_settings.enrollment_settings.enrollment_ca);
+    if (!enrollmentCaId) return;
 
     setIsLoadingCa(true);
     setErrorCa(null);
     try {
         const allCAs = await fetchAndProcessCAs();
-        const foundCa = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
+        const foundCa = findCaById(enrollmentCaId, allCAs);
         setEnrollmentCa(foundCa || null);
         if (!foundCa) {
           setErrorCa("Configured Enrollment CA could not be found.");

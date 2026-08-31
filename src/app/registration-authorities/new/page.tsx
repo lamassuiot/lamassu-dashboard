@@ -34,7 +34,7 @@ import { sileo } from '@/lib/toast';
 import { DurationInput, isValidPositiveDuration } from '@/components/shared/DurationInput';
 import {
   createOrUpdateRa, fetchRaById,
-  type ApiRaCmpSettings, type ApiRaEstSettings, type ApiRaItem, type RaCreationPayload,
+  type CMPEnrollmentSettings, type ESTAuthSettings, type ApiRaItem, type ApiRaSettings, type CMPReEnrollmentSettings, type RaCreationPayload,
   type CmpIrSettings, type CmpCrSettings, type CmpP10crSettings, type CmpRrSettings, type CmpCcrSettings,
   type CmpKeyPolicy, type CmpIdentityChangePolicy, type CmpGenmAccessPolicy, type CmpGenmInformationTypes,
   type CmpPreferredSymmetricAlgorithm,
@@ -117,21 +117,21 @@ const cmpConfirmationModeOptions = [
 
 // CMP's wire convention for "no auth" is the literal string NONE, distinct
 // from EST's NO_AUTH — these two adapters let CMP reuse EstAuthSettingsEditor
-// (and its ApiRaEstSettings-shaped state) completely unmodified.
-function cmpSettingsToAuthEditorValue(cmp: ApiRaCmpSettings | undefined): ApiRaEstSettings {
+// (and its ESTAuthSettings-shaped state) completely unmodified.
+function cmpSettingsToAuthEditorValue(cmp: CMPEnrollmentSettings | undefined): ESTAuthSettings {
   const defaults = createDefaultEstAuthSettings(false);
   if (!cmp) return defaults;
   return normalizeEstAuthSettings({
     auth_mode: cmp.auth_mode === 'NONE' ? 'NO_AUTH' : cmp.auth_mode,
     client_certificate_settings: cmp.client_certificate_settings,
     external_webhook_settings: cmp.external_webhook_settings,
-  } as ApiRaEstSettings, false);
+  } as ESTAuthSettings, false);
 }
 
 function mergeAuthEditorValueIntoCmpSettings(
-  base: Omit<ApiRaCmpSettings, 'auth_mode' | 'client_certificate_settings' | 'external_webhook_settings'>,
-  auth: ApiRaEstSettings,
-): ApiRaCmpSettings {
+  base: Omit<CMPEnrollmentSettings, 'auth_mode' | 'client_certificate_settings' | 'external_webhook_settings'>,
+  auth: ESTAuthSettings,
+): CMPEnrollmentSettings {
   return {
     ...base,
     auth_mode: auth.auth_mode === 'NO_AUTH' ? 'NONE' : auth.auth_mode,
@@ -264,13 +264,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [enrollmentCa, setEnrollmentCa] = useState<CA | null>(null);
   const [allowOverrideEnrollment, setAllowOverrideEnrollment] = useState(true);
   const [verifyCsrSignature, setVerifyCsrSignature] = useState(true);
-  const [enrollmentAuthSettings, setEnrollmentAuthSettings] = useState<ApiRaEstSettings>(() => createDefaultEstAuthSettings(true));
-  const [reenrollmentAuthSettings, setReenrollmentAuthSettings] = useState<ApiRaEstSettings>(() => createDefaultEstAuthSettings(false));
+  const [enrollmentAuthSettings, setEnrollmentAuthSettings] = useState<ESTAuthSettings>(() => createDefaultEstAuthSettings(true));
+  const [reenrollmentAuthSettings, setReenrollmentAuthSettings] = useState<ESTAuthSettings>(() => createDefaultEstAuthSettings(false));
 
   // CMP (RFC 9483) — protocol-specific fields only; the shared auth sub-shape
   // (auth_mode/client_certificate_settings/external_webhook_settings) reuses
   // EstAuthSettingsEditor via cmpAuthSettings below.
-  const [cmpAuthSettings, setCmpAuthSettings] = useState<ApiRaEstSettings>(() => createDefaultEstAuthSettings(false));
+  const [cmpAuthSettings, setCmpAuthSettings] = useState<ESTAuthSettings>(() => createDefaultEstAuthSettings(false));
   const [cmpConfirmationMode, setCmpConfirmationMode] = useState('EXPLICIT');
   const [cmpConfirmationTimeout, setCmpConfirmationTimeout] = useState('30s');
   // Only meaningful when workflow=phased; empty defers to the server default.
@@ -480,11 +480,14 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setRaName(raData.name);
         setRaId(raData.id);
 
-        const { enrollment_settings, reenrollment_settings, server_keygen_settings, ca_distribution_settings } = settings;
+        const isCmp = settings.protocol === 'CMP_RFC9483';
+        const container = isCmp ? settings.cmp_settings : settings.est_settings;
+        const { enrollment_settings, reenrollment_settings, ca_distribution_settings } = container;
+        const server_keygen_settings = isCmp ? { enabled: false } : settings.est_settings.server_keygen_settings;
         setRegistrationMode(enrollment_settings.registration_mode === 'PRE_REGISTRATION' ? 'PRE_REGISTRATION' : 'JITP');
-        setProtocol(enrollment_settings.protocol === 'CMP_RFC9483' ? 'CMP' : 'EST');
+        setProtocol(isCmp ? 'CMP' : 'EST');
 
-        const cmpSettings = enrollment_settings.lwc_rfc9483_settings;
+        const cmpSettings = isCmp ? settings.cmp_settings.enrollment_settings : undefined;
         if (cmpSettings) {
             setCmpAuthSettings(cmpSettingsToAuthEditorValue(cmpSettings));
             setCmpConfirmationMode(cmpSettings.accept_implicit ? 'IMPLICIT' : 'EXPLICIT');
@@ -512,19 +515,19 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             void hydrateProtectionCertificate(undefined);
         }
 
-        if (settings.issuance_profile) {
+        if (container.issuance_profile) {
           setIssuanceProfileMode('inline');
           setIssuanceProfileId(null);
-          const inlineProfileValues = mapIssuanceProfileToFormValues(settings.issuance_profile);
+          const inlineProfileValues = mapIssuanceProfileToFormValues(container.issuance_profile);
           inlineProfileForm.reset({
             ...inlineProfileValues,
             profileName: inlineProfileValues.profileName.trim().length >= 3
               ? inlineProfileValues.profileName
               : inlineProfileDefaultValues.profileName,
           });
-        } else if (settings.issuance_profile_id) {
+        } else if (container.issuance_profile_id) {
           setIssuanceProfileMode('existing');
-          setIssuanceProfileId(settings.issuance_profile_id);
+          setIssuanceProfileId(container.issuance_profile_id);
         } else {
           setIssuanceProfileMode('default');
           setIssuanceProfileId(null);
@@ -533,8 +536,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
         setVerifyCsrSignature(enrollment_settings.verify_csr_signature ?? true); // Default to true if not set
-        setEnrollmentAuthSettings(normalizeEstAuthSettings(enrollment_settings.est_rfc7030_settings, true));
-        setReenrollmentAuthSettings(normalizeEstAuthSettings(reenrollment_settings.est_rfc7030_settings, false));
+        setEnrollmentAuthSettings(normalizeEstAuthSettings(isCmp ? undefined : settings.est_settings.enrollment_settings, true));
+        setReenrollmentAuthSettings(normalizeEstAuthSettings(isCmp ? undefined : settings.est_settings.reenrollment_settings, false));
 
         const { device_provisioning_profile } = enrollment_settings;
         setTags(device_provisioning_profile.tags);
@@ -640,104 +643,112 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             : Number.parseInt(serverKeygenSpec, 10);
         keySettings = { type: serverKeygenType, bits };
     }
-    const protocolMapping: Record<string, string> = { EST: 'EST_RFC7030', CMP: 'CMP_RFC9483' };
-    const cmpLwcSettings: ApiRaCmpSettings | undefined = protocol === 'CMP'
-      ? mergeAuthEditorValueIntoCmpSettings(
-          {
-            accept_implicit: cmpConfirmationMode === 'IMPLICIT',
-            confirmation_timeout: cmpConfirmationTimeout,
-            ...(cmpWorkflow === 'phased' && cmpApprovalTimeout.trim()
-              ? { approval_timeout: cmpApprovalTimeout.trim() }
-              : {}),
-            protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
-            enforce_popo: cmpEnforcePopo,
-            server_key_gen_enabled: cmpServerKeyGenEnabled,
-            workflow: cmpWorkflow,
-            // Bridge the single CKG switch into ir/cr's own central_key_generation.enabled
-            // (see the comment above cmpIr/cmpCr's declaration). The backend unifies all
-            // three fields via OR, so leaving ir/cr's nested flag stale at `true` would
-            // silently defeat turning this switch off.
-            ir: { ...cmpIr, central_key_generation: { ...cmpIr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
-            cr: { ...cmpCr, central_key_generation: { ...cmpCr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
-            p10cr: cmpP10cr,
-            // renewal_window/allow_expired_certificate/additional_validation_ca_ids/
-            // revoke_superseded_certificate mirror the already-live reenrollment_settings
-            // fields below — the backend's ResolveCMPSettings bridges the two, but we
-            // send them consistent from the start rather than relying on that alone.
-            kur: {
-              enabled: true,
-              renewal_window: allowedRenewalDelta,
-              allow_expired_certificate: allowExpiredRenewal,
-              additional_validation_ca_ids: additionalValidationCAs.map(ca => ca.id),
-              key_policy: cmpKurKeyPolicy,
-              identity_change_policy: cmpKurIdentityChangePolicy,
-              revoke_superseded_certificate: revokeOnReEnroll,
-              policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
-            },
-            rr: cmpRr,
-            genm: {
-              enabled: true,
-              access_policy: cmpGenmAccessPolicy,
-              // protocol_encryption_certificate is hidden and hard-disabled
-              // server-side; force it false so the UI never persists a
-              // misleading "enabled" value (e.g. loaded from older API data).
-              information_types: { ...cmpGenmInformationTypes, protocol_encryption_certificate: false },
-              preferred_symmetric_algorithm: cmpGenmPreferredSymmAlg,
-            },
-            ccr: { ...cmpCcr, trusted_requester_ca_ids: ccrTrustedRequesterCAs.map(ca => ca.id) },
+    const commonEnrollmentFields = {
+      registration_mode: registrationMode,
+      enrollment_ca: enrollmentCa.id,
+      enable_replaceable_enrollment: allowOverrideEnrollment,
+      verify_csr_signature: verifyCsrSignature,
+      device_provisioning_profile: {
+        icon: selectedDeviceIconName!,
+        icon_color: `${selectedDeviceIconColor}-${selectedDeviceIconBgColor}`,
+        metadata: deviceMetadata,
+        tags: tags,
+      },
+    };
+    const commonReenrollmentFields: CMPReEnrollmentSettings = {
+      revoke_on_reenrollment: revokeOnReEnroll,
+      enable_expired_renewal: allowExpiredRenewal,
+      critical_delta: criticalRenewalDelta,
+      preventive_delta: preventiveRenewalDelta,
+      reenrollment_delta: allowedRenewalDelta,
+      additional_validation_cas: additionalValidationCAs.map(ca => ca.id),
+    };
+    const issuanceProfileFields = {
+      ...(issuanceProfileMode === 'existing' && issuanceProfileId
+        ? { issuance_profile_id: issuanceProfileId }
+        : {}),
+      ...(issuanceProfileMode === 'inline'
+        ? { issuance_profile: buildInlineIssuanceProfile(inlineProfileForm.getValues()) }
+        : {}),
+    };
+    const commonCaDistributionSettings = {
+      include_enrollment_ca: includeEnrollmentCA,
+      include_system_ca: includeDownstreamCA,
+      managed_cas: managedCAs.map(ca => ca.id),
+    };
+
+    const settings: ApiRaSettings = protocol === 'CMP'
+      ? {
+          protocol: 'CMP_RFC9483',
+          est_settings: null,
+          cmp_settings: {
+            enrollment_settings: mergeAuthEditorValueIntoCmpSettings(
+              {
+                ...commonEnrollmentFields,
+                accept_implicit: cmpConfirmationMode === 'IMPLICIT',
+                confirmation_timeout: cmpConfirmationTimeout,
+                ...(cmpWorkflow === 'phased' && cmpApprovalTimeout.trim()
+                  ? { approval_timeout: cmpApprovalTimeout.trim() }
+                  : {}),
+                protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
+                enforce_popo: cmpEnforcePopo,
+                server_key_gen_enabled: cmpServerKeyGenEnabled,
+                workflow: cmpWorkflow,
+                // Bridge the single CKG switch into ir/cr's own central_key_generation.enabled
+                // (see the comment above cmpIr/cmpCr's declaration). The backend unifies all
+                // three fields via OR, so leaving ir/cr's nested flag stale at `true` would
+                // silently defeat turning this switch off.
+                ir: { ...cmpIr, central_key_generation: { ...cmpIr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
+                cr: { ...cmpCr, central_key_generation: { ...cmpCr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
+                p10cr: cmpP10cr,
+                kur: {
+                  enabled: true,
+                  key_policy: cmpKurKeyPolicy,
+                  identity_change_policy: cmpKurIdentityChangePolicy,
+                  policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
+                },
+                rr: cmpRr,
+                genm: {
+                  enabled: true,
+                  access_policy: cmpGenmAccessPolicy,
+                  // protocol_encryption_certificate is hidden and hard-disabled
+                  // server-side; force it false so the UI never persists a
+                  // misleading "enabled" value (e.g. loaded from older API data).
+                  information_types: { ...cmpGenmInformationTypes, protocol_encryption_certificate: false },
+                  preferred_symmetric_algorithm: cmpGenmPreferredSymmAlg,
+                },
+                ccr: { ...cmpCcr, trusted_requester_ca_ids: ccrTrustedRequesterCAs.map(ca => ca.id) },
+              },
+              effectiveCmpAuthSettings,
+            ),
+            // CMP re-enrollment (kur) has no separate auth mode to configure —
+            // it authenticates via the request's own message protection.
+            reenrollment_settings: commonReenrollmentFields,
+            ca_distribution_settings: commonCaDistributionSettings,
+            ...issuanceProfileFields,
           },
-          effectiveCmpAuthSettings,
-        )
-      : undefined;
+        }
+      : {
+          protocol: 'EST_RFC7030',
+          cmp_settings: null,
+          est_settings: {
+            enrollment_settings: { ...commonEnrollmentFields, ...effectiveEnrollmentAuthSettings },
+            reenrollment_settings: { ...commonReenrollmentFields, ...effectiveReenrollmentAuthSettings },
+            server_keygen_settings: {
+              enabled: enableKeyGeneration,
+              ...(enableKeyGeneration && { key: keySettings }),
+            },
+            ca_distribution_settings: commonCaDistributionSettings,
+            ...issuanceProfileFields,
+          },
+        };
     const payload: RaCreationPayload = {
       name: raName.trim(),
       id: isEditMode ? raIdFromQuery! : raId.trim(),
       metadata: raData?.metadata || {},
-      settings: {
-        ...(issuanceProfileMode === 'existing' && issuanceProfileId
-          ? { issuance_profile_id: issuanceProfileId }
-          : {}),
-        ...(issuanceProfileMode === 'inline'
-          ? { issuance_profile: buildInlineIssuanceProfile(inlineProfileForm.getValues()) }
-          : {}),
-        enrollment_settings: {
-          enrollment_ca: enrollmentCa.id,
-          protocol: protocolMapping[protocol],
-          enable_replaceable_enrollment: allowOverrideEnrollment,
-          verify_csr_signature: verifyCsrSignature,
-          ...(protocol === 'EST' && { est_rfc7030_settings: effectiveEnrollmentAuthSettings }),
-          ...(protocol === 'CMP' && { lwc_rfc9483_settings: cmpLwcSettings }),
-          device_provisioning_profile: {
-            icon: selectedDeviceIconName!,
-            icon_color: `${selectedDeviceIconColor}-${selectedDeviceIconBgColor}`,
-            metadata: deviceMetadata,
-            tags: tags,
-          },
-          registration_mode: registrationMode,
-        },
-        reenrollment_settings: {
-          // CMP re-enrollment (kur) has no separate auth mode to configure —
-          // it authenticates via the request's own message protection.
-          ...(protocol === 'EST' && { est_rfc7030_settings: effectiveReenrollmentAuthSettings }),
-          revoke_on_reenrollment: revokeOnReEnroll,
-          enable_expired_renewal: allowExpiredRenewal,
-          critical_delta: criticalRenewalDelta,
-          preventive_delta: preventiveRenewalDelta,
-          reenrollment_delta: allowedRenewalDelta,
-          additional_validation_cas: additionalValidationCAs.map(ca => ca.id),
-        },
-        server_keygen_settings: {
-          enabled: enableKeyGeneration,
-          ...(enableKeyGeneration && { key: keySettings }),
-        },
-        ca_distribution_settings: {
-          include_enrollment_ca: includeEnrollmentCA,
-          include_system_ca: includeDownstreamCA,
-          managed_cas: managedCAs.map(ca => ca.id),
-        }
-      }
+      settings,
     };
-    
+
     try {
         await createOrUpdateRa(payload, isEditMode, raIdFromQuery);
         
@@ -850,7 +861,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const activeEnrollmentAuthSettings = protocol === 'CMP' ? cmpAuthSettings : enrollmentAuthSettings;
   const enrollmentValidationCaCount = activeEnrollmentAuthSettings.client_certificate_settings?.validation_cas.length || 0;
-  const authModeLabels: Record<ApiRaEstSettings['auth_mode'], string> = {
+  const authModeLabels: Record<ESTAuthSettings['auth_mode'], string> = {
     CLIENT_CERTIFICATE: 'Client Certificate',
     EXTERNAL_WEBHOOK: 'External Webhook',
     CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK: 'Client Certificate + Webhook',
@@ -888,34 +899,36 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="issuanceProfileMode">Issuance Profile</Label>
-              <Select
-                value={issuanceProfileMode}
-                onValueChange={(mode: 'default' | 'existing' | 'inline') => {
-                  setIssuanceProfileMode(mode);
-                  if (mode !== 'existing') setIssuanceProfileId(null);
-                }}
-              >
-                <SelectTrigger id="issuanceProfileMode"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Use Enrollment CA Default</SelectItem>
-                  <SelectItem value="existing">Use Existing Profile</SelectItem>
-                  <SelectItem value="inline">Define Inline Profile</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {issuanceProfileMode === 'existing' ? (
-              <div className="space-y-3">
-                <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
-                  <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={issuanceProfileMode}
+                  onValueChange={(mode: 'default' | 'existing' | 'inline') => {
+                    setIssuanceProfileMode(mode);
+                    if (mode !== 'existing') setIssuanceProfileId(null);
+                  }}
+                >
+                  <SelectTrigger id="issuanceProfileMode" className={issuanceProfileMode === 'existing' ? 'w-1/2' : 'w-full'}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {availableProfiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
-                    ))}
+                    <SelectItem value="default">Use Enrollment CA Default</SelectItem>
+                    <SelectItem value="existing">Use Existing Profile</SelectItem>
+                    <SelectItem value="inline">Define Inline Profile</SelectItem>
                   </SelectContent>
                 </Select>
-                {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
+                {issuanceProfileMode === 'existing' ? (
+                  <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
+                    <SelectTrigger className="w-1/2"><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
               </div>
+            </div>
+
+            {issuanceProfileMode === 'existing' && selectedProfileForDisplay ? (
+              <IssuanceProfileCard profile={selectedProfileForDisplay} />
             ) : null}
 
             {issuanceProfileMode === 'default' ? (

@@ -203,8 +203,12 @@ export default function RegistrationAuthoritiesPage() {
         return ras;
     }
     return ras.filter(ra => {
-        const enrollmentCaMatch = ra.settings.enrollment_settings.enrollment_ca === caFilterId;
-        const validationCaMatch = ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas?.includes(caFilterId);
+        const enrollmentSettings = ra.settings.protocol === 'CMP_RFC9483'
+          ? ra.settings.cmp_settings.enrollment_settings
+          : ra.settings.est_settings.enrollment_settings;
+        const enrollmentCaMatch = enrollmentSettings.enrollment_ca === caFilterId;
+        const validationCaMatch = ra.settings.protocol === 'EST_RFC7030'
+          && ra.settings.est_settings.enrollment_settings.client_certificate_settings?.validation_cas?.includes(caFilterId);
         return enrollmentCaMatch || validationCaMatch;
     });
   }, [ras, caFilterId]);

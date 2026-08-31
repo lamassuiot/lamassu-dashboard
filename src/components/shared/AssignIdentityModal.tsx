@@ -133,7 +133,9 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
         if (deviceRaId) {
           try {
             const raDetails = await fetchRaById(deviceRaId);
-            setEnrollmentCaId(raDetails.settings.enrollment_settings.enrollment_ca);
+            setEnrollmentCaId(raDetails.settings.protocol === 'CMP_RFC9483'
+              ? raDetails.settings.cmp_settings.enrollment_settings.enrollment_ca
+              : raDetails.settings.est_settings.enrollment_settings.enrollment_ca);
           } catch (raError: any) {
             console.warn(`Could not fetch RA details to set default CA: ${raError.message}`);
           }
