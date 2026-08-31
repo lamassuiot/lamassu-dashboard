@@ -10,8 +10,11 @@ export const SectionHeader: React.FC<{
   title: string;
   description?: string;
   action?: React.ReactNode;
-}> = ({ icon: Icon, title, description, action }) => (
-  <CardHeader>
+  /** When true, skips the <CardHeader> wrapper (and its card-shaped padding)
+   * for use outside a <Card> ancestor. Defaults to false. */
+  bare?: boolean;
+}> = ({ icon: Icon, title, description, action, bare }) => {
+  const content = (
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 flex-1 items-start gap-2.5">
         <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
@@ -24,8 +27,10 @@ export const SectionHeader: React.FC<{
       </div>
       {action}
     </div>
-  </CardHeader>
-);
+  );
+
+  return bare ? content : <CardHeader>{content}</CardHeader>;
+};
 
 // Helper component for switch-based form fields
 export const SwitchFormField: React.FC<{

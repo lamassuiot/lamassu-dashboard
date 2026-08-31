@@ -13,6 +13,10 @@ interface DetailSectionCardProps {
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  /** When false, renders as a plain section (header + content, no border/
+   * shadow/background) instead of wrapping in a <Card>. Useful on pages that
+   * otherwise avoid card chrome. Defaults to true. */
+  withCard?: boolean;
 }
 
 export const DetailSectionCard: React.FC<DetailSectionCardProps> = ({
@@ -23,9 +27,21 @@ export const DetailSectionCard: React.FC<DetailSectionCardProps> = ({
   children,
   className,
   contentClassName,
-}) => (
-  <Card className={cn('overflow-hidden', className)}>
-    <SectionHeader icon={icon} title={title} description={description} action={action} />
-    <CardContent className={contentClassName || undefined}>{children}</CardContent>
-  </Card>
-);
+  withCard = true,
+}) => {
+  if (!withCard) {
+    return (
+      <div className={className}>
+        <SectionHeader icon={icon} title={title} description={description} action={action} bare />
+        <div className={cn('mt-4', contentClassName)}>{children}</div>
+      </div>
+    );
+  }
+
+  return (
+    <Card className={cn('overflow-hidden', className)}>
+      <SectionHeader icon={icon} title={title} description={description} action={action} />
+      <CardContent className={contentClassName || undefined}>{children}</CardContent>
+    </Card>
+  );
+};
