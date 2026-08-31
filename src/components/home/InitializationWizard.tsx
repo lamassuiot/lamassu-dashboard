@@ -316,16 +316,20 @@ export const InitializationWizard: React.FC = () => {
                     name: `Test RA ${testId}`,
                     metadata: {},
                     settings: {
-                        enrollment_settings: {
-                            enrollment_ca: testCaId, protocol: "EST_RFC7030", registration_mode: "JITP",
-                            enable_replaceable_enrollment: true,
-                            verify_csr_signature: true,
-                            est_rfc7030_settings: { auth_mode: "NO_AUTH" },
-                            device_provisioning_profile: { icon: "Cpu", icon_color: "#888888-#e0e0e0", metadata: {}, tags: ["test-device"] },
+                        protocol: "EST_RFC7030",
+                        cmp_settings: null,
+                        est_settings: {
+                            enrollment_settings: {
+                                enrollment_ca: testCaId, registration_mode: "JITP",
+                                enable_replaceable_enrollment: true,
+                                verify_csr_signature: true,
+                                auth_mode: "NO_AUTH",
+                                device_provisioning_profile: { icon: "Cpu", icon_color: "#888888-#e0e0e0", metadata: {}, tags: ["test-device"] },
+                            },
+                            reenrollment_settings: { auth_mode: "NO_AUTH", revoke_on_reenrollment: true, enable_expired_renewal: true, reenrollment_delta: "30d", preventive_delta: "7d", critical_delta: "1d", additional_validation_cas: [] },
+                            server_keygen_settings: { enabled: false },
+                            ca_distribution_settings: { include_enrollment_ca: true, include_system_ca: true, managed_cas: [] },
                         },
-                        reenrollment_settings: { est_rfc7030_settings: { auth_mode: "NO_AUTH" }, revoke_on_reenrollment: true, enable_expired_renewal: true, reenrollment_delta: "30d", preventive_delta: "7d", critical_delta: "1d", additional_validation_cas: [] },
-                        server_keygen_settings: { enabled: false },
-                        ca_distribution_settings: { include_enrollment_ca: true, include_system_ca: true, managed_cas: [] }
                     }
                 }, false);
                 addLog("Dummy RA created successfully.", 'success', `RA ID: ${testRaId}`);

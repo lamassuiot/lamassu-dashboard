@@ -5,11 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, ArrowLeft, Pencil, ListOrdered, FileText, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Pencil, ListOrdered, FileText, CheckCircle2, Settings2 } from 'lucide-react';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { CmpTransactionsPanel } from '@/components/ra/CmpTransactionsPanel';
 import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificatesPanel';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +45,12 @@ export default function RaCmpTransactionsPage() {
         return () => { cancelled = true; };
     }, [raId]);
 
+    const deviceProfile = ra?.settings.protocol === 'CMP_RFC9483'
+        ? ra.settings.cmp_settings.enrollment_settings.device_provisioning_profile
+        : undefined;
+    const HeroIcon = deviceProfile ? getLucideIconByName(deviceProfile.icon) : null;
+    const [heroIconColor, heroBgColor] = (deviceProfile?.icon_color || '#888888-#e0e0e0').split('-');
+
     if (!raId) {
         return (
             <div className="mb-8 w-full space-y-6">
@@ -70,17 +77,27 @@ export default function RaCmpTransactionsPage() {
                     { label: ra?.name ?? raId },
                     { label: <Badge variant="default" className="text-xs">CMP Enrollments</Badge> },
                 ]}
-                actions={
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={() => router.push('/registration-authorities')}>
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
-                        </Button>
-                        <Button variant="outline" onClick={() => router.push(`/registration-authorities/new?raId=${raId}`)}>
-                            <Pencil className="mr-2 h-4 w-4" /> Edit Settings
-                        </Button>
-                    </div>
-                }
             />
+
+            <div className="flex items-center gap-3">
+                <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+                    style={{ backgroundColor: heroBgColor }}
+                >
+                    {HeroIcon ? (
+                        <HeroIcon className="h-5 w-5" style={{ color: heroIconColor }} />
+                    ) : (
+                        <Settings2 className="h-5 w-5 text-primary" />
+                    )}
+                </div>
+                <div className="min-w-0">
+                    <h1 className="truncate text-xl font-semibold tracking-tight" title={ra?.name ?? raId}>
+                        {ra?.name ?? raId}
+                    </h1>
+                    <p className="text-xs text-muted-foreground">CMP (RFC-9483) Registration Authority</p>
+                </div>
+            </div>
+
             {raLoadError && (
                 <p className="text-sm text-destructive">Could not load RA metadata: {raLoadError}</p>
             )}

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, PlusCircle, X } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import type { ApiRaEstSettings } from '@/lib/dms-api';
+import type { ESTAuthSettings } from '@/lib/dms-api';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { DurationInput } from '@/components/shared/DurationInput';
@@ -20,8 +20,8 @@ import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 type EstAuthSettingsEditorProps = {
   idPrefix: string;
-  value: ApiRaEstSettings;
-  onChange: (value: ApiRaEstSettings) => void;
+  value: ESTAuthSettings;
+  onChange: (value: ESTAuthSettings) => void;
   availableCAs: CA[];
   allCryptoEngines: ApiCryptoEngine[];
   isLoadingCAs: boolean;
@@ -72,7 +72,7 @@ export function EstAuthSettingsEditor({
   );
 
   const updateClientSettings = (
-    patch: Partial<NonNullable<ApiRaEstSettings['client_certificate_settings']>>,
+    patch: Partial<NonNullable<ESTAuthSettings['client_certificate_settings']>>,
   ) => {
     onChange({
       ...value,
@@ -80,7 +80,7 @@ export function EstAuthSettingsEditor({
     });
   };
 
-  const updateWebhook = (patch: Partial<NonNullable<ApiRaEstSettings['external_webhook_settings']>>) => {
+  const updateWebhook = (patch: Partial<NonNullable<ESTAuthSettings['external_webhook_settings']>>) => {
     onChange({
       ...value,
       external_webhook_settings: { ...webhook, ...patch },
@@ -126,7 +126,7 @@ export function EstAuthSettingsEditor({
         <Label htmlFor={`${idPrefix}-auth-mode`}>Authentication Mode</Label>
         <Select
           value={value.auth_mode}
-          onValueChange={(authMode: ApiRaEstSettings['auth_mode']) => onChange({ ...value, auth_mode: authMode })}
+          onValueChange={(authMode: ESTAuthSettings['auth_mode']) => onChange({ ...value, auth_mode: authMode })}
         >
           <SelectTrigger id={`${idPrefix}-auth-mode`}><SelectValue /></SelectTrigger>
           <SelectContent>

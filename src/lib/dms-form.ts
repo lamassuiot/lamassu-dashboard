@@ -1,10 +1,10 @@
 import type { ApiSigningProfile } from '@/lib/ca-data';
-import type { ApiRaEstSettings } from '@/lib/dms-api';
+import type { ESTAuthSettings } from '@/lib/dms-api';
 import type { SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 
 const INDEFINITE_DATE_API_VALUE = '9999-12-31T23:59:59.999Z';
 
-export function createDefaultEstAuthSettings(allowExpired = false): ApiRaEstSettings {
+export function createDefaultEstAuthSettings(allowExpired = false): ESTAuthSettings {
   return {
     auth_mode: 'CLIENT_CERTIFICATE',
     client_certificate_settings: {
@@ -27,16 +27,16 @@ export function createDefaultEstAuthSettings(allowExpired = false): ApiRaEstSett
 }
 
 export function normalizeEstAuthSettings(
-  settings: ApiRaEstSettings | undefined,
+  settings: ESTAuthSettings | undefined,
   allowExpired = false,
-): ApiRaEstSettings {
+): ESTAuthSettings {
   const defaults = createDefaultEstAuthSettings(allowExpired);
   const raw = settings as unknown as ({
     auth_mode?: string;
-    client_certificate_settings?: ApiRaEstSettings['client_certificate_settings'];
-    external_webhook_settings?: ApiRaEstSettings['external_webhook_settings'];
+    client_certificate_settings?: ESTAuthSettings['client_certificate_settings'];
+    external_webhook_settings?: ESTAuthSettings['external_webhook_settings'];
   }) | undefined;
-  const authModeMap: Record<string, ApiRaEstSettings['auth_mode']> = {
+  const authModeMap: Record<string, ESTAuthSettings['auth_mode']> = {
     CLIENT_CERTIFICATE: 'CLIENT_CERTIFICATE',
     client_certificate: 'CLIENT_CERTIFICATE',
     EXTERNAL_WEBHOOK: 'EXTERNAL_WEBHOOK',
@@ -176,18 +176,9 @@ export function parseJsonObject(value: string): Record<string, any> {
 
 export function validateEstAuthSettings(
   label: string,
-  settings: ApiRaEstSettings,
+  settings: ESTAuthSettings,
   requireValidationCa = false,
 ): string | null {
-  return getEstAuthSettingsValidationErrors(label, settings, requireValidationCa)[0] || null;
-}
-
-export function getEstAuthSettingsValidationErrors(
-  label: string,
-  settings: ApiRaEstSettings,
-  requireValidationCa = false,
-): string[] {
-  const errors: string[] = [];
   const includesClientCertificate = settings.auth_mode === 'CLIENT_CERTIFICATE'
     || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const includesWebhook = settings.auth_mode === 'EXTERNAL_WEBHOOK'
@@ -198,39 +189,40 @@ export function getEstAuthSettingsValidationErrors(
     && requireValidationCa
     && !settings.client_certificate_settings?.validation_cas.length
   ) {
-    errors.push(`${label} requires at least one client certificate validation CA.`);
+    return `${label} requires at least one client certificate validation CA.`;
   }
 
-  if (!includesWebhook) return errors;
+  if (!includesWebhook) return null;
   const webhook = settings.external_webhook_settings;
-  if (!webhook || !webhook.name.trim() || !webhook.url.trim()) {
-    errors.push(`${label} webhook name and URL are required.`);
+  if (!webhook?.name.trim() || !webhook.url.trim()) {
+    return `${label} webhook name and URL are required.`;
   }
-  if (!webhook) return errors;
 
   if (webhook.config.auth_mode === 'apikey' && (!webhook.config.apikey?.key || !webhook.config.apikey.header)) {
-    errors.push(`${label} webhook API key and header are required.`);
+    return `${label} webhook API key and header are required.`;
   }
   if (
     webhook.config.auth_mode === 'jwt'
     && (!webhook.config.oidc?.client_id || !webhook.config.oidc.client_secret || !webhook.config.oidc.well_known)
   ) {
-    errors.push(`${label} webhook OIDC client ID, client secret, and well-known URL are required.`);
+    return `${label} webhook OIDC client ID, client secret, and well-known URL are required.`;
   }
   if (webhook.config.auth_mode === 'mtls' && (!webhook.config.mtls?.cert || !webhook.config.mtls.key)) {
-    errors.push(`${label} webhook mTLS certificate and private key are required.`);
+    return `${label} webhook mTLS certificate and private key are required.`;
   }
 
-  return errors;
+  return null;
 }
 
 export function withDefaultValidationCa(
-  settings: ApiRaEstSettings,
+  settings: ESTAuthSettings,
   validationCaId: string,
-): ApiRaEstSettings {
+): ESTAuthSettings {
+  const includesClientCertificate = settings.auth_mode === 'CLIENT_CERTIFICATE'
+    || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const clientSettings = settings.client_certificate_settings;
 
-  if (!clientSettings || clientSettings.validation_cas.includes(validationCaId)) {
+  if (!includesClientCertificate || !clientSettings || clientSettings.validation_cas.length > 0) {
     return settings;
   }
 
@@ -238,14 +230,7 @@ export function withDefaultValidationCa(
     ...settings,
     client_certificate_settings: {
       ...clientSettings,
-      validation_cas: [...clientSettings.validation_cas, validationCaId],
+      validation_cas: [validationCaId],
     },
   };
-}
-
-export function includesValidationCa(
-  settings: ApiRaEstSettings,
-  validationCaId: string,
-): boolean {
-  return settings.client_certificate_settings?.validation_cas.includes(validationCaId) ?? false;
 }

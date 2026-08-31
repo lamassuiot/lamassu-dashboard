@@ -20,59 +20,58 @@ const MOCK_TOKEN = 'test-access-token'
 const DMS_API_BASE = 'https://api.test.lamassu.io/dmsmanager/v1'
 
 describe('dms-api', () => {
-  const mockRa: ApiRaItem = {
+  const mockRa = {
     id: 'ra-123',
     name: 'Test RA',
     creation_ts: '2024-12-01T00:00:00Z',
     metadata: { environment: 'test' },
     settings: {
-      enrollment_settings: {
-        registration_mode: 'JITP',
-        enrollment_ca: 'ca-1',
-        protocol: 'EST_RFC7030',
-        enable_replaceable_enrollment: false,
-        verify_csr_signature: true,
-        est_rfc7030_settings: {
+      protocol: 'EST_RFC7030',
+      cmp_settings: null,
+      est_settings: {
+        enrollment_settings: {
+          registration_mode: 'JITP',
+          enrollment_ca: 'ca-1',
+          enable_replaceable_enrollment: false,
+          verify_csr_signature: true,
           auth_mode: 'CLIENT_CERTIFICATE',
           client_certificate_settings: {
             chain_level_validation: -1,
             validation_cas: ['ca-bootstrap'],
             allow_expired: false,
           },
+          device_provisioning_profile: {
+            icon: 'default',
+            icon_color: '#000000',
+            metadata: {},
+            tags: ['iot'],
+          },
         },
-        device_provisioning_profile: {
-          icon: 'default',
-          icon_color: '#000000',
-          metadata: {},
-          tags: ['iot'],
-        },
-      },
-      reenrollment_settings: {
-        est_rfc7030_settings: {
+        reenrollment_settings: {
           auth_mode: 'CLIENT_CERTIFICATE',
           client_certificate_settings: {
             chain_level_validation: -1,
             validation_cas: [],
             allow_expired: false,
           },
+          revoke_on_reenrollment: false,
+          enable_expired_renewal: true,
+          critical_delta: '30d',
+          preventive_delta: '60d',
+          reenrollment_delta: '90d',
+          additional_validation_cas: [],
         },
-        revoke_on_reenrollment: false,
-        enable_expired_renewal: true,
-        critical_delta: '30d',
-        preventive_delta: '60d',
-        reenrollment_delta: '90d',
-        additional_validation_cas: [],
-      },
-      server_keygen_settings: {
-        enabled: false,
-      },
-      ca_distribution_settings: {
-        include_enrollment_ca: true,
-        include_system_ca: false,
-        managed_cas: [],
+        server_keygen_settings: {
+          enabled: false,
+        },
+        ca_distribution_settings: {
+          include_enrollment_ca: true,
+          include_system_ca: false,
+          managed_cas: [],
+        },
       },
     },
-  }
+  } satisfies ApiRaItem
 
   describe('fetchRegistrationAuthorities', () => {
     it('should fetch RAs successfully', async () => {
@@ -364,9 +363,10 @@ describe('dms-api', () => {
         ...mockRa,
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'CLIENT_CERTIFICATE',
               client_certificate_settings: {
                 chain_level_validation: 1,
@@ -386,8 +386,8 @@ describe('dms-api', () => {
 
       const result = await fetchRaById(raWithEstAuth.id)
 
-      expect(result.settings.enrollment_settings.est_rfc7030_settings).toBeDefined()
-      expect(result.settings.enrollment_settings.est_rfc7030_settings?.auth_mode).toBe(
+      expect(result.settings.est_settings?.enrollment_settings.auth_mode).toBeDefined()
+      expect(result.settings.est_settings?.enrollment_settings.auth_mode).toBe(
         'CLIENT_CERTIFICATE'
       )
     })
@@ -397,9 +397,10 @@ describe('dms-api', () => {
         ...mockRa,
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'EXTERNAL_WEBHOOK',
               external_webhook_settings: {
                 name: 'auth-webhook',
@@ -444,9 +445,10 @@ describe('dms-api', () => {
         ...mockRa,
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'EXTERNAL_WEBHOOK',
               external_webhook_settings: {
                 name: 'apikey-webhook',
@@ -485,7 +487,7 @@ describe('dms-api', () => {
 
       await createOrUpdateRa(payload, false)
 
-      const webhookSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings.external_webhook_settings
+      const webhookSettings = capturedBody.settings.est_settings.enrollment_settings.external_webhook_settings
       expect(webhookSettings.method).toBe('POST')
       expect(webhookSettings.config.auth_mode).toBe('apikey')
       expect(webhookSettings.config.apikey.key).toBe('my-secret-key')
@@ -498,9 +500,10 @@ describe('dms-api', () => {
         ...mockRa,
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'EXTERNAL_WEBHOOK',
               external_webhook_settings: {
                 name: 'open-webhook',
@@ -525,7 +528,7 @@ describe('dms-api', () => {
 
       const result = await fetchRaById(raWithNoAuthWebhook.id)
 
-      const webhookSettings = result.settings.enrollment_settings.est_rfc7030_settings?.external_webhook_settings
+      const webhookSettings = result.settings.est_settings?.enrollment_settings.external_webhook_settings
       expect(webhookSettings).toBeDefined()
       expect(webhookSettings?.method).toBe('POST')
       expect(webhookSettings?.config.auth_mode).toBe('noauth')
@@ -538,9 +541,10 @@ describe('dms-api', () => {
         ...mockRa,
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
               client_certificate_settings: {
                 chain_level_validation: 2,
@@ -569,7 +573,7 @@ describe('dms-api', () => {
       )
 
       const result = await fetchRaById(raWithCombinedAuth.id)
-      const estSettings = result.settings.enrollment_settings.est_rfc7030_settings
+      const estSettings = result.settings.est_settings?.enrollment_settings
 
       expect(estSettings).toBeDefined()
       expect(estSettings?.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
@@ -595,9 +599,10 @@ describe('dms-api', () => {
         metadata: {},
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
               client_certificate_settings: {
                 chain_level_validation: -1,
@@ -625,7 +630,7 @@ describe('dms-api', () => {
 
       await createOrUpdateRa(payload, false)
 
-      const estSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings
+      const estSettings = capturedBody.settings.est_settings.enrollment_settings
       expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
       expect(estSettings.client_certificate_settings).toBeDefined()
       expect(estSettings.client_certificate_settings.validation_cas).toEqual(['ca-1'])
@@ -650,9 +655,10 @@ describe('dms-api', () => {
         metadata: {},
         settings: {
           ...mockRa.settings,
-          enrollment_settings: {
-            ...mockRa.settings.enrollment_settings,
-            est_rfc7030_settings: {
+          est_settings: {
+            ...mockRa.settings.est_settings,
+            enrollment_settings: {
+              ...mockRa.settings.est_settings.enrollment_settings,
               auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
               client_certificate_settings: {
                 chain_level_validation: 1,
@@ -681,7 +687,7 @@ describe('dms-api', () => {
 
       await createOrUpdateRa(payload, false)
 
-      const estSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings
+      const estSettings = capturedBody.settings.est_settings.enrollment_settings
       expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
       expect(estSettings.client_certificate_settings.chain_level_validation).toBe(1)
       expect(estSettings.external_webhook_settings.config.auth_mode).toBe('jwt')
