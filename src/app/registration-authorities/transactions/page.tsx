@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, ArrowLeft, Pencil, ListOrdered, FileText, CheckCircle2, Settings2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ListOrdered, FileText, CheckCircle2, Settings2 } from 'lucide-react';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { CmpTransactionsPanel } from '@/components/ra/CmpTransactionsPanel';
 import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificatesPanel';
