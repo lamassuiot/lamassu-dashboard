@@ -735,10 +735,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const [selectedGenmType, setSelectedGenmType] = useState<keyof CmpGenmInformationTypes | ''>('');
 
     // Existing issued certificates for this device (subject CN == deviceId).
-    // KUR renews one of these; RR can optionally revoke one. Unlike ir/cr, these
-    // operate on a certificate that already exists in the backend rather than
-    // one produced earlier in this same wizard session, so the operator selects
-    // it here instead of the command assuming a <deviceId>.crt file is present.
+    // KUR renews one of these; RR can optionally revoke one. Unlike IR/P10CR,
+    // these operate on a certificate that already exists in the backend. CR
+    // also uses an existing certificate, but follows the requested local-file
+    // convention (<deviceId>.crt/.key) rather than selecting one to fetch here.
     const [deviceCerts, setDeviceCerts] = useState<CertificateData[]>([]);
     const [isLoadingDeviceCerts, setIsLoadingDeviceCerts] = useState(false);
     // Serial of the existing cert the step-3 picker targets — the cert KUR
@@ -1012,7 +1012,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             // General messages are informational and device-agnostic: no device
             // ID or POPO/flow-variant config. When this RA requires signed genm
             // AND has a validation CA to issue from, route through the same
-            // Bootstrap (3) / Credentials (4) flow ir/cr use to get a real
+            // Bootstrap (3) / Credentials (4) flow IR uses to get a real
             // certificate; otherwise (unsigned, or signed but no CA available)
             // jump straight to the commands.
             if (selectedOperation === 'genm') {
@@ -1031,19 +1031,21 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             // to selecting the certificate to revoke.
             setStep(selectedOperation === 'rr' ? 3 : 2);
         } else if (step === 2) {
-            setStep(3);
+            // CR is protected by the device's existing certificate and key, so
+            // it does not need a separately-issued bootstrap credential.
+            setStep(selectedOperation === 'cr' ? 5 : 3);
         } else if (step === 3) {
-            if (selectedOperation === 'kur' || selectedOperation === 'rr') {
-                // KUR/RR act on an existing certificate (renew / revoke), not by
-                // a bootstrap cert — there is nothing to issue here, and no
-                // Credentials step. Jump straight to the commands.
+            if (selectedOperation === 'cr' || selectedOperation === 'kur' || selectedOperation === 'rr') {
+                // CR/KUR/RR use an existing certificate (protect / renew /
+                // revoke), not a bootstrap cert — there is nothing to issue
+                // here, and no Credentials step. Jump straight to the commands.
                 setStep(5);
                 return;
             }
             // genm reaches step 3 ONLY when genmUsesIssuedCert is already true
             // (see step 1 above) — always proceed with real issuance there,
             // regardless of the enrollment auth_mode (requiresClientCert is about
-            // ir/cr/kur's OWN protection requirement, unrelated to genm's).
+            // ir/p10cr/kur's OWN protection requirement, unrelated to genm's).
             if (selectedOperation !== 'genm' && !requiresClientCert) {
                 // This RA's auth_mode doesn't validate a client certificate at
                 // all — there's nothing to issue, so behave like "Skip".
@@ -1117,6 +1119,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             // signed with no CA to issue from) or via the Bootstrap/Credentials
             // flow (genmUsesIssuedCert) — go back to wherever it actually came from.
             setStep(genmUsesIssuedCert ? (bootstrapCertificate ? 4 : 3) : 1);
+        } else if (step === 5 && selectedOperation === 'cr') {
+            setStep(2);
         } else if (step === 5 && !bootstrapCertificate) {
             setStep(3);
         } else if (step === 3 && (selectedOperation === 'rr' || selectedOperation === 'genm')) {
@@ -1298,6 +1302,11 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const deviceKeyCmd = deviceKeygenType === 'RSA'
         ? `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${deviceKeygenSpec} -out ${finalDeviceId}.key`
         : `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:${deviceKeygenSpec} -out ${finalDeviceId}.key`;
+    const crNewKeyFile = `new-${finalDeviceId}.key`;
+    const crNewCertFile = `new-${finalDeviceId}.crt`;
+    const crNewKeyCmd = deviceKeygenType === 'RSA'
+        ? `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${deviceKeygenSpec} -out ${crNewKeyFile}`
+        : `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:${deviceKeygenSpec} -out ${crNewKeyFile}`;
     const newKeyCmd = deviceKeygenType === 'RSA'
         ? `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${deviceKeygenSpec} -out ${finalDeviceId}-new.key`
         : `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:${deviceKeygenSpec} -out ${finalDeviceId}-new.key`;
@@ -1349,12 +1358,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const bootstrapSignerLines = requiresClientCert
         ? [`    -cert bootstrap.crt -key bootstrap.key \\`, `    -extracerts bootstrap.crt \\`]
         : [`    -unprotected_requests \\`];
-    // ir and cr share the same CRMF -newkey enrollment command shape (POPO,
-    // CKG, protection all identical); only the -cmd verb and the labels differ.
-    // The values feeding the command below (popoMethod, allowedPopoMethods,
-    // usingCkg, confirmation) are already resolved from selectedOperation, so
-    // the same builder serves both. kur and p10cr are distinct enough to have
-    // their own builders.
+    // IR uses a bootstrap signer (or an explicitly unprotected request). CR
+    // instead protects the request with the device's existing certificate and
+    // key while requesting a certificate for a freshly generated new key.
+    const isCrEnrollment = selectedOperation === 'cr';
     const enrollCmd = selectedOperation === 'cr' ? 'cr' : 'ir';
     const enrollOpName = selectedOperation === 'cr'
         ? 'Certification Request (cr)'
@@ -1370,8 +1377,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const irStepNumber = ++irStepCounter;
     const enrollCommand = [
         ...(deviceKeyStepNumber !== null ? [
-            `# ${deviceKeyStepNumber}. Generate the device key pair (the key you want a certificate for).`,
-            deviceKeyCmd,
+            isCrEnrollment
+                ? `# ${deviceKeyStepNumber}. Generate the new device key pair (keep the existing key for CR protection).`
+                : `# ${deviceKeyStepNumber}. Generate the device key pair (the key you want a certificate for).`,
+            isCrEnrollment ? crNewKeyCmd : deviceKeyCmd,
             ``,
         ] : []),
         `# ${trustAnchorStepNumber}. Fetch the enrollment CA — openssl's trust anchor for verifying the`,
@@ -1388,7 +1397,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             fetchProtectionCert,
         ] : []),
         ``,
-        ...(usingCkg ? [
+        ...(isCrEnrollment ? [
+            `# ${irStepNumber}. ${enrollOpName}: protect the request with the device's`,
+            `#    existing certificate and key while certifying the new key above.`,
+        ] : usingCkg ? [
             `# ${irStepNumber}. ${enrollOpName}: central key generation — the server`,
             `#    generates the key pair and delivers it encrypted to the bootstrap`,
             `#    signer; proof of possession is implicit (RFC 9483 §4.1.6).`,
@@ -1405,7 +1417,12 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         `    -cmd ${enrollCmd} \\`,
         `    -server ${cmpServerUrl} \\`,
         `    -path ${cmpServerPath} \\`,
-        ...bootstrapSignerLines,
+        ...(isCrEnrollment
+            ? [
+                `    -cert ${finalDeviceId}.crt -key ${finalDeviceId}.key \\`,
+                `    -extracerts ${finalDeviceId}.crt \\`,
+              ]
+            : bootstrapSignerLines),
         ...(usingCkg
             ? [
                 `    -popo -1 -centralkeygen \\`,
@@ -1416,7 +1433,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                 `    -rspout ${usesImplicitConfirmation ? 'ip.der' : 'ip.der,pkiconf.der'} \\`,
               ]
             : [
-                `    -newkey ${finalDeviceId}.key \\`,
+                `    -newkey ${isCrEnrollment ? crNewKeyFile : `${finalDeviceId}.key`} \\`,
                 ...(popoMethod === 'trusted_ra' ? [`    -popo 0 \\`] : []),
                 // encrypted_certificate: keyEncipherment POPO — openssl decrypts
                 // the delivered certificate automatically and writes -certout
@@ -1426,7 +1443,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         `    -subject "/CN=${finalDeviceId}" \\`,
         ...verifyFlagLines,
         ...implicitLine,
-        `    -certout ${finalDeviceId}.crt`,
+        `    -certout ${isCrEnrollment ? crNewCertFile : `${finalDeviceId}.crt`}`,
     ].join('\n');
 
     const ckgRecoverCommand = [
@@ -1528,7 +1545,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // RR target. When RR is the CHOSEN operation, it revokes the certificate
     // selected in step 3 (existingCertSerial). When RR is the step-5 COMPANION
     // to an enrollment, it defaults to the certificate that enrollment just
-    // produced (kur writes "<id>-new.crt", every other enrollment "<id>.crt")
+    // produced (kur writes "<id>-new.crt", cr writes "new-<id>.crt", and the
+    // other enrollment operations write "<id>.crt")
     // — which the operator has in hand — but can instead target any of the
     // device's existing issued certs (revokeCertSerial). Either "fetch an
     // existing cert" case supplies the device-held key as revokecert.key.
@@ -1537,10 +1555,15 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const rrUsesSelectedCert = rrIsPrimary || revokeCertSerial !== '';
     const rrFetchSerial = rrSelectedSerial || '<serial-of-cert-to-revoke>';
     // Default companion target: the cert the enrollment above just issued (kur
-    // writes "<id>-new.crt", every other enrollment "<id>.crt") — the operator
-    // has that matching pair in hand, so RR can reference it directly.
-    const defaultRevokeCertFile = selectedOperation === 'kur' ? `${finalDeviceId}-new.crt` : `${finalDeviceId}.crt`;
-    const defaultRevokeKeyFile = selectedOperation === 'kur' ? `${finalDeviceId}-new.key` : `${finalDeviceId}.key`;
+    // writes "<id>-new.crt", CR writes "new-<id>.crt", and the other operations
+    // write "<id>.crt") — the operator has that matching pair in hand, so RR
+    // can reference it directly.
+    const defaultRevokeCertFile = selectedOperation === 'kur'
+        ? `${finalDeviceId}-new.crt`
+        : selectedOperation === 'cr' ? crNewCertFile : `${finalDeviceId}.crt`;
+    const defaultRevokeKeyFile = selectedOperation === 'kur'
+        ? `${finalDeviceId}-new.key`
+        : selectedOperation === 'cr' ? crNewKeyFile : `${finalDeviceId}.key`;
     // Selecting a specific existing cert to revoke has the same matching-pair
     // constraint as KUR: the key must be the one THAT cert was issued for, which
     // the dashboard can't know. So use explicit REVCERT/REVKEY the operator sets,
@@ -1600,7 +1623,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const genmRequiresSigned = genmAccessPolicy === 'require_signed';
     // When signing is required, prefer a REAL certificate issued from one of
     // this RA's trusted CAs — reusing the exact same Bootstrap (step 3) /
-    // Credentials (step 4) flow ir/cr already use — over a synthetic one.
+    // Credentials (step 4) flow IR already uses — over a synthetic one.
     // genm itself doesn't chain-validate its signer (see cmp_genmsg.go), so a
     // throwaway self-signed cert WOULD also satisfy the server; it's only used
     // as a last resort when this RA has no validation_cas configured at all
@@ -1609,10 +1632,12 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const genmUsesIssuedCert = genmRequiresSigned && selectableSigners.length > 0;
     const genmUsesSelfSignedCert = genmRequiresSigned && selectableSigners.length === 0;
     // Step 3 (Bootstrap) renders the CA/key-issuance form for whichever
-    // operation actually needs a signer at that step — ir/cr/p10cr per
+    // operation actually needs a signer at that step — ir/p10cr per
     // requiresClientCert (their own enrollment auth_mode), or genm per
     // genmUsesIssuedCert (genm only ever reaches step 3 when that's true).
-    const stepThreeShowsBootstrapForm = selectedOperation === 'genm' ? genmUsesIssuedCert : requiresClientCert;
+    const stepThreeShowsBootstrapForm = selectedOperation === 'genm'
+        ? genmUsesIssuedCert
+        : selectedOperation !== 'cr' && requiresClientCert;
     const genmInformationTypes = cmp?.genm?.information_types;
     const genmEnabledCommands = GENM_INFOTYPE_COMMANDS.filter((t) => genmInformationTypes?.[t.key]);
     // The genm/genp step lets the operator pick ONE of the id-it types this RA
@@ -1637,7 +1662,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         i === verifyFlagLines.length - 1 ? l.replace(/ \\$/, '') : l);
 
     // Filenames the signed genm commands reference: the real cert/key produced
-    // by the Bootstrap/Credentials steps (same files ir/cr download) when one
+    // by the Bootstrap/Credentials steps (same files IR downloads) when one
     // was issued, otherwise the self-signed fallback pair.
     const genmCertFile = genmUsesIssuedCert ? 'bootstrap.crt' : 'genm.crt';
     const genmKeyFile = genmUsesIssuedCert ? 'bootstrap.key' : 'genm.key';
@@ -1709,6 +1734,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     ? (step === 1 ? 1 : step === 3 ? 2 : step === 4 ? 3 : 4)
                                     : (step === 1 ? 1 : 2))
                             : selectedOperation === 'rr' ? (step === 1 ? 1 : step === 3 ? 2 : 3)
+                            : selectedOperation === 'cr' ? (step === 1 ? 1 : step === 2 ? 2 : 3)
                             : selectedOperation === 'kur' && step === 5 ? 4
                             : step
                         }
@@ -1718,6 +1744,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     ? ['Request', 'Signer', 'Credentials', 'General messages']
                                     : ['Request', 'General messages'])
                             : selectedOperation === 'rr' ? ['Request', 'Certificate', 'Command']
+                            : selectedOperation === 'cr' ? ['Request', 'Flow variant', 'Commands']
                             : selectedOperation === 'kur' ? ['Request', 'Flow variant', 'Certificate', 'Commands']
                             : ['Request', 'Flow variant', 'Bootstrap', 'Credentials', 'Commands']
                         }
@@ -1758,7 +1785,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         {genmUsesIssuedCert
                                             ? <> This RA requires general messages to be signed, so the next steps
                                                 issue a short-lived certificate from one of its trusted CAs to
-                                                protect the request — the same flow used for ir/cr.</>
+                                                protect the request — the same flow used for IR.</>
                                             : genmUsesSelfSignedCert
                                             ? <> This RA requires general messages to be signed, but has no
                                                 validation CA configured to issue a real certificate from, so the
@@ -1805,7 +1832,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 {!initialDeviceId && (
                                     <p className="text-xs text-muted-foreground">
                                         Pick an existing device from this RA, type an ID, or generate a random one
-                                        {(selectedOperation === 'kur' || selectedOperation === 'rr')
+                                        {selectedOperation === 'cr'
+                                            ? ' — choose the device whose existing certificate and key will protect the request.'
+                                            : (selectedOperation === 'kur' || selectedOperation === 'rr')
                                             ? ' — for renewal/revocation, choose the device whose certificate you are acting on.'
                                             : '.'}
                                     </p>
@@ -1826,7 +1855,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
                             {selectedOperation !== 'rr' && selectedOperation !== 'genm' && (
                             <div className="space-y-4">
-                                <Label>{selectedOperation === 'kur' ? 'New device key parameters' : 'Device key parameters'} (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
+                                <Label>{selectedOperation === 'kur' || selectedOperation === 'cr' ? 'New device key parameters' : 'Device key parameters'} (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
 
                                 {selectedOperation === 'ir' && (
                                     <RadioGroup
@@ -2241,7 +2270,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 <AlertDescUI>
                                     <ul className="mt-1 space-y-0.5 text-xs">
                                         <li><code className="font-mono">auth_mode</code>: {authMode}
-                                            {authMode === 'NONE'
+                                            {selectedOperation === 'cr'
+                                                ? ` — the CR below is protected with ${finalDeviceId}.crt and ${finalDeviceId}.key; no bootstrap credential is issued.`
+                                                : authMode === 'NONE'
                                                 ? ' — no client authentication required; the bootstrap signer is optional.'
                                                 : ' — requests must be signed by a cert that chains to a Validation CA.'}
                                         </li>
@@ -2268,8 +2299,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         </li>
                                         <li><code className="font-mono">workflow</code>: {isPhasedWorkflow ? 'phased' : 'direct'}
                                             {isPhasedWorkflow
-                                                ? ' — an administrator must approve the enrollment before a certificate is issued; the ir below blocks and polls (openssl cmp does this automatically) until approval or timeout.'
-                                                : ' — the certificate is issued synchronously as part of the ir exchange.'}
+                                                ? ` — an administrator must approve the enrollment before a certificate is issued; the ${selectedOperation} below blocks and polls (openssl cmp does this automatically) until approval or timeout.`
+                                                : ` — the certificate is issued synchronously as part of the ${selectedOperation} exchange.`}
                                         </li>
                                     </ul>
                                 </AlertDescUI>
@@ -2287,7 +2318,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 </Alert>
                             )}
                             {noUsablePopoWarning}
-                            {(regTokenRequired || authenticatorRequired) && (
+                            {selectedOperation === 'ir' && (regTokenRequired || authenticatorRequired) && (
                                 <Alert variant="destructive">
                                     <AlertTriangle className="h-4 w-4" />
                                     <AlertTitle>This DMS requires a CRMF registration control openssl cmp cannot attach</AlertTitle>
@@ -2312,7 +2343,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         does nothing for a response with no signature at all. A standards-compliant client refuses to
                                         accept an unprotected successful response — <code className="font-mono">openssl cmp</code> has no flag
                                         for this (<code className="font-mono">-unprotected_errors</code> only covers negative/error responses).
-                                        The IR below will be accepted server-side and a certificate will be issued, but
+                                        The {selectedOperation.toUpperCase()} below will be accepted server-side and a certificate will be issued, but
                                         <code className="font-mono"> openssl cmp</code> will still report <code className="font-mono">missing protection</code> and
                                         exit without writing <code className="font-mono">-certout</code>. Configure a Protection Certificate on
                                         this RA's CMP Enrollment Settings before enrolling.
@@ -2339,6 +2370,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         : selectedOperation === 'p10cr'
                                         ? <>Request a certificate from a self-signed PKCS #10 CSR. Possession is proven by
                                             the CSR&apos;s own signature.</>
+                                        : selectedOperation === 'cr'
+                                        ? <>Use the existing <code className="font-mono">{finalDeviceId}.crt</code>/<code className="font-mono">{finalDeviceId}.key</code>{' '}
+                                            pair to protect the request. The new key and certificate are written to{' '}
+                                            <code className="font-mono">{crNewKeyFile}</code> and <code className="font-mono">{crNewCertFile}</code>.</>
                                         : <>Run on the device to obtain a certificate.{requiresClientCert ? <> Assumes{' '}
                                             <code className="font-mono">bootstrap.crt</code>/<code className="font-mono">bootstrap.key</code>{' '}
                                             are present in the working directory.</> : null}</>}
@@ -2614,9 +2649,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className={cn('sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col', className)}>
                 <DialogHeader className="sr-only">
-                    <DialogTitle>CMP Enroll</DialogTitle>
+                    <DialogTitle>CMP Operations</DialogTitle>
                     <DialogDescription>
-                        Generate enrollment commands for RA: {ra?.name} ({ra?.id})
+                        Generate operations commands for RA: {ra?.name} ({ra?.id})
                     </DialogDescription>
                 </DialogHeader>
                 {panelContent}
