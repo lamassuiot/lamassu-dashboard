@@ -373,7 +373,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full p-0 sm:max-w-4xl lg:max-w-[96rem]">
+      <SheetContent side="right" className="w-full p-0 data-[side=right]:w-3/4 data-[side=right]:sm:max-w-[75vw]">
         <div className="flex h-full flex-col overflow-hidden bg-background">
           <SheetHeader className="border-b px-6 py-5 text-left">
             <SheetTitle>{title}</SheetTitle>
@@ -465,7 +465,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                         return (
                           <TableRow
                             key={cert.id}
-                            className={cn(isSelected && "bg-primary/5")}
+                            onClick={() => onCertificateSelected(cert)}
+                            className={cn("cursor-pointer hover:bg-muted/50", isSelected && "bg-primary/5")}
                           >
                             <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
                               <div className="truncate" title={cert.subject}>
@@ -514,14 +515,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant={isSelected ? "secondary" : "default"}
-                               
-                                onClick={() => onCertificateSelected(cert)}
-                              >
-                                {isSelected ? "Selected" : "Select"}
-                              </Button>
+                              {isSelected && (
+                                <Badge variant="secondary">Selected</Badge>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
