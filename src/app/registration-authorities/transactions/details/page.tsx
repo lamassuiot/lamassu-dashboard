@@ -24,6 +24,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Asn1Viewer, decodeBase64Der } from '@/components/shared/Asn1Viewer';
 import { approveCmpTransaction, fetchCmpTransactions, rejectCmpTransaction, type CmpTransactionItem } from '@/lib/dms-api';
 import { fetchJob, type WfxHistory, type WfxJob } from '@/lib/wfx-api';
+import { getPrincipal } from '@/lib/authz-api';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
@@ -317,6 +318,39 @@ export default function CmpTransactionDetailsPage() {
             ? 'Latest reported context from the transaction status.'
             : `Context reported when the workflow entered ${selectedSnapshot.state}.`
         : 'Select a snapshot above.';
+
+    // The context's `principals` field (when present) holds raw principal IDs
+    // (e.g. "oidc:hsaiz") — resolve each to its human-readable name/description
+    // via the authz API, the same way /authz/principals displays them, and
+    // cache results across snapshot switches so re-selecting a state is instant.
+    const contextPrincipalIds = Array.isArray(selectedSnapshot?.context.principals)
+        ? (selectedSnapshot.context.principals as unknown[]).filter((p): p is string => typeof p === 'string')
+        : [];
+    const [principalInfo, setPrincipalInfo] = useState<Record<string, { name: string; description?: string }>>({});
+    useEffect(() => {
+        const missing = contextPrincipalIds.filter(id => !(id in principalInfo));
+        if (missing.length === 0) return;
+        let cancelled = false;
+        Promise.all(missing.map(async id => {
+            try {
+                const principal = await getPrincipal(id);
+                return [id, { name: principal.name, description: principal.description }] as const;
+            } catch {
+                return [id, null] as const;
+            }
+        })).then(results => {
+            if (cancelled) return;
+            setPrincipalInfo(prev => {
+                const next = { ...prev };
+                for (const [id, info] of results) {
+                    if (info) next[id] = info;
+                }
+                return next;
+            });
+        });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [contextPrincipalIds.join(',')]);
 
     // Surfaces failure information at the top of the page when the transaction
     // is in a terminal-error state. Mirrors the revoked-cert banner style on
@@ -657,9 +691,41 @@ export default function CmpTransactionDetailsPage() {
                                                                 key={key}
                                                                 label={key}
                                                                 value={
-                                                                    typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'
-                                                                        ? String(val)
-                                                                        : <code className="font-mono text-xs break-all">{JSON.stringify(val)}</code>
+                                                                    key === 'principals' && Array.isArray(val)
+                                                                        ? (
+                                                                            <div className="flex flex-col gap-2">
+                                                                                {(val as unknown[]).map((p, idx) => {
+                                                                                    if (typeof p !== 'string') {
+                                                                                        return <code key={idx} className="font-mono text-xs break-all">{JSON.stringify(p)}</code>;
+                                                                                    }
+                                                                                    const info = principalInfo[p];
+                                                                                    return (
+                                                                                        <div key={p}>
+                                                                                            <Link
+                                                                                                href={`/authz/principals/details?principal_id=${encodeURIComponent(p)}`}
+                                                                                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                                                                                            >
+                                                                                                {info ? (
+                                                                                                    <>
+                                                                                                        {info.name}
+                                                                                                        <span className="text-muted-foreground font-mono">({p})</span>
+                                                                                                    </>
+                                                                                                ) : (
+                                                                                                    <span className="font-mono">{p}</span>
+                                                                                                )}
+                                                                                                <ExternalLink className="h-3 w-3 shrink-0" />
+                                                                                            </Link>
+                                                                                            {info?.description && (
+                                                                                                <p className="mt-0.5 text-xs text-muted-foreground">{info.description}</p>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )
+                                                                        : typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'
+                                                                            ? String(val)
+                                                                            : <code className="font-mono text-xs break-all">{JSON.stringify(val)}</code>
                                                                 }
                                                             />
                                                         ))}

@@ -276,7 +276,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         <DropdownMenuPortal>
                           <DropdownMenuSubContent>
                             <DropdownMenuItem onClick={() => onOpenCmpEnrollModal(ra)}>
-                              <span>Enroll...</span>
+                              <span>Operations...</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push(`/registration-authorities/transactions?raId=${ra.id}`)}>
                               <span>View Transactions</span>
