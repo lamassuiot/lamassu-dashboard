@@ -1226,7 +1226,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         selectedOperation === 'ir' ? irEnabled
         : selectedOperation === 'cr' ? crEnabled
         : selectedOperation === 'kur' ? kurEnabled
-        : p10crEnabled;
+        : selectedOperation === 'p10cr' ? p10crEnabled
+        : selectedOperation === 'rr' ? rrEnabled
+        : true;
     // RFC 4211 regToken / authenticator controls can't be attached by openssl
     // cmp; a `required` mode makes the ir impossible from this wizard.
     const regTokenRequired = cmp?.ir?.registration_token?.mode === 'required';
