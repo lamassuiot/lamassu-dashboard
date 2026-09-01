@@ -147,7 +147,6 @@ export interface CmpRrSettings {
     enabled: boolean;
     authorization: CmpRevocationAuthorization;
     allow_revival: boolean;
-    allow_expired_target: boolean;
     allowed_reasons: CmpRevocationReason[];
     trusted_ra: CmpTrustedRa;
 }
