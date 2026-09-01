@@ -82,6 +82,11 @@ const ra = {
           enabled: true,
           proof_of_possession: { allowed_methods: ['signature' as const] },
         },
+        p10cr: { enabled: false },
+        rr: {
+          enabled: true,
+          allowed_reasons: ['unspecified' as const],
+        },
       },
     },
   },
@@ -141,5 +146,28 @@ describe('CmpEnrollModal CR flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Back/ }));
     expect((await screen.findAllByText('Flow variant')).length).toBeGreaterThan(0);
+  });
+
+  it('gates the RR warning on rr.enabled instead of p10cr.enabled', async () => {
+    render(
+      <CmpEnrollModal
+        isOpen
+        onOpenChange={() => {}}
+        ra={ra}
+        initialDeviceId={DEVICE_ID}
+        presentation="inline"
+      />,
+    );
+
+    await waitFor(() => expect(fetchAndProcessCAsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Loading CAs…')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Revocation Request \(RR\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Issue Bootstrap Cert' }));
+
+    expect((await screen.findAllByTestId('code-block'))
+      .some((element) => element.textContent?.includes('-cmd rr'))).toBe(true);
+    expect(screen.queryByText('Revocation Request (RR) is disabled on this DMS')).not.toBeInTheDocument();
   });
 });

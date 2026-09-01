@@ -48,8 +48,8 @@ const PREFERRED_SYMM_ALG_OPTIONS: { value: CmpPreferredSymmetricAlgorithm; label
 // wrong for most of this file — registration_mode, existing_device_policy,
 // proof_of_possession.allowed_methods/required, cr's require_existing_device/
 // certificate_behavior/maximum_active_certificates, kur's key_policy/
-// identity_change_policy, rr's authorization/allow_revival/allow_expired_target/
-// allowed_reasons/trusted_ra.require_cmc_ra_eku, and nearly all of ccr are ALL
+// identity_change_policy, rr's authorization/allow_revival/allowed_reasons/
+// trusted_ra.require_cmc_ra_eku, and nearly all of ccr are ALL
 // live-enforced (see the backend model file's header for the current, accurate
 // exception list). The "Planned" badges throughout this file are therefore
 // stale and should be removed in a dedicated follow-up pass — deliberately not
@@ -666,7 +666,6 @@ export function CmpPlannedOperationTabs({
             />
           </PlannedRow>
           <PlannedSwitchRow label="Allow revival (removeFromCRL)" description="Permit un-revoking a certificate previously placed on hold." checked={rr.allow_revival} onCheckedChange={(v) => onRrChange({ allow_revival: v })} />
-          <PlannedSwitchRow label="Allow revoking expired certificates" checked={rr.allow_expired_target} onCheckedChange={(v) => onRrChange({ allow_expired_target: v })} />
         </SettingsSection>
       </TabsContent>
 
