@@ -1320,20 +1320,20 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const fetchTrustAnchor = enrollmentCaId
         ? protectionCaDiffersFromEnrollmentCa
             ? [
-                `curl -sf "${caApiBase}/cas/${enrollmentCaId}" \\\n    | jq -r '.certificate.certificate' | base64 -d > enrollca.pem`,
-                `curl -sf "${caApiBase}/cas/${protectionCertIssuerCaId}" \\\n    | jq -r '.certificate.certificate' | base64 -d >> enrollca.pem`,
+                `curl -sf -H "Authorization: Bearer $TOKEN" "${caApiBase}/cas/${enrollmentCaId}" \\\n    | jq -r '.certificate.certificate' | base64 -d > enrollca.pem`,
+                `curl -sf -H "Authorization: Bearer $TOKEN" "${caApiBase}/cas/${protectionCertIssuerCaId}" \\\n    | jq -r '.certificate.certificate' | base64 -d >> enrollca.pem`,
               ].join('\n')
-            : `curl -sf "${caApiBase}/cas/${enrollmentCaId}" \\\n    | jq -r '.certificate.certificate' | base64 -d > enrollca.pem`
-        : `curl -sf "${caApiBase}/cas?page_size=100" \\\n    | jq -r '.list[].certificate.certificate' \\\n    | while IFS= read -r c; do echo "$c" | base64 -d; done > enrollca.pem`;
+            : `curl -sf -H "Authorization: Bearer $TOKEN" "${caApiBase}/cas/${enrollmentCaId}" \\\n    | jq -r '.certificate.certificate' | base64 -d > enrollca.pem`
+        : `curl -sf -H "Authorization: Bearer $TOKEN" "${caApiBase}/cas?page_size=100" \\\n    | jq -r '.list[].certificate.certificate' \\\n    | while IFS= read -r c; do echo "$c" | base64 -d; done > enrollca.pem`;
 
-    const fetchProtectionCert = `curl -sf "${caApiBase}/certificates/${(protectionSerial ?? '').toLowerCase()}" \\\n    | jq -r '.certificate' | base64 -d > srvcert.pem`;
+    const fetchProtectionCert = `curl -sf -H "Authorization: Bearer $TOKEN" "${caApiBase}/certificates/${(protectionSerial ?? '').toLowerCase()}" \\\n    | jq -r '.certificate' | base64 -d > srvcert.pem`;
 
     // Fetch an issued certificate (public) by serial into outFile — used by
     // KUR/RR, which operate on a cert that already exists in the backend. The
     // certificates endpoint keys on the colon-stripped serial.
     const certApiSerial = (s: string) => s.replace(/:/g, '').toLowerCase();
     const fetchCertBySerial = (serial: string, outFile: string) =>
-        `curl -sf "${caApiBase}/certificates/${certApiSerial(serial)}" \\\n    | jq -r '.certificate' | base64 -d > ${outFile}`;
+        `curl -sf -H "Authorization: Bearer $TOKEN" "${caApiBase}/certificates/${certApiSerial(serial)}" \\\n    | jq -r '.certificate' | base64 -d > ${outFile}`;
 
     // Verification flag lines shared by ir/kur/rr, each terminated with a line
     // continuation. RR ends on these flags, so it strips the trailing "\".

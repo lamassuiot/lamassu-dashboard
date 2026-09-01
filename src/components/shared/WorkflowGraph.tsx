@@ -585,23 +585,14 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                 {graph.edges.map((edge, index) => {
                     if (!edge.label || !edge.labelPoint) return null;
 
-                    const isActive = edge.active;
                     const actorStyle = ACTOR_STYLES[edge.label];
                     const display = actorStyle?.display ?? edge.label;
                     const labelWidth = display.length * 4.8 + 10;
-                    // The active (traversed) path keeps the primary highlight so it
-                    // stays obvious; otherwise color the pill by actor when known,
-                    // falling back to the neutral pill for generic eligibilities.
-                    const rectClass = isActive
-                        ? 'fill-primary stroke-primary'
-                        : actorStyle
-                            ? actorStyle.fill
-                            : 'fill-card stroke-border';
-                    const textClass = isActive
-                        ? 'fill-primary-foreground'
-                        : actorStyle
-                            ? actorStyle.text
-                            : 'fill-muted-foreground';
+                    // Traversal is already communicated by the highlighted edge and
+                    // nodes. Keep the label's actor color stable so its meaning does
+                    // not change when the edge becomes part of the executed path.
+                    const rectClass = actorStyle?.fill ?? 'fill-card stroke-border';
+                    const textClass = actorStyle?.text ?? 'fill-muted-foreground';
 
                     return (
                         <g key={`${edge.from}-${edge.to}-${index}-label`}>
