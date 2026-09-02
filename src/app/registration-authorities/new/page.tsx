@@ -64,7 +64,6 @@ import {
   normalizeEstAuthSettings,
   parseJsonObject,
   validateEstAuthSettings,
-  withDefaultValidationCa,
 } from '@/lib/dms-form';
 
 
@@ -342,6 +341,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   });
   const inlineProfileValues = inlineProfileForm.watch();
   const inlineProfileValidity = inlineProfileValues.validity;
+  const isEnrollmentCaMissing = protocol === 'EST' && !enrollmentCa;
   const hasCmpProtectionCertificate = Boolean(cmpProtectionCertificate || cmpProtectionCertificateId);
   const isCmpProtectionCertificateMissing = protocol === 'CMP' && !hasCmpProtectionCertificate;
 
@@ -619,15 +619,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       return;
     }
 
-    const effectiveEnrollmentAuthSettings = enrollmentCa
-      ? withDefaultValidationCa(enrollmentAuthSettings, enrollmentCa.id)
-      : enrollmentAuthSettings;
-    const effectiveReenrollmentAuthSettings = enrollmentCa
-      ? withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id)
-      : reenrollmentAuthSettings;
-    const effectiveCmpAuthSettings = enrollmentCa
-      ? withDefaultValidationCa(cmpAuthSettings, enrollmentCa.id)
-      : cmpAuthSettings;
+    const effectiveEnrollmentAuthSettings = enrollmentAuthSettings;
+    const effectiveReenrollmentAuthSettings = reenrollmentAuthSettings;
+    const effectiveCmpAuthSettings = cmpAuthSettings;
     const enrollmentAuthError = protocol === 'CMP'
       ? validateEstAuthSettings('CMP enrollment authentication', effectiveCmpAuthSettings, true)
       : validateEstAuthSettings('Enrollment authentication', effectiveEnrollmentAuthSettings, true);
@@ -899,26 +893,21 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       errors.push(`Device Metadata: ${error instanceof Error ? error.message : 'Metadata must be valid JSON.'}`);
     }
 
-    if (protocol === 'CMP' || enrollmentCa) {
-      const activeAuthSettings = protocol === 'CMP' ? cmpAuthSettings : enrollmentAuthSettings;
-      const effectiveEnrollmentAuthSettings = enrollmentCa
-        ? withDefaultValidationCa(activeAuthSettings, enrollmentCa.id)
-        : activeAuthSettings;
-      const enrollmentAuthError = validateEstAuthSettings(
-        protocol === 'CMP' ? 'CMP enrollment authentication' : 'Enrollment authentication',
-        effectiveEnrollmentAuthSettings,
+    const activeAuthSettings = protocol === 'CMP' ? cmpAuthSettings : enrollmentAuthSettings;
+    const enrollmentAuthError = validateEstAuthSettings(
+      protocol === 'CMP' ? 'CMP enrollment authentication' : 'Enrollment authentication',
+      activeAuthSettings,
+      true,
+    );
+    if (enrollmentAuthError) errors.push(enrollmentAuthError);
+
+    if (protocol === 'EST') {
+      const reenrollmentAuthError = validateEstAuthSettings(
+        'Re-enrollment authentication',
+        reenrollmentAuthSettings,
         true,
       );
-      if (enrollmentAuthError) errors.push(enrollmentAuthError);
-
-      if (protocol === 'EST' && enrollmentCa) {
-        const reenrollmentAuthError = validateEstAuthSettings(
-          'Re-enrollment authentication',
-          withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id),
-          true,
-        );
-        if (reenrollmentAuthError) errors.push(reenrollmentAuthError);
-      }
+      if (reenrollmentAuthError) errors.push(reenrollmentAuthError);
     }
 
     if (issuanceProfileMode === 'inline') {
@@ -1031,13 +1020,21 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         type="button"
         onClick={() => setIsEnrollmentCaModalOpen(true)}
         disabled={isLoadingDependencies}
-        className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+        aria-invalid={isEnrollmentCaMissing}
+        aria-describedby={isEnrollmentCaMissing ? 'enrollment-ca-required' : undefined}
+        className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 disabled:cursor-not-allowed disabled:opacity-50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
       >
         <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
           {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
         </span>
         <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
+      {isEnrollmentCaMissing && (
+        <p id="enrollment-ca-required" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span><span className="font-medium">Enrollment CA required.</span> Select one before saving.</span>
+        </p>
+      )}
       {enrollmentCa && (
         <div className="space-y-3">
           <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
@@ -1383,7 +1380,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   isLoadingCAs={isLoadingDependencies}
                   errorCAs={errorDependencies}
                   loadCAsAction={loadDependencies}
-                  fallbackValidationCa={enrollmentCa}
+                  authDetailsPresentation="plain"
                 />
               </div>
             </div>
@@ -1407,6 +1404,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   isLoadingCAs={isLoadingDependencies}
                   errorCAs={errorDependencies}
                   loadCAsAction={loadDependencies}
+                  authDetailsPresentation="plain"
                 />
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5 flex-1">
@@ -1551,7 +1549,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 isLoadingCAs={isLoadingDependencies}
                 errorCAs={errorDependencies}
                 loadCAsAction={loadDependencies}
-                fallbackValidationCa={enrollmentCa}
                 authDetailsPresentation="plain"
               />
               <div className="space-y-1.5">
