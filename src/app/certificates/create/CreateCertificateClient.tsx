@@ -612,6 +612,7 @@ export default function CreateCertificateClient() {
                 loadCAsAction={loadPageData}
                 onCaSelected={(ca) => { setSelectedCa(ca); setIsCaSelectorOpen(false); }}
                 allCryptoEngines={allCryptoEngines}
+                useSheet
             />
         </div>
     );

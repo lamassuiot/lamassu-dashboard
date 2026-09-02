@@ -55,7 +55,7 @@ import {
   type SigningProfileFormValues,
 } from '@/components/shared/SigningProfileForm';
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
-import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
+import { buildRenewalTimeline, RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
 import { CmpPlannedOperationTabs, CmpGenmPlannedCapabilities } from '@/components/ra/CmpPlannedOperationTabs';
 import {
   buildInlineIssuanceProfile,
@@ -151,8 +151,6 @@ const inlineProfileDefaultValues: SigningProfileFormValues = {
 function createDefaultCmpIr(): CmpIrSettings {
   return {
     enabled: true,
-    registration_mode: 'inherit',
-    existing_device_policy: 'reject',
     identity_source: 'subject_or_san',
     proof_of_possession: { required: true, allowed_methods: ['signature', 'trusted_ra'] },
     registration_token: { mode: 'disabled' },
@@ -176,8 +174,6 @@ function createDefaultCmpCr(): CmpCrSettings {
 function createDefaultCmpP10cr(): CmpP10crSettings {
   return {
     enabled: false,
-    registration_mode: 'inherit',
-    existing_device_policy: 'reject',
     allowed_profile_ids: [],
     policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
   };
@@ -344,7 +340,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     resolver: zodResolver(signingProfileSchema),
     defaultValues: inlineProfileDefaultValues,
   });
-  const inlineProfileValidity = inlineProfileForm.watch('validity');
+  const inlineProfileValues = inlineProfileForm.watch();
+  const inlineProfileValidity = inlineProfileValues.validity;
+  const hasCmpProtectionCertificate = Boolean(cmpProtectionCertificate || cmpProtectionCertificateId);
+  const isCmpProtectionCertificateMissing = protocol === 'CMP' && !hasCmpProtectionCertificate;
 
   // MOVED HOOKS TO TOP LEVEL
   const selectedProfileForDisplay = useMemo(() => {
@@ -595,8 +594,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         sileo.error({ title: "Validation Error", description: "RA Name and RA ID are required." });
         return;
     }
-    if (!enrollmentCa) {
+    if (protocol === 'EST' && !enrollmentCa) {
         sileo.error({ title: "Validation Error", description: "An Enrollment CA must be selected." });
+        return;
+    }
+    if (isCmpProtectionCertificateMissing) {
+        setActiveCmpTab('general');
+        sileo.error({ title: "Validation Error", description: "A Protection Certificate must be selected for CMP." });
         return;
     }
     if (issuanceProfileMode === 'existing' && !issuanceProfileId) {
@@ -615,9 +619,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       return;
     }
 
-    const effectiveEnrollmentAuthSettings = withDefaultValidationCa(enrollmentAuthSettings, enrollmentCa.id);
-    const effectiveReenrollmentAuthSettings = withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id);
-    const effectiveCmpAuthSettings = withDefaultValidationCa(cmpAuthSettings, enrollmentCa.id);
+    const effectiveEnrollmentAuthSettings = enrollmentCa
+      ? withDefaultValidationCa(enrollmentAuthSettings, enrollmentCa.id)
+      : enrollmentAuthSettings;
+    const effectiveReenrollmentAuthSettings = enrollmentCa
+      ? withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id)
+      : reenrollmentAuthSettings;
+    const effectiveCmpAuthSettings = enrollmentCa
+      ? withDefaultValidationCa(cmpAuthSettings, enrollmentCa.id)
+      : cmpAuthSettings;
     const enrollmentAuthError = protocol === 'CMP'
       ? validateEstAuthSettings('CMP enrollment authentication', effectiveCmpAuthSettings, true)
       : validateEstAuthSettings('Enrollment authentication', effectiveEnrollmentAuthSettings, true);
@@ -644,7 +654,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     }
     const commonEnrollmentFields = {
       registration_mode: registrationMode,
-      enrollment_ca: enrollmentCa.id,
+      enrollment_ca: enrollmentCa?.id || '',
       enable_replaceable_enrollment: allowOverrideEnrollment,
       verify_csr_signature: verifyCsrSignature,
       device_provisioning_profile: {
@@ -860,6 +870,142 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const activeEnrollmentAuthSettings = protocol === 'CMP' ? cmpAuthSettings : enrollmentAuthSettings;
   const enrollmentValidationCaCount = activeEnrollmentAuthSettings.client_certificate_settings?.validation_cas.length || 0;
+  const validationSummary = useMemo(() => {
+    if (isEditMode && (!raData || isLoadingDependencies)) {
+      return { errors: [], warnings: [] };
+    }
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!raName.trim()) errors.push('General settings: RA Name is required.');
+    if (!isEditMode && !raId.trim()) errors.push('General settings: RA ID is required.');
+    if (!enrollmentCa) {
+      if (protocol === 'CMP') {
+        warnings.push('Enrollment: select an Enrollment CA (optional for CMP).');
+      } else {
+        errors.push('Enrollment: select an Enrollment CA.');
+      }
+    }
+    if (isCmpProtectionCertificateMissing) errors.push('CMP General: Protection Certificate is required.');
+    if (issuanceProfileMode === 'existing' && !issuanceProfileId) {
+      errors.push('Enrollment: select an existing issuance profile.');
+    }
+    if (errorDependencies) errors.push(`Dependencies: ${errorDependencies}`);
+
+    try {
+      parseJsonObject(deviceMetadataJson);
+    } catch (error) {
+      errors.push(`Device Metadata: ${error instanceof Error ? error.message : 'Metadata must be valid JSON.'}`);
+    }
+
+    if (protocol === 'CMP' || enrollmentCa) {
+      const activeAuthSettings = protocol === 'CMP' ? cmpAuthSettings : enrollmentAuthSettings;
+      const effectiveEnrollmentAuthSettings = enrollmentCa
+        ? withDefaultValidationCa(activeAuthSettings, enrollmentCa.id)
+        : activeAuthSettings;
+      const enrollmentAuthError = validateEstAuthSettings(
+        protocol === 'CMP' ? 'CMP enrollment authentication' : 'Enrollment authentication',
+        effectiveEnrollmentAuthSettings,
+        true,
+      );
+      if (enrollmentAuthError) errors.push(enrollmentAuthError);
+
+      if (protocol === 'EST' && enrollmentCa) {
+        const reenrollmentAuthError = validateEstAuthSettings(
+          'Re-enrollment authentication',
+          withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id),
+          true,
+        );
+        if (reenrollmentAuthError) errors.push(reenrollmentAuthError);
+      }
+    }
+
+    if (issuanceProfileMode === 'inline') {
+      const inlineProfileResult = signingProfileSchema.safeParse(inlineProfileValues);
+      if (!inlineProfileResult.success) {
+        inlineProfileResult.error.issues.forEach((issue) => {
+          const field = issue.path.length ? ` (${issue.path.join('.')})` : '';
+          errors.push(`Inline issuance profile${field}: ${issue.message}`);
+        });
+      }
+    }
+
+    const renewalDurations = [
+      ['Re-enrollment Window', allowedRenewalDelta],
+      ['Preventive Renewal Delta', preventiveRenewalDelta],
+      ['Critical Renewal Delta', criticalRenewalDelta],
+    ] as const;
+    renewalDurations.forEach(([label, value]) => {
+      if (!isValidPositiveDuration(value)) errors.push(`Renewal settings: ${label} must be a valid duration greater than zero.`);
+    });
+
+    if (protocol === 'CMP') {
+      if (cmpConfirmationMode === 'EXPLICIT' && !isValidPositiveDuration(cmpConfirmationTimeout)) {
+        errors.push('CMP General: Confirmation Timeout must be a valid duration greater than zero.');
+      }
+      if (cmpWorkflow === 'phased' && cmpApprovalTimeout && !isValidPositiveDuration(cmpApprovalTimeout)) {
+        errors.push('CMP General: Approval Timeout must be a valid duration greater than zero.');
+      }
+      if (cmpCcr.enabled && !isValidPositiveDuration(cmpCcr.maximum_validity)) {
+        errors.push('CMP Cross-Certification: Maximum Validity must be a valid duration greater than zero.');
+      }
+      if (cmpCcr.enabled && cmpCcr.requester_mode === 'restricted' && ccrTrustedRequesterCAs.length === 0) {
+        warnings.push('CMP Cross-Certification: the requester allow-list is empty, so every request will be rejected.');
+      }
+    }
+
+    if (enrollmentCa && issuanceProfileMode === 'default' && !enrollmentCaDefaultProfile) {
+      warnings.push('Enrollment: the selected Enrollment CA does not have a default issuance profile.');
+    }
+
+    if (
+      effectiveIssuanceProfile?.validity.type === 'Duration'
+      && renewalDurations.every(([, value]) => isValidPositiveDuration(value))
+    ) {
+      const renewalTimeline = buildRenewalTimeline(
+        effectiveIssuanceProfile.validity.value,
+        allowedRenewalDelta,
+        preventiveRenewalDelta,
+        criticalRenewalDelta,
+      );
+      if (renewalTimeline.status === 'invalid') errors.push(`Renewal settings: ${renewalTimeline.message}`);
+      if (renewalTimeline.status === 'ready' && renewalTimeline.warning) warnings.push(`Renewal settings: ${renewalTimeline.warning}`);
+    }
+
+    return {
+      errors: Array.from(new Set(errors)),
+      warnings: Array.from(new Set(warnings)),
+    };
+  }, [
+    allowedRenewalDelta,
+    ccrTrustedRequesterCAs.length,
+    cmpApprovalTimeout,
+    cmpAuthSettings,
+    cmpCcr,
+    cmpConfirmationMode,
+    cmpConfirmationTimeout,
+    cmpWorkflow,
+    criticalRenewalDelta,
+    deviceMetadataJson,
+    effectiveIssuanceProfile,
+    enrollmentAuthSettings,
+    enrollmentCa,
+    enrollmentCaDefaultProfile,
+    errorDependencies,
+    inlineProfileValues,
+    isCmpProtectionCertificateMissing,
+    isEditMode,
+    isLoadingDependencies,
+    issuanceProfileId,
+    issuanceProfileMode,
+    preventiveRenewalDelta,
+    protocol,
+    raData,
+    raId,
+    raName,
+    reenrollmentAuthSettings,
+  ]);
   const authModeLabels: Record<ESTAuthSettings['auth_mode'], string> = {
     CLIENT_CERTIFICATE: 'Client Certificate',
     EXTERNAL_WEBHOOK: 'External Webhook',
@@ -1060,13 +1206,40 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           <div className="space-y-4 lg:col-span-2">
             <div className="space-y-1.5">
               <Label htmlFor="raName">RA Name</Label>
-              <Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required />
-              {!raName.trim() && <p className="text-xs text-destructive">RA Name is required.</p>}
+              <Input
+                id="raName"
+                value={raName}
+                onChange={(e) => setRaName(e.target.value)}
+                placeholder="e.g., Main IoT Enrollment Service"
+                required
+                aria-invalid={!raName.trim()}
+                aria-describedby={!raName.trim() ? 'ra-name-required' : undefined}
+              />
+              {!raName.trim() && (
+                <p id="ra-name-required" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span><span className="font-medium">RA Name is required.</span> Enter one before saving.</span>
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="raId">RA ID</Label>
-              <Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} />
-              {!raId.trim() && !isEditMode && <p className="text-xs text-destructive">RA ID is required.</p>}
+              <Input
+                id="raId"
+                value={raId}
+                onChange={(e) => setRaId(e.target.value)}
+                placeholder="e.g., main-iot-ra"
+                required
+                disabled={isEditMode}
+                aria-invalid={!isEditMode && !raId.trim()}
+                aria-describedby={!isEditMode && !raId.trim() ? 'ra-id-required' : undefined}
+              />
+              {!raId.trim() && !isEditMode && (
+                <p id="ra-id-required" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span><span className="font-medium">RA ID is required.</span> Enter one before saving.</span>
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1379,24 +1552,33 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 errorCAs={errorDependencies}
                 loadCAsAction={loadDependencies}
                 fallbackValidationCa={enrollmentCa}
+                authDetailsPresentation="plain"
               />
               <div className="space-y-1.5">
                 <Label htmlFor="cmpProtectionCertificateGeneral">Protection Certificate</Label>
-                <p className="text-xs text-muted-foreground">Certificate whose KMS-stored key signs CMP response messages. Leave empty to send responses unprotected.</p>
+                <p className="text-xs text-muted-foreground">Required. The certificate&apos;s KMS-backed key signs outgoing CMP response messages.</p>
                 <button
                   id="cmpProtectionCertificateGeneral"
                   type="button"
                   onClick={() => setIsCmpProtectionCertificateModalOpen(true)}
-                  className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                  aria-invalid={isCmpProtectionCertificateMissing}
+                  aria-describedby={isCmpProtectionCertificateMissing ? 'cmp-protection-certificate-warning' : undefined}
+                  className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
                 >
-                  <span className={cmpProtectionCertificate || cmpProtectionCertificateId ? "flex items-center gap-1.5 text-foreground" : "text-muted-foreground"}>
-                    {(cmpProtectionCertificate || cmpProtectionCertificateId) && <FileText className="h-4 w-4 shrink-0" />}
+                  <span className={hasCmpProtectionCertificate ? "flex items-center gap-1.5 text-foreground" : "text-muted-foreground"}>
+                    {hasCmpProtectionCertificate && <FileText className="h-4 w-4 shrink-0" />}
                     {cmpProtectionCertificate?.subject || cmpProtectionCertificateId || "Select Protection Certificate..."}
                   </span>
                   <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </button>
+                {isCmpProtectionCertificateMissing && (
+                  <p id="cmp-protection-certificate-warning" role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span><span className="font-medium">Protection Certificate required.</span> Select one before saving.</span>
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  No eligible certificate to pick from? {' '}
+                  No eligible certificate to pick from?{' '}
                   <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenIssueProtectionCertDialog} disabled={!enrollmentCa}>
                     Issue a new one signed by the Enrollment CA
                   </Button>.
@@ -1531,12 +1713,36 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         <Separator />
 
-        <div className="flex justify-end gap-2 pt-6">
-          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
-          </Button>
+        <div className="space-y-3 pt-6">
+          {validationSummary.errors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>{validationSummary.errors.length} {validationSummary.errors.length === 1 ? 'error' : 'errors'} to resolve</AlertTitle>
+              <AlertDescription>
+                <ul className="mt-1 list-disc space-y-1 pl-4">
+                  {validationSummary.errors.map((error) => <li key={error}>{error}</li>)}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+          {validationSummary.warnings.length > 0 && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>{validationSummary.warnings.length} {validationSummary.warnings.length === 1 ? 'warning' : 'warnings'} to review</AlertTitle>
+              <AlertDescription>
+                <ul className="mt-1 list-disc space-y-1 pl-4">
+                  {validationSummary.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting || validationSummary.errors.length > 0}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
+            </Button>
+          </div>
         </div>
       </form>
       <CaSelectorModal

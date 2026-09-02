@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PlusCircle, X } from 'lucide-react';
+import { AlertTriangle, PlusCircle, X } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ESTAuthSettings } from '@/lib/dms-api';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -25,6 +26,7 @@ type EstAuthSettingsEditorProps = {
   errorCAs: string | null;
   loadCAsAction: () => void;
   fallbackValidationCa?: CA | null;
+  authDetailsPresentation?: 'card' | 'plain';
 };
 
 export function EstAuthSettingsEditor({
@@ -37,6 +39,7 @@ export function EstAuthSettingsEditor({
   errorCAs,
   loadCAsAction,
   fallbackValidationCa,
+  authDetailsPresentation = 'card',
 }: EstAuthSettingsEditorProps) {
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const clientSettings = value.client_certificate_settings || {
@@ -88,6 +91,9 @@ export function EstAuthSettingsEditor({
     || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const includesWebhook = value.auth_mode === 'EXTERNAL_WEBHOOK'
     || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
+  const isValidationCaMissing = includesClientCertificate
+    && clientSettings.validation_cas.length === 0
+    && !fallbackValidationCa;
 
   return (
     <div className="space-y-4">
@@ -108,68 +114,96 @@ export function EstAuthSettingsEditor({
       </div>
 
       {includesClientCertificate ? (
-        <div className="space-y-4 rounded-md border p-4">
+        <div className={authDetailsPresentation === 'card'
+          ? 'space-y-4 rounded-md border p-4'
+          : 'grid grid-cols-1 gap-6 lg:grid-cols-3'}>
           <div>
             <p className="text-sm font-medium">Client certificate</p>
-            <p className="mt-1 text-xs text-muted-foreground">Configure certificate trust and chain validation for this EST operation.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Configure certificate trust and chain validation for this operation.</p>
           </div>
-          <div className="space-y-2">
-            <Label>Validation CAs</Label>
-            {validationCAs.length ? validationCAs.map((ca) => (
-              <div key={ca.id} className="flex items-center gap-2">
-                <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-1 shadow-none" />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remove ${ca.name}`}
-                  onClick={() => updateClientSettings({
-                    validation_cas: clientSettings.validation_cas.filter((id) => id !== ca.id),
-                  })}
+          <div className={authDetailsPresentation === 'card' ? 'space-y-4' : 'space-y-4 lg:col-span-2'}>
+            <div className="space-y-2">
+              <Label>Validation CAs</Label>
+              {validationCAs.length ? validationCAs.map((ca) => (
+                <div key={ca.id} className="flex items-center gap-2">
+                  <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-1 shadow-none" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove ${ca.name}`}
+                    onClick={() => updateClientSettings({
+                      validation_cas: clientSettings.validation_cas.filter((id) => id !== ca.id),
+                    })}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )) : fallbackValidationCa ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Using the Enrollment CA because no explicit Validation CA is configured.</p>
+                  <CaVisualizerCard ca={fallbackValidationCa} allCryptoEngines={allCryptoEngines} className="shadow-none" />
+                </div>
+              ) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
+              <Button
+                id={`${idPrefix}-validation-cas`}
+                type="button"
+                variant="outline"
+                onClick={() => setIsCaSelectorOpen(true)}
+                aria-invalid={isValidationCaMissing}
+                aria-describedby={isValidationCaMissing ? `${idPrefix}-validation-cas-required` : undefined}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
+              </Button>
+              {isValidationCaMissing ? (
+                <p
+                  id={`${idPrefix}-validation-cas-required`}
+                  role="alert"
+                  className="flex items-center gap-1.5 text-xs text-destructive"
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )) : fallbackValidationCa ? (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Using the Enrollment CA because no explicit Validation CA is configured.</p>
-                <CaVisualizerCard ca={fallbackValidationCa} allCryptoEngines={allCryptoEngines} className="shadow-none" />
-              </div>
-            ) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
-            <Button type="button" variant="outline" onClick={() => setIsCaSelectorOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
-            </Button>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label htmlFor={`${idPrefix}-allow-expired`}>Allow Expired Certificates</Label>
-              <p className="mt-1 text-xs text-muted-foreground">Accept an expired certificate during authentication.</p>
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span><span className="font-medium">Validation CA required.</span> Select at least one for client certificate authentication.</span>
+                </p>
+              ) : null}
             </div>
-            <Switch
-              id={`${idPrefix}-allow-expired`}
-              checked={clientSettings.allow_expired}
-              onCheckedChange={(checked) => updateClientSettings({ allow_expired: checked })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-chain-level`}>Chain Validation Level</Label>
-            <Input
-              id={`${idPrefix}-chain-level`}
-              type="number"
-              value={clientSettings.chain_level_validation}
-              onChange={(event) => updateClientSettings({ chain_level_validation: Number(event.target.value) })}
-            />
-            <p className="text-xs text-muted-foreground">Use -1 to validate the complete certificate chain.</p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor={`${idPrefix}-allow-expired`}>Allow Expired Certificates</Label>
+                <p className="mt-1 text-xs text-muted-foreground">Accept an expired certificate during authentication.</p>
+              </div>
+              <Switch
+                id={`${idPrefix}-allow-expired`}
+                checked={clientSettings.allow_expired}
+                onCheckedChange={(checked) => updateClientSettings({ allow_expired: checked })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-chain-level`}>Chain Validation Level</Label>
+              <Input
+                id={`${idPrefix}-chain-level`}
+                type="number"
+                value={clientSettings.chain_level_validation}
+                onChange={(event) => updateClientSettings({ chain_level_validation: Number(event.target.value) })}
+              />
+              <p className="text-xs text-muted-foreground">Use -1 to validate the complete certificate chain.</p>
+            </div>
           </div>
         </div>
       ) : null}
 
+      {includesClientCertificate && includesWebhook && authDetailsPresentation === 'plain' ? (
+        <Separator />
+      ) : null}
+
       {includesWebhook ? (
-        <div className="space-y-4 rounded-md border p-4">
+        <div className={authDetailsPresentation === 'card'
+          ? 'space-y-4 rounded-md border p-4'
+          : 'grid grid-cols-1 gap-6 lg:grid-cols-3'}>
           <div>
             <p className="text-sm font-medium">External webhook</p>
             <p className="mt-1 text-xs text-muted-foreground">Call an external authorization endpoint before issuing the certificate.</p>
           </div>
+          <div className={authDetailsPresentation === 'card' ? 'space-y-4' : 'space-y-4 lg:col-span-2'}>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-webhook-name`}>Name</Label>
@@ -354,12 +388,14 @@ export function EstAuthSettingsEditor({
               </div>
             </div>
           ) : null}
+          </div>
         </div>
       ) : null}
 
       <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}
+        useSheet
         title="Add Validation CA"
         description="Select a CA trusted for client certificate authentication."
         availableCAs={availableCAs}
