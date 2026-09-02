@@ -45,7 +45,7 @@ const PREFERRED_SYMM_ALG_OPTIONS: { value: CmpPreferredSymmetricAlgorithm; label
 // CORRECTION (post manual protocol-conformance audit, openssl cmp against a
 // live server): the "Planned" badge below was originally meant to flag fields
 // the backend saves but doesn't yet enforce. That premise turned out to be
-// wrong for most of this file — registration_mode, existing_device_policy,
+// wrong for most of this file —
 // proof_of_possession.allowed_methods/required, cr's require_existing_device/
 // certificate_behavior/maximum_active_certificates, kur's key_policy/
 // identity_change_policy, rr's authorization/allow_revival/allowed_reasons/
@@ -420,25 +420,6 @@ export function CmpPlannedOperationTabs({
         <Separator />
 
         <SettingsSection title={operationTitle('IR / IP', 'Initialization')} description="Used for the initial bootstrap of a brand-new device into the PKI.">
-          <PlannedRow label="Device registration" description="How devices are provisioned when they present an initialization request.">
-            <Select value={ir.registration_mode} onValueChange={(v: CmpIrSettings['registration_mode']) => onIrChange({ registration_mode: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inherit">Inherit DMS setting</SelectItem>
-                <SelectItem value="jitp">Just-in-time provisioning</SelectItem>
-                <SelectItem value="pre_registration">Pre-registered devices only</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          <PlannedRow label="Existing-device behavior">
-            <Select value={ir.existing_device_policy} onValueChange={(v: CmpIrSettings['existing_device_policy']) => onIrChange({ existing_device_policy: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="reject">Reject</SelectItem>
-                <SelectItem value="replace">Replace existing identity</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
           <PlannedRow label="Device identity source">
             <Select value={ir.identity_source} onValueChange={(v: CmpIrSettings['identity_source']) => onIrChange({ identity_source: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -525,25 +506,6 @@ export function CmpPlannedOperationTabs({
 
         <SettingsSection title={operationTitle('P10CR / CP', 'PKCS #10')} description="The simplest enrollment path: a plain PKCS#10 CSR wrapped in a CMP message.">
           <PlannedSwitchRow label="Enable PKCS #10 enrollment" checked={p10cr.enabled} onCheckedChange={(v) => onP10crChange({ enabled: v })} />
-          <PlannedRow label="Device registration">
-            <Select value={p10cr.registration_mode} onValueChange={(v: CmpP10crSettings['registration_mode']) => onP10crChange({ registration_mode: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inherit">Inherit DMS setting</SelectItem>
-                <SelectItem value="jitp">Just-in-time provisioning</SelectItem>
-                <SelectItem value="pre_registration">Pre-registered devices only</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          <PlannedRow label="Existing-device behavior">
-            <Select value={p10cr.existing_device_policy} onValueChange={(v: CmpP10crSettings['existing_device_policy']) => onP10crChange({ existing_device_policy: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="reject">Reject</SelectItem>
-                <SelectItem value="replace">Replace existing identity</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
           <div className="space-y-2 rounded-md border bg-muted/20 p-4">
             <p className="text-sm font-medium">Fixed behavior for PKCS #10</p>
             <ul className="space-y-1 text-xs text-muted-foreground">

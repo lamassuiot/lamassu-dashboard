@@ -54,19 +54,12 @@ export interface ApiRaCmpClientCertSettings {
 // nesting). The backend's own ResolveCMPSettings normalizes/defaults these on
 // create/update.
 //
-// A manual protocol-conformance audit (openssl cmp against a live server,
-// cross-referenced with the backend code) found that essentially every field
-// below IS enforced — see the backend file's header comment for the current,
-// accurate list of the few NAMED exceptions (CentralKeyGeneration.
-// allowed_recipient_methods, TrustedRA.validation_ca_ids, CCR.issuance_profile_id,
-// IR.identity_source, and KUR.policy_overrides.issuance_profile_id). Do not
-// trust older comments here or in CmpPlannedOperationTabs.tsx claiming a
-// narrower "live" set — they predate that audit and were wrong in several
-// places (server-side doc fixed in the same pass; the dashboard's "Planned"
-// UI badges were deliberately left untouched pending a dedicated pass, since
-// removing them is a user-visible copy change, not a bug fix).
-export type CmpOpRegistrationMode = 'inherit' | 'jitp' | 'pre_registration';
-export type CmpExistingDevicePolicy = 'reject' | 'replace';
+// Per-operation registration mode / existing-device policy overrides
+// (IR.registration_mode, IR.existing_device_policy, P10CR.registration_mode,
+// P10CR.existing_device_policy) were removed from the backend: IR and P10CR
+// now always inherit the DMS-level RegistrationMode and
+// EnableReplaceableEnrollment from CommonEnrollmentSettings, with no
+// per-operation override.
 export type CmpIdentitySource = 'subject_only' | 'subject_or_san';
 export type CmpPopoMethod = 'signature' | 'trusted_ra' | 'challenge_response' | 'encrypted_certificate';
 export type CmpCkgRecipientMethod = 'rsa_key_transport' | 'ecdh_key_agreement';
@@ -111,8 +104,6 @@ export interface CmpTrustedRa {
 }
 export interface CmpIrSettings {
     enabled: boolean;
-    registration_mode: CmpOpRegistrationMode;
-    existing_device_policy: CmpExistingDevicePolicy;
     identity_source: CmpIdentitySource;
     proof_of_possession: CmpProofOfPossession;
     registration_token: CmpControl;
@@ -132,8 +123,6 @@ export interface CmpCrSettings {
 }
 export interface CmpP10crSettings {
     enabled: boolean;
-    registration_mode: CmpOpRegistrationMode;
-    existing_device_policy: CmpExistingDevicePolicy;
     allowed_profile_ids: string[];
     policy_overrides: CmpPolicyOverrides;
 }
