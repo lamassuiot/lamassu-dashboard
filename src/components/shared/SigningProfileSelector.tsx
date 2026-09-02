@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +25,7 @@ import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { Alert } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
+import { FormFieldError, FormValidationSummary, getFormErrorMessages } from './FormValidationSummary';
 
 
 export type ProfileMode = 'reuse' | 'inline' | 'create';
@@ -60,6 +61,9 @@ interface SigningProfileSelectorProps {
 
   createModeEnabled?: boolean;
   onProfileCreated?: (newProfile: ApiSigningProfile) => void;
+  selectionError?: string;
+  validityError?: string;
+  customSubjectError?: string;
 }
 
 
@@ -89,13 +93,23 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   onCustomSubjectChange,
   createModeEnabled = true,
   onProfileCreated,
+  selectionError,
+  validityError,
+  customSubjectError,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     defaultValues: defaultFormValues,
+    mode: 'onChange',
   });
+
+  useEffect(() => {
+    if (profileMode === 'create' && createModeEnabled) void form.trigger();
+  }, [createModeEnabled, form, profileMode]);
+
+  const profileCreationErrors = getFormErrorMessages(form.formState.errors);
 
   async function handleProfileCreationSubmit(data: SigningProfileFormValues, event?: React.BaseSyntheticEvent) {
     // Prevent default form submission behavior
@@ -179,10 +193,11 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
            <Form {...form}>
               <div className="space-y-4">
                 <SigningProfileForm form={form} />
+                <FormValidationSummary errors={profileCreationErrors} />
                 <div className="flex justify-end">
                     <Button 
                       type="button" 
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !form.formState.isValid}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -221,11 +236,19 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
             <Label htmlFor="profile-select">Issuance Profile</Label>
             {isLoadingProfiles ? ( <Skeleton className="h-10 w-full md:w-1/2" /> ) : (
               <Select value={selectedProfileId || ''} onValueChange={(v) => onProfileIdChange(v)}>
-                <SelectTrigger id="profile-select" className="w-full md:w-1/2"><SelectValue placeholder="Select a profile..." /></SelectTrigger>
+                <SelectTrigger
+                  id="profile-select"
+                  className="w-full md:w-1/2"
+                  aria-invalid={!!selectionError}
+                  aria-describedby={selectionError ? 'issuance-profile-selection-error' : undefined}
+                ><SelectValue placeholder="Select a profile..." /></SelectTrigger>
                 <SelectContent>
                   {availableProfiles.length > 0 ? ( availableProfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>) ) : ( <SelectItem value="none" disabled>No profiles available</SelectItem> )}
                 </SelectContent>
               </Select>
+            )}
+            {selectionError && (
+              <FormFieldError id="issuance-profile-selection-error" title="Issuance Profile required." description={selectionError} />
             )}
           </div>
           {selectedProfile && (
@@ -241,6 +264,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
                     label="Certificate Validity"
                     value={validity}
                     onValueChange={onValidityChange}
+                    error={validityError}
                 />
                 {validityWarning && <Alert variant="warning"><AlertTriangle className="h-4 w-4"/><p className="text-sm text-muted-foreground">{validityWarning}</p></Alert>}
                 
@@ -274,7 +298,10 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
                               value={customSubjectCN || ''}
                               onChange={(e) => onCustomSubjectChange('CN', e.target.value)}
                               placeholder="e.g., example.com"
+                              aria-invalid={!!customSubjectError}
+                              aria-describedby={customSubjectError ? 'custom-subject-cn-error' : undefined}
                             />
+                            {customSubjectError && <FormFieldError id="custom-subject-cn-error" title={customSubjectError} />}
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="space-y-1">

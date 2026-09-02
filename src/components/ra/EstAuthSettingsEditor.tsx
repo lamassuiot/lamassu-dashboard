@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 type EstAuthSettingsEditorProps = {
   idPrefix: string;
@@ -24,7 +25,8 @@ type EstAuthSettingsEditorProps = {
   isLoadingCAs: boolean;
   errorCAs: string | null;
   loadCAsAction: () => void;
-  fallbackValidationCa?: CA | null;
+  validationErrors?: readonly string[];
+  timeoutError?: string | null;
 };
 
 export function EstAuthSettingsEditor({
@@ -36,7 +38,8 @@ export function EstAuthSettingsEditor({
   isLoadingCAs,
   errorCAs,
   loadCAsAction,
-  fallbackValidationCa,
+  validationErrors = [],
+  timeoutError,
 }: EstAuthSettingsEditorProps) {
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const clientSettings = value.client_certificate_settings || {
@@ -88,6 +91,30 @@ export function EstAuthSettingsEditor({
     || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const includesWebhook = value.auth_mode === 'EXTERNAL_WEBHOOK'
     || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
+  const validationCaError = validationErrors.find((error) => error.includes('validation CA')) || null;
+  const webhookNameError = includesWebhook && !webhook.name.trim() ? 'Webhook name is required.' : null;
+  const webhookUrlError = includesWebhook && !webhook.url.trim() ? 'Webhook URL is required.' : null;
+  const apiKeyError = includesWebhook && webhookConfig.auth_mode === 'apikey' && !webhookConfig.apikey?.key
+    ? 'Webhook API key is required.'
+    : null;
+  const apiKeyHeaderError = includesWebhook && webhookConfig.auth_mode === 'apikey' && !webhookConfig.apikey?.header
+    ? 'Webhook API key header is required.'
+    : null;
+  const oidcClientIdError = includesWebhook && webhookConfig.auth_mode === 'jwt' && !webhookConfig.oidc?.client_id
+    ? 'OIDC client ID is required.'
+    : null;
+  const oidcClientSecretError = includesWebhook && webhookConfig.auth_mode === 'jwt' && !webhookConfig.oidc?.client_secret
+    ? 'OIDC client secret is required.'
+    : null;
+  const oidcWellKnownError = includesWebhook && webhookConfig.auth_mode === 'jwt' && !webhookConfig.oidc?.well_known
+    ? 'OIDC well-known URL is required.'
+    : null;
+  const mtlsCertError = includesWebhook && webhookConfig.auth_mode === 'mtls' && !webhookConfig.mtls?.cert
+    ? 'mTLS client certificate is required.'
+    : null;
+  const mtlsKeyError = includesWebhook && webhookConfig.auth_mode === 'mtls' && !webhookConfig.mtls?.key
+    ? 'mTLS client private key is required.'
+    : null;
 
   return (
     <div className="space-y-4">
@@ -130,15 +157,11 @@ export function EstAuthSettingsEditor({
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            )) : fallbackValidationCa ? (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Using the Enrollment CA because no explicit Validation CA is configured.</p>
-                <CaVisualizerCard ca={fallbackValidationCa} allCryptoEngines={allCryptoEngines} className="shadow-none" />
-              </div>
-            ) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
-            <Button type="button" variant="outline" onClick={() => setIsCaSelectorOpen(true)}>
+            )) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
+            <Button type="button" variant="outline" onClick={() => setIsCaSelectorOpen(true)} aria-invalid={!!validationCaError} aria-describedby={validationCaError ? `${idPrefix}-validation-ca-error` : undefined}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
             </Button>
+            {validationCaError && <FormFieldError id={`${idPrefix}-validation-ca-error`} title="Validation CA required." description="Select at least one for client certificate authentication." />}
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -178,7 +201,10 @@ export function EstAuthSettingsEditor({
                 value={webhook.name}
                 onChange={(event) => updateWebhook({ name: event.target.value })}
                 placeholder="Device authorization"
+                aria-invalid={!!webhookNameError}
+                aria-describedby={webhookNameError ? `${idPrefix}-webhook-name-error` : undefined}
               />
+              {webhookNameError && <FormFieldError id={`${idPrefix}-webhook-name-error`} title={webhookNameError} />}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-webhook-url`}>URL</Label>
@@ -188,7 +214,10 @@ export function EstAuthSettingsEditor({
                 value={webhook.url}
                 onChange={(event) => updateWebhook({ url: event.target.value })}
                 placeholder="https://example.com/authorize"
+                aria-invalid={!!webhookUrlError}
+                aria-describedby={webhookUrlError ? `${idPrefix}-webhook-url-error` : undefined}
               />
+              {webhookUrlError && <FormFieldError id={`${idPrefix}-webhook-url-error`} title={webhookUrlError} />}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-webhook-method`}>HTTP Method</Label>
@@ -220,6 +249,7 @@ export function EstAuthSettingsEditor({
             onChange={(callTimeout) => updateWebhookConfig({ call_timeout: callTimeout })}
             placeholder="e.g., 10s"
             description="Maximum time to wait for the webhook response."
+            error={timeoutError || undefined}
           />
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -259,7 +289,10 @@ export function EstAuthSettingsEditor({
                   onChange={(event) => updateWebhookConfig({
                     apikey: { key: event.target.value, header: webhookConfig.apikey?.header || 'X-API-Key' },
                   })}
+                  aria-invalid={!!apiKeyError}
+                  aria-describedby={apiKeyError ? `${idPrefix}-api-key-error` : undefined}
                 />
+                {apiKeyError && <FormFieldError id={`${idPrefix}-api-key-error`} title={apiKeyError} />}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${idPrefix}-api-key-header`}>Header Name</Label>
@@ -269,7 +302,10 @@ export function EstAuthSettingsEditor({
                   onChange={(event) => updateWebhookConfig({
                     apikey: { key: webhookConfig.apikey?.key || '', header: event.target.value },
                   })}
+                  aria-invalid={!!apiKeyHeaderError}
+                  aria-describedby={apiKeyHeaderError ? `${idPrefix}-api-key-header-error` : undefined}
                 />
+                {apiKeyHeaderError && <FormFieldError id={`${idPrefix}-api-key-header-error`} title={apiKeyHeaderError} />}
               </div>
             </div>
           ) : null}
@@ -289,7 +325,10 @@ export function EstAuthSettingsEditor({
                         well_known: webhookConfig.oidc?.well_known || '',
                       },
                     })}
+                    aria-invalid={!!oidcClientIdError}
+                    aria-describedby={oidcClientIdError ? `${idPrefix}-oidc-client-id-error` : undefined}
                   />
+                  {oidcClientIdError && <FormFieldError id={`${idPrefix}-oidc-client-id-error`} title={oidcClientIdError} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${idPrefix}-oidc-client-secret`}>Client Secret</Label>
@@ -304,7 +343,10 @@ export function EstAuthSettingsEditor({
                         well_known: webhookConfig.oidc?.well_known || '',
                       },
                     })}
+                    aria-invalid={!!oidcClientSecretError}
+                    aria-describedby={oidcClientSecretError ? `${idPrefix}-oidc-client-secret-error` : undefined}
                   />
+                  {oidcClientSecretError && <FormFieldError id={`${idPrefix}-oidc-client-secret-error`} title={oidcClientSecretError} />}
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -321,7 +363,10 @@ export function EstAuthSettingsEditor({
                     },
                   })}
                   placeholder="https://issuer.example.com/.well-known/openid-configuration"
+                  aria-invalid={!!oidcWellKnownError}
+                  aria-describedby={oidcWellKnownError ? `${idPrefix}-oidc-well-known-error` : undefined}
                 />
+                {oidcWellKnownError && <FormFieldError id={`${idPrefix}-oidc-well-known-error`} title={oidcWellKnownError} />}
               </div>
             </div>
           ) : null}
@@ -338,7 +383,10 @@ export function EstAuthSettingsEditor({
                   })}
                   placeholder="PEM certificate or backend-accessible path"
                   className="min-h-32 font-mono text-xs"
+                  aria-invalid={!!mtlsCertError}
+                  aria-describedby={mtlsCertError ? `${idPrefix}-mtls-cert-error` : undefined}
                 />
+                {mtlsCertError && <FormFieldError id={`${idPrefix}-mtls-cert-error`} title={mtlsCertError} />}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${idPrefix}-mtls-key`}>Client Private Key</Label>
@@ -350,7 +398,10 @@ export function EstAuthSettingsEditor({
                   })}
                   placeholder="PEM private key or backend-accessible path"
                   className="min-h-32 font-mono text-xs"
+                  aria-invalid={!!mtlsKeyError}
+                  aria-describedby={mtlsKeyError ? `${idPrefix}-mtls-key-error` : undefined}
                 />
+                {mtlsKeyError && <FormFieldError id={`${idPrefix}-mtls-key-error`} title={mtlsKeyError} />}
               </div>
             </div>
           ) : null}

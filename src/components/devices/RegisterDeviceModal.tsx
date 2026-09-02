@@ -14,6 +14,7 @@ import { DmsSelector } from '@/components/shared/DmsSelector';
 import { Separator } from '../ui/separator';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { registerDevice } from '@/lib/devices-api';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface RegisterDeviceModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   const [isLoadingRa, setIsLoadingRa] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isIconModalOpen, setIsIconModalOpen] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   // Generate new UUID when modal opens and reset all state
   useEffect(() => {
@@ -53,6 +55,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
       setIconName('Cpu');
       setIconColor('#888888');
       setIconBgColor('#e0e0e0');
+      setSubmissionError(null);
     }
   }, [isOpen]);
 
@@ -99,16 +102,19 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
 
   const handleDmsChange = (value: string | null) => {
     setSelectedRaId(value);
+    setSubmissionError(null);
   };
 
+  const deviceIdError = !deviceId.trim() ? 'Device ID is required.' : null;
+  const registrationAuthorityError = !selectedRaId || !selectedRa
+    ? 'Registration Authority is required.'
+    : null;
+  const validationErrors = [deviceIdError, registrationAuthorityError]
+    .filter((message): message is string => Boolean(message));
+
   const handleRegister = async () => {
-    if (!deviceId.trim() || !selectedRa) {
-      sileo.error({
-        title: "Validation Error",
-        description: "Please provide a Device ID and select a Registration Authority."
-      });
-      return;
-    }
+    if (validationErrors.length > 0 || !selectedRa) return;
+    setSubmissionError(null);
     setIsSubmitting(true);
     try {
       const payload = {
@@ -130,6 +136,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
       onOpenChange(false);
 
     } catch (err: any) {
+      setSubmissionError(err.message || 'Device registration failed.');
       sileo.error({
         title: "Registration Failed",
         description: err.message
@@ -168,10 +175,16 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
               <Input
                 id="deviceId"
                 value={deviceId}
-                onChange={(e) => setDeviceId(e.target.value)}
+                onChange={(e) => {
+                  setDeviceId(e.target.value);
+                  setSubmissionError(null);
+                }}
                 placeholder="Enter a unique device ID"
                 disabled={isSubmitting}
+                aria-invalid={!!deviceIdError}
+                aria-describedby={deviceIdError ? 'register-device-id-error' : undefined}
               />
+              {deviceIdError && <FormFieldError id="register-device-id-error" title={deviceIdError} />}
             </div>
             <div className="space-y-2">
               <Label htmlFor="ra-select">Registration Authority</Label>
@@ -182,7 +195,10 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
                 showAllOption={false}
                 placeholder="Select a Registration Authority..."
                 loadOnMount={isOpen}
+                aria-invalid={!!registrationAuthorityError}
+                aria-describedby={registrationAuthorityError ? 'register-device-ra-error' : undefined}
               />
+              {registrationAuthorityError && <FormFieldError id="register-device-ra-error" title={registrationAuthorityError} />}
               {isLoadingRa && (
                 <p className="text-xs text-muted-foreground">Loading RA details...</p>
               )}
@@ -219,11 +235,12 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
             )}
           </div>
 
+          <FormValidationSummary errors={[...validationErrors, ...(submissionError ? [`Registration: ${submissionError}`] : [])]} />
           <DialogFooter>
             <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleRegister} disabled={isSubmitting || isLoadingRa || !deviceId || !selectedRa}>
+            <Button onClick={handleRegister} disabled={isSubmitting || isLoadingRa || validationErrors.length > 0}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Register Device
             </Button>

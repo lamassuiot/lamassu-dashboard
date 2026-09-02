@@ -13,8 +13,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { sileo } from '@/lib/toast';
 import { AlertTriangle } from 'lucide-react';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface AwsRemediationPolicyModalProps {
   isOpen: boolean;
@@ -37,14 +37,12 @@ export const AwsRemediationPolicyModal: React.FC<AwsRemediationPolicyModalProps>
     }
   }, [isOpen, defaultAccountId]);
 
+  const accountIdError = !accountId.trim()
+    ? 'AWS Account ID required. Enter the account that will own the remediation policy.'
+    : null;
+
   const handleConfirmClick = () => {
-    if (!accountId.trim()) {
-      sileo.error({
-        title: 'Account ID Required',
-        description: 'Please enter a valid AWS Account ID.'
-      });
-      return;
-    }
+    if (accountIdError) return;
     onConfirm(accountId.trim());
     onOpenChange(false);
   };
@@ -61,20 +59,30 @@ export const AwsRemediationPolicyModal: React.FC<AwsRemediationPolicyModalProps>
             Enter the AWS Account ID to generate the required permissions policy for device shadow management.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4">
+        <div className="space-y-1.5 py-4">
           <Label htmlFor="aws-account-id">AWS Account ID</Label>
           <Input
             id="aws-account-id"
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
             placeholder="e.g., 123456789012"
+            aria-invalid={!!accountIdError}
+            aria-describedby={accountIdError ? 'aws-account-id-error' : undefined}
           />
+          {accountIdError && (
+            <FormFieldError
+              id="aws-account-id-error"
+              title="AWS Account ID required."
+              description="Enter the account that will own the remediation policy."
+            />
+          )}
         </div>
+        <FormValidationSummary errors={accountIdError ? [accountIdError] : []} />
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={handleConfirmClick}>
+          <Button type="button" onClick={handleConfirmClick} disabled={!!accountIdError}>
             Generate & Add Policy
           </Button>
         </DialogFooter>

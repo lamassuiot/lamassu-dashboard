@@ -15,6 +15,7 @@ import { sileo } from '@/lib/toast';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey } from '@/lib/kms-data';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const creationModes = [
   {
@@ -57,6 +58,16 @@ export default function CreateKmsKeyPage() {
   const [publicKeyPem, setPublicKeyPem] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const validationErrors = selectedMode === 'newKeyPair'
+    ? [
+        ...(!keyName.trim() ? ['Key Name / Alias is required.'] : []),
+        ...(!cryptoEngineId ? ['Crypto Engine is required.'] : []),
+      ]
+    : selectedMode === 'importKeyPair'
+      ? (!privateKeyPem.trim() ? ['Private Key is required.'] : [])
+      : selectedMode === 'importPublicKey' && !publicKeyPem.trim()
+        ? ['Public Key is required.']
+        : [];
 
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
@@ -92,6 +103,8 @@ export default function CreateKmsKeyPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (validationErrors.length > 0) return;
 
     setIsSubmitting(true);
 
@@ -248,7 +261,10 @@ export default function CreateKmsKeyPage() {
                       placeholder="e.g., my-secure-rsa-key"
                       required
                       className="mt-1"
+                      aria-invalid={!keyName.trim()}
+                      aria-describedby={!keyName.trim() ? 'legacy-kms-name-error' : undefined}
                     />
+                    {!keyName.trim() && <FormFieldError id="legacy-kms-name-error" title="Key Name / Alias required." description="Enter one before creating the key." className="mt-1" />}
                   </div>
                   <div>
                     <Label htmlFor="cryptoEngine">Crypto Engine</Label>
@@ -257,7 +273,10 @@ export default function CreateKmsKeyPage() {
                       onValueChange={setCryptoEngineId}
                       disabled={isSubmitting}
                       className="mt-1"
+                      aria-invalid={!cryptoEngineId}
+                      aria-describedby={!cryptoEngineId ? 'legacy-kms-engine-error' : undefined}
                     />
+                    {!cryptoEngineId && <FormFieldError id="legacy-kms-engine-error" title="Crypto Engine required." description="Select one before creating the key." className="mt-1" />}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -297,8 +316,10 @@ export default function CreateKmsKeyPage() {
                       rows={6}
                       required
                       className="mt-1 font-mono"
+                      aria-invalid={!privateKeyPem.trim()}
+                      aria-describedby={!privateKeyPem.trim() ? 'legacy-kms-private-key-error' : undefined}
                     />
-                    {!privateKeyPem.trim() && <p className="text-xs text-destructive mt-1">Private Key (PEM) is required.</p>}
+                    {!privateKeyPem.trim() && <FormFieldError id="legacy-kms-private-key-error" title="Private Key required." description="Paste the PEM value before importing." className="mt-1" />}
                   </div>
                   <div>
                     <Label htmlFor="publicKeyPemForImport">Public Key (PEM format) - Optional</Label>
@@ -341,15 +362,18 @@ export default function CreateKmsKeyPage() {
                       rows={6}
                       required
                       className="mt-1 font-mono"
+                      aria-invalid={!publicKeyPem.trim()}
+                      aria-describedby={!publicKeyPem.trim() ? 'legacy-kms-public-key-error' : undefined}
                     />
-                    {!publicKeyPem.trim() && <p className="text-xs text-destructive mt-1">Public Key (PEM) is required.</p>}
+                    {!publicKeyPem.trim() && <FormFieldError id="legacy-kms-public-key-error" title="Public Key required." description="Paste the PEM value before importing." className="mt-1" />}
                   </div>
                 </div>
               </section>
             )}
 
+            <FormValidationSummary errors={validationErrors} />
             <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
                 {selectedMode === 'newKeyPair' ? 'Create Key Pair' : 
                  selectedMode === 'importKeyPair' ? 'Import Key Pair' :

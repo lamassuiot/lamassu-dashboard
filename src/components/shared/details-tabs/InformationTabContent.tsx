@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { Users, AlertCircle, Pencil, X, Check, ChevronRight, ExternalLink } from "lucide-react";
+import { Users, AlertCircle, Pencil, Check, ChevronRight, ExternalLink } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';

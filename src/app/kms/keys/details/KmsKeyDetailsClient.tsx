@@ -7,10 +7,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Link as LinkIcon, Copy, Check, Settings, Lock, Edit, Delete } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, PlusCircle, Copy, Check, Settings, Lock, Edit, Delete } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
@@ -34,12 +33,12 @@ import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
-import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface KmsKeyDetailed {
   id: string;
@@ -90,7 +89,6 @@ const getCertSubjectCommonName = (subject: string): string => {
 const signatureAlgorithms = [...SIGNATURE_ALGORITHMS];
 
 export default function KmsKeyDetailsClient() {
-  const monacoTheme = useMonacoTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
   const keyId = searchParams.get('keyId');
@@ -135,6 +133,36 @@ export default function KmsKeyDetailsClient() {
   const [csrSans, setCsrSans] = useState<CsrSan[]>([]);
   const [csrCurrentSanType, setCsrCurrentSanType] = useState<CsrSan['type']>('DNS');
   const [csrCurrentSanValue, setCsrCurrentSanValue] = useState('');
+
+  const signPayloadError = !payloadToSign.trim()
+    ? 'Payload to Sign required. Enter the data that will be signed.'
+    : null;
+  const signValidationErrors = [
+    signPayloadError,
+    ...(!keyId ? ['Signing Key: Key ID is unavailable.'] : []),
+  ].filter((value): value is string => !!value);
+  const verifyPayloadError = !unsignedPayload.trim()
+    ? 'Unsigned Payload required. Enter the original data.'
+    : null;
+  const verifySignatureError = !signatureToVerify.trim()
+    ? 'Signature required. Enter the Base64 signature to verify.'
+    : null;
+  const verifyValidationErrors = [
+    verifyPayloadError,
+    verifySignatureError,
+    ...(!keyId ? ['Verification Key: Key ID is unavailable.'] : []),
+  ].filter((value): value is string => !!value);
+  const csrCommonNameError = !csrCommonName.trim()
+    ? 'Common Name required. Enter the CSR subject CN.'
+    : null;
+  const csrAlgorithmError = !csrSignAlgorithm
+    ? 'Signature Algorithm required. Select an algorithm for the CSR.'
+    : null;
+  const csrValidationErrors = [
+    csrCommonNameError,
+    csrAlgorithmError,
+    ...(!keyDetails?.publicKeyPem || !keyDetails.id ? ['Signing Key: public key data or Key ID is unavailable.'] : []),
+  ].filter((value): value is string => !!value);
 
   // Related entities state
   const [boundCertificates, setBoundCertificates] = useState<CertificateData[]>([]);
@@ -467,14 +495,7 @@ export default function KmsKeyDetailsClient() {
   }, [boundCertificateResources]);
 
   const handleSign = async () => {
-    if (!payloadToSign) {
-      sileo.error({ title: "Sign Error", description: "Payload to sign cannot be empty." });
-      return;
-    }
-    if (!keyId ) {
-      sileo.error({ title: "Sign Error", description: "Key ID or active session is missing." });
-      return;
-    }
+    if (signValidationErrors.length > 0 || !keyId) return;
 
     setIsSigning(true);
     setGeneratedSignature('');
@@ -522,14 +543,7 @@ export default function KmsKeyDetailsClient() {
   };
 
   const handleVerify = async () => {
-    if (!unsignedPayload || !signatureToVerify) {
-      sileo.error({ title: "Verify Error", description: "Unsigned payload and signature cannot be empty." });
-      return;
-    }
-    if (!keyId ) {
-      sileo.error({ title: "Verify Error", description: "Key ID or active session is missing." });
-      return;
-    }
+    if (verifyValidationErrors.length > 0 || !keyId) return;
 
     setIsVerifying(true);
     setVerificationResult(null); // Clear previous result
@@ -580,18 +594,7 @@ export default function KmsKeyDetailsClient() {
   };
 
   const handleGenerateCsr = async () => {
-    if (!csrCommonName.trim()) {
-      sileo.error({ title: "CSR Generation Error", description: "Common Name (CN) is required." });
-      return;
-    }
-    if (!keyDetails?.publicKeyPem || !keyDetails.id ) {
-      sileo.error({ title: "CSR Generation Error", description: "Key details or active session are missing." });
-      return;
-    }
-    if (!csrSignAlgorithm) {
-      sileo.error({ title: "CSR Generation Error", description: "A signature algorithm must be selected." });
-      return;
-    }
+    if (csrValidationErrors.length > 0 || !keyDetails?.publicKeyPem || !keyDetails.id) return;
 
     setIsGeneratingCsr(true);
     setGeneratedCsr('');
@@ -1137,7 +1140,8 @@ export default function KmsKeyDetailsClient() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_200px]">
                     <div>
                       <Label htmlFor="payloadToSign">Payload to Sign</Label>
-                      <Textarea id="payloadToSign" value={payloadToSign} onChange={e => setPayloadToSign(e.target.value)} placeholder="Enter data to be signed..." rows={4} disabled={isSigning} />
+                      <Textarea id="payloadToSign" value={payloadToSign} onChange={e => setPayloadToSign(e.target.value)} placeholder="Enter data to be signed..." rows={4} disabled={isSigning} aria-invalid={!!signPayloadError} aria-describedby={signPayloadError ? 'payload-to-sign-error' : undefined} />
+                      {signPayloadError && <FormFieldError id="payload-to-sign-error" title="Payload to Sign required." description="Enter the data that will be signed." className="mt-1.5" />}
                     </div>
                     <div>
                       <Label htmlFor="signPayloadEncoding">Encoding</Label>
@@ -1151,7 +1155,8 @@ export default function KmsKeyDetailsClient() {
                       </Select>
                     </div>
                   </div>
-                  <Button onClick={handleSign} disabled={isSigning}>
+                  <FormValidationSummary errors={signValidationErrors} />
+                  <Button onClick={handleSign} disabled={isSigning || signValidationErrors.length > 0}>
                     {isSigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isSigning ? 'Signing…' : 'Sign'}
                   </Button>
@@ -1196,7 +1201,8 @@ export default function KmsKeyDetailsClient() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_200px]">
                     <div>
                       <Label htmlFor="unsignedPayload">Unsigned Payload</Label>
-                      <Textarea id="unsignedPayload" value={unsignedPayload} onChange={e => setUnsignedPayload(e.target.value)} placeholder="Enter the original unsigned data…" rows={3} disabled={isVerifying} />
+                      <Textarea id="unsignedPayload" value={unsignedPayload} onChange={e => setUnsignedPayload(e.target.value)} placeholder="Enter the original unsigned data…" rows={3} disabled={isVerifying} aria-invalid={!!verifyPayloadError} aria-describedby={verifyPayloadError ? 'unsigned-payload-error' : undefined} />
+                      {verifyPayloadError && <FormFieldError id="unsigned-payload-error" title="Unsigned Payload required." description="Enter the original data." className="mt-1.5" />}
                     </div>
                     <div>
                       <Label htmlFor="verifyPayloadEncoding">Encoding</Label>
@@ -1212,9 +1218,11 @@ export default function KmsKeyDetailsClient() {
                   </div>
                   <div>
                     <Label htmlFor="signatureToVerify">Signature (Base64)</Label>
-                    <Textarea id="signatureToVerify" value={signatureToVerify} onChange={e => setSignatureToVerify(e.target.value)} placeholder="Enter the signature to verify…" rows={3} className="font-mono" disabled={isVerifying} />
+                    <Textarea id="signatureToVerify" value={signatureToVerify} onChange={e => setSignatureToVerify(e.target.value)} placeholder="Enter the signature to verify…" rows={3} className="font-mono" disabled={isVerifying} aria-invalid={!!verifySignatureError} aria-describedby={verifySignatureError ? 'signature-to-verify-error' : undefined} />
+                    {verifySignatureError && <FormFieldError id="signature-to-verify-error" title="Signature required." description="Enter the Base64 signature to verify." className="mt-1.5" />}
                   </div>
-                  <Button onClick={handleVerify} disabled={isVerifying}>
+                  <FormValidationSummary errors={verifyValidationErrors} />
+                  <Button onClick={handleVerify} disabled={isVerifying || verifyValidationErrors.length > 0}>
                     {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Verify
                   </Button>
@@ -1261,13 +1269,14 @@ export default function KmsKeyDetailsClient() {
                   <div className="max-w-sm">
                     <Label htmlFor="csrSignAlgorithm">Algorithm</Label>
                     <Select value={csrSignAlgorithm} onValueChange={setCsrSignAlgorithm} disabled={isGeneratingCsr}>
-                      <SelectTrigger id="csrSignAlgorithm"><SelectValue placeholder="Select algorithm" /></SelectTrigger>
+                      <SelectTrigger id="csrSignAlgorithm" aria-invalid={!!csrAlgorithmError} aria-describedby={csrAlgorithmError ? 'csr-sign-algorithm-error' : undefined}><SelectValue placeholder="Select algorithm" /></SelectTrigger>
                       <SelectContent>
                         {signatureAlgorithms.map(algo => (
                           <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {csrAlgorithmError && <FormFieldError id="csr-sign-algorithm-error" title="Signature Algorithm required." description="Select an algorithm for the CSR." className="mt-1.5" />}
                   </div>
                 </div>
               </div>
@@ -1283,7 +1292,8 @@ export default function KmsKeyDetailsClient() {
                 <div className="lg:col-span-2 space-y-4">
                   <div>
                     <Label htmlFor="csrCommonName">Common Name (CN) *</Label>
-                    <Input id="csrCommonName" value={csrCommonName || ''} onChange={e => setCsrCommonName(e.target.value)} placeholder="e.g., mydevice.example.com" required />
+                    <Input id="csrCommonName" value={csrCommonName || ''} onChange={e => setCsrCommonName(e.target.value)} placeholder="e.g., mydevice.example.com" required aria-invalid={!!csrCommonNameError} aria-describedby={csrCommonNameError ? 'csr-common-name-error' : undefined} />
+                    {csrCommonNameError && <FormFieldError id="csr-common-name-error" title="Common Name required." description="Enter the CSR subject CN." className="mt-1.5" />}
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
@@ -1364,7 +1374,8 @@ export default function KmsKeyDetailsClient() {
                   <p className="mt-1 text-sm text-muted-foreground">Create a PEM-encoded certificate signing request signed by this key.</p>
                 </div>
                 <div className="lg:col-span-2 space-y-4">
-                  <Button onClick={handleGenerateCsr} disabled={isGeneratingCsr}>
+                  <FormValidationSummary errors={csrValidationErrors} />
+                  <Button onClick={handleGenerateCsr} disabled={isGeneratingCsr || csrValidationErrors.length > 0}>
                     {isGeneratingCsr && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isGeneratingCsr ? 'Generating…' : 'Generate CSR'}
                   </Button>

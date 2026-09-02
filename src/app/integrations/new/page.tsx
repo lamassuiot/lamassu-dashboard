@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, PlusCircle, Loader2, AlertTriangle } from "lucide-react";
+import { PlusCircle, Loader2, AlertTriangle } from "lucide-react";
 import { useConfig } from '@/contexts/ConfigContext';
 import { sileo } from '@/lib/toast';
 import { fetchRaById, updateRaMetadata } from '@/lib/dms-api';
 import { DmsSelector } from '@/components/shared/DmsSelector';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 export default function CreateIntegrationPage() {
   const router = useRouter();
@@ -23,6 +24,15 @@ export default function CreateIntegrationPage() {
   const [selectedRaId, setSelectedRaId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validationErrors = [
+    ...(!selectedRaId ? ['Registration Target: Registration Authority is required.'] : []),
+    ...(connectors.length === 0
+      ? ['Connector Selection: no connectors are available in the dashboard configuration.']
+      : !selectedConnectorId
+        ? ['Connector Selection: Connector is required.']
+        : []),
+  ];
 
   useEffect(() => {
     if (config) {
@@ -109,7 +119,12 @@ export default function CreateIntegrationPage() {
                 showAllOption={false}
                 placeholder="Select an RA to add an integration to..."
                 className="min-h-10"
+                aria-invalid={!selectedRaId}
+                aria-describedby={!selectedRaId ? 'integration-ra-error' : undefined}
               />
+              {!selectedRaId && (
+                <FormFieldError id="integration-ra-error" title="Registration Authority required." description="Select one before registering." />
+              )}
             </div>
           </div>
         </div>
@@ -133,7 +148,11 @@ export default function CreateIntegrationPage() {
             <div className="space-y-1.5">
               <Label htmlFor="connector-select">Connector</Label>
               <Select value={selectedConnectorId} onValueChange={setSelectedConnectorId} disabled={isSubmitting || connectors.length === 0}>
-                <SelectTrigger id="connector-select">
+                <SelectTrigger
+                  id="connector-select"
+                  aria-invalid={connectors.length > 0 && !selectedConnectorId}
+                  aria-describedby={connectors.length > 0 && !selectedConnectorId ? 'integration-connector-error' : undefined}
+                >
                   <SelectValue placeholder="Select a connector type..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -142,6 +161,9 @@ export default function CreateIntegrationPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {connectors.length > 0 && !selectedConnectorId && (
+                <FormFieldError id="integration-connector-error" title="Connector required." description="Select one before registering." />
+              )}
             </div>
 
             {selectedConnectorId ? (
@@ -157,11 +179,14 @@ export default function CreateIntegrationPage() {
 
         <Separator />
 
-        <div className="flex justify-end py-6">
-          <Button type="submit" disabled={isSubmitting || !selectedRaId || !selectedConnectorId || connectors.length === 0}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {isSubmitting ? 'Registering...' : 'Register Integration'}
-          </Button>
+        <div className="space-y-3 py-6">
+          <FormValidationSummary errors={validationErrors} />
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {isSubmitting ? 'Registering...' : 'Register Integration'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

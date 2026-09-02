@@ -14,7 +14,7 @@ import { findCaById, signCertificate, fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { sileo } from '@/lib/toast';
 import { CaVisualizerCard } from '../CaVisualizerCard';
-import { DurationInput } from './DurationInput';
+import { DurationInput, isValidPositiveDuration } from './DurationInput';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
 import { CodeBlock } from './CodeBlock';
@@ -29,6 +29,7 @@ import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import { CaSelectorModal } from './CaSelectorModal';
+import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {
@@ -214,6 +215,24 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     const currentKeySpecOptions = keygenType === 'RSA' ? RSA_KEY_SIZE_OPTIONS : ECDSA_CURVE_OPTIONS;
     const currentBootstrapKeySpecOptions = bootstrapKeygenType === 'RSA' ? RSA_KEY_SIZE_OPTIONS : ECDSA_CURVE_OPTIONS;
+    const deviceIdError = step === 1 && !deviceId.trim()
+        ? 'Device ID required. Enter or generate an identifier to continue.'
+        : null;
+    const bootstrapCnError = step === 3 && !bootstrapCn.trim()
+        ? 'Bootstrap Common Name required. Enter the certificate subject CN.'
+        : null;
+    const bootstrapSignerError = step === 3 && !bootstrapSigner
+        ? 'Bootstrap Signer required. Select a CA to issue the temporary certificate.'
+        : null;
+    const bootstrapValidityError = step === 3 && !isValidPositiveDuration(bootstrapValidity)
+        ? 'Bootstrap Certificate Validity must be a valid duration greater than zero.'
+        : null;
+    const stepValidationErrors = [
+        deviceIdError,
+        bootstrapCnError,
+        bootstrapSignerError,
+        bootstrapValidityError,
+    ].filter((error): error is string => !!error);
 
     const handleSkipBootstrap = () => {
         setBootstrapCertificate('');
@@ -222,24 +241,15 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     };
     
     const handleNext = async () => {
+        if (stepValidationErrors.length > 0) return;
+
         if (step === 1) { // --> Show CSR commands
-            if (!deviceId.trim()) {
-                sileo.error({ title: "Device ID required" });
-                return;
-            }
             setBootstrapCn(deviceId.trim()); // Sync bootstrap CN with device ID when moving from step 1
             setStep(2);
         } else if (step === 2) { // --> Define Props
             setStep(3);
         } else if (step === 3) { // --> Issue Bootstrap Cert
-             if (!bootstrapSigner ) {
-                sileo.error({ title: "Bootstrap Signer Required", description: "You must select a CA to sign the bootstrap certificate." });
-                return;
-            }
-            if (!bootstrapCn.trim()) {
-                sileo.error({ title: "Bootstrap CN Required", description: "The Common Name for the bootstrap certificate cannot be empty." });
-                return;
-            }
+            if (!bootstrapSigner) return;
             setIsGenerating(true);
             try {
                 // Generate temporary key pair for bootstrap CSR
@@ -360,7 +370,15 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             <div className="space-y-2">
                                 <Label htmlFor="deviceId">Device ID</Label>
                                 <div className="flex items-center gap-2">
-                                    <Input id="deviceId" value={deviceId} onChange={e => setDeviceId(e.target.value)} placeholder="e.g., test-1, sensor-12345" disabled={!!initialDeviceId}/>
+                                    <Input
+                                        id="deviceId"
+                                        value={deviceId}
+                                        onChange={e => setDeviceId(e.target.value)}
+                                        placeholder="e.g., test-1, sensor-12345"
+                                        disabled={!!initialDeviceId}
+                                        aria-invalid={!!deviceIdError}
+                                        aria-describedby={deviceIdError ? 'deviceId-error' : undefined}
+                                    />
                                     <Button
                                         type="button"
                                         variant="secondary"
@@ -372,6 +390,13 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         <RefreshCwIcon className="h-4 w-4" />
                                     </Button>
                                 </div>
+                                {deviceIdError && (
+                                    <FormFieldError
+                                        id="deviceId-error"
+                                        title="Device ID required."
+                                        description="Enter or generate an identifier to continue."
+                                    />
+                                )}
                             </div>
                         )}
                         {step === 2 && (
@@ -443,7 +468,21 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             <div className="space-y-4">
                                 <div>
                                     <Label htmlFor="bootstrap-cn">Bootstrap Common Name (CN)</Label>
-                                    <Input id="bootstrap-cn" value={bootstrapCn} onChange={e => setBootstrapCn(e.target.value)} />
+                                    <Input
+                                        id="bootstrap-cn"
+                                        value={bootstrapCn}
+                                        onChange={e => setBootstrapCn(e.target.value)}
+                                        aria-invalid={!!bootstrapCnError}
+                                        aria-describedby={bootstrapCnError ? 'bootstrap-cn-error' : undefined}
+                                    />
+                                    {bootstrapCnError && (
+                                        <FormFieldError
+                                            id="bootstrap-cn-error"
+                                            title="Bootstrap Common Name required."
+                                            description="Enter the certificate subject CN."
+                                            className="mt-1.5"
+                                        />
+                                    )}
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-4">
@@ -480,9 +519,14 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         id="bootstrap-signer"
                                         type="button"
                                         variant="secondary"
-                                        className="w-full justify-between font-normal"
+                                        className={cn(
+                                            "w-full justify-between font-normal",
+                                            bootstrapSignerError && "border-destructive focus-visible:ring-destructive",
+                                        )}
                                         onClick={() => setIsCaSelectorOpen(true)}
                                         disabled={isLoadingDependencies}
+                                        aria-invalid={!!bootstrapSignerError}
+                                        aria-describedby={bootstrapSignerError ? 'bootstrap-signer-error' : undefined}
                                     >
                                         <span className={bootstrapSigner ? "text-foreground" : "text-muted-foreground"}>
                                             {isLoadingDependencies
@@ -493,11 +537,25 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         </span>
                                         <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                                     </Button>
+                                    {bootstrapSignerError && (
+                                        <FormFieldError
+                                            id="bootstrap-signer-error"
+                                            title="Bootstrap Signer required."
+                                            description="Select a CA to issue the temporary certificate."
+                                            className="mt-1.5"
+                                        />
+                                    )}
                                     {bootstrapSigner && (
                                         <div className="mt-2"><CaVisualizerCard ca={bootstrapSigner} className="shadow-none border-border" allCryptoEngines={allCryptoEngines}/></div>
                                     )}
                                 </div>
-                                <DurationInput id="bootstrapValidity" label="Bootstrap Certificate Validity" value={bootstrapValidity} onChange={setBootstrapValidity} />
+                                <DurationInput
+                                    id="bootstrapValidity"
+                                    label="Bootstrap Certificate Validity"
+                                    value={bootstrapValidity}
+                                    onChange={setBootstrapValidity}
+                                    error={bootstrapValidityError || undefined}
+                                />
                                 
                                 <div className="relative pt-4">
                                     <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
@@ -601,8 +659,13 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                     currentSelectedCaId={bootstrapSigner?.id}
                     allCryptoEngines={allCryptoEngines}
                 />
-                <SheetFooter className="border-t px-6 py-4">
-                    <div className="w-full flex justify-between">
+                <SheetFooter className="border-t px-6 py-4 sm:flex-col">
+                    <div className="w-full space-y-4">
+                      <FormValidationSummary
+                        errors={stepValidationErrors}
+                        warnings={errorDependencies ? [`Dependencies: ${errorDependencies}`] : []}
+                      />
+                      <div className="flex justify-between">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <div className="flex space-x-2">
                             {step > 1 && (
@@ -616,7 +679,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                 </Button>
                             )}
                             {step < 5 ? (
-                                <Button onClick={handleNext} disabled={isGenerating}>
+                                <Button onClick={handleNext} disabled={isGenerating || stepValidationErrors.length > 0}>
                                     {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                                     { step === 3 ? "Issue Bootstrap Cert" : step === 4 ? "Generate Commands" : "Next" }
                                 </Button>
@@ -624,6 +687,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                 <Button onClick={() => onOpenChange(false)}>Finish</Button>
                             )}
                         </div>
+                      </div>
                     </div>
                 </SheetFooter>
         </>

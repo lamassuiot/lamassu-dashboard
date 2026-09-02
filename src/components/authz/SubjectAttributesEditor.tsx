@@ -17,6 +17,7 @@ import {
   X509_SUBJECT_ATTRIBUTE_SOURCES,
   type SubjectAttributeRow,
 } from '@/lib/principal-subject-attributes';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 type SubjectAttributesEditorProps = {
   type: PrincipalType;
@@ -112,6 +113,7 @@ export function SubjectAttributesEditor({
                     onChange={(event) => onStaticRowsChange(updateRow(staticRows, row.id, 'key', event.target.value))}
                     disabled={disabled}
                     className="font-mono text-sm"
+                    aria-invalid={!!row.value.trim() && !row.key.trim()}
                   />
                 </div>
                 <div className="space-y-1">
@@ -123,6 +125,7 @@ export function SubjectAttributesEditor({
                     onChange={(event) => onStaticRowsChange(updateRow(staticRows, row.id, 'value', event.target.value))}
                     disabled={disabled}
                     className="font-mono text-sm"
+                    aria-invalid={!!row.key.trim() && !row.value.trim()}
                   />
                 </div>
                 <Button
@@ -135,6 +138,9 @@ export function SubjectAttributesEditor({
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+                {((row.value.trim() && !row.key.trim()) || (row.key.trim() && !row.value.trim())) && (
+                  <FormFieldError className="col-span-2" title={`Subject attribute ${index + 1}: key and value are both required.`} />
+                )}
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addStaticRow} disabled={disabled}>
@@ -168,6 +174,7 @@ export function SubjectAttributesEditor({
                     onChange={(event) => onMappingRowsChange(updateRow(mappingRows, row.id, 'key', event.target.value))}
                     disabled={disabled}
                     className="font-mono text-sm"
+                    aria-invalid={!!row.value.trim() && !row.key.trim()}
                   />
                 </div>
                 <div className="space-y-1">
@@ -185,7 +192,11 @@ export function SubjectAttributesEditor({
                           onValueChange={(value) => onMappingRowsChange(updateRow(mappingRows, row.id, 'value', value))}
                           disabled={disabled}
                         >
-                          <SelectTrigger id={`subject-mapping-value-${row.id}`} className="font-mono text-sm">
+                          <SelectTrigger
+                            id={`subject-mapping-value-${row.id}`}
+                            className="font-mono text-sm"
+                            aria-invalid={!!row.key.trim() && !row.value.trim()}
+                          >
                             <SelectValue placeholder="source" />
                           </SelectTrigger>
                           <SelectContent>
@@ -207,6 +218,7 @@ export function SubjectAttributesEditor({
                       onChange={(event) => onMappingRowsChange(updateRow(mappingRows, row.id, 'value', event.target.value))}
                       disabled={disabled}
                       className="font-mono text-sm"
+                      aria-invalid={(!!row.key.trim() && !row.value.trim()) || (!!row.value.trim() && !row.value.trim().startsWith('oidc.claim.'))}
                     />
                   )}
                 </div>
@@ -220,6 +232,12 @@ export function SubjectAttributesEditor({
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+                {((row.value.trim() && !row.key.trim()) || (row.key.trim() && !row.value.trim())) && (
+                  <FormFieldError className="col-span-2" title={`Derived subject attribute ${index + 1}: key and value are both required.`} />
+                )}
+                {type === 'oidc' && row.value.trim() && !row.value.trim().startsWith('oidc.claim.') && (
+                  <FormFieldError className="col-span-2" title="OIDC source must start with oidc.claim." />
+                )}
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addMappingRow} disabled={disabled}>

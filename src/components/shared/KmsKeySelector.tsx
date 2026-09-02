@@ -20,6 +20,8 @@ interface KmsKeySelectorProps {
   className?: string;
   filterEngineId?: string; // Optional: filter keys by engine ID
   requirePrivateKey?: boolean; // Optional: only show keys with private key
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }
 
 export function KmsKeySelector({
@@ -30,6 +32,8 @@ export function KmsKeySelector({
   className,
   filterEngineId,
   requirePrivateKey = false,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }: KmsKeySelectorProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [keys, setKeys] = useState<ApiKmsKey[]>([]);
@@ -91,6 +95,8 @@ export function KmsKeySelector({
         onClick={() => setIsModalOpen(true)}
         className={`w-full justify-start text-left font-normal h-auto py-2 ${className}`}
         disabled={disabled}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
       >
         {selectedKey ? (
           <div className="flex items-center justify-between w-full gap-2">

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
+import { ArrowLeft, PlusCircle, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -29,9 +29,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
 import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { FormFieldError, FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -107,6 +107,7 @@ export default function CreateCaGeneratePage() {
   const caProfileForm = useForm<SimplifiedInlineProfileFormValues>({
     resolver: zodResolver(simplifiedInlineProfileSchema),
     defaultValues: defaultSimplifiedFormValues,
+    mode: 'onChange',
   });
 
   // Profile state (for certificates issued BY the new CA)
@@ -126,6 +127,18 @@ export default function CreateCaGeneratePage() {
 
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
   const [errorDependencies, setErrorDependencies] = useState<string | null>(null);
+
+  const inlineCaProfileErrors = getFormErrorMessages(caProfileForm.formState.errors);
+  const validationErrors = [
+    ...(caType === 'intermediate' && !selectedParentCa ? ['CA Settings: Parent Certification Authority is required for an intermediate CA.'] : []),
+    ...(!caName.trim() ? ['CA Settings: CA Name is required.'] : []),
+    ...(!cryptoEngineId ? ['Key Pair Generation: Crypto Engine is required.'] : []),
+    ...(!keySpec ? ['Key Pair Generation: Key Specification is required.'] : []),
+    ...(profileMode === 'reuse' && !selectedProfileId ? ['Default Issuance Profile: select an issuance profile.'] : []),
+    ...(profileMode === 'create' ? ['Default Issuance Profile: create and select the new profile before creating the CA.'] : []),
+    ...(caProfileMode === 'inline' ? inlineCaProfileErrors.map((error) => `CA Certificate Profile: ${error}`) : []),
+  ];
+  const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
 
   useEffect(() => {
     setCaId(crypto.randomUUID());
@@ -478,7 +491,16 @@ export default function CreateCaGeneratePage() {
           <div className="space-y-4 lg:col-span-2">
             <div className="space-y-1.5">
               <Label>Crypto Engine</Label>
-              <CryptoEngineSelector value={cryptoEngineId} onValueChange={setCryptoEngineId} disabled={isSubmitting} />
+              <CryptoEngineSelector
+                value={cryptoEngineId}
+                onValueChange={setCryptoEngineId}
+                disabled={isSubmitting}
+                aria-invalid={!cryptoEngineId}
+                aria-describedby={!cryptoEngineId ? 'generate-ca-engine-error' : undefined}
+              />
+              {!cryptoEngineId && (
+                <FormFieldError id="generate-ca-engine-error" title="Crypto Engine required." description="Select one before creating the CA." />
+              )}
               <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -497,11 +519,14 @@ export default function CreateCaGeneratePage() {
               <div className="space-y-1.5">
                 <Label htmlFor="keySpec">{keySpecLabel}</Label>
                 <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
-                  <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="keySpec" aria-invalid={!keySpec} aria-describedby={!keySpec ? 'generate-ca-key-spec-error' : undefined}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {!keySpec && (
+                  <FormFieldError id="generate-ca-key-spec-error" title="Key Specification required." description="Select one before creating the CA." />
+                )}
                 <p className="text-xs text-muted-foreground">Bit length or curve for the selected algorithm.</p>
               </div>
             </div>
@@ -537,13 +562,17 @@ export default function CreateCaGeneratePage() {
                   className="w-full justify-start text-left font-normal"
                   id="parentCa"
                   disabled={isLoadingDependencies || isSubmitting}
+                  aria-invalid={!selectedParentCa}
+                  aria-describedby={!selectedParentCa ? 'generate-ca-parent-error' : undefined}
                 >
                   {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
                 </Button>
                 {selectedParentCa && (
                   <CaVisualizerCard ca={selectedParentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
                 )}
-                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
+                {!selectedParentCa && (
+                  <FormFieldError id="generate-ca-parent-error" title="Parent Certification Authority required." description="Select one for the intermediate CA." />
+                )}
               </div>
             )}
             {caType === 'root' && (
@@ -559,8 +588,19 @@ export default function CreateCaGeneratePage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="caName">CA Name (Common Name)</Label>
-              <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
-              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
+              <Input
+                id="caName"
+                value={caName}
+                onChange={(e) => setCaName(e.target.value)}
+                placeholder="e.g., LamassuIoT Secure Services CA"
+                required
+                disabled={isSubmitting}
+                aria-invalid={!caName.trim()}
+                aria-describedby={!caName.trim() ? 'generate-ca-name-error' : undefined}
+              />
+              {!caName.trim() && (
+                <FormFieldError id="generate-ca-name-error" title="CA Name required." description="Enter a Common Name before creating the CA." />
+              )}
             </div>
           </div>
         </div>
@@ -720,17 +760,21 @@ export default function CreateCaGeneratePage() {
               inlineModeEnabled={false}
               createModeEnabled={true}
               onProfileCreated={handleProfileCreated}
+              selectionError={profileMode === 'reuse' && !selectedProfileId ? 'Select one before creating the CA.' : undefined}
             />
           </div>
         </div>
 
         <Separator />
 
-        <div className="flex justify-end pt-6">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
-          </Button>
+        <div className="space-y-3 pt-6">
+          <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
+            </Button>
+          </div>
         </div>
       </form>
 

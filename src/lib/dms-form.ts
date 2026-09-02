@@ -179,6 +179,15 @@ export function validateEstAuthSettings(
   settings: ApiRaEstSettings,
   requireValidationCa = false,
 ): string | null {
+  return getEstAuthSettingsValidationErrors(label, settings, requireValidationCa)[0] || null;
+}
+
+export function getEstAuthSettingsValidationErrors(
+  label: string,
+  settings: ApiRaEstSettings,
+  requireValidationCa = false,
+): string[] {
+  const errors: string[] = [];
   const includesClientCertificate = settings.auth_mode === 'CLIENT_CERTIFICATE'
     || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const includesWebhook = settings.auth_mode === 'EXTERNAL_WEBHOOK'
@@ -189,29 +198,30 @@ export function validateEstAuthSettings(
     && requireValidationCa
     && !settings.client_certificate_settings?.validation_cas.length
   ) {
-    return `${label} requires at least one client certificate validation CA.`;
+    errors.push(`${label} requires at least one client certificate validation CA.`);
   }
 
-  if (!includesWebhook) return null;
+  if (!includesWebhook) return errors;
   const webhook = settings.external_webhook_settings;
-  if (!webhook?.name.trim() || !webhook.url.trim()) {
-    return `${label} webhook name and URL are required.`;
+  if (!webhook || !webhook.name.trim() || !webhook.url.trim()) {
+    errors.push(`${label} webhook name and URL are required.`);
   }
+  if (!webhook) return errors;
 
   if (webhook.config.auth_mode === 'apikey' && (!webhook.config.apikey?.key || !webhook.config.apikey.header)) {
-    return `${label} webhook API key and header are required.`;
+    errors.push(`${label} webhook API key and header are required.`);
   }
   if (
     webhook.config.auth_mode === 'jwt'
     && (!webhook.config.oidc?.client_id || !webhook.config.oidc.client_secret || !webhook.config.oidc.well_known)
   ) {
-    return `${label} webhook OIDC client ID, client secret, and well-known URL are required.`;
+    errors.push(`${label} webhook OIDC client ID, client secret, and well-known URL are required.`);
   }
   if (webhook.config.auth_mode === 'mtls' && (!webhook.config.mtls?.cert || !webhook.config.mtls.key)) {
-    return `${label} webhook mTLS certificate and private key are required.`;
+    errors.push(`${label} webhook mTLS certificate and private key are required.`);
   }
 
-  return null;
+  return errors;
 }
 
 export function withDefaultValidationCa(

@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, FolderTree } from 'lucide-react';
 import { getDeviceGroups } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 interface ParentGroupSelectorProps {
   value: string | null;
@@ -89,7 +90,7 @@ export function ParentGroupSelector({
         value={value || 'none'}
         onValueChange={(val) => onChange(val === 'none' ? null : val)}
       >
-        <SelectTrigger id="parent-group" className={error ? 'border-destructive' : ''}>
+        <SelectTrigger id="parent-group" aria-invalid={!!error} aria-describedby={error ? 'parent-group-error' : undefined}>
           <SelectValue placeholder="Select parent group or leave as root" />
         </SelectTrigger>
         <SelectContent>
@@ -121,7 +122,7 @@ export function ParentGroupSelector({
           )}
         </SelectContent>
       </Select>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <FormFieldError id="parent-group-error" title={`${error}.`} />}
       <p className="text-sm text-muted-foreground">
         Select a parent group to create a hierarchical structure, or leave empty for a root-level
         group.

@@ -36,6 +36,7 @@ import type {
   PrincipalType,
 } from '@/types/authz';
 import { EmptyResult, FullResponse, DecisionBanner, ResultTable, MatchedPrincipals } from '@/components/authz/TestResultViews';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 type KeyValueRow = {
   id: string;
@@ -136,13 +137,18 @@ function SubjectAttributeRows({
             placeholder={index === 0 ? 'client_id' : 'attribute'}
             onChange={(event) => onChange(updateSubjectRow(rows, row.id, 'key', event.target.value))}
             className="font-mono text-sm"
+            aria-invalid={Boolean(row.key.trim()) !== Boolean(row.value.trim())}
           />
           <Input
             value={row.value}
             placeholder={index === 0 ? 'hub-6ece-0664' : 'value'}
             onChange={(event) => onChange(updateSubjectRow(rows, row.id, 'value', event.target.value))}
             className="font-mono text-sm"
+            aria-invalid={Boolean(row.key.trim()) !== Boolean(row.value.trim())}
           />
+          {Boolean(row.key.trim()) !== Boolean(row.value.trim()) && (
+            <FormFieldError className="col-span-2" title={`Subject attribute ${index + 1} requires both a name and value.`} />
+          )}
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, newSubjectAttributeRow()])}>
@@ -168,13 +174,18 @@ function KeyValueRows({
             placeholder={index === 0 ? 'header' : 'name'}
             onChange={(event) => onChange(updateKeyValueRow(rows, row.id, 'key', event.target.value))}
             className="font-mono text-sm"
+            aria-invalid={Boolean(row.key.trim()) !== Boolean(row.value.trim())}
           />
           <Input
             value={row.value}
             placeholder="value"
             onChange={(event) => onChange(updateKeyValueRow(rows, row.id, 'value', event.target.value))}
             className="font-mono text-sm"
+            aria-invalid={Boolean(row.key.trim()) !== Boolean(row.value.trim())}
           />
+          {Boolean(row.key.trim()) !== Boolean(row.value.trim()) && (
+            <FormFieldError className="col-span-2" title={`Header ${index + 1} requires both a name and value.`} />
+          )}
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, newKeyValueRow()])}>
@@ -212,6 +223,33 @@ export function HttpAuthzCheckForm({
   const selectedRoute = routeOptions.find((option) => option.value === selectedRouteValue)?.route ?? null;
   const clientId = getClientId(subjectRows);
   const showWfxClientWarning = !matchMode && isWfxSbiRoute(selectedRoute) && !clientId;
+  const methodError = !method.trim() ? 'HTTP method is required.' : null;
+  const pathError = !path.trim() ? 'HTTP path is required.' : null;
+  const principalError = !matchMode && !selectedPrincipalId.trim() ? 'Principal is required.' : null;
+  const authMaterialError = matchMode && !authMaterial.trim()
+    ? authType === 'x509' ? 'Certificate PEM is required.' : 'JWT is required.'
+    : null;
+  const subjectAttributeErrors = subjectRows.flatMap((row, index) =>
+    Boolean(row.key.trim()) !== Boolean(row.value.trim())
+      ? [`Subject attribute ${index + 1} requires both a name and value.`]
+      : [],
+  );
+  const headerErrors = headerRows.flatMap((row, index) =>
+    Boolean(row.key.trim()) !== Boolean(row.value.trim())
+      ? [`Header ${index + 1} requires both a name and value.`]
+      : [],
+  );
+  const validationErrors = [
+    methodError,
+    pathError,
+    principalError,
+    authMaterialError,
+    ...subjectAttributeErrors,
+    ...headerErrors,
+  ].filter((message): message is string => Boolean(message));
+  const validationWarnings = showWfxClientWarning
+    ? ['This route requires subject.client_id to match the request.']
+    : [];
 
   const applyRoute = useCallback((route: HTTPSchemaRoute, nextClientId = clientId) => {
     const resolvedClientId = nextClientId || '<client_id>';
@@ -305,10 +343,7 @@ export function HttpAuthzCheckForm({
     setError(null);
     setResult(null);
 
-    if (!method.trim() || !path.trim()) {
-      setError('Method and path are required.');
-      return;
-    }
+    if (validationErrors.length > 0) return;
 
     const request = {
       method: method.trim().toUpperCase(),
@@ -321,10 +356,6 @@ export function HttpAuthzCheckForm({
     try {
       setLoading(true);
       if (!matchMode) {
-        if (!selectedPrincipalId.trim()) {
-          setError('Principal is required.');
-          return;
-        }
         const subjectAttributes = subjectAttributeRowsToRecord(subjectRows);
         const response = await checkHTTPAuthorization({
           principal_id: selectedPrincipalId.trim(),
@@ -332,11 +363,6 @@ export function HttpAuthzCheckForm({
           request,
         });
         setResult(response);
-        return;
-      }
-
-      if (!authMaterial.trim()) {
-        setError(authType === 'x509' ? 'Certificate PEM is required.' : 'JWT is required.');
         return;
       }
 
@@ -373,7 +399,7 @@ export function HttpAuthzCheckForm({
             <div className="space-y-1.5">
               <Label>Principal</Label>
               <Select value={selectedPrincipalId} onValueChange={handlePrincipalChange}>
-                <SelectTrigger>
+                <SelectTrigger aria-invalid={!!principalError} aria-describedby={principalError ? 'http-principal-error' : undefined}>
                   <SelectValue placeholder="Select principal" />
                 </SelectTrigger>
                 <SelectContent>
@@ -389,7 +415,10 @@ export function HttpAuthzCheckForm({
                 onChange={(event) => setSelectedPrincipalId(event.target.value)}
                 placeholder="Principal ID"
                 className="font-mono text-sm"
+                aria-invalid={!!principalError}
+                aria-describedby={principalError ? 'http-principal-error' : undefined}
               />
+              {principalError && <FormFieldError id="http-principal-error" title={principalError} />}
             </div>
 
             <div className="space-y-1.5">
@@ -428,6 +457,8 @@ export function HttpAuthzCheckForm({
                   rows={8}
                   placeholder="-----BEGIN CERTIFICATE-----"
                   className="font-mono text-xs"
+                  aria-invalid={!!authMaterialError}
+                  aria-describedby={authMaterialError ? 'http-auth-material-error' : undefined}
                 />
               ) : (
                 <Textarea
@@ -436,8 +467,11 @@ export function HttpAuthzCheckForm({
                   rows={4}
                   placeholder="Bearer eyJ..."
                   className="font-mono text-xs"
+                  aria-invalid={!!authMaterialError}
+                  aria-describedby={authMaterialError ? 'http-auth-material-error' : undefined}
                 />
               )}
+              {authMaterialError && <FormFieldError id="http-auth-material-error" title={authMaterialError} />}
             </div>
           </div>
         )}
@@ -464,7 +498,7 @@ export function HttpAuthzCheckForm({
           <div className="space-y-1.5">
             <Label>Method</Label>
             <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger>
+              <SelectTrigger aria-invalid={!!methodError} aria-describedby={methodError ? 'http-method-error' : undefined}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -473,10 +507,12 @@ export function HttpAuthzCheckForm({
                 ))}
               </SelectContent>
             </Select>
+            {methodError && <FormFieldError id="http-method-error" title={methodError} />}
           </div>
           <div className="space-y-1.5">
             <Label>Path</Label>
-            <Input value={path} onChange={(event) => setPath(event.target.value)} className="font-mono text-sm" />
+            <Input value={path} onChange={(event) => setPath(event.target.value)} className="font-mono text-sm" aria-invalid={!!pathError} aria-describedby={pathError ? 'http-path-error' : undefined} />
+            {pathError && <FormFieldError id="http-path-error" title={pathError} />}
           </div>
 
           <div className="space-y-1.5 md:col-span-2">
@@ -501,7 +537,8 @@ export function HttpAuthzCheckForm({
         </div>
 
         <Separator />
-        <Button onClick={handleSubmit} disabled={loading}>
+        <FormValidationSummary errors={[...validationErrors, ...(error ? [`Request: ${error}`] : [])]} warnings={validationWarnings} />
+        <Button onClick={handleSubmit} disabled={loading || validationErrors.length > 0}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
           Test HTTP Route
         </Button>
@@ -509,13 +546,7 @@ export function HttpAuthzCheckForm({
 
       <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
         <p className="text-sm font-semibold">Result</p>
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {!result ? (!error && <EmptyResult />) : (
+        {!result ? <EmptyResult /> : (
           <div className="space-y-4">
             <DecisionBanner
               allowed={result.allowed}

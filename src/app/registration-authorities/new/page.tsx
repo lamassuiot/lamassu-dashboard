@@ -30,6 +30,8 @@ import { createOrUpdateRa, fetchRaById, type ApiRaEstSettings, type ApiRaItem, t
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CardSelector } from '@/components/shared/CardSelector';
+import { FormFieldError, FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { isValidPositiveDuration } from '@/components/shared/DurationInput';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Form } from '@/components/ui/form';
 import {
@@ -40,14 +42,14 @@ import {
 } from '@/components/shared/SigningProfileForm';
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
 import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
+import { cn } from '@/lib/utils';
 import {
   buildInlineIssuanceProfile,
   createDefaultEstAuthSettings,
+  getEstAuthSettingsValidationErrors,
   mapIssuanceProfileToFormValues,
   normalizeEstAuthSettings,
   parseJsonObject,
-  validateEstAuthSettings,
-  withDefaultValidationCa,
 } from '@/lib/dms-form';
 
 
@@ -102,7 +104,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [registrationMode, setRegistrationMode] = useState('JITP');
   const [tags, setTags] = useState<string[]>(['iot']);
   const [deviceMetadataJson, setDeviceMetadataJson] = useState('{}');
-  const [deviceMetadataError, setDeviceMetadataError] = useState<string | null>(null);
   const [protocol, setProtocol] = useState('EST');
   const [issuanceProfileMode, setIssuanceProfileMode] = useState<'default' | 'existing' | 'inline'>('default');
   const [issuanceProfileId, setIssuanceProfileId] = useState<string | null>(null);
@@ -142,6 +143,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const inlineProfileForm = useForm<SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     defaultValues: inlineProfileDefaultValues,
+    mode: 'onChange',
   });
   const inlineProfileValidity = inlineProfileForm.watch('validity');
 
@@ -335,41 +337,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!raName.trim() || (!isEditMode && !raId.trim())) {
-        sileo.error({ title: "Validation Error", description: "RA Name and RA ID are required." });
-        return;
-    }
-    if (!enrollmentCa) {
-        sileo.error({ title: "Validation Error", description: "An Enrollment CA must be selected." });
-        return;
-    }
-    if (issuanceProfileMode === 'existing' && !issuanceProfileId) {
-        sileo.error({ title: "Validation Error", description: "Select an issuance profile or use the Enrollment CA default." });
-        return;
-    }
+    if (validationSummary.errors.length > 0 || !enrollmentCa) return;
 
     let deviceMetadata: Record<string, any>;
     try {
       deviceMetadata = parseJsonObject(deviceMetadataJson);
-      setDeviceMetadataError(null);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Metadata must be valid JSON.';
-      setDeviceMetadataError(message);
-      sileo.error({ title: "Validation Error", description: message });
-      return;
-    }
-
-    const effectiveEnrollmentAuthSettings = withDefaultValidationCa(enrollmentAuthSettings, enrollmentCa.id);
-    const effectiveReenrollmentAuthSettings = withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id);
-    const enrollmentAuthError = validateEstAuthSettings('Enrollment authentication', effectiveEnrollmentAuthSettings, true);
-    const reenrollmentAuthError = validateEstAuthSettings('Re-enrollment authentication', effectiveReenrollmentAuthSettings, true);
-    if (enrollmentAuthError || reenrollmentAuthError) {
-      sileo.error({ title: "Validation Error", description: enrollmentAuthError || reenrollmentAuthError! });
+    } catch {
       return;
     }
 
     if (issuanceProfileMode === 'inline' && !await inlineProfileForm.trigger()) {
-      sileo.error({ title: "Validation Error", description: "Complete the inline issuance profile before saving." });
       return;
     }
 
@@ -397,7 +374,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           protocol: 'EST_RFC7030',
           enable_replaceable_enrollment: allowOverrideEnrollment,
           verify_csr_signature: verifyCsrSignature,
-          est_rfc7030_settings: effectiveEnrollmentAuthSettings,
+          est_rfc7030_settings: enrollmentAuthSettings,
           device_provisioning_profile: {
             icon: selectedDeviceIconName!,
             icon_color: `${selectedDeviceIconColor}-${selectedDeviceIconBgColor}`,
@@ -407,7 +384,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           registration_mode: registrationMode,
         },
         reenrollment_settings: {
-          est_rfc7030_settings: effectiveReenrollmentAuthSettings,
+          est_rfc7030_settings: reenrollmentAuthSettings,
           revoke_on_reenrollment: revokeOnReEnroll,
           enable_expired_renewal: allowExpiredRenewal,
           critical_delta: criticalRenewalDelta,
@@ -469,6 +446,77 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
 
   const enrollmentValidationCaCount = enrollmentAuthSettings.client_certificate_settings?.validation_cas.length || 0;
+
+  useEffect(() => {
+    if (issuanceProfileMode === 'inline') void inlineProfileForm.trigger();
+  }, [inlineProfileForm, issuanceProfileMode]);
+
+  let metadataValidationError: string | null = null;
+  try {
+    parseJsonObject(deviceMetadataJson);
+  } catch (error) {
+    metadataValidationError = error instanceof Error ? error.message : 'Device metadata must be valid JSON.';
+  }
+
+  const enrollmentAuthErrors = getEstAuthSettingsValidationErrors(
+    'Enrollment authentication',
+    enrollmentAuthSettings,
+    Boolean(enrollmentCa),
+  );
+  const reenrollmentAuthErrors = getEstAuthSettingsValidationErrors(
+    'Re-enrollment authentication',
+    reenrollmentAuthSettings,
+    Boolean(enrollmentCa),
+  );
+  const enrollmentTimeoutError = (enrollmentAuthSettings.auth_mode === 'EXTERNAL_WEBHOOK'
+    || enrollmentAuthSettings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
+    && !isValidPositiveDuration(enrollmentAuthSettings.external_webhook_settings?.config.call_timeout || '')
+      ? 'Enrollment authentication webhook timeout must be a positive duration.'
+      : null;
+  const reenrollmentTimeoutError = (reenrollmentAuthSettings.auth_mode === 'EXTERNAL_WEBHOOK'
+    || reenrollmentAuthSettings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
+    && !isValidPositiveDuration(reenrollmentAuthSettings.external_webhook_settings?.config.call_timeout || '')
+      ? 'Re-enrollment authentication webhook timeout must be a positive duration.'
+      : null;
+  const existingProfileError = issuanceProfileMode === 'existing' && !issuanceProfileId
+    ? 'Issuance profile is required when using an existing profile.'
+    : null;
+  const renewalWindowError = !isValidPositiveDuration(allowedRenewalDelta)
+    ? 'Re-enrollment window must be a positive duration.'
+    : null;
+  const preventiveDeltaError = !isValidPositiveDuration(preventiveRenewalDelta)
+    ? 'Preventive renewal delta must be a positive duration.'
+    : null;
+  const criticalDeltaError = !isValidPositiveDuration(criticalRenewalDelta)
+    ? 'Critical renewal delta must be a positive duration.'
+    : null;
+  const inlineProfileErrors = issuanceProfileMode === 'inline'
+    ? getFormErrorMessages(inlineProfileForm.formState.errors)
+    : [];
+  const validationSummary = {
+    errors: [
+      !raName.trim() ? 'RA Name is required.' : null,
+      !isEditMode && !raId.trim() ? 'RA ID is required.' : null,
+      !enrollmentCa ? 'Enrollment CA is required.' : null,
+      !selectedDeviceIconName ? 'Device icon is required.' : null,
+      metadataValidationError,
+      existingProfileError,
+      ...enrollmentAuthErrors,
+      ...reenrollmentAuthErrors,
+      enrollmentTimeoutError,
+      reenrollmentTimeoutError,
+      renewalWindowError,
+      preventiveDeltaError,
+      criticalDeltaError,
+      ...inlineProfileErrors,
+    ].filter((message): message is string => Boolean(message)),
+    warnings: [
+      issuanceProfileMode === 'default' && enrollmentCa && !enrollmentCaDefaultProfile
+        ? 'The selected Enrollment CA does not currently have a default issuance profile.'
+        : null,
+      errorDependencies ? `Dependencies: ${errorDependencies}` : null,
+    ].filter((message): message is string => Boolean(message)),
+  };
   const authModeLabels: Record<ApiRaEstSettings['auth_mode'], string> = {
     CLIENT_CERTIFICATE: 'Client Certificate',
     EXTERNAL_WEBHOOK: 'External Webhook',
@@ -547,13 +595,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           <div className="space-y-4 lg:col-span-2">
             <div className="space-y-1.5">
               <Label htmlFor="raName">RA Name</Label>
-              <Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required />
-              {!raName.trim() && <p className="text-xs text-destructive">RA Name is required.</p>}
+              <Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required aria-invalid={!raName.trim()} aria-describedby={!raName.trim() ? 'ra-name-error' : undefined} />
+              {!raName.trim() && <FormFieldError id="ra-name-error" title="RA Name is required." />}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="raId">RA ID</Label>
-              <Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} />
-              {!raId.trim() && !isEditMode && <p className="text-xs text-destructive">RA ID is required.</p>}
+              <Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} aria-invalid={!isEditMode && !raId.trim()} aria-describedby={!isEditMode && !raId.trim() ? 'ra-id-error' : undefined} />
+              {!raId.trim() && !isEditMode && <FormFieldError id="ra-id-error" title="RA ID is required." />}
             </div>
           </div>
         </div>
@@ -588,15 +636,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 value={deviceMetadataJson}
                 onChange={(event) => {
                   setDeviceMetadataJson(event.target.value);
-                  setDeviceMetadataError(null);
                 }}
                 className="min-h-32 font-mono text-xs"
-                aria-invalid={!!deviceMetadataError}
+                aria-invalid={!!metadataValidationError}
+                aria-describedby={metadataValidationError ? 'device-metadata-error' : undefined}
                 placeholder={'{\n  "location": "factory-a"\n}'}
               />
-              <p className={deviceMetadataError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-                {deviceMetadataError || 'JSON metadata assigned to devices created through just-in-time provisioning.'}
-              </p>
+              {metadataValidationError
+                ? <FormFieldError id="device-metadata-error" title={metadataValidationError} />
+                : <p className="text-xs text-muted-foreground">JSON metadata assigned to devices created through just-in-time provisioning.</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="deviceIconButton">Device Icon</Label>
@@ -604,7 +652,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 id="deviceIconButton"
                 type="button"
                 onClick={() => setIsDeviceIconModalOpen(true)}
-                className="flex h-auto w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-invalid={!selectedDeviceIconName}
+                aria-describedby={!selectedDeviceIconName ? 'device-icon-error' : undefined}
+                className={cn("flex h-auto w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50", !selectedDeviceIconName && "border-destructive ring-3 ring-destructive/20")}
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span
@@ -627,6 +677,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 </span>
                 <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
+              {!selectedDeviceIconName && <FormFieldError id="device-icon-error" title="Device icon is required." />}
               <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
             </div>
           </div>
@@ -678,13 +729,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     type="button"
                     onClick={() => setIsEnrollmentCaModalOpen(true)}
                     disabled={isLoadingDependencies}
-                    className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-invalid={!enrollmentCa}
+                    aria-describedby={!enrollmentCa ? 'enrollment-ca-error' : undefined}
+                    className={cn("flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50", !enrollmentCa && "border-destructive ring-3 ring-destructive/20")}
                   >
                     <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
                       {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
                     </span>
                     <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
+                  {!enrollmentCa && <FormFieldError id="enrollment-ca-error" title="Enrollment CA is required." />}
                   {enrollmentCa && (
                     <div className="space-y-3">
                       <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
@@ -710,13 +764,14 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                         {issuanceProfileMode === 'existing' ? (
                           <div className="space-y-3">
                             <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
-                              <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+                              <SelectTrigger aria-invalid={!!existingProfileError} aria-describedby={existingProfileError ? 'issuance-profile-error' : undefined}><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
                               <SelectContent>
                                 {availableProfiles.map((profile) => (
                                   <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
+                            {existingProfileError && <FormFieldError id="issuance-profile-error" title={existingProfileError} />}
                             {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
                           </div>
                         ) : null}
@@ -776,7 +831,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   isLoadingCAs={isLoadingDependencies}
                   errorCAs={errorDependencies}
                   loadCAsAction={loadDependencies}
-                  fallbackValidationCa={enrollmentCa}
+                  validationErrors={enrollmentAuthErrors}
+                  timeoutError={enrollmentTimeoutError}
                 />
               </div>
             </div>
@@ -798,6 +854,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   isLoadingCAs={isLoadingDependencies}
                   errorCAs={errorDependencies}
                   loadCAsAction={loadDependencies}
+                  validationErrors={reenrollmentAuthErrors}
+                  timeoutError={reenrollmentTimeoutError}
                 />
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5 flex-1">
@@ -813,9 +871,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
                   <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
                 </div>
-                <DurationInput id="allowedRenewalDelta" label="Re-Enrollment Window" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when re-enrollment becomes available." />
-                <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
-                <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
+                <DurationInput id="allowedRenewalDelta" label="Re-Enrollment Window" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when re-enrollment becomes available." error={renewalWindowError || undefined} />
+                <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." error={preventiveDeltaError || undefined} />
+                <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." error={criticalDeltaError || undefined} />
                 <RenewalLifespanBar
                   certificateValidity={effectiveIssuanceProfile?.validity ?? null}
                   issuanceProfileName={effectiveIssuanceProfile?.name}
@@ -919,12 +977,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         <Separator />
 
-        <div className="flex justify-end gap-2 pt-6">
-          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
-          </Button>
+        <div className="space-y-3 pt-6">
+          <FormValidationSummary errors={validationSummary.errors} warnings={validationSummary.warnings} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting || validationSummary.errors.length > 0}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
+            </Button>
+          </div>
         </div>
       </form>
       <CaSelectorModal

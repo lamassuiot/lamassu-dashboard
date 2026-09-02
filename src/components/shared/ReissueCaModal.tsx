@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardHeader, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +25,8 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
+import { isValidPositiveDuration } from './DurationInput';
+import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
 
 type ProfileMode = 'reuse' | 'inline';
 
@@ -125,15 +127,17 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
     }
   };
 
-  const handleKeyUsageChange = (usage: string, checked: boolean) => {
+  const handleKeyUsageChange = (usage: KeyUsageOption, checked: boolean) => {
     setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
   };
 
-  const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
+  const handleExtendedKeyUsageChange = (usage: ExtendedKeyUsageOption, checked: boolean) => {
     setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
   };
 
   const handleReissue = () => {
+    if (!canSubmit) return;
+
     if (profileMode === 'reuse') {
       if (!selectedProfileId) return;
       onConfirm({ profile_id: selectedProfileId });
@@ -172,6 +176,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
       if (validity.type === 'Date') {
         return validity.dateValue ? isFuture(validity.dateValue) : false;
       } else if (validity.type === 'Duration' && validity.durationValue) {
+        if (!isValidPositiveDuration(validity.durationValue)) return false;
         // Parse duration string (e.g., "1y2w3d")
         const durationRegex = /(\d+)([ywdhms])/g;
         let match;
@@ -221,6 +226,17 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   const canSubmit = profileMode === 'reuse' 
     ? (!!selectedProfileId && profileHasSignAsCA)
     : expirationIsValid;
+  const profileSelectionError = profileMode === 'reuse' && !selectedProfileId
+    ? 'Issuance Profile required. Select a profile to reissue the CA certificate.'
+    : null;
+  const profileCapabilityError = profileMode === 'reuse' && !!selectedProfileId && !profileHasSignAsCA
+    ? 'Issuance Profile must have Sign as CA enabled.'
+    : null;
+  const expirationError = profileMode === 'inline' && !expirationIsValid
+    ? 'Certificate Validity must resolve to a future expiration date.'
+    : null;
+  const validationErrors = [profileSelectionError, profileCapabilityError, expirationError]
+    .filter((error): error is string => !!error);
 
   const cardClass = (mode: ProfileMode) => cn(
     "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
@@ -294,7 +310,11 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
                   <Skeleton className="h-10 w-full" />
                 ) : (
                   <Select value={selectedProfileId || ''} onValueChange={setSelectedProfileId}>
-                    <SelectTrigger id="profile-select">
+                    <SelectTrigger
+                      id="profile-select"
+                      aria-invalid={!!profileSelectionError || !!profileCapabilityError}
+                      aria-describedby={profileSelectionError ? 'profile-select-error' : undefined}
+                    >
                       <SelectValue placeholder="Select a profile..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -308,17 +328,23 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
                     </SelectContent>
                   </Select>
                 )}
+                {profileSelectionError && (
+                  <FormFieldError
+                    id="profile-select-error"
+                    title="Issuance Profile required."
+                    description="Select a profile to reissue the CA certificate."
+                  />
+                )}
               </div>
               {selectedProfile && (
                 <div className="pt-2">
                   <IssuanceProfileCard profile={selectedProfile} />
-                  {!profileHasSignAsCA && (
-                    <Alert variant="destructive" className="mt-2">
-                      <AlertTitle>Invalid Profile</AlertTitle>
-                      <AlertDescription>
-                        The selected profile must have &quot;Sign as CA&quot; enabled to reissue a CA certificate.
-                      </AlertDescription>
-                    </Alert>
+                  {profileCapabilityError && (
+                    <FormFieldError
+                      title="Invalid profile."
+                      description="The selected profile must have Sign as CA enabled."
+                      className="mt-2"
+                    />
                   )}
                 </div>
               )}
@@ -345,15 +371,8 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
                   label=""
                   value={validity}
                   onValueChange={setValidity}
+                  error={expirationError || undefined}
                 />
-                {!expirationIsValid && (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTitle>Invalid Expiration</AlertTitle>
-                    <AlertDescription>
-                      The certificate expiration must be set to a date in the future.
-                    </AlertDescription>
-                  </Alert>
-                )}
               </div>
 
               <div>
@@ -394,6 +413,8 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
             </div>
           )}
         </div>
+
+        <FormValidationSummary errors={validationErrors} />
 
         <DialogFooter>
           <Button variant="secondary" onClick={onClose} disabled={isReissuing}>
