@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
-    Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info, ShieldCheck,
+    Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info, ShieldCheck, Cpu, Server as ServerIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
@@ -25,7 +25,6 @@ import { CaVisualizerCard } from '../CaVisualizerCard';
 import { DurationInput } from './DurationInput';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
 import { Badge } from '../ui/badge';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { CodeBlock } from './CodeBlock';
 import { get_CMP_API_BASE_URL, get_CA_API_BASE_URL } from '@/lib/api-domains';
 import {
@@ -712,7 +711,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const [bootstrapKeygenSpec, setBootstrapKeygenSpec] = useState('2048');
 
     // Step 3/4: device cert key params (used for openssl cmp -newkey)
-    const [deviceKeygenType, setDeviceKeygenType] = useState('EC');
+    const [deviceKeygenType, setDeviceKeygenType] = useState('ECDSA');
     const [deviceKeygenSpec, setDeviceKeygenSpec] = useState('P-256');
     // RFC 9483 §4.1.6 central key generation opt-in — 'device' (default) keeps
     // the wizard's existing -newkey flow; 'server' switches the ir command to
@@ -883,12 +882,12 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         // key parameters that operation's command actually uses.
         if (selectedOperation !== 'ir') setKeygenMethod('device');
 
-        // Baseline device key type (EC), owned here rather than in the
+        // Baseline device key type (ECDSA), owned here rather than in the
         // availableCAs-dependent reset effect so it can't be stomped by that
         // effect re-firing when CAs load async. The encrypted_certificate
         // branch below overrides this to RSA (its only openssl-supported key
         // type) when that's the effective default POPO.
-        setDeviceKeygenType('EC');
+        setDeviceKeygenType('ECDSA');
         setDeviceKeygenSpec('P-256');
 
         const resetCmp = ra?.settings.cmp_settings?.enrollment_settings;
@@ -1860,40 +1859,27 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 <Label>{selectedOperation === 'kur' || selectedOperation === 'cr' ? 'New device key parameters' : 'Device key parameters'} (used by <code className="font-mono">openssl cmp -newkey</code>)</Label>
 
                                 {selectedOperation === 'ir' && (
-                                    <RadioGroup
+                                    <CardSelector
                                         value={keygenMethod}
-                                        onValueChange={(v) => setKeygenMethod(v as 'device' | 'server')}
-                                        className="grid grid-cols-2 gap-4"
-                                    >
-                                        <div>
-                                            <RadioGroupItem value="device" id="cmp-keygen-device" className="peer sr-only" />
-                                            <Label
-                                                htmlFor="cmp-keygen-device"
-                                                className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 text-center hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                                            >
-                                                Generate key on device
-                                            </Label>
-                                        </div>
-                                        <div>
-                                            <RadioGroupItem value="server" id="cmp-keygen-server" className="peer sr-only" disabled={!ckgAvailable} />
-                                            <Label
-                                                htmlFor="cmp-keygen-server"
-                                                className={cn(
-                                                    'flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 text-center',
-                                                    ckgAvailable
-                                                        ? 'hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary'
-                                                        : 'cursor-not-allowed opacity-50',
-                                                )}
-                                            >
-                                                Generate key on server
-                                                {!ckgAvailable && (
-                                                    <Badge variant="destructive" className="mt-2">
-                                                        {!requiresClientCert ? 'Requires a signed request' : 'Not Supported by RA'}
-                                                    </Badge>
-                                                )}
-                                            </Label>
-                                        </div>
-                                    </RadioGroup>
+                                        onChange={(v) => setKeygenMethod(v)}
+                                        columns={2}
+                                        options={[
+                                            {
+                                                value: 'device',
+                                                label: 'Generate key on device',
+                                                icon: Cpu,
+                                            },
+                                            {
+                                                value: 'server',
+                                                label: 'Generate key on server',
+                                                description: !ckgAvailable
+                                                    ? (!requiresClientCert ? 'Requires a signed request' : 'Not supported by RA')
+                                                    : undefined,
+                                                icon: ServerIcon,
+                                                disabled: !ckgAvailable,
+                                            },
+                                        ]}
+                                    />
                                 )}
 
                                 {selectedOperation === 'ir' && ckgAvailable && (

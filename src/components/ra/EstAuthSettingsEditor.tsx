@@ -25,7 +25,6 @@ type EstAuthSettingsEditorProps = {
   isLoadingCAs: boolean;
   errorCAs: string | null;
   loadCAsAction: () => void;
-  fallbackValidationCa?: CA | null;
   authDetailsPresentation?: 'card' | 'plain';
 };
 
@@ -38,7 +37,6 @@ export function EstAuthSettingsEditor({
   isLoadingCAs,
   errorCAs,
   loadCAsAction,
-  fallbackValidationCa,
   authDetailsPresentation = 'card',
 }: EstAuthSettingsEditorProps) {
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
@@ -92,8 +90,7 @@ export function EstAuthSettingsEditor({
   const includesWebhook = value.auth_mode === 'EXTERNAL_WEBHOOK'
     || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const isValidationCaMissing = includesClientCertificate
-    && clientSettings.validation_cas.length === 0
-    && !fallbackValidationCa;
+    && clientSettings.validation_cas.length === 0;
 
   return (
     <div className="space-y-4">
@@ -139,12 +136,7 @@ export function EstAuthSettingsEditor({
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-              )) : fallbackValidationCa ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Using the Enrollment CA because no explicit Validation CA is configured.</p>
-                  <CaVisualizerCard ca={fallbackValidationCa} allCryptoEngines={allCryptoEngines} className="shadow-none" />
-                </div>
-              ) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
+              )) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
               <Button
                 id={`${idPrefix}-validation-cas`}
                 type="button"
