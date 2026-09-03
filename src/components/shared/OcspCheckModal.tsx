@@ -10,7 +10,6 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Clock, Download, Copy, Check } from "lucide-react";
 import type { CertificateData } from '@/types/certificate';
 import type { CA } from '@/lib/ca-data';
-import { DetailItem } from './DetailItem';
 import { Badge } from '../ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -18,6 +17,7 @@ import { sileo } from '@/lib/toast';
 import { downloadFile } from '@/lib/utils';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib/va-api';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
     const bytes = new Uint8Array(buffer);
@@ -65,6 +65,17 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
     const [requestPemCopied, setRequestPemCopied] = useState(false);
     const [responsePemCopied, setResponsePemCopied] = useState(false);
     const [showHttpWarning, setShowHttpWarning] = useState(false);
+    const urlError = !ocspUrl.trim()
+        ? 'OCSP Endpoint required. Select a discovered URL or enter one manually.'
+        : null;
+    const validationErrors = [
+        urlError,
+        ...(!certificate?.pemData ? ['Certificate: certificate data is required for an OCSP request.'] : []),
+        ...(!issuerCertificate?.pemData ? ['Issuer Certificate: issuer data is required for an OCSP request.'] : []),
+    ].filter((error): error is string => !!error);
+    const validationWarnings = showHttpWarning
+        ? ['OCSP Endpoint: HTTP URLs are upgraded to HTTPS and may fail if the responder does not support it.']
+        : [];
 
     useEffect(() => {
         if (isOpen && certificate?.ocspUrls && certificate.ocspUrls.length > 0) {
@@ -89,10 +100,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
     };
 
     const handleSendRequest = async () => {
-        if (!ocspUrl || !certificate?.pemData || !issuerCertificate?.pemData) {
-            setResponseDetails({ status: 'error', statusText: 'Missing Information', errorDetails: 'OCSP URL, target certificate, or issuer certificate is missing.' });
-            return;
-        }
+        if (validationErrors.length > 0 || !certificate?.pemData || !issuerCertificate?.pemData) return;
         setIsLoading(true);
         setResponseDetails(null);
         setRequestPemCopied(false);
@@ -152,7 +160,11 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                         <div className="space-y-1.5">
                             <Label htmlFor="ocsp-url-select">Discovered from certificate AIA</Label>
                             <Select value={selectedDisplayUrl} onValueChange={handleUrlChange} disabled={isLoading || !certificate?.ocspUrls?.length}>
-                                <SelectTrigger id="ocsp-url-select">
+                                <SelectTrigger
+                                    id="ocsp-url-select"
+                                    aria-invalid={!!urlError}
+                                    aria-describedby={urlError ? 'ocsp-url-error' : undefined}
+                                >
                                     <SelectValue placeholder="Select from certificate's AIA..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -170,14 +182,27 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or enter manually</span></div>
                         </div>
 
-                        <Input
-                            type="text"
-                            placeholder="http://ocsp.example.com"
-                            value={selectedDisplayUrl}
-                            onChange={(e) => handleUrlChange(e.target.value)}
-                            disabled={isLoading}
-                            className="font-mono text-xs"
-                        />
+                        <div className="space-y-1.5">
+                            <Label htmlFor="ocsp-url">OCSP URL</Label>
+                            <Input
+                                id="ocsp-url"
+                                type="text"
+                                placeholder="http://ocsp.example.com"
+                                value={selectedDisplayUrl}
+                                onChange={(e) => handleUrlChange(e.target.value)}
+                                disabled={isLoading}
+                                className="font-mono text-xs"
+                                aria-invalid={!!urlError}
+                                aria-describedby={urlError ? 'ocsp-url-error' : undefined}
+                            />
+                            {urlError && (
+                                <FormFieldError
+                                    id="ocsp-url-error"
+                                    title="OCSP Endpoint required."
+                                    description="Select a discovered URL or enter one manually."
+                                />
+                            )}
+                        </div>
 
                         {showHttpWarning && (
                             <Alert variant="warning">
@@ -189,7 +214,9 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                             </Alert>
                         )}
 
-                        <Button onClick={handleSendRequest} disabled={!ocspUrl || isLoading} className="w-full">
+                        <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
+
+                        <Button onClick={handleSendRequest} disabled={isLoading || validationErrors.length > 0} className="w-full">
                             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
                             Send OCSP Request
                         </Button>

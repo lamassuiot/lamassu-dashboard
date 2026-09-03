@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import type { AwsPolicy } from './AwsIotIntegrationTab';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 
 const Editor = dynamic(
     () => import('@monaco-editor/react'), 
@@ -62,6 +63,7 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
         ]
       }, null, 2),
     },
+    mode: 'onChange',
   });
 
   useEffect(() => {
@@ -79,6 +81,7 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
           ]
         }, null, 2),
       });
+      void form.trigger();
     }
   }, [isOpen, existingPolicy, form]);
 
@@ -86,6 +89,7 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
     onSave(data);
     onOpenChange(false);
   };
+  const validationErrors = getFormErrorMessages(form.formState.errors);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -118,7 +122,7 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
                 <FormItem className="flex-grow flex flex-col">
                   <FormLabel>Policy Document</FormLabel>
                   <FormControl>
-                     <div className="border rounded-md overflow-hidden h-[24rem]">
+                     <div className="h-[24rem] overflow-hidden rounded-md border aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20">
                         <Editor
                             height="100%"
                             defaultLanguage="json"
@@ -133,9 +137,10 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
                 </FormItem>
               )}
             />
+            <FormValidationSummary errors={validationErrors} />
             <DialogFooter className="pt-2">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit">{isEditing ? 'Save Changes' : 'Add Policy'}</Button>
+              <Button type="submit" disabled={!form.formState.isValid}>{isEditing ? 'Save Changes' : 'Add Policy'}</Button>
             </DialogFooter>
           </form>
         </Form>

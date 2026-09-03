@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UploadCloud, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, Loader2 } from 'lucide-react';
 import type { CertificateData } from '@/types/certificate';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 // For client-side UUID and hash generation
 
 interface CertificateImportFormProps {
@@ -22,39 +23,30 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
-  const [errorFields, setErrorFields] = useState<Record<string, string[]>>({});
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const validationErrors = !selectedFile || selectedFile.size === 0
+    ? ['Certificate file is required.']
+    : [
+        selectedFile.size > MAX_FILE_SIZE ? 'Certificate file must be no larger than 5MB.' : null,
+        !ALLOWED_EXTENSIONS.includes(selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase())
+          ? `Certificate file must use one of these extensions: ${ALLOWED_EXTENSIONS.join(', ')}.`
+          : null,
+      ].filter((error): error is string => Boolean(error));
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setMessage(null);
     setIsError(false);
-    setErrorFields({});
 
     const formData = new FormData(event.currentTarget);
     const file = formData.get('certificateFile') as File | null;
 
-    // Validation
-    const currentErrorFields: Record<string, string[]> = {};
-    if (!file || file.size === 0) {
-      currentErrorFields.certificateFile = ['Certificate file is required.'];
-    } else {
-      if (file.size > MAX_FILE_SIZE) {
-        currentErrorFields.certificateFile = [...(currentErrorFields.certificateFile || []), `Max file size is 5MB.`];
-      }
-      const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
-        currentErrorFields.certificateFile = [...(currentErrorFields.certificateFile || []), `Only ${ALLOWED_EXTENSIONS.join(', ')} files are allowed.`];
-      }
-    }
-
-    if (Object.keys(currentErrorFields).length > 0) {
-      setErrorFields(currentErrorFields);
-      setMessage('Invalid input for certificate file.');
-      setIsError(true);
+    if (validationErrors.length > 0) {
       setIsLoading(false);
       return;
     }
@@ -92,8 +84,6 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
         validTo: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000) * (Math.random() + 0.5)).toISOString(),
         sans,
         pemData: fileContent,
-        verificationStatus: 'unverified',
-        verificationDetails: 'Certificate has not been verified yet.',
         publicKeyAlgorithm: 'RSA (2048 bits)',
         signatureAlgorithm: 'SHA256withRSA',
         fingerprintSha256: fingerprintSha256,
@@ -102,6 +92,7 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
       onCertificateImported(newCert);
       setMessage('Certificate imported successfully.');
       setIsError(false);
+      setSelectedFile(null);
       formRef.current?.reset();
 
     } catch (error) {
@@ -134,23 +125,27 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
               ref={fileInputRef}
               accept={ALLOWED_EXTENSIONS.join(',')}
               required
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              aria-invalid={validationErrors.length > 0}
+              aria-describedby={validationErrors.length > 0 ? 'certificate-file-error' : undefined}
               className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
               disabled={isLoading}
             />
-            {errorFields?.certificateFile && (
-              <p className="text-sm text-destructive">{errorFields.certificateFile.join(', ')}</p>
-            )}
+            {validationErrors.map((error, index) => (
+              <FormFieldError key={error} id={index === 0 ? 'certificate-file-error' : undefined} title={error} />
+            ))}
           </div>
-          
-          <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+
+          <FormValidationSummary errors={[...validationErrors, ...(isError && message ? [message] : [])]} />
+          <Button type="submit" disabled={isLoading || validationErrors.length > 0} className="w-full sm:w-auto">
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
             Import Certificate
           </Button>
 
-          {message && (
-            <Alert variant={isError ? "destructive" : "default"} className={`mt-4 ${!isError ? 'bg-accent/20 border-accent text-accent-foreground' : ''}`}>
-              {isError ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4 text-green-600" />}
-              <AlertTitle>{isError ? 'Import Error' : 'Success'}</AlertTitle>
+          {message && !isError && (
+            <Alert className="mt-4 bg-accent/20 border-accent text-accent-foreground">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle>Success</AlertTitle>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}

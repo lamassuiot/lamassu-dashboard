@@ -23,9 +23,18 @@ interface CryptoEngineSelectorProps {
   onValueChange: (engineId: string | undefined) => void;
   disabled?: boolean;
   className?: string;
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }
 
-export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ value, onValueChange, disabled, className }) => {
+export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({
+  value,
+  onValueChange,
+  disabled,
+  className,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
+}) => {
   const [engines, setEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
   const [errorEngines, setErrorEngines] = useState<string | null>(null);
@@ -91,11 +100,14 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ valu
         <button
           type="button"
           disabled={disabled}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             "flex w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm",
             "outline-none transition-[color,box-shadow] duration-200",
             "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30",
             "disabled:cursor-not-allowed disabled:opacity-50",
+            "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
             className
           )}
         >

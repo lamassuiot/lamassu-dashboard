@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { sileo } from '@/lib/toast';
-import { AlertCircle, AlertTriangle, Save, X, Users, Loader2 } from 'lucide-react';
+import { AlertCircle, Save, X, Users, Loader2 } from 'lucide-react';
 import {
   createDeviceGroup,
   updateDeviceGroup,
@@ -32,6 +32,7 @@ function generateUUID(): string {
 }
 import { FilterExpressionBuilder } from './FilterExpressionBuilder';
 import { ParentGroupSelector } from './ParentGroupSelector';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface DeviceGroupFormProps {
   mode: 'create' | 'edit';
@@ -69,12 +70,11 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   // Validate form
-  const validateForm = (): boolean => {
+  const getValidationErrors = (): Record<string, string> => {
     const newErrors: Record<string, string> = {};
 
     if (!name.trim()) {
@@ -100,11 +100,16 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
       if (!validation.valid) {
         newErrors.criteria = validation.error || 'Invalid filter criteria';
       }
+    } else if (mode === 'create') {
+      newErrors.criteria = 'At least one filter criterion is required';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
+
+  const errors = getValidationErrors();
+  const validationErrors = Object.values(errors);
+  const validateForm = () => validationErrors.length === 0;
 
   // Load preview count when criteria changes
   useEffect(() => {
@@ -218,9 +223,10 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
               placeholder="e.g., Production Devices"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={errors.name ? 'border-destructive' : ''}
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? 'device-group-name-error' : undefined}
             />
-            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+            {errors.name && <FormFieldError id="device-group-name-error" title={`${errors.name}.`} />}
             <p className="text-sm text-muted-foreground">
               A unique UUID will be automatically generated for this group
             </p>
@@ -234,10 +240,11 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className={errors.description ? 'border-destructive' : ''}
+              aria-invalid={!!errors.description}
+              aria-describedby={errors.description ? 'device-group-description-error' : undefined}
             />
             {errors.description && (
-              <p className="text-sm text-destructive">{errors.description}</p>
+              <FormFieldError id="device-group-description-error" title={`${errors.description}.`} />
             )}
             <p className="text-sm text-muted-foreground">
               {description.length}/500 characters
@@ -318,14 +325,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
           </Alert>
         )}
 
-        {mode === 'create' && criteria.length === 0 && (
-          <Alert variant="warning">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              No filters defined. This group will match all devices. Add filters to narrow down membership.
-            </AlertDescription>
-          </Alert>
-        )}
+        <FormValidationSummary errors={validationErrors} />
       </div>
 
       {/* Form Actions */}
@@ -334,7 +334,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
           <X className="mr-2 h-4 w-4" />
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || (mode === 'create' && criteria.length === 0)}>
+        <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />

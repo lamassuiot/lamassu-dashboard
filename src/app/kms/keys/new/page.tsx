@@ -10,19 +10,18 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag } from "lucide-react";
+import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey, importKmsKey } from '@/lib/kms-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { TagInput } from '@/components/shared/TagInput';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -137,6 +136,25 @@ export default function CreateKmsKeyPage() {
     if (keyType === 'ECDSA') return ecdsaCurve;
     return '';
   })();
+
+  const validationErrors = selectedMode === 'newKeyPair'
+    ? [
+        ...(!keyName.trim() ? ['Key Identity: Key Name / Alias is required.'] : []),
+        ...(!cryptoEngineId ? ['Cryptographic Parameters: Crypto Engine is required.'] : []),
+        ...(!keyType ? ['Cryptographic Parameters: Key Type is required.'] : []),
+        ...(!currentKeySpecValue ? [`Cryptographic Parameters: ${keySpecLabel} is required.`] : []),
+        ...(metadataError ? ['Tags & Metadata: Metadata must be valid JSON.'] : []),
+      ]
+    : selectedMode === 'importKeyPair'
+      ? [
+          ...(!importKeyName.trim() ? ['Key Identity: Key Name / Alias is required.'] : []),
+          ...(!cryptoEngineId ? ['Engine Configuration: Crypto Engine is required.'] : []),
+          ...(!privateKeyPem.trim() ? ['Key Material: Private Key is required.'] : []),
+          ...(metadataError ? ['Tags & Metadata: Metadata must be valid JSON.'] : []),
+        ]
+      : selectedMode === 'importPublicKey' && !publicKeyPem.trim()
+        ? ['Key Material: Public Key is required.']
+        : [];
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
@@ -442,7 +460,12 @@ export default function CreateKmsKeyPage() {
                   onChange={(e) => setKeyName(e.target.value)}
                   placeholder="e.g., my-secure-rsa-key"
                   required
+                  aria-invalid={!keyName.trim()}
+                  aria-describedby={!keyName.trim() ? 'kms-key-name-error' : undefined}
                 />
+                {!keyName.trim() && (
+                  <FormFieldError id="kms-key-name-error" title="Key Name / Alias required." description="Enter a name before creating the key." />
+                )}
                 <p className="text-xs text-muted-foreground">Used to identify the key across the system.</p>
               </div>
             </div>
@@ -474,14 +497,19 @@ export default function CreateKmsKeyPage() {
                       }
                     }}
                     disabled={isSubmitting}
+                    aria-invalid={!cryptoEngineId}
+                    aria-describedby={!cryptoEngineId ? 'kms-create-engine-error' : undefined}
                   />
+                  {!cryptoEngineId && (
+                    <FormFieldError id="kms-create-engine-error" title="Crypto Engine required." description="Select one before creating the key." />
+                  )}
                   <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="keyType">Key Type</Label>
                     <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={isSubmitting || isLoadingEngines || !selectedEngine}>
-                      <SelectTrigger id="keyType"><SelectValue placeholder="Select key type" /></SelectTrigger>
+                      <SelectTrigger id="keyType" aria-invalid={!keyType}><SelectValue placeholder="Select key type" /></SelectTrigger>
                       <SelectContent>
                         {availableKeyTypeOptions.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
                       </SelectContent>
@@ -493,7 +521,7 @@ export default function CreateKmsKeyPage() {
                   <div className="space-y-1.5">
                     <Label htmlFor="keySpec">{keySpecLabel}</Label>
                     <Select value={currentKeySpecValue} onValueChange={handleKeySpecChange} disabled={isSubmitting || isLoadingEngines || !keyType}>
-                      <SelectTrigger id="keySpec"><SelectValue placeholder="Select specification" /></SelectTrigger>
+                      <SelectTrigger id="keySpec" aria-invalid={!currentKeySpecValue}><SelectValue placeholder="Select specification" /></SelectTrigger>
                       <SelectContent>
                         {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                       </SelectContent>
@@ -520,19 +548,17 @@ export default function CreateKmsKeyPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Metadata (JSON)</Label>
-                  <MonacoEditor
-                    height="200px"
-                    defaultLanguage="json"
-                    value={metadata}
-                    onChange={handleMetadataChange}
-                    options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', automaticLayout: true, tabSize: 2, formatOnPaste: true, formatOnType: true }}
-                    theme={monacoTheme}
-                  />
-                  {metadataError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{metadataError}</AlertDescription>
-                    </Alert>
-                  )}
+                  <div aria-invalid={!!metadataError} aria-describedby={metadataError ? 'kms-create-metadata-error' : undefined} className={cn('overflow-hidden rounded-md border border-transparent', metadataError && 'border-destructive ring-3 ring-destructive/20')}>
+                    <MonacoEditor
+                      height="200px"
+                      defaultLanguage="json"
+                      value={metadata}
+                      onChange={handleMetadataChange}
+                      options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', automaticLayout: true, tabSize: 2, formatOnPaste: true, formatOnType: true }}
+                      theme={monacoTheme}
+                    />
+                  </div>
+                  {metadataError && <FormFieldError id="kms-create-metadata-error" title="Invalid metadata." description="Enter valid JSON before creating the key." />}
                   <p className="text-xs text-muted-foreground">Custom key-value metadata in JSON (e.g., owner, project, cost-center).</p>
                 </div>
               </div>
@@ -557,7 +583,12 @@ export default function CreateKmsKeyPage() {
                   onChange={(e) => setImportKeyName(e.target.value)}
                   placeholder="Enter a name for the imported key"
                   required
+                  aria-invalid={!importKeyName.trim()}
+                  aria-describedby={!importKeyName.trim() ? 'kms-import-name-error' : undefined}
                 />
+                {!importKeyName.trim() && (
+                  <FormFieldError id="kms-import-name-error" title="Key Name / Alias required." description="Enter a name before importing the key." />
+                )}
                 <p className="text-xs text-muted-foreground">Used to identify the imported key across the system.</p>
               </div>
             </div>
@@ -572,7 +603,16 @@ export default function CreateKmsKeyPage() {
               </div>
               <div className="space-y-1.5 lg:col-span-2">
                 <Label>Crypto Engine</Label>
-                <CryptoEngineSelector value={cryptoEngineId} onValueChange={setCryptoEngineId} disabled={isSubmitting} />
+                <CryptoEngineSelector
+                  value={cryptoEngineId}
+                  onValueChange={setCryptoEngineId}
+                  disabled={isSubmitting}
+                  aria-invalid={!cryptoEngineId}
+                  aria-describedby={!cryptoEngineId ? 'kms-import-engine-error' : undefined}
+                />
+                {!cryptoEngineId && (
+                  <FormFieldError id="kms-import-engine-error" title="Crypto Engine required." description="Select one before importing the key." />
+                )}
                 <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
               </div>
             </div>
@@ -595,7 +635,12 @@ export default function CreateKmsKeyPage() {
                   rows={8}
                   required
                   className="font-mono"
+                  aria-invalid={!privateKeyPem.trim()}
+                  aria-describedby={!privateKeyPem.trim() ? 'kms-private-key-error' : undefined}
                 />
+                {!privateKeyPem.trim() && (
+                  <FormFieldError id="kms-private-key-error" title="Private Key required." description="Paste the PEM value before importing." />
+                )}
                 <p className="text-xs text-muted-foreground">Paste your private key in PEM format.</p>
               </div>
             </div>
@@ -616,19 +661,17 @@ export default function CreateKmsKeyPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Metadata (JSON)</Label>
-                  <MonacoEditor
-                    height="200px"
-                    defaultLanguage="json"
-                    value={metadata}
-                    onChange={handleMetadataChange}
-                    options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', automaticLayout: true, tabSize: 2, formatOnPaste: true, formatOnType: true }}
-                    theme={monacoTheme}
-                  />
-                  {metadataError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{metadataError}</AlertDescription>
-                    </Alert>
-                  )}
+                  <div aria-invalid={!!metadataError} aria-describedby={metadataError ? 'kms-import-metadata-error' : undefined} className={cn('overflow-hidden rounded-md border border-transparent', metadataError && 'border-destructive ring-3 ring-destructive/20')}>
+                    <MonacoEditor
+                      height="200px"
+                      defaultLanguage="json"
+                      value={metadata}
+                      onChange={handleMetadataChange}
+                      options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', automaticLayout: true, tabSize: 2, formatOnPaste: true, formatOnType: true }}
+                      theme={monacoTheme}
+                    />
+                  </div>
+                  {metadataError && <FormFieldError id="kms-import-metadata-error" title="Invalid metadata." description="Enter valid JSON before importing the key." />}
                   <p className="text-xs text-muted-foreground">Custom key-value metadata in JSON (e.g., owner, project, cost-center).</p>
                 </div>
               </div>
@@ -653,7 +696,12 @@ export default function CreateKmsKeyPage() {
                 rows={6}
                 required
                 className="font-mono"
+                aria-invalid={!publicKeyPem.trim()}
+                aria-describedby={!publicKeyPem.trim() ? 'kms-public-key-error' : undefined}
               />
+              {!publicKeyPem.trim() && (
+                <FormFieldError id="kms-public-key-error" title="Public Key required." description="Paste the PEM value before importing." />
+              )}
               <p className="text-xs text-muted-foreground">Paste your public key in PEM format.</p>
             </div>
           </div>
@@ -661,13 +709,16 @@ export default function CreateKmsKeyPage() {
 
         <Separator />
 
-        <div className="flex justify-end pt-6">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {selectedMode === 'newKeyPair' ? 'Create Key Pair' :
-             selectedMode === 'importKeyPair' ? 'Import Key Pair' :
-             'Import Public Key'}
-          </Button>
+        <div className="space-y-3 pt-6">
+          <FormValidationSummary errors={validationErrors} />
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {selectedMode === 'newKeyPair' ? 'Create Key Pair' :
+               selectedMode === 'importKeyPair' ? 'Import Key Pair' :
+               'Import Public Key'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

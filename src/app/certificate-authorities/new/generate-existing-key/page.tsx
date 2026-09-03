@@ -30,6 +30,7 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { add, format } from 'date-fns';
 import type { CreateSigningProfilePayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { FormFieldError, FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -62,6 +63,7 @@ export default function CreateCaExistingKeyPage() {
   const caProfileForm = useForm<SimplifiedInlineProfileFormValues>({
     resolver: zodResolver(simplifiedInlineProfileSchema),
     defaultValues: defaultSimplifiedFormValues,
+    mode: 'onChange',
   });
 
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
@@ -75,6 +77,17 @@ export default function CreateCaExistingKeyPage() {
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
   const [errorDependencies, setErrorDependencies] = useState<string | null>(null);
+
+  const inlineCaProfileErrors = getFormErrorMessages(caProfileForm.formState.errors);
+  const validationErrors = [
+    ...(!selectedKeyId ? ['KMS Key: select an existing key pair.'] : []),
+    ...(caType === 'intermediate' && !selectedParentCa ? ['CA Settings: Parent Certification Authority is required for an intermediate CA.'] : []),
+    ...(!caName.trim() ? ['CA Settings: CA Name is required.'] : []),
+    ...(profileMode === 'reuse' && !selectedProfileId ? ['Default Issuance Profile: select an issuance profile.'] : []),
+    ...(profileMode === 'create' ? ['Default Issuance Profile: create and select the new profile before creating the CA.'] : []),
+    ...(caProfileMode === 'inline' ? inlineCaProfileErrors.map((error) => `CA Certificate Profile: ${error}`) : []),
+  ];
+  const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
 
   useEffect(() => {
     setCaId(crypto.randomUUID());
@@ -399,13 +412,17 @@ export default function CreateCaExistingKeyPage() {
                   allCryptoEngines={allCryptoEngines}
                   disabled={isSubmitting}
                   requirePrivateKey={true}
+                  aria-invalid={!selectedKeyId}
+                  aria-describedby={!selectedKeyId ? 'existing-key-ca-kms-key-error' : undefined}
                 />
                 {selectedKeyData && (
                   <p className="text-xs text-muted-foreground">
                     Selected: {selectedKeyData.algorithm} {selectedKeyData.size}-bit key
                   </p>
                 )}
-                {!selectedKeyId && <p className="text-xs text-destructive">A KMS key must be selected to proceed.</p>}
+                {!selectedKeyId && (
+                  <FormFieldError id="existing-key-ca-kms-key-error" title="KMS Key required." description="Select one before creating the CA." />
+                )}
               </div>
             </div>
           </div>
@@ -439,13 +456,17 @@ export default function CreateCaExistingKeyPage() {
                     className="w-full justify-start text-left font-normal"
                     id="parentCa"
                     disabled={isLoadingDependencies || isSubmitting}
+                    aria-invalid={!selectedParentCa}
+                    aria-describedby={!selectedParentCa ? 'existing-key-ca-parent-error' : undefined}
                   >
                     {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
                   </Button>
                   {selectedParentCa && (
                     <CaVisualizerCard ca={selectedParentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
                   )}
-                  {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
+                  {!selectedParentCa && (
+                    <FormFieldError id="existing-key-ca-parent-error" title="Parent Certification Authority required." description="Select one for the intermediate CA." />
+                  )}
                 </div>
               )}
               {caType === 'root' && (
@@ -461,8 +482,19 @@ export default function CreateCaExistingKeyPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="caName">CA Name (Common Name)</Label>
-                <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
-                {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
+                <Input
+                  id="caName"
+                  value={caName}
+                  onChange={(e) => setCaName(e.target.value)}
+                  placeholder="e.g., LamassuIoT Secure Services CA"
+                  required
+                  disabled={isSubmitting}
+                  aria-invalid={!caName.trim()}
+                  aria-describedby={!caName.trim() ? 'existing-key-ca-name-error' : undefined}
+                />
+                {!caName.trim() && (
+                  <FormFieldError id="existing-key-ca-name-error" title="CA Name required." description="Enter a Common Name before creating the CA." />
+                )}
               </div>
             </div>
           </div>
@@ -622,17 +654,21 @@ export default function CreateCaExistingKeyPage() {
                 inlineModeEnabled={false}
                 createModeEnabled={true}
                 onProfileCreated={handleProfileCreated}
+                selectionError={profileMode === 'reuse' && !selectedProfileId ? 'Select one before creating the CA.' : undefined}
               />
             </div>
           </div>
 
           <Separator />
 
-          <div className="flex justify-end pt-6">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
-            </Button>
+          <div className="space-y-3 pt-6">
+            <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
+              </Button>
+            </div>
           </div>
         </form>
 

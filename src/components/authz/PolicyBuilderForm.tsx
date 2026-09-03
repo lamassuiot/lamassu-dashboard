@@ -35,6 +35,7 @@ import {
   Shield,
   Globe,
 } from 'lucide-react';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 import type {
   EntityAddress,
   Rule,
@@ -212,6 +213,7 @@ function EntitySelector({
         <PopoverTrigger asChild>
           <button
             type="button"
+            aria-invalid={!!error}
             className={cn(
               'flex h-10 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap',
               'transition-[color,box-shadow] duration-200 outline-none',
@@ -365,7 +367,7 @@ function EntitySelector({
           </div>
         </PopoverContent>
       </Popover>
-      {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+      {error && <FormFieldError className="mt-1" title={error} />}
     </div>
   );
 }
@@ -1133,7 +1135,7 @@ function UnifiedEntitySelector({
           </div>
         </PopoverContent>
       </Popover>
-      {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+      {error && <FormFieldError className="mt-1" title={error} />}
     </div>
   );
 }

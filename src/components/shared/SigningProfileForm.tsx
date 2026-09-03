@@ -7,11 +7,11 @@ import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Info } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
+import { isValidPositiveDuration } from '@/components/shared/DurationInput';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -37,11 +37,11 @@ export const signingProfileSchema = z.object({
     durationValue: z.string().optional(),
     dateValue: z.date().optional(),
   }).refine(data => {
-    if (data.type === 'Duration') return !!data.durationValue;
-    if (data.type === 'Date') return !!data.dateValue;
+    if (data.type === 'Duration') return !!data.durationValue && isValidPositiveDuration(data.durationValue);
+    if (data.type === 'Date') return !!data.dateValue && data.dateValue.getTime() > Date.now();
     return true; // Indefinite is always valid
   }, {
-    message: "A value is required for the selected validity type.",
+    message: "Certificate validity must be a positive duration or a future date.",
     path: ["durationValue"], // Or an appropriate path
   }),
 
@@ -307,20 +307,25 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
         <FormField
             control={form.control}
             name="validity"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
+            render={({ field }) => {
+              const validityErrors = form.formState.errors.validity;
+              const validityError = validityErrors?.durationValue?.message
+                || validityErrors?.dateValue?.message
+                || validityErrors?.message;
+
+              return (
+                <FormItem>
                   <ExpirationInput
-                    idPrefix="profile-validity"
-                    label="Certificate Validity"
-                    value={field.value}
-                    onValueChange={field.onChange}
+                      idPrefix="profile-validity"
+                      label="Certificate Validity"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      error={validityError}
                   />
-                </FormControl>
-                <FormDescription>Default validity for certificates signed with this profile.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
+                  <FormDescription>Default validity for certificates signed with this profile.</FormDescription>
+                </FormItem>
+              );
+            }}
           />
           
           <InlineSwitchField

@@ -19,7 +19,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   getSavedMetadataFilters,
   saveMetadataFilter,
@@ -29,6 +28,7 @@ import {
 } from '@/lib/metadata-filter-storage';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 export interface MetadataFilter {
   filter: string;
@@ -66,6 +66,14 @@ export function MetadataFilterManager({
   const [newFilterDescription, setNewFilterDescription] = useState('');
   const [newFilterJsonPath, setNewFilterJsonPath] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const filterNameError = !newFilterName.trim()
+    ? 'Filter Name required. Enter a name for this saved filter.'
+    : null;
+  const filterJsonPathError = !newFilterJsonPath.trim()
+    ? 'JSONPath Query required. Enter the query to save.'
+    : null;
+  const filterDialogValidationErrors = [filterNameError, filterJsonPathError]
+    .filter((error): error is string => !!error);
 
   // Load saved filters on mount and when popover opens
   useEffect(() => {
@@ -92,15 +100,7 @@ export function MetadataFilterManager({
   };
 
   const handleConfirmSave = () => {
-    if (!newFilterName.trim()) {
-      setSaveError('Name is required');
-      return;
-    }
-    
-    if (!newFilterJsonPath.trim()) {
-      setSaveError('JSONPath query is required');
-      return;
-    }
+    if (filterDialogValidationErrors.length > 0) return;
 
     try {
       saveMetadataFilter(newFilterName.trim(), newFilterJsonPath.trim(), newFilterDescription.trim() || undefined);
@@ -111,7 +111,7 @@ export function MetadataFilterManager({
       setNewFilterJsonPath('');
       setSaveError(null);
     } catch (error) {
-      setSaveError('Failed to save filter');
+      setSaveError('Filter: failed to save. Try again.');
     }
   };
 
@@ -126,16 +126,7 @@ export function MetadataFilterManager({
 
   const handleConfirmEdit = () => {
     if (!editingFilter) return;
-
-    if (!newFilterName.trim()) {
-      setSaveError('Name is required');
-      return;
-    }
-    
-    if (!newFilterJsonPath.trim()) {
-      setSaveError('JSONPath query is required');
-      return;
-    }
+    if (filterDialogValidationErrors.length > 0) return;
 
     try {
       updateMetadataFilter(editingFilter.id, {
@@ -151,7 +142,7 @@ export function MetadataFilterManager({
       setNewFilterJsonPath('');
       setSaveError(null);
     } catch (error) {
-      setSaveError('Failed to update filter');
+      setSaveError('Filter: failed to update. Try again.');
     }
   };
 
@@ -377,19 +368,26 @@ export function MetadataFilterManager({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {saveError && (
-              <Alert variant="destructive">
-                <AlertDescription>{saveError}</AlertDescription>
-              </Alert>
-            )}
             <div className="space-y-2">
               <Label htmlFor="filter-name">Name *</Label>
               <Input
                 id="filter-name"
                 placeholder="e.g., Production Environment"
                 value={newFilterName}
-                onChange={(e) => setNewFilterName(e.target.value)}
+                onChange={(e) => {
+                  setNewFilterName(e.target.value);
+                  setSaveError(null);
+                }}
+                aria-invalid={!!filterNameError}
+                aria-describedby={filterNameError ? 'filter-name-error' : undefined}
               />
+              {filterNameError && (
+                <FormFieldError
+                  id="filter-name-error"
+                  title="Filter Name required."
+                  description="Enter a name for this saved filter."
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="filter-description">Description (optional)</Label>
@@ -407,17 +405,35 @@ export function MetadataFilterManager({
                 id="filter-jsonpath"
                 placeholder="$[?(@.key=='value')]"
                 value={newFilterJsonPath}
-                onChange={(e) => setNewFilterJsonPath(e.target.value)}
+                onChange={(e) => {
+                  setNewFilterJsonPath(e.target.value);
+                  setSaveError(null);
+                }}
                 rows={3}
                 className="font-mono text-sm"
+                aria-invalid={!!filterJsonPathError}
+                aria-describedby={filterJsonPathError ? 'filter-jsonpath-error' : undefined}
               />
+              {filterJsonPathError && (
+                <FormFieldError
+                  id="filter-jsonpath-error"
+                  title="JSONPath Query required."
+                  description="Enter the query to save."
+                />
+              )}
             </div>
           </div>
+          <FormValidationSummary
+            errors={[
+              ...filterDialogValidationErrors,
+              ...(saveError ? [saveError] : []),
+            ]}
+          />
           <DialogFooter>
             <Button variant="secondary" onClick={() => setIsSaveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmSave}>
+            <Button onClick={handleConfirmSave} disabled={filterDialogValidationErrors.length > 0}>
               <Save className="h-4 w-4 mr-2" />
               Save Filter
             </Button>
@@ -435,19 +451,26 @@ export function MetadataFilterManager({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {saveError && (
-              <Alert variant="destructive">
-                <AlertDescription>{saveError}</AlertDescription>
-              </Alert>
-            )}
             <div className="space-y-2">
               <Label htmlFor="edit-filter-name">Name *</Label>
               <Input
                 id="edit-filter-name"
                 placeholder="e.g., Production Environment"
                 value={newFilterName}
-                onChange={(e) => setNewFilterName(e.target.value)}
+                onChange={(e) => {
+                  setNewFilterName(e.target.value);
+                  setSaveError(null);
+                }}
+                aria-invalid={!!filterNameError}
+                aria-describedby={filterNameError ? 'edit-filter-name-error' : undefined}
               />
+              {filterNameError && (
+                <FormFieldError
+                  id="edit-filter-name-error"
+                  title="Filter Name required."
+                  description="Enter a name for this saved filter."
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-filter-description">Description (optional)</Label>
@@ -465,17 +488,35 @@ export function MetadataFilterManager({
                 id="edit-filter-jsonpath"
                 placeholder="$[?(@.key=='value')]"
                 value={newFilterJsonPath}
-                onChange={(e) => setNewFilterJsonPath(e.target.value)}
+                onChange={(e) => {
+                  setNewFilterJsonPath(e.target.value);
+                  setSaveError(null);
+                }}
                 rows={3}
                 className="font-mono text-sm"
+                aria-invalid={!!filterJsonPathError}
+                aria-describedby={filterJsonPathError ? 'edit-filter-jsonpath-error' : undefined}
               />
+              {filterJsonPathError && (
+                <FormFieldError
+                  id="edit-filter-jsonpath-error"
+                  title="JSONPath Query required."
+                  description="Enter the query to save."
+                />
+              )}
             </div>
           </div>
+          <FormValidationSummary
+            errors={[
+              ...filterDialogValidationErrors,
+              ...(saveError ? [saveError] : []),
+            ]}
+          />
           <DialogFooter>
             <Button variant="secondary" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmEdit}>
+            <Button onClick={handleConfirmEdit} disabled={filterDialogValidationErrors.length > 0}>
               <Save className="h-4 w-4 mr-2" />
               Update Filter
             </Button>

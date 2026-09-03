@@ -14,6 +14,7 @@ import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { X509AuthConfig, X509CaTrustIdentityType } from '@/types/authz';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 interface X509ConfigEditorProps {
   isNew: boolean;
@@ -55,6 +56,9 @@ export function X509ConfigEditor({
     : caTrustValue
     ? 'CA configured'
     : 'Select a Certification Authority...';
+  const caMissing = !selectedCa && !caTrustValue.trim();
+  const serialNumberMissing = matchMode === 'serial_and_ca' && !serialNumber.trim();
+  const subjectCnMissing = (matchMode === 'cn_and_ca' || matchMode === 'subject_cn') && !subjectCn.trim();
 
   return (
     <div className="space-y-4">
@@ -66,13 +70,16 @@ export function X509ConfigEditor({
           type="button"
           onClick={onOpenCaSelector}
           disabled={disabled}
-          className="flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-invalid={caMissing}
+          aria-describedby={caMissing ? 'principal-x509-ca-error' : undefined}
+          className="flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
         >
           <span className={selectedCa ? 'text-foreground' : 'text-muted-foreground'}>
             {caButtonLabel}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
+        {caMissing && <FormFieldError id="principal-x509-ca-error" title="Certification Authority required." description="Select one before saving." />}
 
         {selectedCa ? (
           <CaVisualizerCard ca={selectedCa} allCryptoEngines={allCryptoEngines} className="shadow-none border-border" />
@@ -159,7 +166,10 @@ export function X509ConfigEditor({
             required
             disabled={disabled}
             className="font-mono text-sm"
+            aria-invalid={serialNumberMissing}
+            aria-describedby={serialNumberMissing ? 'principal-serial-number-error' : undefined}
           />
+          {serialNumberMissing && <FormFieldError id="principal-serial-number-error" title="Serial Number required." description="Enter one for this match mode." />}
           <p className="text-xs text-muted-foreground">Certificate serial number.</p>
         </div>
       )}
@@ -177,7 +187,10 @@ export function X509ConfigEditor({
             required
             disabled={disabled}
             className="font-mono text-sm"
+            aria-invalid={subjectCnMissing}
+            aria-describedby={subjectCnMissing ? 'principal-subject-cn-error' : undefined}
           />
+          {subjectCnMissing && <FormFieldError id="principal-subject-cn-error" title="Subject Common Name required." description="Enter one for this match mode." />}
           <p className="text-xs text-muted-foreground">
             Use <code className="rounded bg-muted px-1 py-0.5 text-xs">*</code> for wildcard matching, e.g.{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">*.sensors.example.com</code>
