@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
 import {
   buildInlineIssuanceProfile,
+  includesValidationCa,
   normalizeEstAuthSettings,
   parseJsonObject,
   validateEstAuthSettings,
@@ -49,6 +50,23 @@ describe('DMS form helpers', () => {
     expect(effectiveSettings.client_certificate_settings?.validation_cas).toEqual(['enrollment-ca']);
     expect(validateEstAuthSettings('Enrollment authentication', effectiveSettings, true)).toBeNull();
     expect(settings.client_certificate_settings?.validation_cas).toEqual([]);
+  });
+
+  it('appends the Enrollment CA alongside validation CAs already configured', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.client_certificate_settings!.validation_cas = ['other-ca'];
+
+    expect(withDefaultValidationCa(settings, 'enrollment-ca').client_certificate_settings?.validation_cas)
+      .toEqual(['other-ca', 'enrollment-ca']);
+  });
+
+  it('keeps settings untouched when the Enrollment CA is already a validation CA', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.client_certificate_settings!.validation_cas = ['enrollment-ca'];
+
+    expect(withDefaultValidationCa(settings, 'enrollment-ca')).toBe(settings);
+    expect(includesValidationCa(settings, 'enrollment-ca')).toBe(true);
+    expect(includesValidationCa(settings, 'other-ca')).toBe(false);
   });
 
   it('validates webhook credentials for the selected HTTP auth mode', () => {

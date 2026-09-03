@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PlusCircle, X } from 'lucide-react';
+import { AlertTriangle, PlusCircle, X } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { DurationInput } from '@/components/shared/DurationInput';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,7 @@ type EstAuthSettingsEditorProps = {
   loadCAsAction: () => void;
   validationErrors?: readonly string[];
   timeoutError?: string | null;
+  validationCaWarning?: string | null;
 };
 
 export function EstAuthSettingsEditor({
@@ -40,6 +42,7 @@ export function EstAuthSettingsEditor({
   loadCAsAction,
   validationErrors = [],
   timeoutError,
+  validationCaWarning,
 }: EstAuthSettingsEditorProps) {
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const clientSettings = value.client_certificate_settings || {
@@ -162,6 +165,13 @@ export function EstAuthSettingsEditor({
               <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
             </Button>
             {validationCaError && <FormFieldError id={`${idPrefix}-validation-ca-error`} title="Validation CA required." description="Select at least one for client certificate authentication." />}
+            {!validationCaError && validationCaWarning ? (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Enrollment CA not included</AlertTitle>
+                <AlertDescription>{validationCaWarning}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>

@@ -228,11 +228,9 @@ export function withDefaultValidationCa(
   settings: ApiRaEstSettings,
   validationCaId: string,
 ): ApiRaEstSettings {
-  const includesClientCertificate = settings.auth_mode === 'CLIENT_CERTIFICATE'
-    || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const clientSettings = settings.client_certificate_settings;
 
-  if (!includesClientCertificate || !clientSettings || clientSettings.validation_cas.length > 0) {
+  if (!clientSettings || clientSettings.validation_cas.includes(validationCaId)) {
     return settings;
   }
 
@@ -240,7 +238,14 @@ export function withDefaultValidationCa(
     ...settings,
     client_certificate_settings: {
       ...clientSettings,
-      validation_cas: [validationCaId],
+      validation_cas: [...clientSettings.validation_cas, validationCaId],
     },
   };
+}
+
+export function includesValidationCa(
+  settings: ApiRaEstSettings,
+  validationCaId: string,
+): boolean {
+  return settings.client_certificate_settings?.validation_cas.includes(validationCaId) ?? false;
 }

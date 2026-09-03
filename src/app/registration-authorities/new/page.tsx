@@ -47,9 +47,11 @@ import {
   buildInlineIssuanceProfile,
   createDefaultEstAuthSettings,
   getEstAuthSettingsValidationErrors,
+  includesValidationCa,
   mapIssuanceProfileToFormValues,
   normalizeEstAuthSettings,
   parseJsonObject,
+  withDefaultValidationCa,
 } from '@/lib/dms-form';
 
 
@@ -426,6 +428,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     setIsAdditionalValidationCaModalOpen(false);
   }
 
+  const handleEnrollmentCaSelected = (ca: CA) => {
+    setEnrollmentCa(ca);
+    setAdditionalValidationCAs(prev => (
+      prev.some(validationCa => validationCa.id === ca.id)
+        ? prev
+        : [...prev, ca]
+    ));
+    // Devices re-enroll with the certificate issued by the Enrollment CA, so trust it by default.
+    setReenrollmentAuthSettings(prev => withDefaultValidationCa(prev, ca.id));
+    setIsEnrollmentCaModalOpen(false);
+  };
+
   const handleRemoveAdditionalValidationCa = (caId: string) => {
     setAdditionalValidationCAs(prev => prev.filter(vca => vca.id !== caId));
   }
@@ -446,6 +460,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
 
   const enrollmentValidationCaCount = enrollmentAuthSettings.client_certificate_settings?.validation_cas.length || 0;
+  const includesEnrollmentCaForReenrollment = !enrollmentCa
+    || additionalValidationCAs.some(ca => ca.id === enrollmentCa.id);
+  const reenrollmentUsesClientCertificate = reenrollmentAuthSettings.auth_mode === 'CLIENT_CERTIFICATE'
+    || reenrollmentAuthSettings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
+  const reenrollmentValidationCaWarning = enrollmentCa
+    && reenrollmentUsesClientCertificate
+    && !includesValidationCa(reenrollmentAuthSettings, enrollmentCa.id)
+      ? `"${enrollmentCa.name}" is the Enrollment CA but is not a re-enrollment validation CA, so devices holding a certificate issued by it cannot re-enroll.`
+      : null;
 
   useEffect(() => {
     if (issuanceProfileMode === 'inline') void inlineProfileForm.trigger();
@@ -461,12 +484,12 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const enrollmentAuthErrors = getEstAuthSettingsValidationErrors(
     'Enrollment authentication',
     enrollmentAuthSettings,
-    Boolean(enrollmentCa),
+    true,
   );
   const reenrollmentAuthErrors = getEstAuthSettingsValidationErrors(
     'Re-enrollment authentication',
     reenrollmentAuthSettings,
-    Boolean(enrollmentCa),
+    true,
   );
   const enrollmentTimeoutError = (enrollmentAuthSettings.auth_mode === 'EXTERNAL_WEBHOOK'
     || enrollmentAuthSettings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
@@ -514,6 +537,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       issuanceProfileMode === 'default' && enrollmentCa && !enrollmentCaDefaultProfile
         ? 'The selected Enrollment CA does not currently have a default issuance profile.'
         : null,
+      enrollmentCa && !includesEnrollmentCaForReenrollment
+        ? 'The Enrollment CA is not included in the Additional Validation CAs used for re-enrollment.'
+        : null,
+      reenrollmentValidationCaWarning,
       errorDependencies ? `Dependencies: ${errorDependencies}` : null,
     ].filter((message): message is string => Boolean(message)),
   };
@@ -856,6 +883,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   loadCAsAction={loadDependencies}
                   validationErrors={reenrollmentAuthErrors}
                   timeoutError={reenrollmentTimeoutError}
+                  validationCaWarning={reenrollmentValidationCaWarning}
                 />
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5 flex-1">
@@ -883,6 +911,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 />
                 <div className="space-y-1.5">
                   <Label>Additional Validation CAs</Label>
+                  {enrollmentCa && !includesEnrollmentCaForReenrollment ? (
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Enrollment CA not included</AlertTitle>
+                      <AlertDescription>
+                        Add the Enrollment CA to this list so certificates issued by it are trusted during re-enrollment.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                   <div className="space-y-2">
                     {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
                       <div key={ca.id} className="flex items-center gap-2 group">
@@ -1012,7 +1049,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         onCaSelected={handleAddManagedCa}
         allCryptoEngines={allCryptoEngines}
       />
-      <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
+      <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={handleEnrollmentCaSelected} currentSelectedCaId={enrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
       <DeviceIconSelectorModal
         isOpen={isDeviceIconModalOpen}
         onOpenChange={setIsDeviceIconModalOpen}
