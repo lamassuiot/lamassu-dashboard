@@ -25,6 +25,7 @@ import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { Alert } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
+import { ExtraEkuOidsField } from './ExtraEkuOidsField';
 
 
 export type ProfileMode = 'reuse' | 'inline' | 'create';
@@ -46,6 +47,8 @@ interface SigningProfileSelectorProps {
   onKeyUsageChange?: (usage: string, checked: boolean) => void;
   extendedKeyUsages?: string[];
   onExtendedKeyUsageChange?: (usage: string, checked: boolean) => void;
+  extraExtendedKeyUsageOids?: string[];
+  onExtraExtendedKeyUsageOidsChange?: (oids: string[]) => void;
   honorSubject?: boolean;
   onHonorSubjectChange?: (checked: boolean) => void;
   
@@ -78,6 +81,8 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   onKeyUsageChange,
   extendedKeyUsages,
   onExtendedKeyUsageChange,
+  extraExtendedKeyUsageOids,
+  onExtraExtendedKeyUsageOidsChange,
   honorSubject,
   onHonorSubjectChange,
   customSubjectCN,
@@ -124,6 +129,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
         key_usage: data.keyUsages || [],
         honor_extended_key_usages: data.honorExtendedKeyUsages,
         extended_key_usages: data.extendedKeyUsages || [],
+        extra_extended_key_usage_oids: data.extraExtendedKeyUsageOids || [],
         honor_subject: data.honorSubject,
         honor_extensions: true,
         crypto_enforcement: {
@@ -352,6 +358,20 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
                         </div>
                     </div>
                 </div>
+
+                {onExtraExtendedKeyUsageOidsChange && (
+                  <div>
+                    <Label>Extra Extended Key Usage OIDs</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Extended key usage purposes with no standard EKU option above (e.g., CMC/CMP roles).
+                    </p>
+                    <ExtraEkuOidsField
+                      id="inline-extra-eku-oids"
+                      value={extraExtendedKeyUsageOids || []}
+                      onChange={onExtraExtendedKeyUsageOidsChange}
+                    />
+                  </div>
+                )}
           </div>
       )}
     </div>

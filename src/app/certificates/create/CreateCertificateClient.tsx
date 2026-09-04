@@ -91,6 +91,7 @@ export default function CreateCertificateClient() {
     const [validity, setValidity] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
     const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
     const [selectedEkus, setSelectedEkus] = useState<ExtendedKeyUsageOption[]>([...CLIENT_AUTH_EXTENDED_KEY_USAGES]);
+    const [extraEkuOids, setExtraEkuOids] = useState<string[]>([]);
     const [isCA, setIsCA] = useState(false);
 
     // Profile
@@ -181,6 +182,7 @@ export default function CreateCertificateClient() {
             key_usage: selectedKeyUsages,
             honor_extended_key_usages: false,
             extended_key_usages: selectedEkus,
+            extra_extended_key_usage_oids: extraEkuOids,
         };
 
         const payload: CreateCertificatePayload = {
@@ -468,6 +470,8 @@ export default function CreateCertificateClient() {
                                 onKeyUsageChange={handleKeyUsageChange}
                                 extendedKeyUsages={selectedEkus}
                                 onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                                extraExtendedKeyUsageOids={extraEkuOids}
+                                onExtraExtendedKeyUsageOidsChange={setExtraEkuOids}
                             />
                             {profileMode === 'inline' && (
                                 <div className="flex items-center justify-between gap-4">

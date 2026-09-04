@@ -122,10 +122,10 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                     {profile.key_usage.slice(0, 2).map(usage => (
                       <Badge key={usage} variant="secondary" className="text-xs">{usage}</Badge>
                     ))}
-                    {profile.extended_key_usages.slice(0, 2).map(eku => (
+                    {[...profile.extended_key_usages, ...(profile.extra_extended_key_usage_oids || [])].slice(0, 2).map(eku => (
                       <Badge key={eku} variant="secondary" className="text-xs">{eku}</Badge>
                     ))}
-                    {(profile.key_usage.length + profile.extended_key_usages.length) > 4 && (
+                    {(profile.key_usage.length + profile.extended_key_usages.length + (profile.extra_extended_key_usage_oids?.length || 0)) > 4 && (
                       <Badge variant="secondary">...</Badge>
                     )}
                   </div>

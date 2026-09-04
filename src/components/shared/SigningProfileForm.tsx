@@ -12,6 +12,7 @@ import { Info } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
+import { ExtraEkuOidsField } from '@/components/shared/ExtraEkuOidsField';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -68,6 +69,7 @@ export const signingProfileSchema = z.object({
 
   honorExtendedKeyUsages: z.boolean().default(false),
   extendedKeyUsages: z.array(z.enum(extendedKeyUsageOptions)).optional().default([]),
+  extraExtendedKeyUsageOids: z.array(z.string()).optional().default([]),
 
   honorExtensions: z.boolean().default(true),
 });
@@ -97,6 +99,7 @@ export const defaultFormValues: SigningProfileFormValues = {
   keyUsages: [],
   honorExtendedKeyUsages: true,
   extendedKeyUsages: [],
+  extraExtendedKeyUsageOids: [],
   honorExtensions: true,
 };
 
@@ -582,6 +585,22 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                         />
                       ))}
                     </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="extraExtendedKeyUsageOids"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Extra Extended Key Usage OIDs</FormLabel>
+                    <FormDescription>
+                      Extended key usage purposes with no standard EKU option above (e.g., CMC/CMP roles). Pick a preset or add any custom dotted OID.
+                    </FormDescription>
+                    <FormControl>
+                      <ExtraEkuOidsField value={field.value || []} onChange={field.onChange} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

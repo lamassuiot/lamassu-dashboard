@@ -327,6 +327,7 @@ export default function CreateCaExistingKeyPage() {
         key_usage: formData.keyUsages || [],
         honor_extended_key_usages: false,
         extended_key_usages: formData.extendedKeyUsages || [],
+        extra_extended_key_usage_oids: formData.extraExtendedKeyUsageOids || [],
         honor_subject: true,
         honor_extensions: false,
         crypto_enforcement: {

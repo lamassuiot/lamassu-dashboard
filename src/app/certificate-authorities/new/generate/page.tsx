@@ -409,6 +409,7 @@ export default function CreateCaGeneratePage() {
         key_usage: formData.keyUsages || [],
         honor_extended_key_usages: false, // Forced to false - using inline definition
         extended_key_usages: formData.extendedKeyUsages || [],
+        extra_extended_key_usage_oids: formData.extraExtendedKeyUsageOids || [],
         honor_subject: true, // Forced to true - values from CA creation form
         honor_extensions: false, // Forced to false
         crypto_enforcement: {
