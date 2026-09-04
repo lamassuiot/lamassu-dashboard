@@ -106,12 +106,28 @@ const protocolOptions = [
   },
 ];
 const cmpWorkflowOptions = [
-  { value: 'direct', label: 'Direct (synchronous)' },
-  { value: 'phased', label: 'Phased (admin-approved)' },
+  {
+    value: 'direct',
+    label: 'Direct (synchronous)',
+    description: 'Fully automatic, with no human intervention: the certificate is issued and returned inline in response to the enrollment request.',
+  },
+  {
+    value: 'phased',
+    label: 'Phased (admin-approved)',
+    description: 'An administrator must explicitly approve EVERY operation from the active transactions panel. The device receives a "waiting" response and polls until the certificate is issued.',
+  },
 ];
 const cmpConfirmationModeOptions = [
-  { value: 'EXPLICIT', label: 'Explicit (default)' },
-  { value: 'IMPLICIT', label: 'Implicit' },
+  {
+    value: 'EXPLICIT',
+    label: 'Explicit (default)',
+    description: 'The client must send a final certConf message confirming receipt before the transaction is considered complete.',
+  },
+  {
+    value: 'IMPLICIT',
+    label: 'Implicit',
+    description: 'The transaction closes as soon as the server issues the certificate, with no further confirmation round trip.',
+  },
 ];
 
 // CMP's wire convention for "no auth" is the literal string NONE, distinct
@@ -1590,9 +1606,31 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 <Label htmlFor="cmpWorkflowGeneral">Default Issuance Workflow</Label>
                 <p className="text-xs text-muted-foreground">Whether certificates are issued automatically or only after administrator approval.</p>
                 <Select value={cmpWorkflow} onValueChange={setCmpWorkflow}>
-                  <SelectTrigger id="cmpWorkflowGeneral"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {cmpWorkflowOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  <SelectTrigger
+                    id="cmpWorkflowGeneral"
+                    className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5"
+                  >
+                    <SelectValue>
+                      {(() => {
+                        const selected = cmpWorkflowOptions.find((option) => option.value === cmpWorkflow);
+                        return selected && (
+                          <div className="w-full min-w-0 space-y-0.5 text-left">
+                            <p className="text-sm font-medium leading-none">{selected.label}</p>
+                            <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+                          </div>
+                        );
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[320px]">
+                    {cmpWorkflowOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value} textValue={option.label} className="min-h-0 h-auto items-start py-2.5">
+                        <div className="space-y-0.5 text-left">
+                          <p className="text-sm font-medium leading-none">{option.label}</p>
+                          <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1606,23 +1644,43 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   description="How long a PENDING transaction waits for an administrator to approve or reject it. Leave empty to use the server default (7 days)."
                 />
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="cmpConfirmationModeGeneral">Confirmation Mode</Label>
-                  <Select value={cmpConfirmationMode} onValueChange={setCmpConfirmationMode}>
-                    <SelectTrigger id="cmpConfirmationModeGeneral"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {cmpConfirmationModeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {cmpConfirmationMode === 'EXPLICIT' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="cmpConfirmationTimeoutGeneral">Confirmation Timeout</Label>
-                    <Input id="cmpConfirmationTimeoutGeneral" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" />
-                  </div>
-                )}
+              <div className="space-y-1.5">
+                <Label htmlFor="cmpConfirmationModeGeneral">Confirmation Mode</Label>
+                <Select value={cmpConfirmationMode} onValueChange={setCmpConfirmationMode}>
+                  <SelectTrigger
+                    id="cmpConfirmationModeGeneral"
+                    className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5"
+                  >
+                    <SelectValue>
+                      {(() => {
+                        const selected = cmpConfirmationModeOptions.find((option) => option.value === cmpConfirmationMode);
+                        return selected && (
+                          <div className="w-full min-w-0 space-y-0.5 text-left">
+                            <p className="text-sm font-medium leading-none">{selected.label}</p>
+                            <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+                          </div>
+                        );
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[320px]">
+                    {cmpConfirmationModeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value} textValue={option.label} className="min-h-0 h-auto items-start py-2.5">
+                        <div className="space-y-0.5 text-left">
+                          <p className="text-sm font-medium leading-none">{option.label}</p>
+                          <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              {cmpConfirmationMode === 'EXPLICIT' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="cmpConfirmationTimeoutGeneral">Confirmation Timeout</Label>
+                  <Input id="cmpConfirmationTimeoutGeneral" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" />
+                </div>
+              )}
             </SettingsSection>
           </TabsContent>
 

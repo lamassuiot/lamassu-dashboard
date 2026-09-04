@@ -92,7 +92,7 @@ const ra = {
   },
 };
 
-describe('CmpEnrollModal CR flow', () => {
+describe('CmpEnrollModal flows', () => {
   beforeEach(() => {
     fetchAndProcessCAsMock.mockReset().mockResolvedValue([]);
     fetchCryptoEnginesMock.mockReset().mockResolvedValue([]);
@@ -146,6 +146,28 @@ describe('CmpEnrollModal CR flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Back/ }));
     expect((await screen.findAllByText('Flow variant')).length).toBeGreaterThan(0);
+  });
+
+  it('prefixes the default bootstrap common name with bootstrap', async () => {
+    render(
+      <CmpEnrollModal
+        isOpen
+        onOpenChange={() => {}}
+        ra={ra}
+        initialDeviceId={DEVICE_ID}
+        presentation="inline"
+      />,
+    );
+
+    await waitFor(() => expect(fetchAndProcessCAsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Loading CAs…')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(await screen.findByLabelText('Bootstrap Common Name (CN)')).toHaveValue(
+      `bootstrap.${DEVICE_ID}`,
+    );
   });
 
   it('gates the RR warning on rr.enabled instead of p10cr.enabled', async () => {

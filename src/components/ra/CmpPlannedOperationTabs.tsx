@@ -37,6 +37,42 @@ const PREFERRED_SYMM_ALG_OPTIONS: { value: CmpPreferredSymmetricAlgorithm; label
   { value: 'aes256_gcm', label: 'AES-256-GCM' },
 ];
 
+const POLICY_WORKFLOW_OPTIONS = [
+  {
+    value: 'inherit',
+    label: 'Use General default',
+    description: 'Use the default issuance workflow configured in General > Workflow & Confirmation.',
+  },
+  {
+    value: 'direct',
+    label: 'Direct (synchronous)',
+    description: 'Fully automatic, with no human intervention: the certificate is issued and returned inline in response to the enrollment request.',
+  },
+  {
+    value: 'phased',
+    label: 'Phased (admin-approved)',
+    description: 'An administrator must explicitly approve EVERY operation from the active transactions panel. The device receives a "waiting" response and polls until the certificate is issued.',
+  },
+] as const;
+
+const POLICY_CONFIRMATION_OPTIONS = [
+  {
+    value: 'inherit',
+    label: 'Use General default',
+    description: 'Use the default confirmation mode configured in General > Workflow & Confirmation.',
+  },
+  {
+    value: 'explicit',
+    label: 'Explicit (default)',
+    description: 'The client must send a final certConf message confirming receipt before the transaction is considered complete.',
+  },
+  {
+    value: 'implicit',
+    label: 'Implicit',
+    description: 'The transaction closes as soon as the server issues the certificate, with no further confirmation round trip.',
+  },
+] as const;
+
 // Phase 2 of the CMP settings redesign: the backend now has a nested
 // per-operation schema (core/pkg/models/dms_cmp_operations.go) that persists
 // and round-trips through the DMS API 1:1 with these controls — so every
@@ -145,6 +181,41 @@ function toggleValue<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
+// The wire schema keeps regToken and authenticator as two independent controls,
+// but a request can only carry one, so the UI presents them as a single choice.
+type IrCredentialControl = 'none' | 'registration_token' | 'authenticator';
+
+function irCredentialControlOf(ir: CmpIrSettings): IrCredentialControl {
+  if (ir.registration_token.mode !== 'disabled') return 'registration_token';
+  if (ir.authenticator_control.mode !== 'disabled') return 'authenticator';
+  return 'none';
+}
+
+// RFC sections are plain text here rather than RfcLink: these render inside the
+// select's trigger and options, where a nested anchor would be both invalid
+// markup and unclickable. The field's own description carries the live link.
+const IR_CREDENTIAL_CONTROL_OPTIONS: {
+  value: IrCredentialControl; label: string; description: string; disabled?: boolean;
+}[] = [
+  {
+    value: 'none',
+    label: 'None (client certificate is checked)',
+    description: "No CRMF registration control is required; the device's identity is instead verified via the Client Certificate authentication configured above.",
+  },
+  {
+    value: 'registration_token',
+    label: 'Registration token',
+    description: "id-regCtrl-regToken (RFC 4211 §6.1) — a one-time-use value provisioned out-of-band per device (e.g. at manufacturing); the CA only checks it hasn't been used before. Not yet available.",
+    disabled: true,
+  },
+  {
+    value: 'authenticator',
+    label: 'Authenticator control',
+    description: 'id-regCtrl-authenticator (RFC 4211 §6.2) — validated against a single shared secret configured for the whole DMS; reusable and never expires. Not yet available.',
+    disabled: true,
+  },
+];
+
 // ── KUR & GENM planned sub-sections (embedded inside the page's otherwise-live
 // KUR and GENM tabs) — controlled, so their values persist through the real
 // nested schema alongside the already-live fields those tabs render. ──
@@ -158,31 +229,26 @@ export function CmpKurPlannedPolicy({
   onIdentityChangePolicyChange: (v: CmpIdentityChangePolicy) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <SectionHeader title="Key & identity policy" badge={false}>
-        Constrain how much a key update may change relative to the certificate being replaced.
-      </SectionHeader>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PlannedRow label="Key policy">
-          <Select value={keyPolicy} onValueChange={(v: CmpKeyPolicy) => onKeyPolicyChange(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="require_new_key">Require a new key</SelectItem>
-              <SelectItem value="permit_reuse">Permit key reuse</SelectItem>
-            </SelectContent>
-          </Select>
-        </PlannedRow>
-        <PlannedRow label="Identity-change policy">
-          <Select value={identityChangePolicy} onValueChange={(v: CmpIdentityChangePolicy) => onIdentityChangePolicyChange(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="forbid">No subject or SAN changes</SelectItem>
-              <SelectItem value="san_only">SAN changes allowed</SelectItem>
-              <SelectItem value="subject_and_san">Subject and SAN changes allowed</SelectItem>
-            </SelectContent>
-          </Select>
-        </PlannedRow>
-      </div>
+    <div className="grid grid-cols-1 gap-4">
+      <PlannedRow label="Key policy">
+        <Select value={keyPolicy} onValueChange={(v: CmpKeyPolicy) => onKeyPolicyChange(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="require_new_key">Require a new key</SelectItem>
+            <SelectItem value="permit_reuse">Permit key reuse</SelectItem>
+          </SelectContent>
+        </Select>
+      </PlannedRow>
+      <PlannedRow label="Identity-change policy">
+        <Select value={identityChangePolicy} onValueChange={(v: CmpIdentityChangePolicy) => onIdentityChangePolicyChange(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="forbid">No subject or SAN changes</SelectItem>
+            <SelectItem value="san_only">SAN changes allowed</SelectItem>
+            <SelectItem value="subject_and_san">Subject and SAN changes allowed</SelectItem>
+          </SelectContent>
+        </Select>
+      </PlannedRow>
     </div>
   );
 }
@@ -292,6 +358,55 @@ interface ProfileOption {
   name: string;
 }
 
+function IssuanceProfileOverridePicker({
+  value,
+  availableProfiles,
+  onChange,
+}: {
+  value: string | null;
+  availableProfiles: ProfileOption[];
+  onChange: (value: string | null) => void;
+}) {
+  const [mode, setMode] = React.useState<'default' | 'existing'>(value ? 'existing' : 'default');
+
+  React.useEffect(() => {
+    setMode(value ? 'existing' : 'default');
+  }, [value]);
+
+  return (
+    <PlannedRow
+      label="Issuance Profile"
+      description="Override the issuance profile configured in Enrollment CA & Profile for this operation."
+    >
+      <div className="flex items-center gap-2">
+        <Select
+          value={mode}
+          onValueChange={(nextMode: 'default' | 'existing') => {
+            setMode(nextMode);
+            if (nextMode === 'default') onChange(null);
+          }}
+        >
+          <SelectTrigger className={mode === 'existing' ? 'w-1/2' : 'w-full'}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">Use Enrollment CA &amp; Profile</SelectItem>
+            <SelectItem value="existing">Use Existing Profile</SelectItem>
+          </SelectContent>
+        </Select>
+        {mode === 'existing' ? (
+          <Select value={value || ''} onValueChange={onChange}>
+            <SelectTrigger className="w-1/2"><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+            <SelectContent>
+              {availableProfiles.map((profile) => (
+                <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+      </div>
+    </PlannedRow>
+  );
+}
+
 // Key Update (KUR/KUP) lives inside the Enrollment tab as a fourth section
 // alongside IR/CR/P10CR — it still answers "how does a device get a
 // certificate?", so it belongs with the others rather than as its own tab.
@@ -342,7 +457,7 @@ interface CmpPlannedOperationTabsProps {
   onRemoveCcrTrustedRequesterCa: (id: string) => void;
   onAddCcrTrustedRequesterCa: () => void;
   // Issuance profiles selectable as a per-operation profile pin. Empty is fine
-  // — the picker still offers "Inherit DMS default".
+  // — the picker still offers "Use Enrollment CA & Profile".
   availableProfiles?: ProfileOption[];
   // Enrollment CA & Profile + Device Policy — enrollment-scoped defaults,
   // hoisted by the page and rendered ahead of the per-operation sections
@@ -364,45 +479,73 @@ export function CmpPlannedOperationTabs({
     issuanceProfileId: CmpPolicyOverrides['issuance_profile_id'],
     onChange: (patch: Partial<CmpPolicyOverrides>) => void,
   ) => (
-    <div className="space-y-4">
-      <SectionHeader title="Workflow & confirmation overrides" badge={false}>
-        Override the DMS-wide defaults from the General tab for just this operation.
-      </SectionHeader>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PlannedRow label="Workflow">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div>
+        <p className="text-sm font-medium">Workflow & confirmation overrides</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Override the DMS-wide defaults from the General tab for just this operation.
+        </p>
+      </div>
+      <div className="space-y-4 lg:col-span-2">
+        <PlannedRow label="Workflow" description="Whether certificates are issued automatically or only after administrator approval.">
           <Select value={workflow} onValueChange={(v: CmpPolicyOverrides['workflow']) => onChange({ workflow: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inherit">Inherit DMS default</SelectItem>
-              <SelectItem value="direct">Direct (synchronous)</SelectItem>
-              <SelectItem value="phased">Phased (admin-approved)</SelectItem>
+            <SelectTrigger className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5">
+              <SelectValue>
+                {(() => {
+                  const selected = POLICY_WORKFLOW_OPTIONS.find((option) => option.value === workflow);
+                  return selected && (
+                    <div className="w-full min-w-0 space-y-0.5 text-left">
+                      <p className="text-sm font-medium leading-none">{selected.label}</p>
+                      <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+                    </div>
+                  );
+                })()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="min-w-[320px]">
+              {POLICY_WORKFLOW_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} textValue={option.label} className="min-h-0 h-auto items-start py-2.5">
+                  <div className="space-y-0.5 text-left">
+                    <p className="text-sm font-medium leading-none">{option.label}</p>
+                    <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </PlannedRow>
         <PlannedRow label="Confirmation">
           <Select value={confirmation} onValueChange={(v: CmpPolicyOverrides['confirmation']) => onChange({ confirmation: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inherit">Inherit DMS default</SelectItem>
-              <SelectItem value="explicit">Explicit</SelectItem>
-              <SelectItem value="implicit">Implicit</SelectItem>
-            </SelectContent>
-          </Select>
-        </PlannedRow>
-        <PlannedRow label="Issuance profile" description="Pin a specific issuance profile for this operation instead of the DMS enrollment CA's default.">
-          <Select
-            value={issuanceProfileId ?? 'inherit'}
-            onValueChange={(v) => onChange({ issuance_profile_id: v === 'inherit' ? null : v })}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inherit">Inherit DMS default</SelectItem>
-              {availableProfiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            <SelectTrigger className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5">
+              <SelectValue>
+                {(() => {
+                  const selected = POLICY_CONFIRMATION_OPTIONS.find((option) => option.value === confirmation);
+                  return selected && (
+                    <div className="w-full min-w-0 space-y-0.5 text-left">
+                      <p className="text-sm font-medium leading-none">{selected.label}</p>
+                      <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+                    </div>
+                  );
+                })()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="min-w-[320px]">
+              {POLICY_CONFIRMATION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} textValue={option.label} className="min-h-0 h-auto items-start py-2.5">
+                  <div className="space-y-0.5 text-left">
+                    <p className="text-sm font-medium leading-none">{option.label}</p>
+                    <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                  </div>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </PlannedRow>
+        <IssuanceProfileOverridePicker
+          value={issuanceProfileId}
+          availableProfiles={availableProfiles}
+          onChange={(value) => onChange({ issuance_profile_id: value })}
+        />
       </div>
     </div>
   );
@@ -436,35 +579,55 @@ export function CmpPlannedOperationTabs({
               onToggle={(v) => onIrChange({ proof_of_possession: { ...ir.proof_of_possession, allowed_methods: toggleValue(ir.proof_of_possession.allowed_methods, v) } })}
             />
           </PlannedRow>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <PlannedRow label="CRMF authenticator control" description={<>id-regCtrl-authenticator (<RfcLink rfc={4211} section="6.2" />).</>}>
-              <Select value={ir.authenticator_control.mode} onValueChange={(v: CmpIrSettings['authenticator_control']['mode']) => onIrChange({ authenticator_control: { mode: v } })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disabled">Disabled</SelectItem>
-                  <SelectItem value="optional">Optional</SelectItem>
-                  <SelectItem value="required">Required</SelectItem>
-                </SelectContent>
-              </Select>
-            </PlannedRow>
-            <PlannedRow label="Registration token" description={<>id-regCtrl-regToken (<RfcLink rfc={4211} section="6.1" />).</>}>
-              <Select value={ir.registration_token.mode} onValueChange={(v: CmpIrSettings['registration_token']['mode']) => onIrChange({ registration_token: { mode: v } })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disabled">Disabled</SelectItem>
-                  <SelectItem value="optional">Optional</SelectItem>
-                  <SelectItem value="required">Required</SelectItem>
-                </SelectContent>
-              </Select>
-            </PlannedRow>
-          </div>
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Registration tokens are one-time credentials provisioned or generated independently of DMS
-              configuration — this control governs whether the CA <em>requires</em> one, not the token values themselves.
-            </AlertDescription>
-          </Alert>
+          {/* regToken and authenticator are the two CRMF regCtrls that can gate an
+              initialization request, and a request carries at most one — so they read
+              as a single choice instead of two selects that must be kept consistent. */}
+          <PlannedRow
+            label="Enrollment credential control"
+            description={<>
+              Which CRMF registration control (<RfcLink rfc={4211} section="6" />) the CA requires on an
+              initialization request. Registration token and authenticator control are mutually exclusive —
+              pick at most one. Both are disabled for now; only None is available.
+            </>}
+          >
+            <Select
+              value={irCredentialControlOf(ir)}
+              onValueChange={(v: IrCredentialControl) => onIrChange({
+                registration_token: { mode: v === 'registration_token' ? 'required' : 'disabled' },
+                authenticator_control: { mode: v === 'authenticator' ? 'required' : 'disabled' },
+              })}
+            >
+              <SelectTrigger className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5">
+                <SelectValue>
+                  {(() => {
+                    const selected = IR_CREDENTIAL_CONTROL_OPTIONS.find((o) => o.value === irCredentialControlOf(ir));
+                    return selected && (
+                      <div className="w-full min-w-0 space-y-0.5 text-left">
+                        <p className="text-sm font-medium leading-none">{selected.label}</p>
+                        <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+                      </div>
+                    );
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="min-w-[320px]">
+                {IR_CREDENTIAL_CONTROL_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    textValue={option.label}
+                    disabled={option.disabled}
+                    className="min-h-0 h-auto items-start py-2.5"
+                  >
+                    <div className="space-y-0.5 text-left">
+                      <p className="text-sm font-medium leading-none">{option.label}</p>
+                      <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PlannedRow>
           {policyOverrides(ir.policy_overrides.workflow, ir.policy_overrides.confirmation, ir.policy_overrides.issuance_profile_id, (patch) => onIrChange({ policy_overrides: { ...ir.policy_overrides, ...patch } }))}
         </SettingsSection>
 
@@ -543,11 +706,7 @@ export function CmpPlannedOperationTabs({
             preventiveDelta={kur.preventiveRenewalDelta}
             criticalDelta={kur.criticalRenewalDelta}
           />
-        </SettingsSection>
 
-        <Separator />
-
-        <SettingsSection title="Trust" description="Extra CAs to accept as the signer of the certificate being renewed, beyond the current enrollment CA — useful when migrating between CA hierarchies.">
           <div className="space-y-1.5">
             <Label>Additional trusted CAs for migration</Label>
             <div className="space-y-2">
@@ -562,11 +721,7 @@ export function CmpPlannedOperationTabs({
               <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
             </Button>
           </div>
-        </SettingsSection>
 
-        <Separator />
-
-        <SettingsSection title="Key & Identity Policy">
           <CmpKurPlannedPolicy
             keyPolicy={kur.keyPolicy}
             onKeyPolicyChange={kur.onKeyPolicyChange}
@@ -598,37 +753,45 @@ export function CmpPlannedOperationTabs({
               auth mode — an unsigned rr is never accepted, even under NO_AUTH or EXTERNAL_WEBHOOK.
             </AlertDescription>
           </Alert>
-          <PlannedSwitchRow label="Enable CMP revocation" checked={rr.enabled} onCheckedChange={(v) => onRrChange({ enabled: v })} />
-          <PlannedRow label="Authorization">
-            <Select value={rr.authorization} onValueChange={(v: CmpRrSettings['authorization']) => onRrChange({ authorization: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="self_only">Self-revocation only</SelectItem>
-                <SelectItem value="self_and_trusted_ra">Self-revocation and trusted RA</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          {rr.authorization === 'self_and_trusted_ra' && (
-            <PlannedSwitchRow
-              label="Require id-kp-cmcRA EKU for RA actions"
-              checked={rr.trusted_ra.require_cmc_ra_eku}
-              onCheckedChange={(v) => onRrChange({ trusted_ra: { ...rr.trusted_ra, require_cmc_ra_eku: v } })}
-            />
+          <PlannedSwitchRow label={rr.enabled ? "Enable CMP revocation Operation" : "Enable CMP revocation"} checked={rr.enabled} onCheckedChange={(v) => onRrChange({ enabled: v })} />
+          {rr.enabled && (
+            <>
+              <PlannedRow label="Authorization">
+                <Select value={rr.authorization} onValueChange={(v: CmpRrSettings['authorization']) => onRrChange({ authorization: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="self_only">Self-revocation only</SelectItem>
+                    <SelectItem value="self_and_trusted_ra">Self-revocation and trusted RA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </PlannedRow>
+              {rr.authorization === 'self_and_trusted_ra' && (
+                <PlannedSwitchRow
+                  label="Require id-kp-cmcRA EKU for RA actions"
+                  checked={rr.trusted_ra.require_cmc_ra_eku}
+                  onCheckedChange={(v) => onRrChange({ trusted_ra: { ...rr.trusted_ra, require_cmc_ra_eku: v } })}
+                />
+              )}
+            </>
           )}
         </SettingsSection>
 
-        <Separator />
+        {rr.enabled && (
+          <>
+            <Separator />
 
-        <SettingsSection title="Reasons & Recovery" description="Which revocation reasons this DMS accepts, and whether a hold can be undone.">
-          <PlannedRow label="Allowed revocation reasons">
-            <CheckboxList
-              options={REVOCATION_REASON_OPTIONS}
-              selected={rr.allowed_reasons}
-              onToggle={(v) => onRrChange({ allowed_reasons: toggleValue(rr.allowed_reasons, v) })}
-            />
-          </PlannedRow>
-          <PlannedSwitchRow label="Allow revival (removeFromCRL)" description="Permit un-revoking a certificate previously placed on hold." checked={rr.allow_revival} onCheckedChange={(v) => onRrChange({ allow_revival: v })} />
-        </SettingsSection>
+            <SettingsSection title="Reasons & Recovery" description="Which revocation reasons this DMS accepts, and whether a hold can be undone.">
+              <PlannedRow label="Allowed revocation reasons">
+                <CheckboxList
+                  options={REVOCATION_REASON_OPTIONS}
+                  selected={rr.allowed_reasons}
+                  onToggle={(v) => onRrChange({ allowed_reasons: toggleValue(rr.allowed_reasons, v) })}
+                />
+              </PlannedRow>
+              <PlannedSwitchRow label="Allow revival (removeFromCRL)" description="Permit un-revoking a certificate previously placed on hold." checked={rr.allow_revival} onCheckedChange={(v) => onRrChange({ allow_revival: v })} />
+            </SettingsSection>
+          </>
+        )}
       </TabsContent>
 
       {/* ── Cross-Certification Request / Response (CCR/CCP) ── */}
