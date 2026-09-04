@@ -34,7 +34,9 @@ function getExtensionRows(profile: ApiSigningProfile) {
     },
     eku: {
       honors: profile.honor_extended_key_usages,
-      value: profile.honor_extended_key_usages ? "Follows CSR" : profile.extended_key_usages?.join(', ') || 'None',
+      value: profile.honor_extended_key_usages
+        ? "Follows CSR"
+        : [...(profile.extended_key_usages || []), ...(profile.extra_extended_key_usage_oids || [])].join(', ') || 'None',
     },
   };
 }

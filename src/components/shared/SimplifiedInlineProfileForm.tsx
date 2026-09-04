@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { CalendarDays, ListChecks } from "lucide-react";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
+import { ExtraEkuOidsField } from '@/components/shared/ExtraEkuOidsField';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { CA_KEY_USAGES, extendedKeyUsageOptions, keyUsageOptions } from '@/lib/certificate-usage-options';
 
@@ -36,6 +37,7 @@ export const simplifiedInlineProfileSchema = z.object({
 
   keyUsages: z.array(z.enum(keyUsageOptions)).optional().default([]),
   extendedKeyUsages: z.array(z.enum(extendedKeyUsageOptions)).optional().default([]),
+  extraExtendedKeyUsageOids: z.array(z.string()).optional().default([]),
 });
 
 export type SimplifiedInlineProfileFormValues = z.infer<typeof simplifiedInlineProfileSchema>;
@@ -44,6 +46,7 @@ export const defaultSimplifiedFormValues: SimplifiedInlineProfileFormValues = {
   validity: { type: 'Duration', durationValue: '1y' },
   keyUsages: [...CA_KEY_USAGES],
   extendedKeyUsages: [],
+  extraExtendedKeyUsageOids: [],
 };
 
 interface SimplifiedInlineProfileFormProps {
@@ -168,6 +171,22 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
                         )}
                       />
                     ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="extraExtendedKeyUsageOids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium">Extra Extended Key Usage OIDs</FormLabel>
+                  <FormDescription className="text-xs">
+                    Extended key usage purposes with no standard EKU option above (e.g., CMC/CMP roles).
+                  </FormDescription>
+                  <div className="mt-2 p-3 rounded-md bg-background">
+                    <ExtraEkuOidsField value={field.value || []} onChange={field.onChange} />
                   </div>
                   <FormMessage />
                 </FormItem>

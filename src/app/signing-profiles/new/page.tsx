@@ -66,6 +66,7 @@ export default function CreateSigningProfilePage() {
         key_usage: data.keyUsages || [],
         honor_extended_key_usages: data.honorExtendedKeyUsages,
         extended_key_usages: data.extendedKeyUsages || [],
+        extra_extended_key_usage_oids: data.extraExtendedKeyUsageOids || [],
         honor_subject: data.honorSubject,
         honor_extensions: data.honorExtensions,
         crypto_enforcement: {

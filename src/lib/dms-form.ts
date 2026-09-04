@@ -120,6 +120,7 @@ export function mapIssuanceProfileToFormValues(profile: ApiSigningProfile): Sign
     keyUsages: (profile.key_usage || []) as SigningProfileFormValues['keyUsages'],
     honorExtendedKeyUsages: profile.honor_extended_key_usages,
     extendedKeyUsages: (profile.extended_key_usages || []) as SigningProfileFormValues['extendedKeyUsages'],
+    extraExtendedKeyUsageOids: profile.extra_extended_key_usage_oids || [],
     honorExtensions: profile.honor_extensions,
   };
 }
@@ -144,6 +145,7 @@ export function buildInlineIssuanceProfile(data: SigningProfileFormValues): ApiS
     key_usage: data.keyUsages || [],
     honor_extended_key_usages: data.honorExtendedKeyUsages,
     extended_key_usages: data.extendedKeyUsages || [],
+    extra_extended_key_usage_oids: data.extraExtendedKeyUsageOids || [],
     honor_subject: data.honorSubject,
     ...(!data.honorSubject && {
       subject: {
