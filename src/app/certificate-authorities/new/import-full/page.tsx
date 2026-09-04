@@ -54,6 +54,7 @@ export default function CreateCaImportFullPage() {
 
   const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
   const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
+  const [extraExtendedKeyUsageOids, setExtraExtendedKeyUsageOids] = useState<string[]>([]);
   const [validity, setValidity] = useState<{ type: 'Duration' | 'Date' | 'Indefinite'; durationValue?: string; dateValue?: Date }>({ type: 'Duration', durationValue: '1y' });
   const [honorSubject, setHonorSubject] = useState<boolean>(true);
 
@@ -368,6 +369,8 @@ export default function CreateCaImportFullPage() {
                 onKeyUsageChange={handleKeyUsageChange}
                 extendedKeyUsages={extendedKeyUsages}
                 onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                extraExtendedKeyUsageOids={extraExtendedKeyUsageOids}
+                onExtraExtendedKeyUsageOidsChange={setExtraExtendedKeyUsageOids}
                 honorSubject={honorSubject}
                 onHonorSubjectChange={setHonorSubject}
                 customSubjectCN={customSubjectCN}

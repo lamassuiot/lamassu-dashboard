@@ -466,6 +466,7 @@ export interface ApiSigningProfile {
 	key_usage: string[];
 	honor_extended_key_usages: boolean;
 	extended_key_usages: string[];
+	extra_extended_key_usage_oids?: string[];
 	honor_subject: boolean;
 	subject?: {
 		common_name?: string;
@@ -513,6 +514,7 @@ export interface CreateSigningProfilePayload {
     key_usage: string[];
     honor_extended_key_usages: boolean;
     extended_key_usages: string[];
+    extra_extended_key_usage_oids?: string[];
     honor_subject: boolean;
     subject?: {
         common_name?: string;
@@ -590,6 +592,7 @@ export interface CreateCertificateIssuanceProfile {
     key_usage: string[];
     honor_extended_key_usages: boolean;
     extended_key_usages: string[];
+    extra_extended_key_usage_oids?: string[];
     honor_subject?: boolean;
     honor_extensions?: boolean;
     crypto_enforcement?: {

@@ -120,6 +120,7 @@ export default function IssueCertificateFormClient() {
 
   const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
   const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
+  const [extraExtendedKeyUsageOids, setExtraExtendedKeyUsageOids] = useState<string[]>([]);
   const [validity, setValidity] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
   const [honorSubject, setHonorSubject] = useState<boolean>(true);
 
@@ -415,6 +416,7 @@ export default function IssueCertificateFormClient() {
     const profilePayload: any = {
         profile: {
             extended_key_usages: extendedKeyUsages,
+            extra_extended_key_usage_oids: extraExtendedKeyUsageOids,
             key_usage: keyUsages,
             honor_extensions: true,
             honor_subject: honorSubject,
@@ -915,6 +917,8 @@ export default function IssueCertificateFormClient() {
                     onKeyUsageChange={handleKeyUsageChange}
                     extendedKeyUsages={extendedKeyUsages}
                     onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                    extraExtendedKeyUsageOids={extraExtendedKeyUsageOids}
+                    onExtraExtendedKeyUsageOidsChange={setExtraExtendedKeyUsageOids}
                     honorSubject={honorSubject}
                     onHonorSubjectChange={setHonorSubject}
                     customSubjectCN={customSubjectCN}

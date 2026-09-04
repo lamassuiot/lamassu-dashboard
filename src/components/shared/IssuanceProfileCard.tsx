@@ -137,7 +137,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
   const validityLabel = getValidityLabel(profile);
   const cryptoTokens = getCryptoRules(profile);
   const keyUsages = (profile.key_usage ?? []).map(humanizeUsage);
-  const extendedKeyUsages = (profile.extended_key_usages ?? []).map(humanizeUsage);
+  const extendedKeyUsages = [...(profile.extended_key_usages ?? []).map(humanizeUsage), ...(profile.extra_extended_key_usage_oids ?? [])];
   const hasActions = Boolean(onEdit || onDelete || onViewUsage);
 
   return (

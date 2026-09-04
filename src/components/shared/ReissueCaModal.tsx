@@ -27,6 +27,7 @@ import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { isValidPositiveDuration } from './DurationInput';
 import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
+import { ExtraEkuOidsField } from './ExtraEkuOidsField';
 
 type ProfileMode = 'reuse' | 'inline';
 
@@ -105,6 +106,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   });
   const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
   const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
+  const [extraExtendedKeyUsageOids, setExtraExtendedKeyUsageOids] = useState<string[]>([]);
 
   // Load profiles when modal opens
   useEffect(() => {
@@ -152,6 +154,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
         key_usage: keyUsages,
         honor_extended_key_usages: false,
         extended_key_usages: extendedKeyUsages,
+        extra_extended_key_usage_oids: extraExtendedKeyUsageOids,
         honor_subject: true,
         honor_extensions: false,
         crypto_enforcement: {
@@ -409,6 +412,18 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <Label>Extra Extended Key Usage OIDs</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Extended key usage purposes with no standard EKU option above (e.g., CMC/CMP roles).
+                </p>
+                <ExtraEkuOidsField
+                  id="reissue-extra-eku-oids"
+                  value={extraExtendedKeyUsageOids}
+                  onChange={setExtraExtendedKeyUsageOids}
+                />
               </div>
             </div>
           )}
