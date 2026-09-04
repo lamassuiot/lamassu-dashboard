@@ -840,7 +840,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         setStep(1);
         setSelectedOperation('ir');
         setDeviceId(newDeviceId);
-        setBootstrapCn(newDeviceId);
+        setBootstrapCn(`bootstrap.${newDeviceId}`);
         setBootstrapValidity('1h');
         setBootstrapCertificate('');
         setBootstrapPrivateKey('');
@@ -1024,7 +1024,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                 return;
             }
             if (!deviceId.trim()) { sileo.error({ title: 'Device ID required' }); return; }
-            setBootstrapCn(deviceId.trim());
+            setBootstrapCn(`bootstrap.${deviceId.trim()}`);
             // Revocation has no CRMF proof-of-possession or certConf to
             // configure, so it skips the "Flow variant" step and goes straight
             // to selecting the certificate to revoke.
@@ -1899,7 +1899,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
                                 {keygenMethod === 'device' ? (
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
+                                        <div className="space-y-2">
                                             <Label htmlFor="cmp-dev-key-type">Device Key Type</Label>
                                             <Select value={deviceKeygenType} onValueChange={handleDeviceKeygenTypeChange}>
                                                 <SelectTrigger id="cmp-dev-key-type"><SelectValue /></SelectTrigger>
@@ -1916,13 +1916,13 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                                 </SelectContent>
                                             </Select>
                                             {popoMethod === 'encrypted_certificate' && (
-                                                <p className="text-xs text-muted-foreground mt-1">
+                                                <p className="text-xs text-muted-foreground">
                                                     Locked to RSA — encrypted_certificate POPO only exists for
                                                     keyEncipherment (RSA) keys.
                                                 </p>
                                             )}
                                         </div>
-                                        <div>
+                                        <div className="space-y-2">
                                             <Label htmlFor="cmp-dev-key-spec">{deviceKeygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
                                             <Select value={deviceKeygenSpec} onValueChange={setDeviceKeygenSpec}>
                                                 <SelectTrigger id="cmp-dev-key-spec"><SelectValue /></SelectTrigger>
@@ -2131,13 +2131,13 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                             </AlertDescUI>
                                         </Alert>
                                     )}
-                                    <div>
+                                    <div className="space-y-2">
                                         <Label htmlFor="cmp-bootstrap-cn">Bootstrap Common Name (CN)</Label>
                                         <Input id="cmp-bootstrap-cn" value={bootstrapCn} onChange={(e) => setBootstrapCn(e.target.value)} />
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
+                                        <div className="space-y-2">
                                             <Label htmlFor="cmp-bs-key-type">Bootstrap Key Type</Label>
                                             <Select value={bootstrapKeygenType} onValueChange={handleBootstrapKeygenTypeChange}>
                                                 <SelectTrigger id="cmp-bs-key-type"><SelectValue /></SelectTrigger>
@@ -2148,7 +2148,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div>
+                                        <div className="space-y-2">
                                             <Label htmlFor="cmp-bs-key-spec">{bootstrapKeygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
                                             <Select value={bootstrapKeygenSpec} onValueChange={setBootstrapKeygenSpec}>
                                                 <SelectTrigger id="cmp-bs-key-spec"><SelectValue /></SelectTrigger>
@@ -2161,9 +2161,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         </div>
                                     </div>
 
-                                    <div>
+                                    <div className="space-y-2">
                                         <Label htmlFor="cmp-bs-signer">Bootstrap Signer (must be in validation_cas)</Label>
-                                        <p className="text-xs text-muted-foreground mb-2">
+                                        <p className="text-xs text-muted-foreground">
                                             Only CAs configured on this RA's CMP <code className="font-mono">client_certificate_settings.validation_cas</code> are listed
                                             {selectedOperation === 'genm'
                                                 ? <> as a source of real, RA-trusted certificates.</>
@@ -2191,7 +2191,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                             </SelectContent>
                                         </Select>
                                         {bootstrapSigner && (
-                                            <div className="mt-2">
+                                            <div>
                                                 <CaVisualizerCard ca={bootstrapSigner} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
                                             </div>
                                         )}
@@ -2227,20 +2227,20 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
                     {step === 4 && (
                         <div className="space-y-4">
-                            <div>
+                            <div className="space-y-2">
                                 <Label>Bootstrap Certificate</Label>
                                 <CodeBlock content={bootstrapCertificate} showDownload downloadFilename="bootstrap.crt" textareaClassName="h-48" />
                             </div>
-                            <div>
+                            <div className="space-y-2">
                                 <Label>Bootstrap Private Key</Label>
-                                <Alert variant="warning" className="mb-2">
+                                <Alert variant="warning">
                                     <AlertTriangle className="h-4 w-4" />
                                     <AlertTitle>Save Your Private Key</AlertTitle>
                                     <AlertDescUI>This is your only chance to save the private key. It will not be stored and cannot be recovered.</AlertDescUI>
                                 </Alert>
                                 <CodeBlock content={bootstrapPrivateKey} showDownload downloadFilename="bootstrap.key" textareaClassName="h-48" />
                             </div>
-                            <div>
+                            <div className="space-y-2">
                                 <Label>Restore the files with one paste</Label>
                                 <CodeBlock
                                     content={`echo "${encodeToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${encodeToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
@@ -2344,9 +2344,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     Pin DMS Protection Certificate via <code className="font-mono">-srvcert</code> (Recommended)
                                 </Label>
                             </div>
-                            <div>
+                            <div className="space-y-2">
                                 <Label>{primaryEnrollLabel}</Label>
-                                <p className="text-xs text-muted-foreground mb-1">
+                                <p className="text-xs text-muted-foreground">
                                     {selectedOperation === 'rr'
                                         ? <>Revoke the selected certificate. Authenticated by that certificate&apos;s private
                                             key, which the device holds — supply it as{' '}
@@ -2370,9 +2370,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             </div>
 
                             {usingCkg && (
-                                <div className="border-t pt-4">
+                                <div className="space-y-2 border-t pt-4">
                                     <Label>Recover the server-generated key and certificate</Label>
-                                    <Alert className="mt-1 mb-2">
+                                    <Alert>
                                         <Info className="h-4 w-4" />
                                         <AlertTitle>Required when using central key generation</AlertTitle>
                                         <AlertDescUI className="space-y-1 text-xs">
@@ -2405,7 +2405,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         textareaClassName="h-40"
                                         language="python"
                                     />
-                                    <p className="text-xs text-muted-foreground mt-2 mb-1">
+                                    <p className="text-xs text-muted-foreground">
                                         Run after the ir command above (it will still print an error from{' '}
                                         <code className="font-mono">openssl cmp</code> itself — that&apos;s expected):
                                     </p>
@@ -2413,41 +2413,6 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 </div>
                             )}
 
-                            {selectedOperation !== 'rr' && (
-                            <div className="border-t pt-4">
-                                <Label>Revocation Request (RR)</Label>
-                                <p className="text-xs text-muted-foreground mb-1">
-                                    Companion command to revoke a certificate. By default it revokes the one the{' '}
-                                    {selectedOperation.toUpperCase()} above issues; or pick an existing certificate to revoke
-                                    instead — the command then fetches it and you supply its device-held key as{' '}
-                                    <code className="font-mono">revokecert.key</code>.
-                                </p>
-                                <div className="mb-2 space-y-1">
-                                    <Label htmlFor="cmp-revoke-cert" className="text-xs">Certificate to revoke</Label>
-                                    <Select value={revokeCertSerial || '__enrolled__'} onValueChange={(v) => setRevokeCertSerial(v === '__enrolled__' ? '' : v)}>
-                                        <SelectTrigger id="cmp-revoke-cert"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__enrolled__">The certificate enrolled above</SelectItem>
-                                            {deviceCerts.map((c) => (
-                                                <SelectItem key={c.serialNumber} value={c.serialNumber}>
-                                                    {c.serialNumber}{c.validTo ? ` — expires ${c.validTo.slice(0, 10)}` : ''}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                {!rrEnabled && (
-                                    <Alert variant="warning" className="mb-2">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        <AlertDescUI className="text-xs">
-                                            <code className="font-mono">rr.enabled</code> is off on this DMS — this command will be
-                                            rejected with <code className="font-mono">notAuthorized</code> until revocation is enabled.
-                                        </AlertDescUI>
-                                    </Alert>
-                                )}
-                                <CodeBlock content={rrCommand} textareaClassName="h-44" />
-                            </div>
-                            )}
                         </div>
                     )}
 
@@ -2511,9 +2476,9 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 </Alert>
                             )}
 
-                            <div>
+                            <div className="space-y-2">
                                 <Label>Setup{genmUsesSelfSignedCert ? ' — signer certificate and trust anchor' : ' — trust anchor'}</Label>
-                                <p className="text-xs text-muted-foreground mb-1">
+                                <p className="text-xs text-muted-foreground">
                                     Run once; the command below reuses
                                     {genmUsesIssuedCert
                                         ? <> <code className="font-mono">bootstrap.crt</code>/<code className="font-mono">bootstrap.key</code> (from the previous steps) and</>
@@ -2546,7 +2511,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                         columns={2}
                                     />
                                     {selectedGenmCommand && (
-                                        <div className="border-t pt-4">
+                                        <div className="space-y-2 border-t pt-4">
                                             <div className="flex items-center gap-2">
                                                 <Label>{selectedGenmCommand.label}</Label>
                                                 <code className="font-mono text-xs text-muted-foreground">-infotype {selectedGenmCommand.opensslName}</code>
