@@ -186,7 +186,9 @@ describe('CmpEnrollModal flows', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Revocation Request \(RR\)/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Issue Bootstrap Cert' }));
+    // RR picks an existing certificate in step 3 and issues nothing, so the
+    // step advances straight to the commands.
+    fireEvent.click(screen.getByRole('button', { name: 'Show Commands' }));
 
     expect((await screen.findAllByTestId('code-block'))
       .some((element) => element.textContent?.includes('-cmd rr'))).toBe(true);
