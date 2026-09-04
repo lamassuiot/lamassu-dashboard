@@ -402,7 +402,7 @@ async function ensureEngine(
         initProgressCallback: onInitProgress,
         appConfig: {
           ...webllm.prebuiltAppConfig,
-          useIndexedDBCache: true,
+          cacheBackend: 'indexeddb',
         },
       },
     );

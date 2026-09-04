@@ -130,7 +130,7 @@ async function ensureEmbeddingEngine(onInitProgress?: (report: InitProgressRepor
       initProgressCallback: onInitProgress,
       appConfig: {
         ...webllm.prebuiltAppConfig,
-        useIndexedDBCache: true,
+        cacheBackend: 'indexeddb',
       },
     });
 
