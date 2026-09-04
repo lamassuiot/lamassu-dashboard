@@ -55,6 +55,7 @@ import {
   type SigningProfileFormValues,
 } from '@/components/shared/SigningProfileForm';
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
+import { CmpOperationGate } from '@/components/ra/CmpOperationGate';
 import { buildRenewalTimeline, RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
 import { CmpPlannedOperationTabs, CmpGenmPlannedCapabilities } from '@/components/ra/CmpPlannedOperationTabs';
 import {
@@ -312,9 +313,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [cmpIr, setCmpIr] = useState<CmpIrSettings>(createDefaultCmpIr);
   const [cmpCr, setCmpCr] = useState<CmpCrSettings>(createDefaultCmpCr);
   const [cmpP10cr, setCmpP10cr] = useState<CmpP10crSettings>(createDefaultCmpP10cr);
+  // kur and genm keep their `enabled` gate as its own flag rather than a full
+  // settings object: the rest of their fields already live in dedicated state
+  // (reenrollment_settings / ca_distribution_settings), so there is no object
+  // to hang it off. Both default to true, matching the backend's resolver.
+  const [cmpKurEnabled, setCmpKurEnabled] = useState(true);
   const [cmpKurKeyPolicy, setCmpKurKeyPolicy] = useState<CmpKeyPolicy>('require_new_key');
   const [cmpKurIdentityChangePolicy, setCmpKurIdentityChangePolicy] = useState<CmpIdentityChangePolicy>('forbid');
   const [cmpRr, setCmpRr] = useState<CmpRrSettings>(createDefaultCmpRr);
+  const [cmpGenmEnabled, setCmpGenmEnabled] = useState(true);
   const [cmpGenmAccessPolicy, setCmpGenmAccessPolicy] = useState<CmpGenmAccessPolicy>('public_discovery');
   const [cmpGenmInformationTypes, setCmpGenmInformationTypes] = useState<CmpGenmInformationTypes>(createDefaultCmpGenmInformationTypes);
   const [cmpGenmPreferredSymmAlg, setCmpGenmPreferredSymmAlg] = useState<CmpPreferredSymmetricAlgorithm>('aes256_cbc');
@@ -338,7 +345,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [selectedDeviceIconBgColor, setSelectedDeviceIconBgColor] = useState<string>('#F0F8FF');
   const [activeRaSettingsTab, setActiveRaSettingsTab] = useState<RaSettingsTab>('enrollment');
   const [activeCmpTab, setActiveCmpTab] = useState<CmpSettingsTab>('general');
-  
+  // CMP tabs whose single operation is gated off, badged in the tab strip.
+  const disabledCmpOperationTabs = useMemo(() => {
+    const disabled = new Set<CmpSettingsTab>();
+    if (!cmpRr.enabled) disabled.add('rr');
+    if (!cmpGenmEnabled) disabled.add('genm');
+    if (!cmpCcr.enabled) disabled.add('ccr');
+    return disabled;
+  }, [cmpCcr.enabled, cmpGenmEnabled, cmpRr.enabled]);
+
   // Modal and Data Loading State
   const [isDeviceIconModalOpen, setIsDeviceIconModalOpen] = useState(false);
   const [isEnrollmentCaModalOpen, setIsEnrollmentCaModalOpen] = useState(false);
@@ -517,9 +532,11 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             setCmpIr(cmpSettings.ir ?? createDefaultCmpIr());
             setCmpCr(cmpSettings.cr ?? createDefaultCmpCr());
             setCmpP10cr(cmpSettings.p10cr ?? createDefaultCmpP10cr());
+            setCmpKurEnabled(cmpSettings.kur?.enabled ?? true);
             setCmpKurKeyPolicy(cmpSettings.kur?.key_policy ?? 'require_new_key');
             setCmpKurIdentityChangePolicy(cmpSettings.kur?.identity_change_policy ?? 'forbid');
             setCmpRr(cmpSettings.rr ?? createDefaultCmpRr());
+            setCmpGenmEnabled(cmpSettings.genm?.enabled ?? true);
             setCmpGenmAccessPolicy(cmpSettings.genm?.access_policy ?? 'public_discovery');
             setCmpGenmInformationTypes(cmpSettings.genm?.information_types ?? createDefaultCmpGenmInformationTypes());
             setCmpGenmPreferredSymmAlg(cmpSettings.genm?.preferred_symmetric_algorithm ?? 'aes256_cbc');
@@ -720,15 +737,22 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 ir: { ...cmpIr, central_key_generation: { ...cmpIr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
                 cr: { ...cmpCr, central_key_generation: { ...cmpCr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
                 p10cr: cmpP10cr,
+                // Every per-operation block is sent complete, sentinel enum
+                // included (identity_source / certificate_behavior /
+                // key_policy / authorization / access_policy). The backend
+                // treats a block whose sentinel enum is empty as "never
+                // configured" and re-applies its default `enabled`, so a
+                // sparse `{enabled: false}` patch would be silently reverted
+                // to true on a DMS that has not yet round-tripped resolution.
                 kur: {
-                  enabled: true,
+                  enabled: cmpKurEnabled,
                   key_policy: cmpKurKeyPolicy,
                   identity_change_policy: cmpKurIdentityChangePolicy,
                   policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
                 },
                 rr: cmpRr,
                 genm: {
-                  enabled: true,
+                  enabled: cmpGenmEnabled,
                   access_policy: cmpGenmAccessPolicy,
                   // protocol_encryption_certificate is hidden and hard-disabled
                   // server-side; force it false so the UI never persists a
@@ -941,11 +965,23 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       ['Preventive Renewal Delta', preventiveRenewalDelta],
       ['Critical Renewal Delta', criticalRenewalDelta],
     ] as const;
-    renewalDurations.forEach(([label, value]) => {
-      if (!isValidPositiveDuration(value)) errors.push(`Renewal settings: ${label} must be a valid duration greater than zero.`);
-    });
+    // CMP's renewal deltas belong to the kur operation; with kur gated off its
+    // fields are hidden, so validating them would raise an error the form
+    // gives no way to fix.
+    const validateRenewalDurations = protocol !== 'CMP' || cmpKurEnabled;
+    if (validateRenewalDurations) {
+      renewalDurations.forEach(([label, value]) => {
+        if (!isValidPositiveDuration(value)) errors.push(`Renewal settings: ${label} must be a valid duration greater than zero.`);
+      });
+    }
 
     if (protocol === 'CMP') {
+      if (!cmpIr.enabled && !cmpCr.enabled && !cmpP10cr.enabled) {
+        warnings.push('CMP Enrollment: no enrollment operation is enabled (ir, cr and p10cr are all off), so no device can obtain a certificate from this DMS.');
+      }
+      if (!cmpGenmEnabled) {
+        warnings.push('CMP General Messages: genm is off, so clients cannot retrieve this DMS\'s CA certificates (caCerts) over CMP.');
+      }
       if (cmpConfirmationMode === 'EXPLICIT' && !isValidPositiveDuration(cmpConfirmationTimeout)) {
         errors.push('CMP General: Confirmation Timeout must be a valid duration greater than zero.');
       }
@@ -965,7 +1001,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     }
 
     if (
-      effectiveIssuanceProfile?.validity.type === 'Duration'
+      validateRenewalDurations
+      && effectiveIssuanceProfile?.validity.type === 'Duration'
       && renewalDurations.every(([, value]) => isValidPositiveDuration(value))
     ) {
       const renewalTimeline = buildRenewalTimeline(
@@ -990,6 +1027,11 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     cmpCcr,
     cmpConfirmationMode,
     cmpConfirmationTimeout,
+    cmpCr.enabled,
+    cmpGenmEnabled,
+    cmpIr.enabled,
+    cmpKurEnabled,
+    cmpP10cr.enabled,
     cmpWorkflow,
     criticalRenewalDelta,
     deviceMetadataJson,
@@ -1548,6 +1590,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               {cmpSettingsTabs.map((tab) => (
                 <TabsTrigger key={tab.value} value={tab.value} className={pageTabsTriggerClass}>
                   {tab.label}
+                  {/* Tabs that map 1:1 to a single operation flag their gate,
+                      so a fully disabled operation is visible without opening
+                      the tab. The Enrollment tab holds four operations, so it
+                      has no single on/off state to show here. */}
+                  {disabledCmpOperationTabs.has(tab.value) && (
+                    <Badge variant="outline" className="ml-2 text-[10px] font-medium text-muted-foreground">Off</Badge>
+                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -1693,6 +1742,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             p10cr={cmpP10cr}
             onP10crChange={(patch) => setCmpP10cr((prev) => ({ ...prev, ...patch }))}
             kur={{
+              enabled: cmpKurEnabled, onEnabledChange: setCmpKurEnabled,
               revokeOnReEnroll, onRevokeOnReEnrollChange: setRevokeOnReEnroll,
               allowExpiredRenewal, onAllowExpiredRenewalChange: setAllowExpiredRenewal,
               allowedRenewalDelta, onAllowedRenewalDeltaChange: setAllowedRenewalDelta,
@@ -1719,6 +1769,21 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
           {/* ── General Messages (GENM/GENP) ── */}
           <TabsContent value="genm" className="mt-6">
+            <SettingsSection title="General Messages" description="Informational CMP queries. The caCerts response below is served through this operation, so turning it off disables CA distribution too.">
+              <CmpOperationGate
+                id="cmpGenmEnabled"
+                label="Enable CMP general message operation"
+                description="Accept genm requests on this DMS."
+                disabledNote="General messages are off — every genm request is rejected, including caCerts. Clients cannot discover this DMS's CA certificates or capabilities over CMP."
+                checked={cmpGenmEnabled}
+                onCheckedChange={setCmpGenmEnabled}
+              />
+            </SettingsSection>
+
+            {cmpGenmEnabled && (
+            <>
+            <Separator />
+
             <SettingsSection title="CA Distribution" description="Which CA certificates the caCerts response includes. Live today.">
               <div className="flex items-center justify-between gap-4">
                 <div className="space-y-0.5 flex-1">
@@ -1762,6 +1827,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 onPreferredSymmetricAlgorithmChange={setCmpGenmPreferredSymmAlg}
               />
             </SettingsSection>
+            </>
+            )}
           </TabsContent>
         </Tabs>
         )}

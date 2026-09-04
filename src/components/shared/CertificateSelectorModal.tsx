@@ -35,6 +35,14 @@ interface CertificateSelectorModalProps {
   limitToCAs?: CA[];
   requiredKeyUsages?: readonly KeyUsageOption[];
   includeCaCertificates?: boolean;
+  // Filters the sheet opens pre-seeded with, for callers that already know
+  // which slice of certificates is relevant (e.g. "this device's active
+  // certificates"). The operator can still change or clear them in the filter
+  // bar — unlike limitToCAs/requiredKeyUsages, these are a starting point, not
+  // a restriction. Re-seeded every time the sheet opens.
+  initialSearchTerm?: string;
+  initialSearchField?: 'commonName' | 'serialNumber';
+  initialStatusFilters?: readonly ApiCertificateStatusValue[];
 }
 
 const defaultDateFilterValue: CertificateDateFilterValue = {
@@ -49,6 +57,7 @@ const defaultDateFilterValue: CertificateDateFilterValue = {
 // setState calls into "Maximum update depth exceeded". A stable module-level
 // reference fixes it for any caller that doesn't pass the prop.
 const EMPTY_KEY_USAGES: readonly KeyUsageOption[] = [];
+const EMPTY_STATUS_FILTERS: readonly ApiCertificateStatusValue[] = [];
 
 function flattenCaOptions(cas: CA[]): CA[] {
   const options: CA[] = [];
@@ -143,6 +152,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   limitToCAs,
   requiredKeyUsages = EMPTY_KEY_USAGES,
   includeCaCertificates = false,
+  initialSearchTerm = '',
+  initialSearchField = 'commonName',
+  initialStatusFilters = EMPTY_STATUS_FILTERS,
 }) => {
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
   const [isLoadingCerts, setIsLoadingCerts] = useState(false);
@@ -155,9 +167,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const [pageSize, setPageSize] = useState<string>('10');
 
   // Filtering State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
-  const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>(initialSearchField);
+  const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([...initialStatusFilters]);
   const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
   const [engineIdFilter, setEngineIdFilter] = useState('');
   const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([]);
@@ -190,6 +202,18 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         : caOptions[0].id
     ));
   }, [hasCaRestriction, caOptions]);
+
+  // The sheet stays mounted between openings, so the caller's starting filters
+  // are re-seeded on each open rather than only on first mount. Statuses are
+  // compared as a joined string so a caller passing an inline array literal
+  // can't loop this effect on array identity alone.
+  const initialStatusKey = initialStatusFilters.join(',');
+  useEffect(() => {
+    if (!isOpen) return;
+    setSearchTerm(initialSearchTerm);
+    setSearchField(initialSearchField);
+    setStatusFilters(initialStatusKey ? initialStatusKey.split(',') as ApiCertificateStatusValue[] : []);
+  }, [isOpen, initialSearchTerm, initialSearchField, initialStatusKey]);
 
   // Reset pagination when filters or page size change, or when modal opens
   useEffect(() => {

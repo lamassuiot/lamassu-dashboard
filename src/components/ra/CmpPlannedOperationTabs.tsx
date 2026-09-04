@@ -11,10 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Info, PlusCircle, Settings2, X, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Settings2, X, AlertTriangle } from 'lucide-react';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { Separator } from '@/components/ui/separator';
 import { SettingsSection } from '@/components/shared/SettingsSection';
+import { CmpOperationGate } from '@/components/ra/CmpOperationGate';
 import { RfcLink } from '@/components/shared/RfcLink';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
@@ -411,6 +412,8 @@ function IssuanceProfileOverridePicker({
 // alongside IR/CR/P10CR — it still answers "how does a device get a
 // certificate?", so it belongs with the others rather than as its own tab.
 interface CmpKurTabProps {
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
   revokeOnReEnroll: boolean;
   onRevokeOnReEnrollChange: (v: boolean) => void;
   allowExpiredRenewal: boolean;
@@ -563,217 +566,255 @@ export function CmpPlannedOperationTabs({
         <Separator />
 
         <SettingsSection title={operationTitle('IR / IP', 'Initialization')} description="Used for the initial bootstrap of a brand-new device into the PKI.">
-          <PlannedRow label="Device identity source">
-            <Select value={ir.identity_source} onValueChange={(v: CmpIrSettings['identity_source']) => onIrChange({ identity_source: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="subject_only">Subject Common Name only</SelectItem>
-                <SelectItem value="subject_or_san">Subject Common Name or SAN</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          <PlannedRow label="Proof-of-possession methods" description="Which POPO mechanisms the CA will accept on an initialization request.">
-            <CheckboxList
-              options={POP_METHOD_OPTIONS}
-              selected={ir.proof_of_possession.allowed_methods}
-              onToggle={(v) => onIrChange({ proof_of_possession: { ...ir.proof_of_possession, allowed_methods: toggleValue(ir.proof_of_possession.allowed_methods, v) } })}
-            />
-          </PlannedRow>
-          {/* regToken and authenticator are the two CRMF regCtrls that can gate an
-              initialization request, and a request carries at most one — so they read
-              as a single choice instead of two selects that must be kept consistent. */}
-          <PlannedRow
-            label="Enrollment credential control"
-            description={<>
-              Which CRMF registration control (<RfcLink rfc={4211} section="6" />) the CA requires on an
-              initialization request. Registration token and authenticator control are mutually exclusive —
-              pick at most one. Both are disabled for now; only None is available.
-            </>}
+          <CmpOperationGate
+            id="cmpIrEnabled"
+            label="Enable CMP initialization operation"
+            description="Accept ir requests on this DMS."
+            disabledNote="Initialization is off — every ir request is rejected, so a brand-new device cannot bootstrap through this DMS."
+            checked={ir.enabled}
+            onCheckedChange={(v) => onIrChange({ enabled: v })}
           >
-            <Select
-              value={irCredentialControlOf(ir)}
-              onValueChange={(v: IrCredentialControl) => onIrChange({
-                registration_token: { mode: v === 'registration_token' ? 'required' : 'disabled' },
-                authenticator_control: { mode: v === 'authenticator' ? 'required' : 'disabled' },
-              })}
+            <PlannedRow label="Device identity source">
+              <Select value={ir.identity_source} onValueChange={(v: CmpIrSettings['identity_source']) => onIrChange({ identity_source: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="subject_only">Subject Common Name only</SelectItem>
+                  <SelectItem value="subject_or_san">Subject Common Name or SAN</SelectItem>
+                </SelectContent>
+              </Select>
+            </PlannedRow>
+            <PlannedRow label="Proof-of-possession methods" description="Which POPO mechanisms the CA will accept on an initialization request.">
+              <CheckboxList
+                options={POP_METHOD_OPTIONS}
+                selected={ir.proof_of_possession.allowed_methods}
+                onToggle={(v) => onIrChange({ proof_of_possession: { ...ir.proof_of_possession, allowed_methods: toggleValue(ir.proof_of_possession.allowed_methods, v) } })}
+              />
+            </PlannedRow>
+            {/* regToken and authenticator are the two CRMF regCtrls that can gate an
+                initialization request, and a request carries at most one — so they read
+                as a single choice instead of two selects that must be kept consistent. */}
+            <PlannedRow
+              label="Enrollment credential control"
+              description={<>
+                Which CRMF registration control (<RfcLink rfc={4211} section="6" />) the CA requires on an
+                initialization request. Registration token and authenticator control are mutually exclusive —
+                pick at most one. Both are disabled for now; only None is available.
+              </>}
             >
-              <SelectTrigger className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5">
-                <SelectValue>
-                  {(() => {
-                    const selected = IR_CREDENTIAL_CONTROL_OPTIONS.find((o) => o.value === irCredentialControlOf(ir));
-                    return selected && (
-                      <div className="w-full min-w-0 space-y-0.5 text-left">
-                        <p className="text-sm font-medium leading-none">{selected.label}</p>
-                        <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+              <Select
+                value={irCredentialControlOf(ir)}
+                onValueChange={(v: IrCredentialControl) => onIrChange({
+                  registration_token: { mode: v === 'registration_token' ? 'required' : 'disabled' },
+                  authenticator_control: { mode: v === 'authenticator' ? 'required' : 'disabled' },
+                })}
+              >
+                <SelectTrigger className="h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5">
+                  <SelectValue>
+                    {(() => {
+                      const selected = IR_CREDENTIAL_CONTROL_OPTIONS.find((o) => o.value === irCredentialControlOf(ir));
+                      return selected && (
+                        <div className="w-full min-w-0 space-y-0.5 text-left">
+                          <p className="text-sm font-medium leading-none">{selected.label}</p>
+                          <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selected.description}</p>
+                        </div>
+                      );
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="min-w-[320px]">
+                  {IR_CREDENTIAL_CONTROL_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      textValue={option.label}
+                      disabled={option.disabled}
+                      className="min-h-0 h-auto items-start py-2.5"
+                    >
+                      <div className="space-y-0.5 text-left">
+                        <p className="text-sm font-medium leading-none">{option.label}</p>
+                        <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
                       </div>
-                    );
-                  })()}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="min-w-[320px]">
-                {IR_CREDENTIAL_CONTROL_OPTIONS.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}
-                    textValue={option.label}
-                    disabled={option.disabled}
-                    className="min-h-0 h-auto items-start py-2.5"
-                  >
-                    <div className="space-y-0.5 text-left">
-                      <p className="text-sm font-medium leading-none">{option.label}</p>
-                      <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          {policyOverrides(ir.policy_overrides.workflow, ir.policy_overrides.confirmation, ir.policy_overrides.issuance_profile_id, (patch) => onIrChange({ policy_overrides: { ...ir.policy_overrides, ...patch } }))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PlannedRow>
+            {policyOverrides(ir.policy_overrides.workflow, ir.policy_overrides.confirmation, ir.policy_overrides.issuance_profile_id, (patch) => onIrChange({ policy_overrides: { ...ir.policy_overrides, ...patch } }))}
+          </CmpOperationGate>
         </SettingsSection>
 
         <Separator />
 
         <SettingsSection title={operationTitle('CR / CP', 'Certification')} description="Used when a device already participates in the PKI and requests another certificate.">
-          <PlannedSwitchRow label="Require an existing device" checked={cr.require_existing_device} onCheckedChange={(v) => onCrChange({ require_existing_device: v })} />
-          <PlannedRow label="Certificate behavior">
-            <Select value={cr.certificate_behavior} onValueChange={(v: CmpCrSettings['certificate_behavior']) => onCrChange({ certificate_behavior: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="additional">Issue an additional certificate</SelectItem>
-                <SelectItem value="replace">Replace active identity</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          {cr.certificate_behavior === 'additional' && (
-            <PlannedRow label="Maximum active certificates per device">
-              <Input
-                type="number"
-                min={1}
-                value={cr.maximum_active_certificates}
-                onChange={(e) => onCrChange({ maximum_active_certificates: Number.parseInt(e.target.value, 10) || 1 })}
-                className="max-w-[160px]"
+          <CmpOperationGate
+            id="cmpCrEnabled"
+            label="Enable CMP certification operation"
+            description="Accept cr requests on this DMS."
+            disabledNote="Certification is off — every cr request is rejected. Devices already in the PKI cannot request an additional certificate through this DMS."
+            checked={cr.enabled}
+            onCheckedChange={(v) => onCrChange({ enabled: v })}
+          >
+            <PlannedSwitchRow label="Require an existing device" checked={cr.require_existing_device} onCheckedChange={(v) => onCrChange({ require_existing_device: v })} />
+            <PlannedRow label="Certificate behavior">
+              <Select value={cr.certificate_behavior} onValueChange={(v: CmpCrSettings['certificate_behavior']) => onCrChange({ certificate_behavior: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="additional">Issue an additional certificate</SelectItem>
+                  <SelectItem value="replace">Replace active identity</SelectItem>
+                </SelectContent>
+              </Select>
+            </PlannedRow>
+            {cr.certificate_behavior === 'additional' && (
+              <PlannedRow label="Maximum active certificates per device">
+                <Input
+                  type="number"
+                  min={1}
+                  value={cr.maximum_active_certificates}
+                  onChange={(e) => onCrChange({ maximum_active_certificates: Number.parseInt(e.target.value, 10) || 1 })}
+                  className="max-w-[160px]"
+                />
+              </PlannedRow>
+            )}
+            <PlannedRow label="Proof-of-possession methods">
+              <CheckboxList
+                options={POP_METHOD_OPTIONS}
+                selected={cr.proof_of_possession.allowed_methods}
+                onToggle={(v) => onCrChange({ proof_of_possession: { ...cr.proof_of_possession, allowed_methods: toggleValue(cr.proof_of_possession.allowed_methods, v) } })}
               />
             </PlannedRow>
-          )}
-          <PlannedRow label="Proof-of-possession methods">
-            <CheckboxList
-              options={POP_METHOD_OPTIONS}
-              selected={cr.proof_of_possession.allowed_methods}
-              onToggle={(v) => onCrChange({ proof_of_possession: { ...cr.proof_of_possession, allowed_methods: toggleValue(cr.proof_of_possession.allowed_methods, v) } })}
-            />
-          </PlannedRow>
-          {policyOverrides(cr.policy_overrides.workflow, cr.policy_overrides.confirmation, cr.policy_overrides.issuance_profile_id, (patch) => onCrChange({ policy_overrides: { ...cr.policy_overrides, ...patch } }))}
+            {policyOverrides(cr.policy_overrides.workflow, cr.policy_overrides.confirmation, cr.policy_overrides.issuance_profile_id, (patch) => onCrChange({ policy_overrides: { ...cr.policy_overrides, ...patch } }))}
+          </CmpOperationGate>
         </SettingsSection>
 
         <Separator />
 
         <SettingsSection title={operationTitle('P10CR / CP', 'PKCS #10')} description="The simplest enrollment path: a plain PKCS#10 CSR wrapped in a CMP message.">
-          <PlannedSwitchRow label="Enable PKCS #10 enrollment" checked={p10cr.enabled} onCheckedChange={(v) => onP10crChange({ enabled: v })} />
-          <div className="space-y-2 rounded-md border bg-muted/20 p-4">
-            <p className="text-sm font-medium">Fixed behavior for PKCS #10</p>
-            <ul className="space-y-1 text-xs text-muted-foreground">
-              <li>CSR signature verification: <span className="text-foreground">Always required</span></li>
-              <li>CRMF proof-of-possession: <span className="text-foreground">Not applicable</span></li>
-              <li>Central key generation: <span className="text-foreground">Not supported</span></li>
-              <li>CRMF registration controls: <span className="text-foreground">Not applicable</span></li>
-            </ul>
-          </div>
+          <CmpOperationGate
+            id="cmpP10crEnabled"
+            label="Enable CMP PKCS #10 enrollment operation"
+            description="Accept p10cr requests on this DMS. Off by default."
+            disabledNote="PKCS #10 enrollment is off — every p10cr request is rejected. Devices must use ir or cr instead."
+            checked={p10cr.enabled}
+            onCheckedChange={(v) => onP10crChange({ enabled: v })}
+          >
+            <div className="space-y-2 rounded-md border bg-muted/20 p-4">
+              <p className="text-sm font-medium">Fixed behavior for PKCS #10</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                <li>CSR signature verification: <span className="text-foreground">Always required</span></li>
+                <li>CRMF proof-of-possession: <span className="text-foreground">Not applicable</span></li>
+                <li>Central key generation: <span className="text-foreground">Not supported</span></li>
+                <li>CRMF registration controls: <span className="text-foreground">Not applicable</span></li>
+              </ul>
+            </div>
+          </CmpOperationGate>
         </SettingsSection>
 
         <Separator />
 
         <SettingsSection title={operationTitle('KUR / KUP', 'Key Update')} description={<>Certificate renewal. Per <RfcLink rfc={9483} section="4.1.3" /> the request is protected with the certificate being updated, so no separate authentication mode applies.</>}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5 flex-1">
-              <Label htmlFor="cmpRevokeOnReEnroll">Revoke superseded certificate</Label>
-              <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued.</p>
+          <CmpOperationGate
+            id="cmpKurEnabled"
+            label="Enable CMP key update operation"
+            description="Accept kur requests on this DMS."
+            disabledNote="Key update is off — every kur request is rejected. Devices cannot renew over CMP and must re-enroll with ir or cr instead."
+            checked={kur.enabled}
+            onCheckedChange={kur.onEnabledChange}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="cmpRevokeOnReEnroll">Revoke superseded certificate</Label>
+                <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued.</p>
+              </div>
+              <Switch id="cmpRevokeOnReEnroll" checked={kur.revokeOnReEnroll} onCheckedChange={kur.onRevokeOnReEnrollChange} />
             </div>
-            <Switch id="cmpRevokeOnReEnroll" checked={kur.revokeOnReEnroll} onCheckedChange={kur.onRevokeOnReEnrollChange} />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5 flex-1">
-              <Label htmlFor="cmpAllowExpiredRenewal">Allow renewal using an expired certificate</Label>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="cmpAllowExpiredRenewal">Allow renewal using an expired certificate</Label>
+              </div>
+              <Switch id="cmpAllowExpiredRenewal" checked={kur.allowExpiredRenewal} onCheckedChange={kur.onAllowExpiredRenewalChange} />
             </div>
-            <Switch id="cmpAllowExpiredRenewal" checked={kur.allowExpiredRenewal} onCheckedChange={kur.onAllowExpiredRenewalChange} />
-          </div>
-          <DurationInput id="cmpRenewalWindow" label="Renewal window before expiration" value={kur.allowedRenewalDelta} onChange={kur.onAllowedRenewalDeltaChange} placeholder="e.g., 100d" description="Time before certificate expiry when key update becomes available." />
-          <DurationInput id="cmpPreventiveDelta" label="Preventive Renewal Delta" value={kur.preventiveRenewalDelta} onChange={kur.onPreventiveRenewalDeltaChange} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
-          <DurationInput id="cmpCriticalDelta" label="Critical Renewal Delta" value={kur.criticalRenewalDelta} onChange={kur.onCriticalRenewalDeltaChange} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
-          <RenewalLifespanBar
-            certificateValidity={kur.effectiveIssuanceProfile?.validity ?? null}
-            issuanceProfileName={kur.effectiveIssuanceProfile?.name}
-            reenrollmentWindow={kur.allowedRenewalDelta}
-            preventiveDelta={kur.preventiveRenewalDelta}
-            criticalDelta={kur.criticalRenewalDelta}
-          />
+            <DurationInput id="cmpRenewalWindow" label="Renewal window before expiration" value={kur.allowedRenewalDelta} onChange={kur.onAllowedRenewalDeltaChange} placeholder="e.g., 100d" description="Time before certificate expiry when key update becomes available." />
+            <DurationInput id="cmpPreventiveDelta" label="Preventive Renewal Delta" value={kur.preventiveRenewalDelta} onChange={kur.onPreventiveRenewalDeltaChange} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
+            <DurationInput id="cmpCriticalDelta" label="Critical Renewal Delta" value={kur.criticalRenewalDelta} onChange={kur.onCriticalRenewalDeltaChange} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
+            <RenewalLifespanBar
+              certificateValidity={kur.effectiveIssuanceProfile?.validity ?? null}
+              issuanceProfileName={kur.effectiveIssuanceProfile?.name}
+              reenrollmentWindow={kur.allowedRenewalDelta}
+              preventiveDelta={kur.preventiveRenewalDelta}
+              criticalDelta={kur.criticalRenewalDelta}
+            />
 
-          <div className="space-y-1.5">
-            <Label>Additional trusted CAs for migration</Label>
-            <div className="space-y-2">
-              {kur.additionalValidationCAs.length > 0 ? kur.additionalValidationCAs.map(ca => (
-                <div key={ca.id} className="flex items-center gap-2 group">
-                  <CaVisualizerCard ca={ca} allCryptoEngines={kur.allCryptoEngines} className="flex-grow shadow-none border-border" />
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => kur.onRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+            <div className="space-y-1.5">
+              <Label>Additional trusted CAs for migration</Label>
+              <div className="space-y-2">
+                {kur.additionalValidationCAs.length > 0 ? kur.additionalValidationCAs.map(ca => (
+                  <div key={ca.id} className="flex items-center gap-2 group">
+                    <CaVisualizerCard ca={ca} allCryptoEngines={kur.allCryptoEngines} className="flex-grow shadow-none border-border" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => kur.onRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
+              </div>
+              <Button type="button" variant="secondary" onClick={kur.onAddAdditionalValidationCa}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+              </Button>
+            </div>
+
+            <CmpKurPlannedPolicy
+              keyPolicy={kur.keyPolicy}
+              onKeyPolicyChange={kur.onKeyPolicyChange}
+              identityChangePolicy={kur.identityChangePolicy}
+              onIdentityChangePolicyChange={kur.onIdentityChangePolicyChange}
+            />
+          </CmpOperationGate>
+        </SettingsSection>
+
+        {/* CKG is an ir/cr request-time behavior, so it has nothing to act on
+            once both of those operations are gated off. */}
+        {(ir.enabled || cr.enabled) && (
+          <>
+            <Separator />
+
+            <SettingsSection title="Central Key Generation" description={<><RfcLink rfc={9483} section="4.1.6" />. Lets a device ask the server to generate its key pair and return it, instead of generating locally.</>}>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="cmpCkgEnabled">Enable central key generation</Label>
+                  <p className="text-xs text-muted-foreground">An ir/cr with an empty public key asks the server to generate and return the key pair. When disabled (default), such requests are rejected.</p>
                 </div>
-              )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
-            </div>
-            <Button type="button" variant="secondary" onClick={kur.onAddAdditionalValidationCa}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
-            </Button>
-          </div>
-
-          <CmpKurPlannedPolicy
-            keyPolicy={kur.keyPolicy}
-            onKeyPolicyChange={kur.onKeyPolicyChange}
-            identityChangePolicy={kur.identityChangePolicy}
-            onIdentityChangePolicyChange={kur.onIdentityChangePolicyChange}
-          />
-        </SettingsSection>
-
-        <Separator />
-
-        <SettingsSection title="Central Key Generation" description={<><RfcLink rfc={9483} section="4.1.6" />. Lets a device ask the server to generate its key pair and return it, instead of generating locally.</>}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5 flex-1">
-              <Label htmlFor="cmpCkgEnabled">Enable central key generation</Label>
-              <p className="text-xs text-muted-foreground">An ir/cr with an empty public key asks the server to generate and return the key pair. When disabled (default), such requests are rejected.</p>
-            </div>
-            <Switch id="cmpCkgEnabled" checked={ckg.enabled} onCheckedChange={ckg.onEnabledChange} />
-          </div>
-        </SettingsSection>
+                <Switch id="cmpCkgEnabled" checked={ckg.enabled} onCheckedChange={ckg.onEnabledChange} />
+              </div>
+            </SettingsSection>
+          </>
+        )}
       </TabsContent>
 
       {/* ── Revocation Request / Response (RR/RP) ── */}
       <TabsContent value="rr" className="mt-6">
         <SettingsSection title="Revocation" description="Lets a device (or a trusted RA) revoke a certificate over CMP.">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Revocation requests always require signature-based protection, regardless of the DMS enrollment
-              auth mode — an unsigned rr is never accepted, even under NO_AUTH or EXTERNAL_WEBHOOK.
-            </AlertDescription>
-          </Alert>
-          <PlannedSwitchRow label={rr.enabled ? "Enable CMP revocation Operation" : "Enable CMP revocation"} checked={rr.enabled} onCheckedChange={(v) => onRrChange({ enabled: v })} />
-          {rr.enabled && (
-            <>
-              <PlannedRow label="Authorization">
-                <Select value={rr.authorization} onValueChange={(v: CmpRrSettings['authorization']) => onRrChange({ authorization: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="self_only">Self-revocation only</SelectItem>
-                    <SelectItem value="self_and_trusted_ra">Self-revocation and trusted RA</SelectItem>
-                  </SelectContent>
-                </Select>
-              </PlannedRow>
-              {rr.authorization === 'self_and_trusted_ra' && (
-                <PlannedSwitchRow
-                  label="Require id-kp-cmcRA EKU for RA actions"
-                  checked={rr.trusted_ra.require_cmc_ra_eku}
-                  onCheckedChange={(v) => onRrChange({ trusted_ra: { ...rr.trusted_ra, require_cmc_ra_eku: v } })}
-                />
-              )}
-            </>
-          )}
+          <CmpOperationGate
+            id="cmpRrEnabled"
+            label="Enable CMP revocation operation"
+            description="Accept rr requests on this DMS."
+            disabledNote="Revocation is off — every rr request is rejected. Certificates can still be revoked through the Lamassu API or UI."
+            checked={rr.enabled}
+            onCheckedChange={(v) => onRrChange({ enabled: v })}
+          >
+            <PlannedRow label="Authorization">
+              <Select value={rr.authorization} onValueChange={(v: CmpRrSettings['authorization']) => onRrChange({ authorization: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self_only">Self-revocation only</SelectItem>
+                  <SelectItem value="self_and_trusted_ra">Self-revocation and trusted RA</SelectItem>
+                </SelectContent>
+              </Select>
+            </PlannedRow>
+            {rr.authorization === 'self_and_trusted_ra' && (
+              <PlannedSwitchRow
+                label="Require id-kp-cmcRA EKU for RA actions"
+                checked={rr.trusted_ra.require_cmc_ra_eku}
+                onCheckedChange={(v) => onRrChange({ trusted_ra: { ...rr.trusted_ra, require_cmc_ra_eku: v } })}
+              />
+            )}
+          </CmpOperationGate>
         </SettingsSection>
 
         {rr.enabled && (
@@ -797,80 +838,85 @@ export function CmpPlannedOperationTabs({
       {/* ── Cross-Certification Request / Response (CCR/CCP) ── */}
       <TabsContent value="ccr" className="mt-6">
         <SettingsSection title="Cross-Certification" description="A privileged CA-to-CA operation. Disabled by default.">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Cross-certification is a privileged CA-to-CA operation and stays disabled by default — enable it only
-              for a specific, deliberate CA trust relationship.
-            </AlertDescription>
-          </Alert>
-          <PlannedSwitchRow label="Enable cross-certification" checked={ccr.enabled} onCheckedChange={(v) => onCcrChange({ enabled: v })} />
-          <PlannedSwitchRow label="Require the requester to be a CA" checked={ccr.require_ca_certificate} onCheckedChange={(v) => onCcrChange({ require_ca_certificate: v })} />
-          <PlannedSwitchRow label="Require proof of possession" checked={ccr.require_proof_of_possession} onCheckedChange={(v) => onCcrChange({ require_proof_of_possession: v })} />
+          <CmpOperationGate
+            id="cmpCcrEnabled"
+            label="Enable CMP cross-certification operation"
+            description="Accept ccr requests on this DMS. Off by default."
+            disabledNote="Cross-certification is off — every ccr request is rejected. This is the recommended setting unless a specific CA trust relationship requires it."
+            checked={ccr.enabled}
+            onCheckedChange={(v) => onCcrChange({ enabled: v })}
+          >
+            <PlannedSwitchRow label="Require the requester to be a CA" checked={ccr.require_ca_certificate} onCheckedChange={(v) => onCcrChange({ require_ca_certificate: v })} />
+            <PlannedSwitchRow label="Require proof of possession" checked={ccr.require_proof_of_possession} onCheckedChange={(v) => onCcrChange({ require_proof_of_possession: v })} />
+          </CmpOperationGate>
         </SettingsSection>
 
-        <Separator />
+        {ccr.enabled && (
+          <>
+            <Separator />
 
-        <SettingsSection title="Trusted Requesting CAs" description="Decide whether any CA may request cross-certification, or only a specific allow-list.">
-          <PlannedRow label="Who may request">
-            <Select value={ccr.requester_mode} onValueChange={(v: CmpCcrSettings['requester_mode']) => onCcrChange({ requester_mode: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any CA (no restriction)</SelectItem>
-                <SelectItem value="restricted">Only CAs on the allow-list below</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
+            <SettingsSection title="Trusted Requesting CAs" description="Decide whether any CA may request cross-certification, or only a specific allow-list.">
+              <PlannedRow label="Who may request">
+                <Select value={ccr.requester_mode} onValueChange={(v: CmpCcrSettings['requester_mode']) => onCcrChange({ requester_mode: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any CA (no restriction)</SelectItem>
+                    <SelectItem value="restricted">Only CAs on the allow-list below</SelectItem>
+                  </SelectContent>
+                </Select>
+              </PlannedRow>
 
-          <div className="space-y-1.5">
-            <Label>Allow-listed CAs</Label>
-            <div className="space-y-2">
-              {ccrTrustedRequesterCAs.length > 0 ? ccrTrustedRequesterCAs.map(ca => (
-                <div key={ca.id} className="flex items-center gap-2 group">
-                  <CaVisualizerCard ca={ca} allCryptoEngines={kur.allCryptoEngines} className="flex-grow shadow-none border-border" />
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => onRemoveCcrTrustedRequesterCa(ca.id)}><X className="h-4 w-4" /></Button>
+              <div className="space-y-1.5">
+                <Label>Allow-listed CAs</Label>
+                <div className="space-y-2">
+                  {ccrTrustedRequesterCAs.length > 0 ? ccrTrustedRequesterCAs.map(ca => (
+                    <div key={ca.id} className="flex items-center gap-2 group">
+                      <CaVisualizerCard ca={ca} allCryptoEngines={kur.allCryptoEngines} className="flex-grow shadow-none border-border" />
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => onRemoveCcrTrustedRequesterCa(ca.id)}><X className="h-4 w-4" /></Button>
+                    </div>
+                  )) : <p className="text-sm text-muted-foreground italic">No CAs added yet.</p>}
                 </div>
-              )) : <p className="text-sm text-muted-foreground italic">No CAs added yet.</p>}
-            </div>
-            <Button type="button" variant="secondary" onClick={onAddCcrTrustedRequesterCa}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Trusted Requesting CA
-            </Button>
-            {ccr.requester_mode === 'any' && (
+                <Button type="button" variant="secondary" onClick={onAddCcrTrustedRequesterCa}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Trusted Requesting CA
+                </Button>
+                {ccr.requester_mode === 'any' && (
+                  <p className="text-xs text-muted-foreground">
+                    Not enforced while "Who may request" is set to Any CA above.
+                  </p>
+                )}
+                {ccr.requester_mode === 'restricted' && ccrTrustedRequesterCAs.length === 0 && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      No CA is allow-listed — every cross-certification request will be rejected until you add at least one.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </SettingsSection>
+
+            <Separator />
+
+            <SettingsSection title="Validity & Approval" description="How long a cross-certificate may be valid for, and whether an administrator must approve it first.">
+              <PlannedRow label="Maximum validity">
+                <DurationInput id="ccr-max-validity" label="" value={ccr.maximum_validity} onChange={(v) => onCcrChange({ maximum_validity: v })} placeholder="e.g., 8760h" />
+              </PlannedRow>
+              <PlannedRow label="Approval">
+                <Select value={ccr.workflow} onValueChange={(v: CmpCcrSettings['workflow']) => onCcrChange({ workflow: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="direct">Issue directly</SelectItem>
+                    <SelectItem value="administrator_approval">Require administrator approval</SelectItem>
+                  </SelectContent>
+                </Select>
+              </PlannedRow>
               <p className="text-xs text-muted-foreground">
-                Not enforced while "Who may request" is set to Any CA above.
+                Subject/name constraints and a pinned issuance profile are enforced by the backend but not yet exposed
+                here as editable fields.
               </p>
-            )}
-            {ccr.requester_mode === 'restricted' && ccrTrustedRequesterCAs.length === 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  No CA is allow-listed — every cross-certification request will be rejected until you add at least one.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        </SettingsSection>
-
-        <Separator />
-
-        <SettingsSection title="Validity & Approval" description="How long a cross-certificate may be valid for, and whether an administrator must approve it first.">
-          <PlannedRow label="Maximum validity">
-            <DurationInput id="ccr-max-validity" label="" value={ccr.maximum_validity} onChange={(v) => onCcrChange({ maximum_validity: v })} placeholder="e.g., 8760h" />
-          </PlannedRow>
-          <PlannedRow label="Approval">
-            <Select value={ccr.workflow} onValueChange={(v: CmpCcrSettings['workflow']) => onCcrChange({ workflow: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="direct">Issue directly</SelectItem>
-                <SelectItem value="administrator_approval">Require administrator approval</SelectItem>
-              </SelectContent>
-            </Select>
-          </PlannedRow>
-          <p className="text-xs text-muted-foreground">
-            Subject/name constraints and a pinned issuance profile are enforced by the backend but not yet exposed
-            here as editable fields.
-          </p>
-        </SettingsSection>
+            </SettingsSection>
+          </>
+        )}
       </TabsContent>
     </>
   );
