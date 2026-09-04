@@ -57,7 +57,7 @@ import {
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
 import { CmpOperationGate } from '@/components/ra/CmpOperationGate';
 import { buildRenewalTimeline, RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
-import { CmpPlannedOperationTabs, CmpGenmPlannedCapabilities } from '@/components/ra/CmpPlannedOperationTabs';
+import { CmpPlannedOperationTabs } from '@/components/ra/CmpPlannedOperationTabs';
 import {
   buildInlineIssuanceProfile,
   createDefaultEstAuthSettings,
@@ -1765,71 +1765,17 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             onAddCcrTrustedRequesterCa={() => setIsCcrTrustedRequesterCaModalOpen(true)}
             availableProfiles={availableProfiles}
             enrollmentGeneralSection={cmpEnrollmentGeneralSection}
+            genm={{
+              enabled: cmpGenmEnabled, onEnabledChange: setCmpGenmEnabled,
+              accessPolicy: cmpGenmAccessPolicy, onAccessPolicyChange: setCmpGenmAccessPolicy,
+              informationTypes: cmpGenmInformationTypes, onInformationTypesChange: setCmpGenmInformationTypes,
+              preferredSymmetricAlgorithm: cmpGenmPreferredSymmAlg, onPreferredSymmetricAlgorithmChange: setCmpGenmPreferredSymmAlg,
+              includeDownstreamCA, onIncludeDownstreamCAChange: setIncludeDownstreamCA,
+              includeEnrollmentCA, onIncludeEnrollmentCAChange: setIncludeEnrollmentCA,
+              managedCAs, onRemoveManagedCa: handleRemoveManagedCa, onAddManagedCa: () => setIsManagedCaModalOpen(true),
+            }}
           />
 
-          {/* ── General Messages (GENM/GENP) ── */}
-          <TabsContent value="genm" className="mt-6">
-            <SettingsSection title="General Messages" description="Informational CMP queries. The caCerts response below is served through this operation, so turning it off disables CA distribution too.">
-              <CmpOperationGate
-                id="cmpGenmEnabled"
-                label="Enable CMP general message operation"
-                description="Accept genm requests on this DMS."
-                disabledNote="General messages are off — every genm request is rejected, including caCerts. Clients cannot discover this DMS's CA certificates or capabilities over CMP."
-                checked={cmpGenmEnabled}
-                onCheckedChange={setCmpGenmEnabled}
-              />
-            </SettingsSection>
-
-            {cmpGenmEnabled && (
-            <>
-            <Separator />
-
-            <SettingsSection title="CA Distribution" description="Which CA certificates the caCerts response includes. Live today.">
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-0.5 flex-1">
-                  <Label htmlFor="cmpIncludeDownstreamCA">Include Downstream CA</Label>
-                  <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the caCerts response.</p>
-                </div>
-                <Switch id="cmpIncludeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-0.5 flex-1">
-                  <Label htmlFor="cmpIncludeEnrollmentCA">Include Enrollment CA</Label>
-                  <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the caCerts response.</p>
-                </div>
-                <Switch id="cmpIncludeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Managed CAs</Label>
-                <div className="space-y-2">
-                  {managedCAs.length > 0 ? managedCAs.map(ca => (
-                    <div key={ca.id} className="flex items-center gap-2 group">
-                      <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
-                    </div>
-                  )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
-                </div>
-                <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
-                </Button>
-              </div>
-            </SettingsSection>
-
-            <Separator />
-
-            <SettingsSection title="Information Types & Access" description="Informational CMP queries (GENM/GENP). Which id-it information types this DMS answers, and who may ask.">
-              <CmpGenmPlannedCapabilities
-                accessPolicy={cmpGenmAccessPolicy}
-                onAccessPolicyChange={setCmpGenmAccessPolicy}
-                informationTypes={cmpGenmInformationTypes}
-                onInformationTypesChange={setCmpGenmInformationTypes}
-                preferredSymmetricAlgorithm={cmpGenmPreferredSymmAlg}
-                onPreferredSymmetricAlgorithmChange={setCmpGenmPreferredSymmAlg}
-              />
-            </SettingsSection>
-            </>
-            )}
-          </TabsContent>
         </Tabs>
         )}
 
