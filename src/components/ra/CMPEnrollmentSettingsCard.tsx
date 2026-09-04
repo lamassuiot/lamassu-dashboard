@@ -105,12 +105,12 @@ const workflowOptions = [
   {
     value: 'direct',
     title: 'Direct (synchronous)',
-    description: 'Issue and return the certificate inline in response to the enrollment request.',
+    description: 'Fully automatic, with no human intervention: the certificate is issued and returned inline in response to the enrollment request.',
   },
   {
     value: 'phased',
     title: 'Phased (admin-approved)',
-    description: 'Defer issuance until an administrator approves the request. The device receives a "waiting" response and polls for the certificate.',
+    description: 'An administrator must explicitly approve EVERY operation from the active transactions panel. The device receives a "waiting" response and polls until the certificate is issued.',
   },
 ] as const;
 
@@ -240,13 +240,23 @@ export function CMPEnrollmentSettingsCard({
         <Label htmlFor="cmpWorkflow">Enrollment Workflow</Label>
         <p className="text-xs text-muted-foreground mb-1">Controls whether certificates are issued automatically or only after administrator approval.</p>
         <Select value={cmpWorkflow || 'direct'} onValueChange={setCmpWorkflow}>
-          <SelectTrigger id="cmpWorkflow" className="mt-1">
-            <SelectValue>{selectedWorkflow?.title}</SelectValue>
+            <SelectTrigger
+            id="cmpWorkflow"
+            className="mt-1 h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5"
+          >
+            <SelectValue>
+              {selectedWorkflow && (
+                <div className="w-full min-w-0 space-y-0.5 text-left">
+                  <p className="text-sm font-medium leading-none">{selectedWorkflow.title}</p>
+                  <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selectedWorkflow.description}</p>
+                </div>
+              )}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="min-w-[320px]">
             {workflowOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value} textValue={option.title} className="items-start py-2">
-                <div className="space-y-0.5">
+              <SelectItem key={option.value} value={option.value} textValue={option.title} className="min-h-0 h-auto items-start py-2.5">
+                <div className="space-y-0.5 text-left">
                   <p className="text-sm font-medium leading-none">{option.title}</p>
                   <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
                 </div>
@@ -329,27 +339,35 @@ export function CMPEnrollmentSettingsCard({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="cmpConfirmationMode">Confirmation Mode</Label>
-          <Select value={cmpConfirmationMode || 'EXPLICIT'} onValueChange={setCmpConfirmationMode}>
-            <SelectTrigger id="cmpConfirmationMode" className="mt-1">
-              <SelectValue>{selectedConfirmationMode?.title}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="min-w-[320px]">
-              {confirmationModeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value} textValue={option.title} className="items-start py-2">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium leading-none">{option.title}</p>
-                    <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <Label htmlFor="cmpConfirmationMode">Confirmation Mode</Label>
+        <Select value={cmpConfirmationMode || 'EXPLICIT'} onValueChange={setCmpConfirmationMode}>
+          <SelectTrigger
+            id="cmpConfirmationMode"
+            className="mt-1 h-auto min-h-14 w-full items-start whitespace-normal py-2.5 data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:flex-col *:data-[slot=select-value]:items-start *:data-[slot=select-value]:gap-0.5"
+          >
+            <SelectValue>
+              {selectedConfirmationMode && (
+                <div className="w-full min-w-0 space-y-0.5 text-left">
+                  <p className="text-sm font-medium leading-none">{selectedConfirmationMode.title}</p>
+                  <p className="text-xs leading-snug text-muted-foreground break-words whitespace-normal">{selectedConfirmationMode.description}</p>
+                </div>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent className="min-w-[320px]">
+            {confirmationModeOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value} textValue={option.title} className="min-h-0 h-auto items-start py-2.5">
+                <div className="space-y-0.5 text-left">
+                  <p className="text-sm font-medium leading-none">{option.title}</p>
+                  <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {cmpConfirmationMode === 'EXPLICIT' && (
-          <div>
+          <div className="mt-3">
             <Label htmlFor="cmpConfirmationTimeout">Confirmation Timeout</Label>
             <Input id="cmpConfirmationTimeout" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" className="mt-1" />
           </div>
