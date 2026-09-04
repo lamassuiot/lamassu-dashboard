@@ -112,9 +112,16 @@ import {
   type RagIndexSummary,
   type RagSearchResult,
 } from '@/lib/local-rag';
+import {
+  createOpenAICompatibleCompletion,
+  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+  DEFAULT_OPENAI_COMPATIBLE_MODEL,
+  streamOpenAICompatibleCompletion,
+  type OpenAICompatibleConfig,
+} from '@/lib/openai-compatible';
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
-import { AlertCircleIcon, BotIcon, CheckIcon, ChevronDownIcon, CpuIcon, GlobeIcon, GripHorizontalIcon, SearchIcon, SparklesIcon, WandSparklesIcon, WrenchIcon } from 'lucide-react';
+import { AlertCircleIcon, BotIcon, CheckIcon, ChevronDownIcon, CloudIcon, CpuIcon, GlobeIcon, GripHorizontalIcon, SearchIcon, SparklesIcon, WandSparklesIcon, WrenchIcon } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -156,13 +163,23 @@ interface PendingToolSession {
   assistantKey: string;
   assistantVersionId: string;
   conversation: ChatMessage[];
-  selectedModel: string;
-  selectedModelName: string;
+  inferenceTarget: InferenceTarget;
   ragResults: RagSearchResult[];
   toolCalls: ChatCompletionMessageToolCall[];
   toolMessages: Map<string, ChatCompletionToolMessageParam>;
   unresolvedToolIds: Set<string>;
 }
+
+type InferenceTarget =
+  | {
+      kind: 'webllm';
+      model: string;
+      name: string;
+    }
+  | {
+      kind: 'openai-compatible';
+      config: OpenAICompatibleConfig;
+    };
 
 interface ToolPlanningResult {
   assistant_response?: string | null;
@@ -174,6 +191,8 @@ interface ToolPlanningResult {
 
 const DEFAULT_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
 const MODEL_STORAGE_KEY = 'lamassu-webllm-model';
+const OPENAI_BASE_URL_STORAGE_KEY = 'lamassu-openai-compatible-base-url';
+const OPENAI_MODEL_STORAGE_KEY = 'lamassu-openai-compatible-model';
 const SYSTEM_PROMPT = [
   'You are Lamassu Dashboard Assistant.',
   'Answer clearly and concisely.',
@@ -908,10 +927,14 @@ const ModelItem = ({
 
 export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const [model, setModel] = useState(DEFAULT_MODEL_ID);
-  const [loadingModelId, setLoadingModelId] = useState<string | null>(DEFAULT_MODEL_ID);
+  const [loadingModelId, setLoadingModelId] = useState<string | null>(null);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [selectedModelFamily, setSelectedModelFamily] = useState<ModelFamilyId | null>(null);
+  const [providerSettingsOpen, setProviderSettingsOpen] = useState(false);
+  const [remoteApiKey, setRemoteApiKey] = useState('');
+  const [remoteBaseUrl, setRemoteBaseUrl] = useState(DEFAULT_OPENAI_COMPATIBLE_BASE_URL);
+  const [remoteModel, setRemoteModel] = useState(DEFAULT_OPENAI_COMPATIBLE_MODEL);
   const [text, setText] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [useApiTools, setUseApiTools] = useState(false);
@@ -927,6 +950,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const [ragSummary, setRagSummary] = useState<RagIndexSummary | null>(null);
   const [ragError, setRagError] = useState<string | null>(null);
   const pendingToolSessionsRef = useRef<Map<string, PendingToolSession>>(new Map());
+  const remoteAbortControllerRef = useRef<AbortController | null>(null);
   const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const [conversationHeight, setConversationHeight] = useState<number | null>(null);
   const conversationPanelRef = useRef<HTMLDivElement>(null);
@@ -938,8 +962,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     const storedModel = window.localStorage.getItem(MODEL_STORAGE_KEY);
     if (storedModel && models.some((candidate) => candidate.id === storedModel)) {
       setModel(storedModel);
-      setLoadingModelId(storedModel);
     }
+
+    const storedBaseUrl = window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY);
+    const storedRemoteModel = window.localStorage.getItem(OPENAI_MODEL_STORAGE_KEY);
+    if (storedBaseUrl) setRemoteBaseUrl(storedBaseUrl);
+    if (storedRemoteModel) setRemoteModel(storedRemoteModel);
 
     const gpuCapableNavigator = navigator as Navigator & { gpu?: unknown };
     setHasWebGpuSupport(Boolean(gpuCapableNavigator.gpu));
@@ -949,10 +977,37 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     window.localStorage.setItem(MODEL_STORAGE_KEY, model);
   }, [model]);
 
+  useEffect(() => {
+    window.localStorage.setItem(OPENAI_BASE_URL_STORAGE_KEY, remoteBaseUrl);
+  }, [remoteBaseUrl]);
+
+  useEffect(() => {
+    window.localStorage.setItem(OPENAI_MODEL_STORAGE_KEY, remoteModel);
+  }, [remoteModel]);
+
   const selectedModelData = useMemo(
     () => models.find((candidate) => candidate.id === model) ?? models.at(-1),
     [model],
   );
+  const inferenceTarget = useMemo<InferenceTarget>(() => {
+    if (remoteApiKey.trim()) {
+      return {
+        config: {
+          apiKey: remoteApiKey.trim(),
+          baseUrl: remoteBaseUrl.trim(),
+          model: remoteModel.trim(),
+        },
+        kind: 'openai-compatible',
+      };
+    }
+
+    return {
+      kind: 'webllm',
+      model,
+      name: selectedModelData?.name ?? 'the selected model',
+    };
+  }, [model, remoteApiKey, remoteBaseUrl, remoteModel, selectedModelData]);
+  const isRemoteProvider = inferenceTarget.kind === 'openai-compatible';
   const deferredModelSearch = useDeferredValue(modelSearch);
   const filteredModels = useMemo(() => {
     const query = deferredModelSearch.trim().toLowerCase();
@@ -991,54 +1046,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     setRuntimeStats(normalizeRuntimeStats(stats));
   }, []);
 
-  useEffect(() => {
-    if (hasWebGpuSupport === false) {
-      setLoadingModelId(null);
-      return;
-    }
-
-    let cancelled = false;
-    const shouldPreload = !warmedModelIds.has(model) || activeModelId !== model;
-
-    if (!shouldPreload) {
-      setLoadingModelId(null);
-      setProgressReport(null);
-      return;
-    }
-
-    setLoadingModelId(model);
-
-    void ensureEngine(
-      model,
-      (report) => {
-        if (!cancelled) {
-          setProgressReport(report);
-        }
-      },
-    )
-      .then(async (engine) => {
-        if (cancelled) {
-          return;
-        }
-
-        setLoadingModelId((current) => (current === model ? null : current));
-        setProgressReport(null);
-        await syncEngineDiagnostics(engine);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setEngineError(withToolModelGuidance(normalizeError(error), selectedModelData));
-          setLoadingModelId((current) => (current === model ? null : current));
-          setProgressReport(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasWebGpuSupport, model, selectedModelData, syncEngineDiagnostics]);
-
   const handleStop = useCallback(async () => {
+    if (remoteAbortControllerRef.current) {
+      remoteAbortControllerRef.current.abort();
+      return;
+    }
+
     if (!enginePromise) {
       return;
     }
@@ -1053,7 +1066,6 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
   const handleModelSelect = useCallback((modelId: string) => {
     setModel(modelId);
-    setLoadingModelId(modelId);
     setModelSelectorOpen(false);
     setProgressReport(null);
     setRuntimeStats(null);
@@ -1146,8 +1158,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       messageId,
       completionMessages,
       ragResults,
-      selectedModel,
-      selectedModelName,
+      target,
       startedAt,
       toolCallCount = 0,
     }: {
@@ -1155,12 +1166,11 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       messageId: string;
       completionMessages: ChatCompletionMessageParam[];
       ragResults: RagSearchResult[];
-      selectedModel: string;
-      selectedModelName: string;
+      target: InferenceTarget;
       startedAt: number;
       toolCallCount?: number;
     }) => {
-      if (hasWebGpuSupport === false) {
+      if (target.kind === 'webllm' && hasWebGpuSupport === false) {
         const errorMessage = 'WebGPU is not available in this browser. Use a recent Chrome or Edge build with WebGPU enabled.';
         setEngineError(errorMessage);
         setStatus('error');
@@ -1179,25 +1189,43 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         return;
       }
 
+      const targetName = target.kind === 'openai-compatible' ? target.config.model : target.name;
+      const generationLocation = target.kind === 'openai-compatible'
+        ? `with ${targetName} through the configured provider`
+        : `locally with ${targetName}`;
+      let localEngine: MLCEngineInterface | null = null;
+      let remoteController: AbortController | null = null;
+
       try {
         setStatus('submitted');
-        const shouldReportProgress = !warmedModelIds.has(selectedModel) || activeModelId !== selectedModel;
-        const engine = await ensureEngine(
-          selectedModel,
-          shouldReportProgress
-            ? (report) => {
-                setProgressReport(report);
-                updateMessage(assistantKey, (message) => ({
-                  ...message,
-                  reasoning: {
-                    content: report.text,
-                    duration: Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
-                    isStreaming: true,
-                  },
-                }));
-              }
-            : undefined,
-        );
+
+        if (target.kind === 'webllm') {
+          const shouldReportProgress = !warmedModelIds.has(target.model) || activeModelId !== target.model;
+          if (shouldReportProgress) {
+            setLoadingModelId(target.model);
+          }
+
+          localEngine = await ensureEngine(
+            target.model,
+            shouldReportProgress
+              ? (report) => {
+                  setProgressReport(report);
+                  updateMessage(assistantKey, (message) => ({
+                    ...message,
+                    reasoning: {
+                      content: report.text,
+                      duration: Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
+                      isStreaming: true,
+                    },
+                  }));
+                }
+              : undefined,
+          );
+          setLoadingModelId(null);
+        } else {
+          remoteController = new AbortController();
+          remoteAbortControllerRef.current = remoteController;
+        }
 
         setStatus('streaming');
 
@@ -1206,33 +1234,38 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           reasoning: {
             content:
               toolCallCount > 0 && ragResults.length > 0
-                ? `Generating a response locally with ${selectedModelName} using ${toolCallCount} live API tool result${toolCallCount > 1 ? 's' : ''} and ${ragResults.length} retrieved seed passages.`
+                ? `Generating a response ${generationLocation} using ${toolCallCount} live API tool result${toolCallCount > 1 ? 's' : ''} and ${ragResults.length} retrieved seed passages.`
                 : toolCallCount > 0
-                  ? `Generating a response locally with ${selectedModelName} using ${toolCallCount} live API tool result${toolCallCount > 1 ? 's' : ''}.`
+                  ? `Generating a response ${generationLocation} using ${toolCallCount} live API tool result${toolCallCount > 1 ? 's' : ''}.`
                   : ragResults.length > 0
-                    ? `Generating a response locally with ${selectedModelName} using ${ragResults.length} retrieved seed passages.`
-                    : `Generating a response locally with ${selectedModelName}.`,
+                    ? `Generating a response ${generationLocation} using ${ragResults.length} retrieved seed passages.`
+                    : `Generating a response ${generationLocation}.`,
             duration: Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
             isStreaming: true,
           },
         }));
 
-        const stream = await engine.chat.completions.create({
-          messages: completionMessages,
-          stream: true,
-          stream_options: { include_usage: true },
-          temperature: 0.6,
-        });
-
         let reply = '';
 
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta.content ?? '';
-          if (!delta) {
-            continue;
+        if (target.kind === 'openai-compatible') {
+          for await (const content of streamOpenAICompatibleCompletion(target.config, {
+            messages: completionMessages,
+            signal: remoteController?.signal,
+            temperature: 0.6,
+          })) {
+            reply += content;
           }
+        } else if (localEngine) {
+          const stream = await localEngine.chat.completions.create({
+            messages: completionMessages,
+            stream: true,
+            stream_options: { include_usage: true },
+            temperature: 0.6,
+          });
 
-          reply += delta;
+          for await (const chunk of stream) {
+            reply += chunk.choices[0]?.delta.content ?? '';
+          }
         }
 
         const duration = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
@@ -1244,12 +1277,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           reasoning: {
             content: [
               toolCallCount > 0 && ragResults.length > 0
-                ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools and the local seed corpus.`
+                ? `Response generated ${generationLocation} using live API tools and the local seed corpus.`
                 : toolCallCount > 0
-                  ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools.`
+                  ? `Response generated ${generationLocation} using live API tools.`
                   : ragResults.length > 0
-                    ? `Response generated locally with ${selectedModelName} on WebGPU using the local seed corpus.`
-                    : `Response generated locally with ${selectedModelName} on WebGPU.`,
+                    ? `Response generated ${generationLocation} using the local seed corpus.`
+                    : `Response generated ${generationLocation}.`,
             ].filter(Boolean).join('\n\n'),
             duration,
             isStreaming: false,
@@ -1263,30 +1296,49 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
         setStatus('ready');
         setProgressReport(null);
-        await syncEngineDiagnostics(engine);
+        if (localEngine) {
+          await syncEngineDiagnostics(localEngine);
+        }
       } catch (error) {
-        const message = withToolModelGuidance(normalizeError(error), selectedModelData);
+        const wasAborted = error instanceof Error && error.name === 'AbortError';
+        const targetModelData = target.kind === 'webllm'
+          ? models.find((candidate) => candidate.id === target.model)
+          : undefined;
+        const message = wasAborted
+          ? 'Generation stopped.'
+          : target.kind === 'webllm'
+            ? withToolModelGuidance(normalizeError(error), targetModelData)
+            : normalizeError(error);
         const duration = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
 
-        setEngineError(message);
-        setStatus('error');
+        setEngineError(wasAborted ? null : message);
+        setStatus(wasAborted ? 'ready' : 'error');
         setProgressReport(null);
 
         updateMessage(assistantKey, (currentMessage) => ({
           ...currentMessage,
-          status: 'error',
+          status: wasAborted ? undefined : 'error',
           reasoning: {
-            content: 'The local model returned an error while generating the response.',
+            content: wasAborted
+              ? 'Generation was stopped by the user.'
+              : target.kind === 'webllm'
+                ? 'The local model returned an error while generating the response.'
+                : 'The OpenAI-compatible provider returned an error while generating the response.',
             duration,
             isStreaming: false,
           },
           versions: currentMessage.versions.map((version) =>
             version.id === messageId ? { ...version, content: message } : version,
-          ),
+            ),
         }));
+      } finally {
+        setLoadingModelId((current) => target.kind === 'webllm' && current === target.model ? null : current);
+        if (remoteController && remoteAbortControllerRef.current === remoteController) {
+          remoteAbortControllerRef.current = null;
+        }
       }
     },
-    [hasWebGpuSupport, selectedModelData, syncEngineDiagnostics, updateMessage],
+    [hasWebGpuSupport, syncEngineDiagnostics, updateMessage],
   );
 
   const continueToolConversation = useCallback(
@@ -1308,8 +1360,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         messageId: session.assistantVersionId,
         completionMessages,
         ragResults: session.ragResults,
-        selectedModel: session.selectedModel,
-        selectedModelName: session.selectedModelName,
+        target: session.inferenceTarget,
         startedAt: Date.now(),
         toolCallCount: session.toolCalls.length,
       });
@@ -1330,19 +1381,28 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       if (hasAttachments) {
         sileo.info({
           title: 'Attachments captured',
-          description: 'The current local WebLLM flow does not parse attachment contents yet, so only your typed text will be sent.',
+          description: 'The chatbot does not parse attachment contents yet, so only your typed text will be sent.',
         });
       }
 
       if (!hasText) {
         sileo.warning({
           title: 'Text required',
-          description: 'Add a text prompt alongside attachments so the local model has something to answer.',
+          description: 'Add a text prompt alongside attachments so the model has something to answer.',
         });
         return;
       }
 
-      if (loadingModelId === model) {
+      if (inferenceTarget.kind === 'openai-compatible' && (!inferenceTarget.config.baseUrl || !inferenceTarget.config.model)) {
+        sileo.warning({
+          title: 'Provider settings incomplete',
+          description: 'Add both a base URL and model for the OpenAI-compatible provider.',
+        });
+        setProviderSettingsOpen(true);
+        return;
+      }
+
+      if (inferenceTarget.kind === 'webllm' && loadingModelId === model) {
         sileo.info({
           title: 'Model still loading',
           description: `${selectedModelData?.name ?? 'The selected model'} is still downloading or initializing locally. Wait for it to finish before sending a message.`,
@@ -1380,7 +1440,11 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         key: assistantKey,
         status: 'streaming',
         reasoning: {
-          content: useWebSearch ? 'Searching the local seed corpus.' : 'Preparing the local model.',
+          content: useWebSearch
+            ? 'Searching the local seed corpus.'
+            : inferenceTarget.kind === 'openai-compatible'
+              ? 'Preparing the OpenAI-compatible provider request.'
+              : 'Preparing the local model.',
           duration: 0,
           isStreaming: true,
         },
@@ -1405,42 +1469,64 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           updateMessage(assistantKey, (currentMessage) => ({
             ...currentMessage,
             reasoning: {
-              content: `Analyzing your request with ${selectedModelData?.name ?? 'the selected model'} and ${CHAT_TOOL_COUNT} available live API tools.`,
+              content: `Analyzing your request with ${inferenceTarget.kind === 'openai-compatible' ? inferenceTarget.config.model : inferenceTarget.name} and ${CHAT_TOOL_COUNT} available live API tools.`,
               duration: 0,
               isStreaming: true,
             },
           }));
 
-          const shouldReportProgress = !warmedModelIds.has(model) || activeModelId !== model;
-          const engine = await ensureEngine(
-            model,
-            shouldReportProgress
-              ? (report) => {
-                  setProgressReport(report);
-                  updateMessage(assistantKey, (currentMessage) => ({
-                    ...currentMessage,
-                    reasoning: {
-                      content: report.text,
-                      duration: 0,
-                      isStreaming: true,
-                    },
-                  }));
-                }
-              : undefined,
-          );
-
           const planningMessages = buildToolPlanningMessages(conversation, prompt, toolPlanningCatalog);
+          let planningContent = '';
 
-          const planningResponse = await engine.chat.completions.create({
-            messages: planningMessages,
-            temperature: 0,
-          });
+          if (inferenceTarget.kind === 'openai-compatible') {
+            const controller = new AbortController();
+            remoteAbortControllerRef.current = controller;
 
-          setProgressReport(null);
-          await syncEngineDiagnostics(engine);
+            try {
+              planningContent = await createOpenAICompatibleCompletion(inferenceTarget.config, {
+                messages: planningMessages,
+                signal: controller.signal,
+                temperature: 0,
+              });
+            } finally {
+              if (remoteAbortControllerRef.current === controller) {
+                remoteAbortControllerRef.current = null;
+              }
+            }
+          } else {
+            const shouldReportProgress = !warmedModelIds.has(model) || activeModelId !== model;
+            if (shouldReportProgress) {
+              setLoadingModelId(model);
+            }
 
-          const planningMessage = planningResponse.choices[0]?.message;
-          const planningContent = planningMessage?.content ?? '';
+            const engine = await ensureEngine(
+              model,
+              shouldReportProgress
+                ? (report) => {
+                    setProgressReport(report);
+                    updateMessage(assistantKey, (currentMessage) => ({
+                      ...currentMessage,
+                      reasoning: {
+                        content: report.text,
+                        duration: 0,
+                        isStreaming: true,
+                      },
+                    }));
+                  }
+                : undefined,
+            );
+
+            setLoadingModelId(null);
+            const planningResponse = await engine.chat.completions.create({
+              messages: planningMessages,
+              temperature: 0,
+            });
+
+            setProgressReport(null);
+            await syncEngineDiagnostics(engine);
+            planningContent = planningResponse.choices[0]?.message?.content ?? '';
+          }
+
           const planningResult = parseToolPlanningResult(planningContent);
           toolCalls = (planningResult.tool_calls ?? [])
             .filter((toolCall): toolCall is NonNullable<ToolPlanningResult['tool_calls']>[number] =>
@@ -1461,7 +1547,9 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                 ...currentMessage,
                 status: undefined,
                 reasoning: {
-                  content: `Response generated locally with ${selectedModelData?.name ?? 'the selected model'} without using live API tools.`,
+                  content: inferenceTarget.kind === 'openai-compatible'
+                    ? `Response generated with ${inferenceTarget.config.model} through the configured provider without using live API tools.`
+                    : `Response generated locally with ${inferenceTarget.name} without using live API tools.`,
                   duration: 1,
                   isStreaming: false,
                 },
@@ -1507,8 +1595,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                 assistantKey,
                 assistantVersionId,
                 conversation,
-                selectedModel: model,
-                selectedModelName: selectedModelData?.name ?? 'the selected model',
+                inferenceTarget,
                 ragResults: [],
                 toolCalls,
                 toolMessages: new Map(toolMessages.map((toolMessage) => [toolMessage.tool_call_id, toolMessage])),
@@ -1532,15 +1619,23 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             }
           }
         } catch (error) {
-          const toolPlanningError = withToolModelGuidance(normalizeError(error), selectedModelData);
-          setEngineError(toolPlanningError);
-          setStatus('error');
+          const wasAborted = error instanceof Error && error.name === 'AbortError';
+          const toolPlanningError = wasAborted
+            ? 'Generation stopped.'
+            : inferenceTarget.kind === 'webllm'
+              ? withToolModelGuidance(normalizeError(error), selectedModelData)
+              : normalizeError(error);
+          setEngineError(wasAborted ? null : toolPlanningError);
+          setStatus(wasAborted ? 'ready' : 'error');
+          setLoadingModelId(null);
           setProgressReport(null);
           updateMessage(assistantKey, (currentMessage) => ({
             ...currentMessage,
-            status: 'error',
+            status: wasAborted ? undefined : 'error',
             reasoning: {
-              content: 'Tool planning failed before the final response could be generated.',
+              content: wasAborted
+                ? 'Generation was stopped by the user.'
+                : 'Tool planning failed before the final response could be generated.',
               duration: 0,
               isStreaming: false,
             },
@@ -1612,8 +1707,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         messageId: assistantVersionId,
         completionMessages,
         ragResults,
-        selectedModel: model,
-        selectedModelName: selectedModelData?.name ?? 'the selected model',
+        target: inferenceTarget,
         startedAt: Date.now(),
         toolCallCount: toolCalls.length,
       });
@@ -1621,6 +1715,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     [
       messages,
       model,
+      inferenceTarget,
       loadingModelId,
       selectedModelData,
       streamAssistantReply,
@@ -1804,17 +1899,17 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const isSubmitDisabled = useMemo(
     () =>
       !text.trim() ||
-      hasWebGpuSupport === false ||
-      loadingModelId === model ||
+      (!isRemoteProvider && hasWebGpuSupport === false) ||
+      (!isRemoteProvider && loadingModelId === model) ||
       (useWebSearch && ragStatus === 'indexing') ||
       status === 'streaming' ||
       status === 'submitted',
-    [hasWebGpuSupport, loadingModelId, model, ragStatus, status, text, useWebSearch],
+    [hasWebGpuSupport, isRemoteProvider, loadingModelId, model, ragStatus, status, text, useWebSearch],
   );
   const isBusyGenerating = status === 'streaming' || status === 'submitted';
-  const isSelectedModelLoading = loadingModelId === model;
+  const isSelectedModelLoading = !isRemoteProvider && loadingModelId === model;
   const isRagIndexing = useWebSearch && ragStatus === 'indexing';
-  const isComposerLocked = hasWebGpuSupport === false || isBusyGenerating || isSelectedModelLoading || isRagIndexing;
+  const isComposerLocked = (!isRemoteProvider && hasWebGpuSupport === false) || isBusyGenerating || isSelectedModelLoading || isRagIndexing;
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-4', isPanel ? 'h-full' : 'min-h-[720px]')}>
@@ -1822,7 +1917,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">AI Chatbot</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Local chat powered by WebLLM and WebGPU. The selected model downloads on first use and is cached in the browser.
+            Use an OpenAI-compatible provider when a key is configured, with private in-browser WebLLM as the automatic fallback.
           </p>
         </div>
       )}
@@ -1830,17 +1925,26 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="border-b px-4 py-2">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant={hasWebGpuSupport ? 'default' : 'outline'}>
-              {hasWebGpuSupport ? 'WebGPU ready' : 'WebGPU required'}
+            {isRemoteProvider ? (
+              <Badge>
+                <CloudIcon className="mr-1 size-3.5" />
+                OpenAI-compatible
+              </Badge>
+            ) : (
+              <Badge variant={hasWebGpuSupport ? 'default' : 'outline'}>
+                {hasWebGpuSupport ? 'Local WebGPU' : 'WebGPU required'}
+              </Badge>
+            )}
+            <Badge variant="outline">
+              {isRemoteProvider ? inferenceTarget.config.model || 'Model required' : selectedModelData?.name}
             </Badge>
-            <Badge variant="outline">{selectedModelData?.name}</Badge>
             {isSelectedModelLoading && (
               <Badge variant="outline">
                 <Spinner className="mr-1 size-3.5" />
                 {progressReport ? `${Math.round(formatProgress(progressReport))}% loaded` : 'Loading model'}
               </Badge>
             )}
-            {gpuVendor && (
+            {!isRemoteProvider && gpuVendor && (
               <Badge variant="outline">
                 <CpuIcon className="mr-1 size-3.5" />
                 {gpuVendor}
@@ -1864,14 +1968,18 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                 {CHAT_TOOL_COUNT} live API tools ready
               </Badge>
             )}
-            {selectedModelData?.supportsToolCalling && (
+            {!isRemoteProvider && selectedModelData?.supportsToolCalling && (
               <Badge variant="outline">
                 <WrenchIcon className="mr-1 size-3.5" />
                 Native tool-calling
               </Badge>
             )}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">{selectedModelData?.note}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {isRemoteProvider
+              ? `Prompts, retrieved passages, and tool results are sent directly from this browser to ${inferenceTarget.config.baseUrl || 'the configured endpoint'}.`
+              : selectedModelData?.note}
+          </p>
           {isSelectedModelLoading && (
             <p className="mt-2 text-xs text-muted-foreground">
               Loading {selectedModelData?.name}. The chat input stays locked until this model is fully downloaded and initialized.
@@ -1880,7 +1988,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           {useApiTools ? (
             <p className="mt-2 text-xs text-muted-foreground">
               The model receives all {CHAT_TOOL_COUNT} live API tools on each prompt and decides whether to call them.
-              {selectedModelData?.supportsToolCalling ? ' This model also advertises native tool-calling support in WebLLM.' : ''}
+              {!isRemoteProvider && selectedModelData?.supportsToolCalling ? ' This model also advertises native tool-calling support in WebLLM.' : ''}
             </p>
           ) : null}
           {useWebSearch && ragSummary ? (
@@ -1890,7 +1998,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               {ragSummary.skippedDocumentCount > 0 ? ` ${ragSummary.skippedDocumentCount} document(s) were skipped.` : ''}
             </p>
           ) : null}
-          {progressReport && (
+          {!isRemoteProvider && progressReport && (
             <div className="mt-3 space-y-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <SparklesIcon className="size-3.5" />
@@ -1899,18 +2007,18 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               <Progress value={formatProgress(progressReport)} />
             </div>
           )}
-          {runtimeStats && !progressReport && (
+          {!isRemoteProvider && runtimeStats && !progressReport && (
             <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{runtimeStats}</p>
           )}
         </div>
 
-        {hasWebGpuSupport === false && (
+        {!isRemoteProvider && hasWebGpuSupport === false && (
           <div className="border-b px-4 py-3">
             <Alert variant="destructive">
               <AlertCircleIcon className="h-4 w-4" />
               <AlertTitle>WebGPU unavailable</AlertTitle>
               <AlertDescription>
-                This chatbot needs WebGPU for local inference. Open the dashboard in a compatible Chrome or Edge build to use it.
+                Local fallback needs WebGPU. Use a compatible Chrome or Edge build, or configure an OpenAI-compatible key below.
               </AlertDescription>
             </Alert>
           </div>
@@ -1920,7 +2028,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           <div className="border-b px-4 py-3">
             <Alert variant="destructive">
               <AlertCircleIcon className="h-4 w-4" />
-              <AlertTitle>Local model error</AlertTitle>
+              <AlertTitle>{isRemoteProvider ? 'Provider error' : 'Local model error'}</AlertTitle>
               <AlertDescription>{engineError}</AlertDescription>
             </Alert>
           </div>
@@ -1946,7 +2054,9 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             <ConversationContent>
               {messages.length === 0 ? (
                 <ConversationEmptyState
-                  description="Start a conversation and the selected model will load locally in your browser."
+                  description={isRemoteProvider
+                    ? 'Start a conversation using the configured OpenAI-compatible provider.'
+                    : 'Start a conversation and the selected model will load locally in your browser.'}
                   icon={<BotIcon className="size-5" />}
                   title="No messages yet"
                 />
@@ -2124,7 +2234,9 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                         ? `Loading ${selectedModelData?.name ?? 'the selected model'} locally before chat unlocks...`
                         : isRagIndexing
                           ? 'Indexing the local RAG seed before chat input unlocks...'
-                        : 'Ask about PKI, devices, registrations, keys, or anything you want to reason through locally.'
+                        : isRemoteProvider
+                          ? `Ask using ${inferenceTarget.config.model || 'the configured remote model'}...`
+                          : 'Ask about PKI, devices, registrations, keys, or anything you want to reason through locally.'
                     }
                     value={text}
                   />
@@ -2189,6 +2301,80 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                       <GlobeIcon size={16} />
                       <span>Search</span>
                     </PromptInputButton>
+                    <Popover onOpenChange={setProviderSettingsOpen} open={providerSettingsOpen}>
+                      <PopoverTrigger asChild>
+                        <PromptInputButton
+                          disabled={isBusyGenerating}
+                          type="button"
+                          variant={isRemoteProvider ? 'default' : 'ghost'}
+                        >
+                          <CloudIcon size={16} />
+                          <span>{isRemoteProvider ? 'Remote' : 'Provider'}</span>
+                        </PromptInputButton>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-[360px] p-4" side="top">
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">OpenAI-compatible provider</p>
+                            <p className="text-xs leading-5 text-muted-foreground">
+                              Requests go directly from this browser. The key stays in memory and clears on reload; the endpoint must allow browser CORS.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-base-url">
+                              Base URL
+                            </label>
+                            <Input
+                              autoCapitalize="none"
+                              id="openai-compatible-base-url"
+                              onChange={(event) => setRemoteBaseUrl(event.target.value)}
+                              placeholder={DEFAULT_OPENAI_COMPATIBLE_BASE_URL}
+                              spellCheck={false}
+                              value={remoteBaseUrl}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-model">
+                              Model
+                            </label>
+                            <Input
+                              autoCapitalize="none"
+                              id="openai-compatible-model"
+                              onChange={(event) => setRemoteModel(event.target.value)}
+                              placeholder={DEFAULT_OPENAI_COMPATIBLE_MODEL}
+                              spellCheck={false}
+                              value={remoteModel}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-api-key">
+                              API key
+                            </label>
+                            <Input
+                              autoCapitalize="none"
+                              autoComplete="off"
+                              id="openai-compatible-api-key"
+                              onChange={(event) => setRemoteApiKey(event.target.value)}
+                              placeholder="Enter a key to use the remote provider"
+                              spellCheck={false}
+                              type="password"
+                              value={remoteApiKey}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between gap-3 border-t pt-3">
+                            <p className="text-xs text-muted-foreground">
+                              {isRemoteProvider ? 'Remote provider active.' : 'No key: local WebLLM is active.'}
+                            </p>
+                            {remoteApiKey ? (
+                              <Button onClick={() => setRemoteApiKey('')} size="sm" type="button" variant="outline">
+                                Clear key
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    {!isRemoteProvider ? (
                     <ModelSelector onOpenChange={handleModelSelectorOpenChange} open={modelSelectorOpen}>
                       <ModelSelectorTrigger asChild>
                         <PromptInputButton disabled={isBusyGenerating} type="button">
@@ -2269,6 +2455,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                         </div>
                       </ModelSelectorContent>
                     </ModelSelector>
+                    ) : null}
                   </PromptInputTools>
                   <PromptInputSubmit
                     className="ml-auto shrink-0"

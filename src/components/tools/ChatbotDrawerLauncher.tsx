@@ -86,7 +86,7 @@ export function ChatbotDrawerLauncher() {
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold text-foreground">AI Chatbot</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Local WebLLM chat running in the browser with WebGPU acceleration.
+                    OpenAI-compatible chat with a private in-browser WebLLM fallback.
                   </p>
                 </div>
                 <Button
