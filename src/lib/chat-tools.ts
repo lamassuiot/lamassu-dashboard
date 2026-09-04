@@ -11,7 +11,7 @@ import {
   fetchCaStatsSummary,
   fetchSigningProfileById,
   fetchSigningProfiles,
-  updateCaStatus,
+  revokeCa,
 } from '@/lib/ca-data';
 import {
   decommissionDevice,
@@ -22,11 +22,16 @@ import {
 } from '@/lib/devices-api';
 import {
   deleteRa,
-  fetchAllRegistrationAuthorities,
   fetchDmsStats,
+  fetchRegistrationAuthorities,
   fetchRaById,
 } from '@/lib/dms-api';
 import { deleteKmsKey, fetchCryptoEngines, fetchKmsKey, fetchKmsKeys } from '@/lib/kms-data';
+import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
+import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
+import { revocationReasons } from '@/lib/revocation-reasons';
+import { checkOcspStatus } from '@/lib/va-api';
+import type { CertificateData } from '@/types/certificate';
 
 export type ChatToolStatus = 'pending' | 'running' | 'complete' | 'error' | 'denied';
 export type ChatToolState = 'approval-requested' | 'approval-responded' | 'output-available' | 'output-denied';
@@ -124,10 +129,79 @@ function getEnumArg<T extends string>(
   return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+function getOptionalEnumArg<T extends string>(
+  args: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+) {
+  const value = getOptionalStringArg(args, key);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!allowed.includes(value as T)) {
+    throw new Error(`Invalid value for "${key}". Allowed values: ${allowed.join(', ')}.`);
+  }
+  return value as T;
+}
+
 function flattenCertificateAuthorities(
   nodes: Awaited<ReturnType<typeof fetchAndProcessCAs>>,
 ): Awaited<ReturnType<typeof fetchAndProcessCAs>> {
   return nodes.flatMap((node) => [node, ...(node.children ? flattenCertificateAuthorities(node.children) : [])]);
+}
+
+const REVOCATION_REASON_VALUES = revocationReasons.map((reason) => reason.value);
+const DEVICE_STATUS_VALUES = [
+  'ACTIVE',
+  'NO_IDENTITY',
+  'RENEWAL_PENDING',
+  'EXPIRING_SOON',
+  'EXPIRED',
+  'REVOKED',
+  'DECOMMISSIONED',
+] as const;
+const CERTIFICATE_STATUS_VALUES = ['ACTIVE', 'EXPIRED', 'REVOKED'] as const;
+
+function serializeCertificate(certificate: CertificateData) {
+  return {
+    id: certificate.id,
+    serial_number: certificate.serialNumber,
+    subject: certificate.subject,
+    issuer: certificate.issuer,
+    issuer_ca_id: certificate.issuerCaId ?? null,
+    status: certificate.apiStatus,
+    valid_from: certificate.validFrom,
+    valid_to: certificate.validTo,
+    revocation_reason: certificate.revocationReason ?? null,
+    revocation_timestamp: certificate.revocationTimestamp ?? null,
+    public_key_algorithm: certificate.publicKeyAlgorithm,
+    signature_algorithm: certificate.signatureAlgorithm ?? null,
+    fingerprint_sha256: certificate.fingerprintSha256 ?? null,
+    sans: certificate.sans ?? [],
+    key_usage: certificate.keyUsage ?? [],
+    extended_key_usage: certificate.extendedKeyUsage ?? [],
+    ocsp_urls: certificate.ocspUrls ?? [],
+    crl_distribution_points: certificate.crlDistributionPoints ?? [],
+    ca_issuers_urls: certificate.caIssuersUrls ?? [],
+    is_ca: certificate.rawApiData?.is_ca ?? false,
+    certificate_type: certificate.rawApiData?.type ?? null,
+    engine_id: certificate.rawApiData?.engine_id ?? null,
+    metadata: certificate.rawApiData?.metadata ?? {},
+  };
+}
+
+async function fetchCertificateLikeUi(serialNumber: string) {
+  const apiSerialNumber = serialNumber.replace(/:/g, '');
+  const { certificates } = await fetchIssuedCertificates({
+    apiQueryString: `filter=serial_number[equal_ignorecase]${apiSerialNumber}&page_size=1`,
+  });
+  const certificate = certificates[0];
+
+  if (!certificate) {
+    throw new Error(`Certificate with serial number "${serialNumber}" was not found.`);
+  }
+
+  return certificate;
 }
 
 function createToolMessage(toolCallId: string, payload: unknown): ChatCompletionToolMessageParam {
@@ -178,26 +252,47 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
           page_size: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of devices to return.' },
           sort_by: {
             type: 'string',
-            enum: ['creation_timestamp', 'id', 'status'],
-            description: 'Primary sort field.',
+            enum: ['creation_timestamp', 'id', 'status', 'dms_owner'],
+            description: 'API sort field used by the device table.',
           },
           sort_mode: {
             type: 'string',
             enum: ['asc', 'desc'],
             description: 'Sort direction.',
           },
+          bookmark: { type: 'string', description: 'Optional pagination bookmark returned by a previous call.' },
+          search_term: { type: 'string', description: 'Optional case-insensitive device ID search.' },
+          dms_owner: { type: 'string', description: 'Optional Registration Authority (DMS owner) ID filter.' },
+          tag: { type: 'string', description: 'Optional case-insensitive tag filter.' },
+          status: {
+            type: 'string',
+            enum: DEVICE_STATUS_VALUES,
+            description: 'Optional device status filter.',
+          },
         }),
       },
     },
     execute: async (args) => {
       const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 10))));
-      const sortBy = getEnumArg(args, 'sort_by', ['creation_timestamp', 'id', 'status'] as const, 'creation_timestamp');
+      const sortBy = getEnumArg(args, 'sort_by', ['creation_timestamp', 'id', 'status', 'dms_owner'] as const, 'creation_timestamp');
       const sortMode = getEnumArg(args, 'sort_mode', ['asc', 'desc'] as const, 'desc');
-      const response = await fetchDevices(new URLSearchParams({
+      const params = new URLSearchParams({
         page_size: String(pageSize),
         sort_by: sortBy,
         sort_mode: sortMode,
-      }));
+      });
+      const bookmark = getOptionalStringArg(args, 'bookmark');
+      const searchTerm = getOptionalStringArg(args, 'search_term');
+      const dmsOwner = getOptionalStringArg(args, 'dms_owner');
+      const tag = getOptionalStringArg(args, 'tag');
+      const status = getOptionalEnumArg(args, 'status', DEVICE_STATUS_VALUES);
+      if (bookmark) params.append('bookmark', bookmark);
+      if (searchTerm) params.append('filter', `id[contains_ignorecase]${searchTerm}`);
+      if (dmsOwner) params.append('filter', `dms_owner[equal]${dmsOwner}`);
+      if (tag) params.append('filter', `tags[contains_ignorecase]${tag}`);
+      if (status) params.append('filter', `status[equal]${status}`);
+
+      const response = await fetchDevices(params);
 
       return safeJson({
         next: response.next,
@@ -247,16 +342,36 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         name: 'list_registration_authorities',
         description: 'List live registration authorities from the DMS API.',
         parameters: objectSchema({
-          limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of registration authorities to return.' },
+          page_size: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of registration authorities to return.' },
+          sort_by: {
+            type: 'string',
+            enum: ['name', 'creation_date'],
+            description: 'API sort field used by the Registration Authorities table.',
+          },
+          sort_mode: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction.' },
+          search_term: { type: 'string', description: 'Optional case-insensitive RA name search.' },
+          bookmark: { type: 'string', description: 'Optional pagination bookmark returned by a previous call.' },
         }),
       },
     },
     execute: async (args) => {
-      const limit = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'limit', 25))));
-      const ras = await fetchAllRegistrationAuthorities();
+      const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 10))));
+      const sortBy = getEnumArg(args, 'sort_by', ['name', 'creation_date'] as const, 'name');
+      const sortMode = getEnumArg(args, 'sort_mode', ['asc', 'desc'] as const, 'asc');
+      const params = new URLSearchParams({
+        page_size: String(pageSize),
+        sort_by: sortBy,
+        sort_mode: sortMode,
+      });
+      const searchTerm = getOptionalStringArg(args, 'search_term');
+      const bookmark = getOptionalStringArg(args, 'bookmark');
+      if (searchTerm) params.append('filter', `name[contains_ignorecase]${searchTerm}`);
+      if (bookmark) params.append('bookmark', bookmark);
+
+      const response = await fetchRegistrationAuthorities(params);
       return safeJson({
-        total: ras.length,
-        registration_authorities: ras.slice(0, limit).map((ra) => ({
+        next: response.next,
+        registration_authorities: (response.list ?? []).map((ra) => ({
           id: ra.id,
           name: ra.name,
           creation_ts: ra.creation_ts,
@@ -335,6 +450,183 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
       },
     },
     execute: async () => safeJson(await fetchCaStatsSummary()),
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'list_certificates',
+        description: 'List issued X.509 certificates using the same CA API query contract as the Certificates screen.',
+        parameters: objectSchema({
+          page_size: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of certificates to return.' },
+          sort_by: {
+            type: 'string',
+            enum: ['subject.common_name', 'serial_number', 'valid_to', 'status', 'valid_from', 'revocation_timestamp'],
+            description: 'API sort field used by the Certificates table.',
+          },
+          sort_mode: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction.' },
+          search_term: { type: 'string', description: 'Optional common-name or serial-number search.' },
+          search_field: {
+            type: 'string',
+            enum: ['commonName', 'serialNumber'],
+            description: 'Certificate field searched by search_term.',
+          },
+          status: {
+            type: 'string',
+            enum: CERTIFICATE_STATUS_VALUES,
+            description: 'Optional certificate status filter.',
+          },
+          ca_id: { type: 'string', description: 'Optional issuer CA ID. Uses the CA-scoped certificate endpoint.' },
+          is_ca: { type: 'string', enum: ['true', 'false'], description: 'Optionally include only CA or end-entity certificates.' },
+          bookmark: { type: 'string', description: 'Optional pagination bookmark returned by a previous call.' },
+        }),
+      },
+    },
+    execute: async (args) => {
+      const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 10))));
+      const sortBy = getEnumArg(
+        args,
+        'sort_by',
+        ['subject.common_name', 'serial_number', 'valid_to', 'status', 'valid_from', 'revocation_timestamp'] as const,
+        'valid_from',
+      );
+      const sortMode = getEnumArg(args, 'sort_mode', ['asc', 'desc'] as const, 'desc');
+      const searchTerm = getOptionalStringArg(args, 'search_term') ?? '';
+      const searchField = getEnumArg(args, 'search_field', ['commonName', 'serialNumber'] as const, 'commonName');
+      const status = getOptionalEnumArg(args, 'status', CERTIFICATE_STATUS_VALUES);
+      const isCa = getOptionalEnumArg(args, 'is_ca', ['true', 'false'] as const);
+      const params = new URLSearchParams({
+        page_size: String(pageSize),
+        sort_by: sortBy,
+        sort_mode: sortMode,
+      });
+      const bookmark = getOptionalStringArg(args, 'bookmark');
+      if (bookmark) params.append('bookmark', bookmark);
+      appendCertificateQueryFilters(params, {
+        searchTerm,
+        searchField,
+        statusFilters: status ? [status] : [],
+        isCaFilter: isCa ?? 'ALL',
+      });
+
+      const result = await fetchIssuedCertificates({
+        forCaId: getOptionalStringArg(args, 'ca_id'),
+        apiQueryString: params.toString(),
+      });
+      return safeJson({
+        next: result.nextToken,
+        certificates: result.certificates.map(serializeCertificate),
+      });
+    },
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_certificate',
+        description: 'Fetch live certificate details by serial number using the same filtered CA API request as the details screen.',
+        parameters: objectSchema({
+          serial_number: { type: 'string', description: 'Certificate serial number, with or without colon separators.' },
+        }, ['serial_number']),
+      },
+    },
+    execute: async (args) => {
+      const certificate = await fetchCertificateLikeUi(getStringArg(args, 'serial_number'));
+      return safeJson(serializeCertificate(certificate));
+    },
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_expiring_certificates',
+        description: 'List active certificates expiring within a number of days using the Certificates screen valid_to filter.',
+        parameters: objectSchema({
+          days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Expiration window in days. Defaults to 30.' },
+          page_size: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of certificates to return.' },
+          ca_id: { type: 'string', description: 'Optional issuer CA ID. Uses the CA-scoped certificate endpoint.' },
+        }),
+      },
+    },
+    execute: async (args) => {
+      const days = Math.max(1, Math.min(3650, Math.round(getNumberArg(args, 'days', 30))));
+      const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 25))));
+      const expiresBefore = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      const params = new URLSearchParams({
+        page_size: String(pageSize),
+        sort_by: 'valid_to',
+        sort_mode: 'asc',
+      });
+      appendCertificateQueryFilters(params, {
+        searchTerm: '',
+        searchField: 'commonName',
+        statusFilters: ['ACTIVE'],
+        validToFilter: { operator: 'bf', date: expiresBefore, includeTime: true },
+      });
+
+      const result = await fetchIssuedCertificates({
+        forCaId: getOptionalStringArg(args, 'ca_id'),
+        apiQueryString: params.toString(),
+      });
+      return safeJson({
+        within_days: days,
+        expires_before: expiresBefore.toISOString(),
+        next: result.nextToken,
+        certificates: result.certificates.map(serializeCertificate),
+      });
+    },
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'check_certificate_status',
+        description: 'Perform a live OCSP status check using the certificate, issuer CA and AIA URL shown by the Certificates UI.',
+        parameters: objectSchema({
+          serial_number: { type: 'string', description: 'Certificate serial number, with or without colon separators.' },
+          ocsp_url: { type: 'string', description: 'Optional OCSP URL override. Defaults to the first AIA OCSP URL in the certificate.' },
+        }, ['serial_number']),
+      },
+    },
+    execute: async (args) => {
+      const serialNumber = getStringArg(args, 'serial_number');
+      const [certificate, cas] = await Promise.all([
+        fetchCertificateLikeUi(serialNumber),
+        fetchAndProcessCAs(),
+      ]);
+      const issuer = flattenCertificateAuthorities(cas).find((ca) => ca.id === certificate.issuerCaId);
+      const discoveredOcspUrl = getOptionalStringArg(args, 'ocsp_url') ?? certificate.ocspUrls?.[0];
+
+      if (!certificate.pemData) {
+        throw new Error(`Certificate "${serialNumber}" does not include PEM data.`);
+      }
+      if (!issuer?.pemData) {
+        throw new Error(`Issuer CA "${certificate.issuerCaId ?? 'unknown'}" was not found or has no PEM data.`);
+      }
+      if (!discoveredOcspUrl) {
+        throw new Error(`Certificate "${serialNumber}" does not include an OCSP URL.`);
+      }
+
+      const ocspUrl = discoveredOcspUrl.startsWith('http://')
+        ? discoveredOcspUrl.replace('http://', 'https://')
+        : discoveredOcspUrl;
+      const result = await checkOcspStatus(certificate.pemData, issuer.pemData, ocspUrl);
+      return safeJson({
+        serial_number: certificate.serialNumber,
+        stored_status: certificate.apiStatus,
+        issuer_ca_id: issuer.id,
+        ocsp_url: ocspUrl,
+        status: result.status,
+        status_text: result.statusText,
+        produced_at: result.producedAt ?? null,
+        this_update: result.thisUpdate ?? null,
+        next_update: result.nextUpdate ?? null,
+        revocation_reason: result.revocationReason ?? null,
+        revocation_time: result.revocationTime ?? null,
+        responder_id: result.responderId ?? null,
+        error_details: result.errorDetails ?? null,
+      });
+    },
   },
   {
     definition: {
@@ -505,11 +797,40 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
     definition: {
       type: 'function',
       function: {
+        name: 'revoke_certificate',
+        description: 'Revoke an issued certificate in the live CA API. Uses the same status payload as the Certificates UI and requires user confirmation.',
+        parameters: objectSchema({
+          serial_number: { type: 'string', description: 'Certificate serial number, with or without colon separators.' },
+          reason: {
+            type: 'string',
+            enum: REVOCATION_REASON_VALUES,
+            description: 'Revocation reason accepted by the UI. Defaults to Unspecified.',
+          },
+        }, ['serial_number']),
+      },
+    },
+    destructive: true,
+    buildConfirmationTitle: (args) => `Revoke certificate ${getStringArg(args, 'serial_number', 'this certificate')}?`,
+    execute: async (args) => {
+      const serialNumber = getStringArg(args, 'serial_number');
+      const reason = getOptionalEnumArg(args, 'reason', REVOCATION_REASON_VALUES) ?? 'Unspecified';
+      await updateCertificateStatus({ serialNumber, status: 'REVOKED', reason });
+      return { ok: true, message: `Certificate ${serialNumber} was revoked.`, reason };
+    },
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
         name: 'revoke_certificate_authority',
         description: 'Revoke a certificate authority in the live CA API. Use only when the user explicitly asks for that destructive action.',
         parameters: objectSchema({
           caId: { type: 'string', description: 'Certificate authority identifier.' },
-          reason: { type: 'string', description: 'Optional revocation reason to record.' },
+          reason: {
+            type: 'string',
+            enum: REVOCATION_REASON_VALUES,
+            description: 'Revocation reason accepted by the UI. Defaults to Unspecified.',
+          },
         }, ['caId']),
       },
     },
@@ -517,8 +838,8 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
     buildConfirmationTitle: (args) => `Revoke certificate authority ${getStringArg(args, 'caId', 'this CA')}?`,
     execute: async (args) => {
       const caId = getStringArg(args, 'caId');
-      const reason = getOptionalStringArg(args, 'reason') ?? 'Unspecified';
-      await updateCaStatus(caId, 'REVOKED', reason);
+      const reason = getOptionalEnumArg(args, 'reason', REVOCATION_REASON_VALUES) ?? 'Unspecified';
+      await revokeCa(caId, reason);
       return { ok: true, message: `Certificate authority ${caId} was revoked.`, reason };
     },
   },

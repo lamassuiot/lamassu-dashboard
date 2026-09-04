@@ -7,6 +7,26 @@ export interface OpenAICompatibleConfig {
   model: string;
 }
 
+export interface OpenAICompatibleRuntimeConfig {
+  LAMASSU_OPENAI_API_KEY?: unknown;
+  LAMASSU_OPENAI_BASE_URL?: unknown;
+  LAMASSU_OPENAI_MODEL?: unknown;
+}
+
+const readRuntimeString = (value: unknown) => typeof value === 'string' ? value.trim() : '';
+
+export const getOpenAICompatibleConfigDefaults = (
+  runtimeConfig?: OpenAICompatibleRuntimeConfig | null,
+): OpenAICompatibleConfig => ({
+  apiKey: readRuntimeString(runtimeConfig?.LAMASSU_OPENAI_API_KEY),
+  baseUrl:
+    readRuntimeString(runtimeConfig?.LAMASSU_OPENAI_BASE_URL)
+    || DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+  model:
+    readRuntimeString(runtimeConfig?.LAMASSU_OPENAI_MODEL)
+    || DEFAULT_OPENAI_COMPATIBLE_MODEL,
+});
+
 interface ChatCompletionRequest {
   messages: unknown[];
   signal?: AbortSignal;

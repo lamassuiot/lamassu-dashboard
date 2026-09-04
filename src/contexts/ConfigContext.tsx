@@ -12,6 +12,9 @@ interface LamassuConfig {
   LAMASSU_PUBLIC_API?: string;
   LAMASSU_CONNECTORS?: string[];
   LAMASSU_FOOTER_ENABLED?: boolean;
+  LAMASSU_OPENAI_API_KEY?: string;
+  LAMASSU_OPENAI_BASE_URL?: string;
+  LAMASSU_OPENAI_MODEL?: string;
   TOAST_POSITION?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   DISPLAY_DATE_FORMAT?: string;
   DISPLAY_DATE_AND_TIME_FORMAT?: string;

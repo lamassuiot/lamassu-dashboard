@@ -86,6 +86,14 @@ window.lamassuConfig = {
   // Defaults to "frontend".
   LAMASSU_AUTH_CLIENT_ID: "frontend-client-id",
 
+  // --- AI Chatbot (optional) ---
+  // Set these fields to preconfigure an OpenAI-compatible provider.
+  // Leave the key empty to use the in-browser WebLLM fallback.
+  // WARNING: config.js is public, so every UI user can inspect this key.
+  LAMASSU_OPENAI_API_KEY: "",
+  LAMASSU_OPENAI_BASE_URL: "https://api.openai.com/v1",
+  LAMASSU_OPENAI_MODEL: "gpt-4.1-mini",
+
   // --- Integrations ---
   // An array of strings defining available platform connectors for integrations. These connectors ID must be already recognized by the Lamassu backend.
   LAMASSU_CONNECTORS: ["aws.us-east-1.123456789012"],
@@ -155,6 +163,9 @@ docker run -d \
   -e OIDC_ENABLED=true \
   -e OIDC_AUTHORITY="https://auth.example.com/realms/your-realm" \
   -e OIDC_CLIENT_ID="frontend" \
+  -e OPENAI_API_KEY="your-provider-key" \
+  -e OPENAI_BASE_URL="https://api.openai.com/v1" \
+  -e OPENAI_MODEL="gpt-4.1-mini" \
   -e CLOUD_CONNECTORS='["aws.us-east-1.123456789012"]' \
   -e UI_FOOTER_ENABLED=false \
   --name lamassu-ui \
@@ -164,6 +175,7 @@ The app will be available at http://localhost:9002.
 
 Notes:
 - The entrypoint runs envsubst against `/tmpl/config.js.tmpl` and writes `/var/www/html/config.js`. Provide any runtime config via environment variables listed above.
+- `OPENAI_API_KEY` is optional. If it is empty, the chatbot uses WebLLM in the browser. Because the generated `config.js` is public, only configure a provider key here when it is safe to expose to every dashboard user.
 - To enable a custom footer, mount `footer.html` into the container and set `UI_FOOTER_ENABLED=true`:
 ```bash
 docker run -d -p 9002:80 \

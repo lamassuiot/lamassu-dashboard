@@ -1,7 +1,6 @@
 'use client';
 
 import type {
-  ChatCompletionAssistantMessageParam,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
   ChatCompletionToolMessageParam,
@@ -96,6 +95,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
+import { useConfig } from '@/contexts/ConfigContext';
 import {
   CHAT_TOOL_COUNT,
   createSyntheticToolCall,
@@ -107,6 +107,11 @@ import {
   type ChatToolInvocation,
 } from '@/lib/chat-tools';
 import {
+  buildToolExecutionHistory,
+  cleanProviderAssistantText,
+  createToolCallSignature,
+} from '@/lib/chat-tool-loop';
+import {
   ensureSeedIndex,
   searchSeedIndex,
   type RagIndexSummary,
@@ -116,6 +121,7 @@ import {
   createOpenAICompatibleCompletion,
   DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
+  getOpenAICompatibleConfigDefaults,
   streamOpenAICompatibleCompletion,
   type OpenAICompatibleConfig,
 } from '@/lib/openai-compatible';
@@ -193,6 +199,8 @@ const DEFAULT_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
 const MODEL_STORAGE_KEY = 'lamassu-webllm-model';
 const OPENAI_BASE_URL_STORAGE_KEY = 'lamassu-openai-compatible-base-url';
 const OPENAI_MODEL_STORAGE_KEY = 'lamassu-openai-compatible-model';
+const MAX_TOOL_PLANNING_ROUNDS = 12;
+const MAX_TOOL_CALLS = 24;
 const SYSTEM_PROMPT = [
   'You are Lamassu Dashboard Assistant.',
   'Answer clearly and concisely.',
@@ -214,7 +222,20 @@ const PLANNING_RESPONSE_INSTRUCTIONS = [
   '{"assistant_response": string | null, "tool_calls": [{"name": string, "arguments": object}]}',
   'If live data or a dashboard action is needed, put the tool calls in tool_calls.',
   'If no tool is needed, return an empty tool_calls array and fill assistant_response.',
+  'After receiving tool results, request another tool call whenever more live data is needed.',
+  'For exhaustive list requests, use the largest allowed page_size to minimize pagination calls.',
+  'For requests asking for all results, continue pagination while the latest result has a non-null next bookmark.',
+  'When continuing pagination, reuse the same filters and pass the returned next value as bookmark.',
+  'Do not repeat an identical tool call with identical arguments.',
+  'Never emit provider-specific tool tokens such as <|open|>, <|close|>, or <|sep|>.',
   'Never invent tool names.',
+].join(' ');
+const FINAL_RESPONSE_INSTRUCTIONS = [
+  'The live dashboard tool phase is complete.',
+  'Answer the user using the supplied tool results.',
+  'Do not request or emit another tool call.',
+  'Do not output internal control tokens such as <|open|>, <|close|>, or <|sep|>.',
+  'If a safety limit stopped pagination, clearly say that the results are partial.',
 ].join(' ');
 
 const models: ModelOption[] = [
@@ -475,10 +496,7 @@ function normalizeRuntimeStats(stats: string | null) {
 }
 
 function cleanAssistantText(text: string) {
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return cleanProviderAssistantText(text);
 }
 
 function extractTaggedReasoning(text: string) {
@@ -776,7 +794,10 @@ function buildToolPlanningMessages(
   conversation: ChatMessage[],
   currentPrompt: string,
   toolPlanningCatalog: string,
+  toolCalls: ChatCompletionMessageToolCall[] = [],
+  toolMessages: ChatCompletionToolMessageParam[] = [],
 ): ChatCompletionMessageParam[] {
+  const toolHistory = buildToolExecutionHistory(toolCalls, toolMessages);
   const plannerPrompt = [
     TOOL_SYSTEM_PROMPT,
     PLANNING_RESPONSE_INSTRUCTIONS,
@@ -786,11 +807,49 @@ function buildToolPlanningMessages(
     '',
     'Plan the response for this user request:',
     currentPrompt,
+    ...(toolHistory.length > 0
+      ? [
+          '',
+          'Tool calls already completed (JSON):',
+          JSON.stringify(toolHistory, null, 2),
+          '',
+          'Decide whether another tool call is required. Do not repeat completed calls.',
+        ]
+      : []),
   ].join('\n');
 
   return [
     { role: 'system', content: SYSTEM_PROMPT },
     ...buildConversationMessages(conversation, plannerPrompt),
+  ];
+}
+
+function buildFinalResponseMessages(
+  conversation: ChatMessage[],
+  currentPrompt: string,
+  ragResults: RagSearchResult[],
+  toolCalls: ChatCompletionMessageToolCall[],
+  toolMessages: ChatCompletionToolMessageParam[],
+  stopReason?: string | null,
+): ChatCompletionMessageParam[] {
+  const toolHistory = buildToolExecutionHistory(toolCalls, toolMessages);
+  const finalPrompt = [
+    buildPromptWithRag(currentPrompt, ragResults),
+    ...(toolHistory.length > 0
+      ? [
+          '',
+          'Completed live dashboard tool calls (JSON):',
+          JSON.stringify(toolHistory, null, 2),
+        ]
+      : []),
+    ...(stopReason ? ['', `Tool loop note: ${stopReason}`] : []),
+    '',
+    FINAL_RESPONSE_INSTRUCTIONS,
+  ].join('\n');
+
+  return [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...buildConversationMessages(conversation, finalPrompt),
   ];
 }
 
@@ -926,15 +985,28 @@ const ModelItem = ({
 };
 
 export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
+  const { config } = useConfig();
+  const configuredRemoteProvider = getOpenAICompatibleConfigDefaults(config);
+  const configuredRemoteApiKey = configuredRemoteProvider.apiKey;
+  const hasConfiguredRemoteBaseUrl =
+    typeof config?.LAMASSU_OPENAI_BASE_URL === 'string'
+    && Boolean(config.LAMASSU_OPENAI_BASE_URL.trim());
+  const hasConfiguredRemoteModel =
+    typeof config?.LAMASSU_OPENAI_MODEL === 'string'
+    && Boolean(config.LAMASSU_OPENAI_MODEL.trim());
   const [model, setModel] = useState(DEFAULT_MODEL_ID);
   const [loadingModelId, setLoadingModelId] = useState<string | null>(null);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [selectedModelFamily, setSelectedModelFamily] = useState<ModelFamilyId | null>(null);
   const [providerSettingsOpen, setProviderSettingsOpen] = useState(false);
-  const [remoteApiKey, setRemoteApiKey] = useState('');
-  const [remoteBaseUrl, setRemoteBaseUrl] = useState(DEFAULT_OPENAI_COMPATIBLE_BASE_URL);
-  const [remoteModel, setRemoteModel] = useState(DEFAULT_OPENAI_COMPATIBLE_MODEL);
+  const [remoteApiKey, setRemoteApiKey] = useState(configuredRemoteApiKey);
+  const [remoteBaseUrl, setRemoteBaseUrl] = useState(
+    configuredRemoteProvider.baseUrl,
+  );
+  const [remoteModel, setRemoteModel] = useState(
+    configuredRemoteProvider.model,
+  );
   const [text, setText] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [useApiTools, setUseApiTools] = useState(false);
@@ -966,12 +1038,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
     const storedBaseUrl = window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY);
     const storedRemoteModel = window.localStorage.getItem(OPENAI_MODEL_STORAGE_KEY);
-    if (storedBaseUrl) setRemoteBaseUrl(storedBaseUrl);
-    if (storedRemoteModel) setRemoteModel(storedRemoteModel);
+    if (!hasConfiguredRemoteBaseUrl && storedBaseUrl) setRemoteBaseUrl(storedBaseUrl);
+    if (!hasConfiguredRemoteModel && storedRemoteModel) setRemoteModel(storedRemoteModel);
 
     const gpuCapableNavigator = navigator as Navigator & { gpu?: unknown };
     setHasWebGpuSupport(Boolean(gpuCapableNavigator.gpu));
-  }, []);
+  }, [hasConfiguredRemoteBaseUrl, hasConfiguredRemoteModel]);
 
   useEffect(() => {
     window.localStorage.setItem(MODEL_STORAGE_KEY, model);
@@ -1344,16 +1416,13 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const continueToolConversation = useCallback(
     (session: PendingToolSession) => {
       const prompt = session.conversation.at(-1)?.versions[0]?.content ?? '';
-      const completionMessages: ChatCompletionMessageParam[] = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...buildConversationMessages(session.conversation, buildPromptWithRag(prompt, session.ragResults)),
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: session.toolCalls,
-        } satisfies ChatCompletionAssistantMessageParam,
-        ...Array.from(session.toolMessages.values()),
-      ];
+      const completionMessages = buildFinalResponseMessages(
+        session.conversation,
+        prompt,
+        session.ragResults,
+        session.toolCalls,
+        Array.from(session.toolMessages.values()),
+      );
 
       void streamAssistantReply({
         assistantKey: session.assistantKey,
@@ -1463,6 +1532,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       let ragResults: RagSearchResult[] = [];
       let toolCalls: ChatCompletionMessageToolCall[] = [];
       let toolMessages: ChatCompletionToolMessageParam[] = [];
+      let toolLoopStopReason: string | null = null;
 
       if (useApiTools) {
         try {
@@ -1475,97 +1545,127 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             },
           }));
 
-          const planningMessages = buildToolPlanningMessages(conversation, prompt, toolPlanningCatalog);
-          let planningContent = '';
+          const seenToolCalls = new Set<string>();
+          let finalPlanningResponse: string | null = null;
 
-          if (inferenceTarget.kind === 'openai-compatible') {
-            const controller = new AbortController();
-            remoteAbortControllerRef.current = controller;
-
-            try {
-              planningContent = await createOpenAICompatibleCompletion(inferenceTarget.config, {
-                messages: planningMessages,
-                signal: controller.signal,
-                temperature: 0,
-              });
-            } finally {
-              if (remoteAbortControllerRef.current === controller) {
-                remoteAbortControllerRef.current = null;
-              }
-            }
-          } else {
-            const shouldReportProgress = !warmedModelIds.has(model) || activeModelId !== model;
-            if (shouldReportProgress) {
-              setLoadingModelId(model);
-            }
-
-            const engine = await ensureEngine(
-              model,
-              shouldReportProgress
-                ? (report) => {
-                    setProgressReport(report);
-                    updateMessage(assistantKey, (currentMessage) => ({
-                      ...currentMessage,
-                      reasoning: {
-                        content: report.text,
-                        duration: 0,
-                        isStreaming: true,
-                      },
-                    }));
-                  }
-                : undefined,
-            );
-
-            setLoadingModelId(null);
-            const planningResponse = await engine.chat.completions.create({
-              messages: planningMessages,
-              temperature: 0,
-            });
-
-            setProgressReport(null);
-            await syncEngineDiagnostics(engine);
-            planningContent = planningResponse.choices[0]?.message?.content ?? '';
-          }
-
-          const planningResult = parseToolPlanningResult(planningContent);
-          toolCalls = (planningResult.tool_calls ?? [])
-            .filter((toolCall): toolCall is NonNullable<ToolPlanningResult['tool_calls']>[number] =>
-              Boolean(toolCall?.name && typeof toolCall.name === 'string'),
-            )
-            .map((toolCall, index) =>
-              createSyntheticToolCall(
-                toolCall.name ?? '',
-                toolCall.arguments && typeof toolCall.arguments === 'object' ? toolCall.arguments : {},
-                `${assistantKey}-tool-${index + 1}`,
-              ),
-            );
-
-          if (toolCalls.length === 0) {
-            if (planningResult.assistant_response && !useWebSearch) {
-              setStatus('ready');
+          for (let round = 0; round < MAX_TOOL_PLANNING_ROUNDS; round += 1) {
+            if (round > 0) {
               updateMessage(assistantKey, (currentMessage) => ({
                 ...currentMessage,
-                status: undefined,
                 reasoning: {
-                  content: inferenceTarget.kind === 'openai-compatible'
-                    ? `Response generated with ${inferenceTarget.config.model} through the configured provider without using live API tools.`
-                    : `Response generated locally with ${inferenceTarget.name} without using live API tools.`,
-                  duration: 1,
-                  isStreaming: false,
+                  content: `Reviewing ${toolCalls.length} live API result${toolCalls.length === 1 ? '' : 's'} for any required follow-up call.`,
+                  duration: 0,
+                  isStreaming: true,
                 },
-                versions: currentMessage.versions.map((version) =>
-                  version.id === assistantVersionId
-                    ? { ...version, content: planningResult.assistant_response ?? 'No output returned.' }
-                    : version,
-                ),
               }));
-              return;
             }
-          } else {
+
+            const planningMessages = buildToolPlanningMessages(
+              conversation,
+              prompt,
+              toolPlanningCatalog,
+              toolCalls,
+              toolMessages,
+            );
+            let planningContent = '';
+
+            if (inferenceTarget.kind === 'openai-compatible') {
+              const controller = new AbortController();
+              remoteAbortControllerRef.current = controller;
+
+              try {
+                planningContent = await createOpenAICompatibleCompletion(inferenceTarget.config, {
+                  messages: planningMessages,
+                  signal: controller.signal,
+                  temperature: 0,
+                });
+              } finally {
+                if (remoteAbortControllerRef.current === controller) {
+                  remoteAbortControllerRef.current = null;
+                }
+              }
+            } else {
+              const shouldReportProgress = !warmedModelIds.has(model) || activeModelId !== model;
+              if (shouldReportProgress) {
+                setLoadingModelId(model);
+              }
+
+              const engine = await ensureEngine(
+                model,
+                shouldReportProgress
+                  ? (report) => {
+                      setProgressReport(report);
+                      updateMessage(assistantKey, (currentMessage) => ({
+                        ...currentMessage,
+                        reasoning: {
+                          content: report.text,
+                          duration: 0,
+                          isStreaming: true,
+                        },
+                      }));
+                    }
+                  : undefined,
+              );
+
+              setLoadingModelId(null);
+              const planningResponse = await engine.chat.completions.create({
+                messages: planningMessages,
+                temperature: 0,
+              });
+
+              setProgressReport(null);
+              await syncEngineDiagnostics(engine);
+              planningContent = planningResponse.choices[0]?.message?.content ?? '';
+            }
+
+            const planningResult = parseToolPlanningResult(planningContent);
+            const plannedCalls = (planningResult.tool_calls ?? [])
+              .filter((toolCall): toolCall is NonNullable<ToolPlanningResult['tool_calls']>[number] =>
+                Boolean(toolCall?.name && typeof toolCall.name === 'string'),
+              );
+            const roundToolCalls: ChatCompletionMessageToolCall[] = [];
+            let repeatedCallCount = 0;
+
+            for (const plannedCall of plannedCalls) {
+              if (toolCalls.length + roundToolCalls.length >= MAX_TOOL_CALLS) {
+                toolLoopStopReason = `The tool loop reached its ${MAX_TOOL_CALLS}-call safety limit.`;
+                break;
+              }
+
+              const args = plannedCall.arguments && typeof plannedCall.arguments === 'object'
+                ? plannedCall.arguments
+                : {};
+              const name = plannedCall.name ?? '';
+              const signature = createToolCallSignature(name, args);
+              if (seenToolCalls.has(signature)) {
+                repeatedCallCount += 1;
+                continue;
+              }
+
+              seenToolCalls.add(signature);
+              roundToolCalls.push(createSyntheticToolCall(
+                name,
+                args,
+                `${assistantKey}-tool-${toolCalls.length + roundToolCalls.length + 1}`,
+              ));
+            }
+
+            if (roundToolCalls.length === 0) {
+              if (toolLoopStopReason) {
+                break;
+              } else if (repeatedCallCount > 0) {
+                toolLoopStopReason = 'The model repeated an identical tool call, so execution stopped to prevent a loop.';
+              } else {
+                finalPlanningResponse = planningResult.assistant_response ?? null;
+              }
+              break;
+            }
+
+            toolCalls = [...toolCalls, ...roundToolCalls];
             const invocations: ChatToolInvocation[] = [];
             const pendingToolIds = new Set<string>();
 
-            for (const toolCall of toolCalls) {
+            for (const toolCall of roundToolCalls) {
               if (isDestructiveTool(toolCall.function.name)) {
                 pendingToolIds.add(toolCall.id);
                 invocations.push(createPendingToolInvocation(toolCall));
@@ -1579,12 +1679,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
             updateMessage(assistantKey, (currentMessage) => ({
               ...currentMessage,
-              tools: invocations,
+              tools: [...(currentMessage.tools ?? []), ...invocations],
               reasoning: {
                 content:
                   pendingToolIds.size > 0
-                    ? `The model selected ${toolCalls.length} live API tool${toolCalls.length > 1 ? 's' : ''}. Confirm the destructive action${pendingToolIds.size > 1 ? 's' : ''} below to continue.`
-                    : `Executed ${toolCalls.length} live API tool${toolCalls.length > 1 ? 's' : ''} selected by the model.`,
+                    ? `The model selected ${roundToolCalls.length} live API tool${roundToolCalls.length > 1 ? 's' : ''}. Confirm the destructive action${pendingToolIds.size > 1 ? 's' : ''} below to continue.`
+                    : `Executed ${toolCalls.length} live API tool call${toolCalls.length > 1 ? 's' : ''} across ${round + 1} planning round${round > 0 ? 's' : ''}.`,
                 duration: 0,
                 isStreaming: true,
               },
@@ -1617,6 +1717,39 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               }));
               return;
             }
+
+            if (toolCalls.length >= MAX_TOOL_CALLS) {
+              toolLoopStopReason = `The tool loop reached its ${MAX_TOOL_CALLS}-call safety limit.`;
+              break;
+            }
+
+            if (round === MAX_TOOL_PLANNING_ROUNDS - 1) {
+              toolLoopStopReason = `The tool loop reached its ${MAX_TOOL_PLANNING_ROUNDS}-round safety limit.`;
+            }
+          }
+
+          if (finalPlanningResponse && !useWebSearch) {
+            const sanitizedReply = sanitizeAssistantReply(finalPlanningResponse);
+            setStatus('ready');
+            updateMessage(assistantKey, (currentMessage) => ({
+              ...currentMessage,
+              status: undefined,
+              reasoning: {
+                content: toolCalls.length > 0
+                  ? `Response generated after ${toolCalls.length} live API tool call${toolCalls.length > 1 ? 's' : ''}.`
+                  : inferenceTarget.kind === 'openai-compatible'
+                    ? `Response generated with ${inferenceTarget.config.model} through the configured provider without using live API tools.`
+                    : `Response generated locally with ${inferenceTarget.name} without using live API tools.`,
+                duration: 1,
+                isStreaming: false,
+              },
+              versions: currentMessage.versions.map((version) =>
+                version.id === assistantVersionId
+                  ? { ...version, content: sanitizedReply.finalAnswer || 'No output returned.' }
+                  : version,
+              ),
+            }));
+            return;
           }
         } catch (error) {
           const wasAborted = error instanceof Error && error.name === 'AbortError';
@@ -1685,22 +1818,14 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         }
       }
 
-      const promptWithRag = buildPromptWithRag(prompt, ragResults);
-      const completionMessages: ChatCompletionMessageParam[] = toolCalls.length > 0
-        ? [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...buildConversationMessages(conversation, promptWithRag),
-            {
-              role: 'assistant',
-              content: '',
-              tool_calls: toolCalls,
-            } satisfies ChatCompletionAssistantMessageParam,
-            ...toolMessages,
-          ]
-        : [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...buildConversationMessages(conversation, promptWithRag),
-          ];
+      const completionMessages = buildFinalResponseMessages(
+        conversation,
+        prompt,
+        ragResults,
+        toolCalls,
+        toolMessages,
+        toolLoopStopReason,
+      );
 
       void streamAssistantReply({
         assistantKey,
@@ -2317,7 +2442,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                           <div className="space-y-1">
                             <p className="text-sm font-medium text-foreground">OpenAI-compatible provider</p>
                             <p className="text-xs leading-5 text-muted-foreground">
-                              Requests go directly from this browser. The key stays in memory and clears on reload; the endpoint must allow browser CORS.
+                              Requests go directly from this browser and the endpoint must allow browser CORS. A key entered here stays in memory; a key from config.js is public to users of this UI.
                             </p>
                           </div>
                           <div className="space-y-2">

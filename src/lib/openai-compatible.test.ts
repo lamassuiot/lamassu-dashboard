@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createOpenAICompatibleCompletion,
+  getOpenAICompatibleConfigDefaults,
   getOpenAICompatibleCompletionUrl,
   streamOpenAICompatibleCompletion,
 } from './openai-compatible';
@@ -17,6 +18,30 @@ afterEach(() => {
 });
 
 describe('OpenAI-compatible chat completions', () => {
+  it('resolves provider defaults from runtime configuration', () => {
+    expect(getOpenAICompatibleConfigDefaults({
+      LAMASSU_OPENAI_API_KEY: ' configured-key ',
+      LAMASSU_OPENAI_BASE_URL: ' https://provider.example/v1 ',
+      LAMASSU_OPENAI_MODEL: ' provider-model ',
+    })).toEqual({
+      apiKey: 'configured-key',
+      baseUrl: 'https://provider.example/v1',
+      model: 'provider-model',
+    });
+  });
+
+  it('keeps WebLLM enabled when no runtime key is configured', () => {
+    expect(getOpenAICompatibleConfigDefaults({
+      LAMASSU_OPENAI_API_KEY: '',
+      LAMASSU_OPENAI_BASE_URL: '',
+      LAMASSU_OPENAI_MODEL: '',
+    })).toEqual({
+      apiKey: '',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+    });
+  });
+
   it('normalizes base URLs and accepts a full completion URL', () => {
     expect(getOpenAICompatibleCompletionUrl('https://provider.example/v1/'))
       .toBe('https://provider.example/v1/chat/completions');
