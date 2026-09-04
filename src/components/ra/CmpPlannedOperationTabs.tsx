@@ -10,8 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { PlusCircle, Settings2, X, AlertTriangle } from 'lucide-react';
+import { PlusCircle, X, AlertTriangle } from 'lucide-react';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { Separator } from '@/components/ui/separator';
 import { SettingsSection } from '@/components/shared/SettingsSection';
@@ -19,6 +18,7 @@ import { CmpOperationGate } from '@/components/ra/CmpOperationGate';
 import { RfcLink } from '@/components/shared/RfcLink';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
+import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type {
@@ -254,99 +254,140 @@ export function CmpKurPlannedPolicy({
   );
 }
 
-const GENM_INFO_TYPES: { key: keyof CmpGenmInformationTypes; label: string; live: boolean }[] = [
-  { key: 'ca_certificates', label: 'CA certificates', live: true },
-  { key: 'signing_key_types', label: 'Signing key types', live: true },
-  { key: 'encryption_key_types', label: 'Encryption key types', live: true },
-  { key: 'preferred_symmetric_algorithm', label: 'Preferred symmetric algorithm', live: true },
-  { key: 'supported_languages', label: 'Supported languages', live: true },
-  { key: 'root_ca_update', label: 'Root CA update', live: true },
-  { key: 'certificate_request_template', label: 'Certificate request template', live: true },
-  { key: 'current_crl', label: 'Current CRL', live: true },
-  { key: 'crl_update', label: 'CRL update', live: true },
+// ── General messages (GENM/GENP) ──
+// Every id-it information type the CA can answer is modelled as a
+// sub-operation of genm, exactly like ir/cr/p10cr/kur are sub-operations of
+// enrollment: an OID eyebrow, a human title and description, a master
+// enable switch, and — where the type has a payload to shape — its own
+// settings behind that switch.
+interface GenmInfoType {
+  key: keyof CmpGenmInformationTypes;
+  // Shown as the section eyebrow. Kept in the OID's own casing (id-it-caCerts),
+  // unlike the enrollment tab's message-pair eyebrows (IR / IP).
+  oid: string;
+  title: string;
+  description: React.ReactNode;
+  switchLabel: string;
+  switchDescription: string;
+  disabledNote: string;
+  live: boolean;
+}
+
+const GENM_INFO_TYPES: GenmInfoType[] = [
+  {
+    key: 'ca_certificates',
+    oid: 'id-it-caCerts',
+    title: 'CA Certificates',
+    description: <>Returns the CA certificates a client needs to build and validate a chain up to this DMS&apos;s issuers (<RfcLink rfc={9483} section="4.3.1" />).</>,
+    switchLabel: 'Answer caCerts queries',
+    switchDescription: 'Serve the CA certificates selected below in response to a caCerts general message.',
+    disabledNote: 'CA certificate distribution is off — a caCerts query is answered with an error, so clients must be provisioned with the trust chain out of band.',
+    live: true,
+  },
+  {
+    key: 'root_ca_update',
+    oid: 'id-it-rootCaCert',
+    title: 'Root CA Update',
+    description: <>Lets a client pick up a newer root CA certificate, with the old-with-new / new-with-old links, during a root key rollover (<RfcLink rfc={9483} section="4.3.2" />).</>,
+    switchLabel: 'Answer rootCaCert queries',
+    switchDescription: 'Serve the updated root CA certificate when the client sends the root it currently trusts.',
+    disabledNote: 'Root CA update is off — clients cannot discover a rolled-over root over CMP and must be re-provisioned out of band.',
+    live: true,
+  },
+  {
+    key: 'certificate_request_template',
+    oid: 'id-it-certReqTemplate',
+    title: 'Certificate Request Template',
+    description: <>Advertises the subject, extensions and key constraints this DMS expects, so a device can build a conforming request up front (<RfcLink rfc={9483} section="4.3.3" />).</>,
+    switchLabel: 'Answer certReqTemplate queries',
+    switchDescription: 'Derive the template from the effective issuance profile and return it to the client.',
+    disabledNote: 'Certificate request templates are off — devices get no hint about the expected subject or extensions and must be configured with them.',
+    live: true,
+  },
+  {
+    key: 'current_crl',
+    oid: 'id-it-currentCRL',
+    title: 'Current CRL',
+    description: <>Returns the latest CRL issued by the enrollment CA, unconditionally (<RfcLink rfc={4210} section="5.3.19.6" />).</>,
+    switchLabel: 'Answer currentCRL queries',
+    switchDescription: 'Serve the newest CRL on every request, regardless of what the client already holds.',
+    disabledNote: 'Current CRL retrieval is off — clients must fetch the CRL from the Validation Authority instead.',
+    live: true,
+  },
+  {
+    key: 'crl_update',
+    oid: 'id-it-crlStatusList',
+    title: 'CRL Update',
+    description: <>The conditional counterpart of currentCRL: a CRL is returned only when the client&apos;s copy is stale, based on the status list it sends (<RfcLink rfc={9483} section="4.3.4" />).</>,
+    switchLabel: 'Answer crlStatusList queries',
+    switchDescription: 'Compare the client’s CRL status list against the current CRL and answer only when it is out of date.',
+    disabledNote: 'Conditional CRL update is off — clients cannot poll for a fresher CRL and must re-download it in full.',
+    live: true,
+  },
+  {
+    key: 'signing_key_types',
+    oid: 'id-it-signKeyPairTypes',
+    title: 'Signing Key Types',
+    description: <>Advertises the key algorithms and sizes this DMS will sign certificates for (<RfcLink rfc={4210} section="5.3.19.2" />).</>,
+    switchLabel: 'Answer signKeyPairTypes queries',
+    switchDescription: 'Return the signing key types accepted by the enrollment CA and issuance profile.',
+    disabledNote: 'Signing key type discovery is off — a device learns its key is unacceptable only when enrollment fails.',
+    live: true,
+  },
+  {
+    key: 'encryption_key_types',
+    oid: 'id-it-encKeyPairTypes',
+    title: 'Encryption Key Types',
+    description: <>Advertises the key algorithms this DMS accepts for encryption certificates (<RfcLink rfc={4210} section="5.3.19.3" />).</>,
+    switchLabel: 'Answer encKeyPairTypes queries',
+    switchDescription: 'Return the encryption key types accepted by the enrollment CA and issuance profile.',
+    disabledNote: 'Encryption key type discovery is off — clients cannot query which encryption keys are acceptable.',
+    live: true,
+  },
+  {
+    key: 'preferred_symmetric_algorithm',
+    oid: 'id-it-preferredSymmAlg',
+    title: 'Preferred Symmetric Algorithm',
+    description: <>Tells the client which symmetric cipher to use for CMS content encryption — for example the key transport of a centrally generated private key (<RfcLink rfc={4210} section="5.3.19.4" />).</>,
+    switchLabel: 'Answer preferredSymmAlg queries',
+    switchDescription: 'Advertise the cipher configured below as this DMS’s preferred content-encryption algorithm.',
+    disabledNote: 'Preferred algorithm discovery is off — clients fall back to their own default cipher for CMS content encryption.',
+    live: true,
+  },
+  {
+    key: 'supported_languages',
+    oid: 'id-it-suppLangTags',
+    title: 'Supported Languages',
+    description: <>Negotiates the language used in human-readable free text of PKI messages (<RfcLink rfc={4210} section="5.3.19.15" />).</>,
+    switchLabel: 'Answer suppLangTags queries',
+    switchDescription: 'Return the language tags this DMS can use in status strings.',
+    disabledNote: 'Language negotiation is off — free text is returned in the server default language.',
+    live: true,
+  },
   // Hard-disabled server-side for the time being (genmInfoTypeEnabled rejects
   // it): Lamassu does not provision a dedicated protocol-encryption certificate,
   // so the CA has nothing real to return. Kept hidden (live: false) — and the
   // save path forces its flag to false — until it is actually implemented.
   // (id-it-revPassphrase is likewise disabled server-side, but it has no config
   // flag or toggle, so there is nothing to represent here.)
-  { key: 'protocol_encryption_certificate', label: 'Protocol encryption certificate', live: false },
+  {
+    key: 'protocol_encryption_certificate',
+    oid: 'id-it-caProtEncCert',
+    title: 'Protocol Encryption Certificate',
+    description: <>The certificate a client encrypts to when a request has to be confidential (<RfcLink rfc={4210} section="5.3.19.1" />).</>,
+    switchLabel: 'Answer caProtEncCert queries',
+    switchDescription: 'Not implemented — Lamassu does not provision a dedicated protocol encryption certificate.',
+    disabledNote: 'Protocol encryption certificate discovery is not available.',
+    live: false,
+  },
 ];
 
-export function CmpGenmPlannedCapabilities({
-  accessPolicy, onAccessPolicyChange, informationTypes, onInformationTypesChange,
-  preferredSymmetricAlgorithm, onPreferredSymmetricAlgorithmChange,
-}: {
-  accessPolicy: CmpGenmAccessPolicy;
-  onAccessPolicyChange: (v: CmpGenmAccessPolicy) => void;
-  informationTypes: CmpGenmInformationTypes;
-  onInformationTypesChange: (v: CmpGenmInformationTypes) => void;
-  preferredSymmetricAlgorithm: CmpPreferredSymmetricAlgorithm;
-  onPreferredSymmetricAlgorithmChange: (v: CmpPreferredSymmetricAlgorithm) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <SectionHeader title="General message capabilities" badge={false}>
-        Which id-it information types the CA answers, and who may ask.
-      </SectionHeader>
-      <PlannedRow label="Access policy">
-        <Select value={accessPolicy} onValueChange={(v: CmpGenmAccessPolicy) => onAccessPolicyChange(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="public_discovery">Public discovery</SelectItem>
-            <SelectItem value="require_signed">Require signed CMP message</SelectItem>
-          </SelectContent>
-        </Select>
-      </PlannedRow>
-      <div className="space-y-2">
-        <Label className="text-sm">Enabled information types</Label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {GENM_INFO_TYPES.filter((t) => t.live).map((t) => (
-            <div key={t.key} className="flex items-center justify-between rounded-md border p-2 text-sm">
-              <span>{t.label}</span>
-              <div className="flex items-center gap-1">
-                {t.key === 'preferred_symmetric_algorithm' && informationTypes.preferred_symmetric_algorithm && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Choose algorithm">
-                        <Settings2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64" align="end">
-                      <div className="space-y-1.5">
-                        <Label className="text-sm">Algorithm advertised in the response</Label>
-                        <Select value={preferredSymmetricAlgorithm} onValueChange={(v: CmpPreferredSymmetricAlgorithm) => onPreferredSymmetricAlgorithmChange(v)}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {PREFERRED_SYMM_ALG_OPTIONS.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
-                <Switch
-                  checked={informationTypes[t.key]}
-                  onCheckedChange={(checked) => onInformationTypesChange({ ...informationTypes, [t.key]: checked })}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Only the id-it information types the CA can actually answer are listed.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function operationTitle(eyebrow: string, title: string) {
+// `uppercase: false` keeps an eyebrow that is a real identifier (an id-it OID
+// name) in its own casing instead of shouting it as ID-IT-CACERTS.
+function operationTitle(eyebrow: string, title: string, { uppercase = true }: { uppercase?: boolean } = {}) {
   return (
     <>
-      <span className="block text-xs font-medium uppercase tracking-wide text-primary/80">{eyebrow}</span>
+      <span className={cn('block text-xs font-medium tracking-wide text-primary/80', uppercase && 'uppercase')}>{eyebrow}</span>
       {title}
     </>
   );
@@ -435,6 +476,28 @@ interface CmpKurTabProps {
   onIdentityChangePolicyChange: (v: CmpIdentityChangePolicy) => void;
 }
 
+// General messages (genm/genp) — the operation gate, the id-it information
+// types it answers, and the caCerts response payload (CA distribution), which
+// is the caCerts information type's own settings rather than a section of its
+// own.
+interface CmpGenmTabProps {
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  accessPolicy: CmpGenmAccessPolicy;
+  onAccessPolicyChange: (v: CmpGenmAccessPolicy) => void;
+  informationTypes: CmpGenmInformationTypes;
+  onInformationTypesChange: (v: CmpGenmInformationTypes) => void;
+  preferredSymmetricAlgorithm: CmpPreferredSymmetricAlgorithm;
+  onPreferredSymmetricAlgorithmChange: (v: CmpPreferredSymmetricAlgorithm) => void;
+  includeDownstreamCA: boolean;
+  onIncludeDownstreamCAChange: (v: boolean) => void;
+  includeEnrollmentCA: boolean;
+  onIncludeEnrollmentCAChange: (v: boolean) => void;
+  managedCAs: CA[];
+  onRemoveManagedCa: (id: string) => void;
+  onAddManagedCa: () => void;
+}
+
 // Central Key Generation also lives inside the Enrollment tab — it's an
 // ir/cr request-time behavior (an empty public key asks the server to
 // generate the key pair), not a separate CMP message type.
@@ -456,6 +519,7 @@ interface CmpPlannedOperationTabsProps {
   onRrChange: (patch: Partial<CmpRrSettings>) => void;
   ccr: CmpCcrSettings;
   onCcrChange: (patch: Partial<CmpCcrSettings>) => void;
+  genm: CmpGenmTabProps;
   ccrTrustedRequesterCAs: CA[];
   onRemoveCcrTrustedRequesterCa: (id: string) => void;
   onAddCcrTrustedRequesterCa: () => void;
@@ -470,7 +534,7 @@ interface CmpPlannedOperationTabsProps {
 
 export function CmpPlannedOperationTabs({
   ir, onIrChange, cr, onCrChange, p10cr, onP10crChange, kur, ckg, rr, onRrChange, ccr, onCcrChange,
-  ccrTrustedRequesterCAs, onRemoveCcrTrustedRequesterCa, onAddCcrTrustedRequesterCa,
+  genm, ccrTrustedRequesterCAs, onRemoveCcrTrustedRequesterCa, onAddCcrTrustedRequesterCa,
   availableProfiles = [], enrollmentGeneralSection,
 }: CmpPlannedOperationTabsProps) {
   // These three overrides are LIVE (enforced by the backend for ir/cr):
@@ -552,6 +616,63 @@ export function CmpPlannedOperationTabs({
       </div>
     </div>
   );
+
+  // Per-information-type settings, rendered inside that type's gate. Only the
+  // types whose response has something to configure have any: caCerts picks
+  // which CA certificates go in the response (what used to be the separate "CA
+  // Distribution" section), preferredSymmAlg picks the advertised cipher.
+  const genmInfoTypeSettings = (key: keyof CmpGenmInformationTypes): React.ReactNode => {
+    switch (key) {
+      case 'ca_certificates':
+        return (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="cmpIncludeDownstreamCA">Include Downstream CA</Label>
+                <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the caCerts response.</p>
+              </div>
+              <Switch id="cmpIncludeDownstreamCA" checked={genm.includeDownstreamCA} onCheckedChange={genm.onIncludeDownstreamCAChange} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="cmpIncludeEnrollmentCA">Include Enrollment CA</Label>
+                <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the caCerts response.</p>
+              </div>
+              <Switch id="cmpIncludeEnrollmentCA" checked={genm.includeEnrollmentCA} onCheckedChange={genm.onIncludeEnrollmentCAChange} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Managed CAs</Label>
+              <div className="space-y-2">
+                {genm.managedCAs.length > 0 ? genm.managedCAs.map((ca) => (
+                  <div key={ca.id} className="flex items-center gap-2 group">
+                    <CaVisualizerCard ca={ca} allCryptoEngines={kur.allCryptoEngines} className="flex-grow shadow-none border-border" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => genm.onRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
+              </div>
+              <Button type="button" variant="secondary" onClick={genm.onAddManagedCa}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+              </Button>
+            </div>
+          </>
+        );
+      case 'preferred_symmetric_algorithm':
+        return (
+          <PlannedRow label="Algorithm advertised in the response" description="The symmetric cipher clients are told to use for CMS content encryption.">
+            <Select value={genm.preferredSymmetricAlgorithm} onValueChange={(v: CmpPreferredSymmetricAlgorithm) => genm.onPreferredSymmetricAlgorithmChange(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PREFERRED_SYMM_ALG_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PlannedRow>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
@@ -917,6 +1038,55 @@ export function CmpPlannedOperationTabs({
             </SettingsSection>
           </>
         )}
+      </TabsContent>
+
+      {/* ── General Messages (GENM/GENP) ── Same shape as the Enrollment tab:
+          the operation's own gate first, then one section per id-it
+          information type it can answer, each with its own gate and — where
+          the type has a payload to shape — its settings behind it. */}
+      <TabsContent value="genm" className="mt-6">
+        <SettingsSection
+          title="General Messages"
+          description={<>Informational CMP queries (<RfcLink rfc={9483} section="4.3" />). Every information type below is served through this operation, so turning it off disables all of them.</>}
+        >
+          <CmpOperationGate
+            id="cmpGenmEnabled"
+            label="Enable CMP general message operation"
+            description="Accept genm requests on this DMS."
+            disabledNote="General messages are off — every genm request is rejected, including caCerts. Clients cannot discover this DMS's CA certificates or capabilities over CMP."
+            checked={genm.enabled}
+            onCheckedChange={genm.onEnabledChange}
+          >
+            <PlannedRow label="Access policy" description="Who may send a general message to this DMS.">
+              <Select value={genm.accessPolicy} onValueChange={(v: CmpGenmAccessPolicy) => genm.onAccessPolicyChange(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public_discovery">Public discovery</SelectItem>
+                  <SelectItem value="require_signed">Require signed CMP message</SelectItem>
+                </SelectContent>
+              </Select>
+            </PlannedRow>
+          </CmpOperationGate>
+        </SettingsSection>
+
+        {genm.enabled && GENM_INFO_TYPES.filter((t) => t.live).map((t) => (
+          <React.Fragment key={t.key}>
+            <Separator />
+
+            <SettingsSection title={operationTitle(t.oid, t.title, { uppercase: false })} description={t.description}>
+              <CmpOperationGate
+                id={`cmpGenm-${t.key}`}
+                label={t.switchLabel}
+                description={t.switchDescription}
+                disabledNote={t.disabledNote}
+                checked={genm.informationTypes[t.key]}
+                onCheckedChange={(v) => genm.onInformationTypesChange({ ...genm.informationTypes, [t.key]: v })}
+              >
+                {genmInfoTypeSettings(t.key)}
+              </CmpOperationGate>
+            </SettingsSection>
+          </React.Fragment>
+        ))}
       </TabsContent>
     </>
   );
