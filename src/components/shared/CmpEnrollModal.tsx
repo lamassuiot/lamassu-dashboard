@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
     Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info, ShieldCheck, Cpu, Server as ServerIcon,
+    FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
@@ -43,6 +44,12 @@ import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import type { CmpPopoMethod, CmpRevocationReason, CmpGenmInformationTypes } from '@/lib/dms-api';
 import { RfcLink } from './RfcLink';
 import { CardSelector, type CardSelectorOption } from './CardSelector';
+import { cmpRevocationReasons, findCmpRevocationReason } from '@/lib/revocation-reasons';
+import { ScrollArea } from '../ui/scroll-area';
+import { CertificateSelectorModal } from './CertificateSelectorModal';
+import { ApiStatusBadge } from './ApiStatusBadge';
+import { IdentifierDisplay } from './IdentifierDisplay';
+import { DateDisplay } from './DateDisplay';
 
 // Standalone recovery script for RFC 9483 §4.1.6 central key generation:
 // openssl cmp's own -newkeyout auto-extraction only understands a bare
@@ -650,18 +657,17 @@ const CRMF_POPO_METHODS: CmpPopoMethod[] = [
     'challenge_response',
 ];
 
-// RFC 5280 CRLReason codes for `openssl cmp -revreason`, keyed by the DMS's
-// CmpRevocationReason names (the backend's cmpRevocationReasonName maps codes
-// 0–5 back to these). Used to pin an rr to a reason the DMS's
-// rr.allowed_reasons actually permits.
-const REVOCATION_REASON_CODE: Record<CmpRevocationReason, number> = {
-    unspecified: 0,
-    key_compromise: 1,
-    ca_compromise: 2,
-    affiliation_changed: 3,
-    superseded: 4,
-    cessation_of_operation: 5,
-};
+// The rr reason picker uses the same shared reason list, labels and
+// description panel as the certificate Revocation dialog — see
+// cmpRevocationReasons in lib/revocation-reasons.ts, which also carries the
+// RFC 5280 CRLReason code this passes to `openssl cmp -revreason`.
+function revocationReasonLabel(reason: CmpRevocationReason): string {
+    return findCmpRevocationReason(reason)?.label ?? reason;
+}
+
+// Module-level so the certificate selector's seed effect can't loop on a fresh
+// array identity each render.
+const ACTIVE_STATUS_FILTER = ['ACTIVE'] as const;
 
 function encodeToBase64(pem: string): string {
     if (!pem.trim()) return '';
@@ -740,13 +746,20 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // convention (<deviceId>.crt/.key) rather than selecting one to fetch here.
     const [deviceCerts, setDeviceCerts] = useState<CertificateData[]>([]);
     const [isLoadingDeviceCerts, setIsLoadingDeviceCerts] = useState(false);
-    // Serial of the existing cert the step-3 picker targets — the cert KUR
-    // renews or (when RR is the chosen operation) the cert RR revokes. Empty ⇒
-    // none selected (command falls back to a placeholder the operator fills in).
-    const [existingCertSerial, setExistingCertSerial] = useState('');
+    // The existing cert the step-3 picker targets — the cert KUR renews or
+    // (when RR is the chosen operation) the cert RR revokes. null ⇒ none
+    // selected (command falls back to a placeholder the operator fills in).
+    // Held as the full record, not just a serial, so the picked certificate can
+    // be shown with its subject and validity.
+    const [existingCert, setExistingCert] = useState<CertificateData | null>(null);
+    const [isExistingCertSelectorOpen, setIsExistingCertSelectorOpen] = useState(false);
+    const existingCertSerial = existingCert?.serialNumber ?? '';
     // Serial the step-5 RR *companion* revokes (only shown for ir/cr/kur/p10cr).
     // Empty ⇒ the certificate the enrollment command above just issued.
     const [revokeCertSerial, setRevokeCertSerial] = useState('');
+    // CRLReason the rr carries via -revreason. 'none' leaves the flag off,
+    // which is openssl's default and reads as unspecified/0 at the DMS.
+    const [rrRevReason, setRrRevReason] = useState<CmpRevocationReason | 'none'>('none');
 
     // Existing devices registered under this RA, so step 1 can offer picking
     // one (useful for kur/rr, which act on a device that already enrolled)
@@ -797,8 +810,8 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                 // Default the KUR selection to the most recent cert; also reset
                 // if the previously-selected serial isn't in the new list (e.g.
                 // the device id changed), so we never keep a stale selection.
-                setExistingCertSerial((prev) =>
-                    leaves.some((c) => c.serialNumber === prev) ? prev : (leaves[0]?.serialNumber ?? ''));
+                setExistingCert((prev) =>
+                    leaves.find((c) => c.serialNumber === prev?.serialNumber) ?? leaves[0] ?? null);
                 setRevokeCertSerial((prev) =>
                     leaves.some((c) => c.serialNumber === prev) ? prev : '');
             } catch {
@@ -1290,15 +1303,27 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     );
 
     // rr: openssl omits a reason by default (→ the DMS reads it as
-    // unspecified/0). If rr.allowed_reasons is restricted and excludes
-    // unspecified, pin an explicit -revreason to the first allowed reason so the
-    // rr isn't rejected.
+    // unspecified/0). The operator picks one below; an empty/unset
+    // rr.allowed_reasons means the DMS accepts them all.
     const rrAllowedReasons = cmp?.rr?.allowed_reasons ?? [];
-    const rrReason: CmpRevocationReason | undefined =
-        rrAllowedReasons.length === 0 || rrAllowedReasons.includes('unspecified')
-            ? undefined
-            : rrAllowedReasons[0];
-    const rrReasonCode = rrReason ? REVOCATION_REASON_CODE[rrReason] : undefined;
+    const rrSelectableReasons = cmpRevocationReasons
+        .filter((r) => rrAllowedReasons.length === 0 || rrAllowedReasons.includes(r.cmpName));
+    // Omitting the flag only works when the DMS actually permits unspecified.
+    const rrReasonOmittable = rrAllowedReasons.length === 0 || rrAllowedReasons.includes('unspecified');
+    // Falls back to the first allowed reason when the operator left the choice
+    // at "no reason" but this DMS excludes unspecified — otherwise the rr would
+    // be rejected — and likewise if a previously-picked reason is no longer
+    // allowed (the RA's allowed_reasons changed under the open sheet).
+    const rrPickedReason = rrRevReason !== 'none' && rrSelectableReasons.some((r) => r.cmpName === rrRevReason)
+        ? rrRevReason
+        : undefined;
+    const rrReason: CmpRevocationReason | undefined = rrPickedReason
+        ?? (rrReasonOmittable ? undefined : rrSelectableReasons[0]?.cmpName);
+    // True when the reason shown wasn't the operator's choice but a fallback,
+    // so the generated command can say why it is there.
+    const rrReasonWasPinned = rrReason !== undefined && rrPickedReason === undefined;
+    const rrReasonDetails = rrReason ? findCmpRevocationReason(rrReason) : undefined;
+    const rrReasonCode = rrReasonDetails?.code;
 
     const deviceKeyCmd = deviceKeygenType === 'RSA'
         ? `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${deviceKeygenSpec} -out ${finalDeviceId}.key`
@@ -1550,7 +1575,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     // other enrollment operations write "<id>.crt")
     // — which the operator has in hand — but can instead target any of the
     // device's existing issued certs (revokeCertSerial). Either "fetch an
-    // existing cert" case supplies the device-held key as revokecert.key.
+    // existing cert" case supplies the device-held key as <deviceId>.key.
     const rrIsPrimary = selectedOperation === 'rr';
     const rrSelectedSerial = rrIsPrimary ? existingCertSerial : revokeCertSerial;
     const rrUsesSelectedCert = rrIsPrimary || revokeCertSerial !== '';
@@ -1579,16 +1604,25 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
             `# Authenticated by the certificate being revoked TOGETHER WITH the private`,
             `# key it was issued for — a matching pair the device holds (the dashboard`,
             `# cannot supply the key). openssl refuses with "cert and key do not match"`,
-            `# if REVCERT and REVKEY are not a pair. Point them at that cert and its key:`,
-            `REVCERT=revokecert.crt`,
-            `REVKEY=revokecert.key`,
+            `# if REVCERT and REVKEY are not a pair.`,
+            `#`,
+            `# Point these at the device's CURRENT matching cert+key. If it enrolled`,
+            `# via the IR command here, they are ${finalDeviceId}.crt / ${finalDeviceId}.key.`,
+            `# After a renewal, its current key is the -new.key that run produced —`,
+            `# set REVKEY to that (and REVCERT to its cert) instead.`,
+            `REVCERT=${finalDeviceId}.crt`,
+            `REVKEY=${finalDeviceId}.key`,
             `#`,
             `# If you don't have the certificate file, fetch the selected cert`,
             `# (uncomment — its REVKEY must be the key this cert was issued for):`,
             rrRevFetchCommented,
             ``,
         ] : []),
-        ...(rrReason ? [`# This DMS restricts revocation reasons; pinned to "${rrReason}" (-revreason ${rrReasonCode}).`] : []),
+        ...(rrReason
+            ? [rrReasonWasPinned
+                ? `# This DMS restricts revocation reasons; pinned to "${revocationReasonLabel(rrReason)}" (-revreason ${rrReasonCode}).`
+                : `# CRLReason carried by this request: ${revocationReasonLabel(rrReason)} (-revreason ${rrReasonCode}).`]
+            : [`# No -revreason flag: openssl omits the CRLReason, which the DMS reads as unspecified (0).`]),
         ...(!rrUsesSelectedCert ? [`# Authenticated and identified by the cert the command above issued.`] : []),
         `openssl cmp \\`,
         `    -cmd rr \\`,
@@ -1639,6 +1673,10 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
     const stepThreeShowsBootstrapForm = selectedOperation === 'genm'
         ? genmUsesIssuedCert
         : selectedOperation !== 'cr' && requiresClientCert;
+    // KUR and RR authenticate with a certificate the device already holds, so
+    // step 3 picks that certificate instead of issuing a bootstrap one — there
+    // is nothing to issue and nothing to skip, and Next goes to the commands.
+    const stepThreeShowsExistingCertPicker = selectedOperation === 'kur' || selectedOperation === 'rr';
     const genmInformationTypes = cmp?.genm?.information_types;
     const genmEnabledCommands = GENM_INFOTYPE_COMMANDS.filter((t) => genmInformationTypes?.[t.key]);
     // The genm/genp step lets the operator pick ONE of the id-it types this RA
@@ -2076,7 +2114,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
 
                     {step === 3 && (
                         <div className="space-y-4">
-                            {(selectedOperation === 'kur' || selectedOperation === 'rr') ? (
+                            {stepThreeShowsExistingCertPicker ? (
                                 <div className="space-y-2">
                                     <Label htmlFor="cmp-renew-cert">Certificate to {selectedOperation === 'rr' ? 'revoke' : 'renew'}</Label>
                                     <p className="text-xs text-muted-foreground">
@@ -2105,17 +2143,100 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                             </AlertDescUI>
                                         </Alert>
                                     )}
-                                    {!isLoadingDeviceCerts && deviceCerts.length > 0 && (
-                                        <Select value={existingCertSerial} onValueChange={setExistingCertSerial}>
-                                            <SelectTrigger id="cmp-renew-cert"><SelectValue placeholder="Select a certificate…" /></SelectTrigger>
-                                            <SelectContent>
-                                                {deviceCerts.map((c) => (
-                                                    <SelectItem key={c.serialNumber} value={c.serialNumber}>
-                                                        {c.serialNumber}{c.validTo ? ` — expires ${c.validTo.slice(0, 10)}` : ''}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                    {!isLoadingDeviceCerts && (
+                                        existingCert ? (
+                                            <div className="rounded-md border bg-muted/20">
+                                                <div className="flex items-start gap-3 p-3">
+                                                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                                    <div className="min-w-0 flex-1 space-y-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="truncate text-sm font-medium" title={existingCert.subject}>
+                                                                {existingCert.subject || existingCert.serialNumber}
+                                                            </p>
+                                                            <ApiStatusBadge status={existingCert.apiStatus} />
+                                                        </div>
+                                                        <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-[64px_minmax(0,1fr)]">
+                                                            <span className="text-muted-foreground/80">Serial</span>
+                                                            <IdentifierDisplay value={existingCert.serialNumber} className="min-w-0 truncate font-mono text-xs" />
+                                                            {existingCert.validTo && (
+                                                                <>
+                                                                    <span className="text-muted-foreground/80">Expires</span>
+                                                                    <DateDisplay date={existingCert.validTo} className="min-w-0 truncate" />
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="border-t px-3 py-2">
+                                                    <Button type="button" variant="secondary" size="sm" onClick={() => setIsExistingCertSelectorOpen(true)}>
+                                                        Change certificate
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <Button type="button" variant="outline" className="w-full justify-start font-normal" onClick={() => setIsExistingCertSelectorOpen(true)}>
+                                                Select certificate…
+                                            </Button>
+                                        )
+                                    )}
+                                    {selectedOperation === 'rr' && (
+                                        <div className="space-y-2 border-t pt-4">
+                                            <Label htmlFor="cmp-rev-reason" className="text-base">Revocation Reason</Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                The X.509 CRLReason the request carries as{' '}
+                                                <code className="font-mono">-revreason</code>.
+                                                {rrAllowedReasons.length > 0
+                                                    ? ' Only the reasons this DMS accepts are listed.'
+                                                    : ' This DMS accepts any reason.'}
+                                            </p>
+                                            <Select value={rrRevReason} onValueChange={(v) => setRrRevReason(v as CmpRevocationReason | 'none')}>
+                                                <SelectTrigger id="cmp-rev-reason" className="w-full mt-1">
+                                                    <SelectValue placeholder="Select a reason..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <ScrollArea className="h-60">
+                                                        <SelectItem value="none">No reason included</SelectItem>
+                                                        {rrSelectableReasons.map((r) => (
+                                                            <SelectItem key={r.cmpName} value={r.cmpName}>
+                                                                {r.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </ScrollArea>
+                                                </SelectContent>
+                                            </Select>
+                                            {/* Describes the reason the command will actually carry, so a
+                                                pinned fallback shows its own details rather than "no reason"
+                                                — the warning below then explains why it was pinned. */}
+                                            <div className="mt-2 p-3 bg-muted/50 border rounded-md">
+                                                {!rrReasonDetails ? (
+                                                    <>
+                                                        <p className="text-sm font-medium text-foreground">No reason included</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            openssl omits the <code className="font-mono">-revreason</code> flag, which the
+                                                            DMS reads as Unspecified (0).
+                                                        </p>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <p className="text-sm font-medium text-foreground">
+                                                            {rrReasonDetails.label} <span className="font-mono text-xs text-muted-foreground">(-revreason {rrReasonDetails.code})</span>
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">{rrReasonDetails.description}</p>
+                                                    </>
+                                                )}
+                                            </div>
+                                            {rrReasonWasPinned && rrReason && (
+                                                <Alert variant="warning">
+                                                    <AlertTriangle className="h-4 w-4" />
+                                                    <AlertDescUI className="text-xs">
+                                                        This DMS does not accept <code className="font-mono">unspecified</code>, so
+                                                        omitting the reason would be rejected — the command pins{' '}
+                                                        <code className="font-mono">-revreason {rrReasonCode}</code>{' '}
+                                                        ({revocationReasonLabel(rrReason)}) instead. Pick one explicitly to override.
+                                                    </AlertDescUI>
+                                                </Alert>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             ) : stepThreeShowsBootstrapForm ? (
@@ -2350,7 +2471,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                     {selectedOperation === 'rr'
                                         ? <>Revoke the selected certificate. Authenticated by that certificate&apos;s private
                                             key, which the device holds — supply it as{' '}
-                                            <code className="font-mono">revokecert.key</code>. No new certificate is issued.</>
+                                            <code className="font-mono">$REVKEY</code>. No new certificate is issued.</>
                                         : selectedOperation === 'kur'
                                         ? <>Renew an existing device certificate with a fresh key. The previously-issued
                                             cert authenticates the request — the enrollment CA must be in{' '}
@@ -2538,7 +2659,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                                 <ArrowLeft className="mr-2 h-4 w-4" />Back
                             </Button>
                         )}
-                        {step === 3 && stepThreeShowsBootstrapForm && selectedOperation !== 'kur' && (
+                        {step === 3 && stepThreeShowsBootstrapForm && !stepThreeShowsExistingCertPicker && (
                             <Button variant="secondary" onClick={handleSkipBootstrap}>
                                 Skip &amp; Use Existing
                             </Button>
@@ -2547,7 +2668,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                             <Button onClick={handleNext} disabled={isGenerating}>
                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 {step === 3
-                                    ? (selectedOperation === 'kur' ? 'Show Commands'
+                                    ? (stepThreeShowsExistingCertPicker ? 'Show Commands'
                                         : selectedOperation === 'genm' ? 'Issue Certificate'
                                         : requiresClientCert ? 'Issue Bootstrap Cert' : 'Next')
                                     : step === 4 ? 'Show Commands' : 'Next'}
@@ -2558,6 +2679,24 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
                     </div>
                 </div>
             </DialogFooter>
+
+            {/* Opens pre-filtered to this device's ACTIVE certificates — the only
+                ones a kur/rr can act on — but the filter bar stays editable so the
+                operator can reach a cert issued under a different subject. */}
+            <CertificateSelectorModal
+                isOpen={isExistingCertSelectorOpen}
+                onOpenChange={setIsExistingCertSelectorOpen}
+                title={selectedOperation === 'rr' ? 'Select Certificate to Revoke' : 'Select Certificate to Renew'}
+                description={`Certificates issued to CN=${finalDeviceId}. The device must hold the matching private key.`}
+                currentSelectedCertificateId={existingCert?.serialNumber ?? null}
+                onCertificateSelected={(certificate) => {
+                    setExistingCert(certificate);
+                    setIsExistingCertSelectorOpen(false);
+                }}
+                initialSearchTerm={finalDeviceId}
+                initialSearchField="commonName"
+                initialStatusFilters={ACTIVE_STATUS_FILTER}
+            />
         </>
     );
 
