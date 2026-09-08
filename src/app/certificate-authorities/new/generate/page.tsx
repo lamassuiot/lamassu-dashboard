@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -31,7 +31,9 @@ import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { FormFieldError, FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
+import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -98,7 +100,6 @@ export default function CreateCaGeneratePage() {
   const [caExpiration, setCaExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '10y' });
 
   // CA Certificate Profile state (for the CA's own certificate)
-  type CaProfileMode = 'none' | 'reuse' | 'inline';
   const [caProfileMode, setCaProfileMode] = useState<CaProfileMode>('none');
   const [selectedCaProfileId, setSelectedCaProfileId] = useState<string | null>(null);
   const [caProfileWarning, setCaProfileWarning] = useState<string | null>(null);
@@ -134,9 +135,7 @@ export default function CreateCaGeneratePage() {
     ...(!caName.trim() ? ['CA Settings: CA Name is required.'] : []),
     ...(!cryptoEngineId ? ['Key Pair Generation: Crypto Engine is required.'] : []),
     ...(!keySpec ? ['Key Pair Generation: Key Specification is required.'] : []),
-    ...(profileMode === 'reuse' && !selectedProfileId ? ['Default Issuance Profile: select an issuance profile.'] : []),
-    ...(profileMode === 'create' ? ['Default Issuance Profile: create and select the new profile before creating the CA.'] : []),
-    ...(caProfileMode === 'inline' ? inlineCaProfileErrors.map((error) => `CA Certificate Profile: ${error}`) : []),
+    ...getIssuanceProfileValidationErrors({ profileMode, selectedProfileId, caProfileMode, inlineCaProfileErrors }),
   ];
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
 
@@ -765,17 +764,13 @@ export default function CreateCaGeneratePage() {
           </div>
         </div>
 
-        <Separator />
-
-        <div className="space-y-3 pt-6">
-          <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
-          <div className="flex justify-end">
-            <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
-            </Button>
-          </div>
-        </div>
+        <FormSubmitFooter
+          errors={validationErrors}
+          warnings={validationWarnings}
+          isSubmitting={isSubmitting}
+          idleLabel="Create Certification Authority"
+          submittingLabel="Creating..."
+        />
       </form>
 
       <CaSelectorModal

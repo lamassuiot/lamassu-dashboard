@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines, type ApiKmsKey } from '@/lib/kms-data';
@@ -30,7 +30,9 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { add, format } from 'date-fns';
 import type { CreateSigningProfilePayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { FormFieldError, FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
+import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -55,7 +57,6 @@ export default function CreateCaExistingKeyPage() {
 
   const [caExpiration, setCaExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '10y' });
 
-  type CaProfileMode = 'none' | 'reuse' | 'inline';
   const [caProfileMode, setCaProfileMode] = useState<CaProfileMode>('none');
   const [selectedCaProfileId, setSelectedCaProfileId] = useState<string | null>(null);
   const [caProfileWarning, setCaProfileWarning] = useState<string | null>(null);
@@ -83,9 +84,7 @@ export default function CreateCaExistingKeyPage() {
     ...(!selectedKeyId ? ['KMS Key: select an existing key pair.'] : []),
     ...(caType === 'intermediate' && !selectedParentCa ? ['CA Settings: Parent Certification Authority is required for an intermediate CA.'] : []),
     ...(!caName.trim() ? ['CA Settings: CA Name is required.'] : []),
-    ...(profileMode === 'reuse' && !selectedProfileId ? ['Default Issuance Profile: select an issuance profile.'] : []),
-    ...(profileMode === 'create' ? ['Default Issuance Profile: create and select the new profile before creating the CA.'] : []),
-    ...(caProfileMode === 'inline' ? inlineCaProfileErrors.map((error) => `CA Certificate Profile: ${error}`) : []),
+    ...getIssuanceProfileValidationErrors({ profileMode, selectedProfileId, caProfileMode, inlineCaProfileErrors }),
   ];
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
 
@@ -659,17 +658,13 @@ export default function CreateCaExistingKeyPage() {
             </div>
           </div>
 
-          <Separator />
-
-          <div className="space-y-3 pt-6">
-            <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
-              </Button>
-            </div>
-          </div>
+          <FormSubmitFooter
+            errors={validationErrors}
+            warnings={validationWarnings}
+            isSubmitting={isSubmitting}
+            idleLabel="Create Certification Authority"
+            submittingLabel="Creating..."
+          />
         </form>
 
         <CaSelectorModal
