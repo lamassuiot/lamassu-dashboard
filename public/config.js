@@ -39,6 +39,13 @@ window.lamassuConfig = {
     
     // The OIDC client ID registered with your provider for this frontend application.
     LAMASSU_AUTH_CLIENT_ID: "frontend",
+
+    // --- AI Chatbot (OpenAI-compatible provider) ---
+    // Leave the API key empty to use the private in-browser WebLLM fallback.
+    // WARNING: config.js is public. Every UI user can inspect a key configured here.
+    LAMASSU_OPENAI_API_KEY: "sk-ncT7Fh4rAKaBqKsCsT_Dyg",
+    LAMASSU_OPENAI_BASE_URL: "https://ai.ikerlan.es/v1",
+    LAMASSU_OPENAI_MODEL: "kimi-k3",
       
     // --- UI Customization ---
     // Set to true to enable loading of a custom footer from /public/footer.html

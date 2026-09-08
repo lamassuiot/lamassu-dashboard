@@ -13,7 +13,9 @@ import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Input } from "@/components/ui/input";
 
 interface KmsKeySelectorProps {
-  value?: string; // Selected key ID (pkcs11_uri)
+  id?: string;
+  value?: string; // Selected key identifier (PKCS#11 URI by default)
+  valueType?: 'key-id' | 'pkcs11-uri';
   onValueChange: (keyId: string, keyData: ApiKmsKey) => void;
   allCryptoEngines: ApiCryptoEngine[];
   disabled?: boolean;
@@ -23,7 +25,9 @@ interface KmsKeySelectorProps {
 }
 
 export function KmsKeySelector({
+  id,
   value,
+  valueType = 'pkcs11-uri',
   onValueChange,
   allCryptoEngines,
   disabled = false,
@@ -37,7 +41,11 @@ export function KmsKeySelector({
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const selectedKey = keys.find(k => k.pkcs11_uri === value);
+  const getKeyValue = useCallback(
+    (key: ApiKmsKey) => valueType === 'key-id' ? key.key_id : key.pkcs11_uri,
+    [valueType],
+  );
+  const selectedKey = keys.find((key) => getKeyValue(key) === value);
   const selectedEngine = selectedKey ? allCryptoEngines.find(e => e.id === selectedKey.engine_id) : null;
 
   const loadKeys = useCallback(async () => {
@@ -73,7 +81,7 @@ export function KmsKeySelector({
   }, [isModalOpen, loadKeys]);
 
   const handleSelectKey = (key: ApiKmsKey) => {
-    onValueChange(key.pkcs11_uri, key);
+    onValueChange(getKeyValue(key), key);
     setIsModalOpen(false);
   };
 
@@ -86,6 +94,7 @@ export function KmsKeySelector({
   return (
     <>
       <Button
+        id={id}
         type="button"
         variant="secondary"
         onClick={() => setIsModalOpen(true)}
@@ -158,7 +167,7 @@ export function KmsKeySelector({
                 <TableBody>
                   {filteredKeys.map((key) => {
                     const engine = allCryptoEngines.find(e => e.id === key.engine_id);
-                    const isSelected = value === key.pkcs11_uri;
+                    const isSelected = value === getKeyValue(key);
                     return (
                       <TableRow
                         key={key.pkcs11_uri}

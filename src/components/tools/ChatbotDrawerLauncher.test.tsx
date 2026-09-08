@@ -23,11 +23,11 @@ describe('ChatbotDrawerLauncher', () => {
   it('opens as a side panel and can switch to fullscreen without remounting the chat', () => {
     render(<ChatbotDrawerLauncher />);
 
-    const launcher = screen.getByRole('button', { name: 'AI Chat' });
-    expect(launcher).toHaveClass('h-9');
+    const launcher = screen.getByRole('button', { name: 'AI Assistant' });
+    expect(launcher).toHaveClass('h-8');
 
     fireEvent.click(launcher);
-    const chat = screen.getByRole('complementary', { name: 'AI Chatbot' });
+    const chat = screen.getByRole('complementary', { name: 'AI Assistant' });
     expect(chat).not.toHaveClass('fixed');
 
     fireEvent.click(screen.getByRole('button', { name: 'Open fullscreen' }));
@@ -42,9 +42,9 @@ describe('ChatbotDrawerLauncher', () => {
     mockViewport(true);
     render(<ChatbotDrawerLauncher />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'AI Chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'AI Assistant' }));
 
-    expect(screen.getByRole('complementary', { name: 'AI Chatbot' }))
+    expect(screen.getByRole('complementary', { name: 'AI Assistant' }))
       .toHaveClass('fixed', 'inset-0', 'h-dvh', 'w-full');
   });
 });

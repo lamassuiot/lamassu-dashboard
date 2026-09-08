@@ -4,8 +4,6 @@
 import React, { useState } from 'react';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -25,6 +23,7 @@ import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { Alert } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
+import { SigningProfileSelect } from './SigningProfileSelect';
 
 
 export type ProfileMode = 'reuse' | 'inline' | 'create';
@@ -61,7 +60,6 @@ interface SigningProfileSelectorProps {
   createModeEnabled?: boolean;
   onProfileCreated?: (newProfile: ApiSigningProfile) => void;
 }
-
 
 export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   profileMode,
@@ -219,14 +217,12 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="profile-select">Issuance Profile</Label>
-            {isLoadingProfiles ? ( <Skeleton className="h-10 w-full md:w-1/2" /> ) : (
-              <Select value={selectedProfileId || ''} onValueChange={(v) => onProfileIdChange(v)}>
-                <SelectTrigger id="profile-select" className="w-full md:w-1/2"><SelectValue placeholder="Select a profile..." /></SelectTrigger>
-                <SelectContent>
-                  {availableProfiles.length > 0 ? ( availableProfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>) ) : ( <SelectItem value="none" disabled>No profiles available</SelectItem> )}
-                </SelectContent>
-              </Select>
-            )}
+            <SigningProfileSelect
+              availableProfiles={availableProfiles}
+              isLoading={isLoadingProfiles}
+              onProfileIdChange={onProfileIdChange}
+              selectedProfileId={selectedProfileId}
+            />
           </div>
           {selectedProfile && (
             <div className="pt-2"><IssuanceProfileCard profile={selectedProfile} /></div>

@@ -19,13 +19,14 @@ const SECURITY_LEVEL_LABEL: Record<number, { label: string; cls: string }> = {
 };
 
 interface CryptoEngineSelectorProps {
+  id?: string;
   value: string | undefined;
   onValueChange: (engineId: string | undefined) => void;
   disabled?: boolean;
   className?: string;
 }
 
-export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ value, onValueChange, disabled, className }) => {
+export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ id, value, onValueChange, disabled, className }) => {
   const [engines, setEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
   const [errorEngines, setErrorEngines] = useState<string | null>(null);
@@ -89,6 +90,7 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ valu
     <Popover open={open} onOpenChange={disabled ? undefined : setOpen}>
       <PopoverTrigger asChild>
         <button
+          id={id}
           type="button"
           disabled={disabled}
           className={cn(

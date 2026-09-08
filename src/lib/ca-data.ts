@@ -619,14 +619,22 @@ export interface CreateCertificatePayload {
     metadata?: Record<string, any>;
 }
 
-export async function createCertificate(payload: CreateCertificatePayload, accessToken: string): Promise<any> {
+export interface CreateCertificateResponse {
+    certificate?: string;
+    serial_number?: string;
+}
+
+export async function createCertificate(
+    payload: CreateCertificatePayload,
+    accessToken?: string,
+): Promise<CreateCertificateResponse> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
         },
-        auth: false,
+        auth: !accessToken,
         body: JSON.stringify(payload),
     });
     return handleApiError(response, 'Failed to create certificate');

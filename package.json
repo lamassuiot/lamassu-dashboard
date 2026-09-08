@@ -68,6 +68,7 @@
     "firebase": "^11.8.1",
     "genson-js": "^0.0.8",
     "html-to-image": "^1.11.13",
+    "json5": "^2.2.3",
     "jsonpath-plus": "^10.3.0",
     "jsonschema": "^1.4.0",
     "jwt-decode": "^4.0.0",

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/ca-data', () => ({
+  createCertificate: vi.fn(),
   deleteCa: vi.fn(),
   deleteSigningProfile: vi.fn(),
   fetchAndProcessCAs: vi.fn(),
@@ -92,6 +93,8 @@ function readToolPayload(content: unknown) {
     ok: boolean;
     result?: Record<string, any>;
     error?: string;
+    input_required?: boolean;
+    missing_parameters?: string[];
   };
 }
 
@@ -112,6 +115,7 @@ describe('chat tool API contracts', () => {
       'get_certificate_authority_summary',
       'list_certificates',
       'get_certificate',
+      'issue_certificate',
       'get_expiring_certificates',
       'check_certificate_status',
       'list_signing_profiles',
@@ -133,6 +137,7 @@ describe('chat tool API contracts', () => {
     expect(CHAT_TOOL_COUNT).toBe(expectedTools.length);
     expectedTools.forEach((name) => expect(catalog).toContain(name));
     expect(expectedTools.filter(isDestructiveTool)).toEqual([
+      'issue_certificate',
       'decommission_device',
       'delete_device',
       'delete_registration_authority',
@@ -262,6 +267,149 @@ describe('chat tool API contracts', () => {
       fingerprint_sha256: '11:22',
       ocsp_urls: ['http://ocsp.example.com'],
     });
+  });
+
+  it('issues a managed certificate with the exact payload used by the Create Certificate screen', async () => {
+    const pem = '-----BEGIN CERTIFICATE-----\nissued\n-----END CERTIFICATE-----';
+    vi.mocked(caData.createCertificate).mockResolvedValue({
+      certificate: btoa(pem),
+      serial_number: '12:34',
+    });
+
+    const { invocation, toolMessage } = await execute('issue_certificate', {
+      ca_id: 'issuer-ca',
+      common_name: 'device.example.com',
+      organization: 'Acme Devices',
+      key_mode: 'generate',
+      key_type: 'ECDSA',
+      ecdsa_curve: 'P-384',
+      engine_id: 'engine-1',
+      profile_id: 'profile-1',
+    });
+
+    expect(caData.createCertificate).toHaveBeenCalledWith({
+      ca_id: 'issuer-ca',
+      key_spec: { type: 'ECDSA', bits: 384, engine_id: 'engine-1' },
+      subject: {
+        common_name: 'device.example.com',
+        organization: 'Acme Devices',
+      },
+      issuance_profile_id: 'profile-1',
+    });
+    expect(invocation).toMatchObject({
+      destructive: true,
+      confirmationTitle: 'Issue certificate for device.example.com with CA issuer-ca?',
+    });
+    expect(readToolPayload(toolMessage.content).result).toMatchObject({
+      serial_number: '12:34',
+      certificate_pem: pem,
+      key_mode: 'generate',
+      key_identifier: null,
+    });
+  });
+
+  it('matches the Create Certificate inline profile and existing-key payload', async () => {
+    vi.mocked(caData.createCertificate).mockResolvedValue({ serial_number: '56:78' });
+
+    await execute('issue_certificate', {
+      ca_id: 'issuer-ca',
+      common_name: 'sub-ca.example.com',
+      key_mode: 'reuse',
+      key_identifier: 'kms-key-1',
+      is_ca: true,
+      validity_duration: '1y6m',
+    });
+
+    expect(caData.createCertificate).toHaveBeenCalledWith({
+      ca_id: 'issuer-ca',
+      key_spec: { key_identifier: 'kms-key-1' },
+      subject: { common_name: 'sub-ca.example.com' },
+      issuance_profile: {
+        validity: { type: 'Duration', duration: '1y6m' },
+        sign_as_ca: true,
+        honor_key_usage: false,
+        key_usage: ['CertSign', 'CRLSign'],
+        honor_extended_key_usages: false,
+        extended_key_usages: [],
+      },
+    });
+  });
+
+  it('requests missing certificate inputs and rejects invalid supplied values before calling the API', async () => {
+    const missingKey = await execute('issue_certificate', {
+      ca_id: 'issuer-ca',
+      common_name: 'device.example.com',
+      key_mode: 'reuse',
+    });
+    const invalidDuration = await execute('issue_certificate', {
+      ca_id: 'issuer-ca',
+      common_name: 'device.example.com',
+      validity_duration: 'next year',
+    });
+
+    expect(missingKey.invocation.status).toBe('pending');
+    expect(missingKey.invocation.inputRequest?.missingParameters).toEqual(['key_identifier']);
+    expect(readToolPayload(missingKey.toolMessage.content)).toMatchObject({
+      ok: false,
+      input_required: true,
+      missing_parameters: ['key_identifier'],
+    });
+    expect(invalidDuration.invocation.status).toBe('error');
+    expect(invalidDuration.invocation.error).toContain('validity_duration');
+    expect(caData.createCertificate).not.toHaveBeenCalled();
+  });
+
+  it('creates schema-driven input requests for read and mutating tools with missing required values', async () => {
+    const readTool = await execute('get_device');
+    const mutatingTool = await execute('delete_certificate_authority');
+
+    expect(readTool.invocation).toMatchObject({
+      status: 'pending',
+      destructive: undefined,
+      inputRequest: {
+        missingParameters: ['deviceId'],
+        fields: [expect.objectContaining({ name: 'deviceId', required: true, type: 'string' })],
+      },
+    });
+    expect(mutatingTool.invocation).toMatchObject({
+      status: 'pending',
+      destructive: true,
+      inputRequest: {
+        missingParameters: ['caId'],
+        fields: [expect.objectContaining({
+          name: 'caId',
+          required: true,
+          type: 'string',
+          control: 'certificate-authority',
+        })],
+      },
+    });
+    expect(devicesApi.fetchDeviceById).not.toHaveBeenCalled();
+    expect(caData.deleteCa).not.toHaveBeenCalled();
+  });
+
+  it('assigns domain selectors to resource identifiers in generated forms', async () => {
+    const cases = [
+      ['get_registration_authority', 'raId', 'registration-authority'],
+      ['get_certificate', 'serial_number', 'certificate'],
+      ['get_signing_profile', 'profileId', 'signing-profile'],
+      ['get_kms_key', 'keyId', 'kms-key-id'],
+    ] as const;
+
+    for (const [toolName, fieldName, control] of cases) {
+      const result = await execute(toolName);
+      expect(result.invocation.inputRequest?.fields).toContainEqual(
+        expect.objectContaining({ name: fieldName, control }),
+      );
+    }
+
+    const issueResult = await execute('issue_certificate', { key_mode: 'reuse' });
+    expect(issueResult.invocation.inputRequest?.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'ca_id', control: 'certificate-authority' }),
+      expect.objectContaining({ name: 'engine_id', control: 'crypto-engine' }),
+      expect.objectContaining({ name: 'key_identifier', control: 'kms-key-reference' }),
+      expect.objectContaining({ name: 'profile_id', control: 'signing-profile' }),
+    ]));
   });
 
   it('queries active certificates by the UI valid_to before filter', async () => {

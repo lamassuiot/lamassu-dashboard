@@ -30,6 +30,8 @@ import {
 } from "react";
 import { Streamdown } from "streamdown";
 
+import { TremorChart } from "./tremor-chart";
+
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
 };
@@ -321,7 +323,18 @@ export const MessageBranchPage = ({
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-const streamdownPlugins = { cjk, code, math, mermaid };
+const streamdownPlugins = {
+  cjk,
+  code,
+  math,
+  mermaid,
+  renderers: [
+    {
+      component: TremorChart,
+      language: ["tremor-chart", "tremor"],
+    },
+  ],
+};
 
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (

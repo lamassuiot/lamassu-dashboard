@@ -5,6 +5,7 @@ import type {
   FunctionParameters,
 } from '@mlc-ai/web-llm';
 import {
+  createCertificate,
   deleteCa,
   deleteSigningProfile,
   fetchAndProcessCAs,
@@ -12,6 +13,8 @@ import {
   fetchSigningProfileById,
   fetchSigningProfiles,
   revokeCa,
+  type CreateCertificateIssuanceProfile,
+  type CreateCertificatePayload,
 } from '@/lib/ca-data';
 import {
   decommissionDevice,
@@ -28,6 +31,13 @@ import {
 } from '@/lib/dms-api';
 import { deleteKmsKey, fetchCryptoEngines, fetchKmsKey, fetchKmsKeys } from '@/lib/kms-data';
 import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
+import {
+  CA_KEY_USAGES,
+  CLIENT_AUTH_EXTENDED_KEY_USAGES,
+  extendedKeyUsageOptions,
+  keyUsageOptions,
+  TLS_KEY_USAGES,
+} from '@/lib/certificate-usage-options';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { revocationReasons } from '@/lib/revocation-reasons';
 import { checkOcspStatus } from '@/lib/va-api';
@@ -54,13 +64,64 @@ export interface ChatToolInvocation {
   state?: ChatToolState;
   approval?: ChatToolApproval;
   confirmationTitle?: string;
+  inputRequest?: ChatToolInputRequest;
+}
+
+export type ChatToolInputFieldType = 'array' | 'boolean' | 'integer' | 'number' | 'string';
+export type ChatToolInputControl =
+  | 'certificate'
+  | 'certificate-authority'
+  | 'crypto-engine'
+  | 'kms-key-id'
+  | 'kms-key-reference'
+  | 'registration-authority'
+  | 'signing-profile';
+
+export interface ChatToolInputField {
+  name: string;
+  type: ChatToolInputFieldType;
+  control?: ChatToolInputControl;
+  description?: string;
+  required: boolean;
+  options?: Array<string | number>;
+  itemOptions?: string[];
+  minimum?: number;
+  maximum?: number;
+  defaultValue?: unknown;
+  format?: string;
+}
+
+export interface ChatToolInputRequest {
+  fields: ChatToolInputField[];
+  missingParameters: string[];
 }
 
 interface ChatToolRegistryEntry {
   definition: ChatCompletionTool;
   destructive?: boolean;
+  inputControls?: Partial<Record<string, ChatToolInputControl>>;
   buildConfirmationTitle?: (args: Record<string, unknown>) => string;
+  getAdditionalRequiredArguments?: (args: Record<string, unknown>) => string[];
   execute: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
+interface ChatToolParameterSchema {
+  type?: ChatToolInputFieldType;
+  description?: string;
+  enum?: Array<string | number>;
+  items?: {
+    type?: string;
+    enum?: string[];
+  };
+  minimum?: number;
+  maximum?: number;
+  default?: unknown;
+  format?: string;
+}
+
+interface ChatToolObjectSchema {
+  properties?: Record<string, ChatToolParameterSchema>;
+  required?: string[];
 }
 
 function safeJson<T>(value: T): T {
@@ -119,6 +180,33 @@ function getNumberArg(args: Record<string, unknown>, key: string, fallback: numb
   return fallback;
 }
 
+function getBooleanArg(args: Record<string, unknown>, key: string, fallback: boolean) {
+  const value = args[key];
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value !== 'boolean') {
+    throw new Error(`Invalid value for "${key}". Expected a boolean.`);
+  }
+  return value;
+}
+
+function getStringArrayArg<T extends string>(
+  args: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  fallback: readonly T[],
+) {
+  const value = args[key];
+  if (value === undefined) {
+    return [...fallback];
+  }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !allowed.includes(item as T))) {
+    throw new Error(`Invalid value for "${key}". Allowed values: ${allowed.join(', ')}.`);
+  }
+  return value as T[];
+}
+
 function getEnumArg<T extends string>(
   args: Record<string, unknown>,
   key: string,
@@ -144,6 +232,46 @@ function getOptionalEnumArg<T extends string>(
   return value as T;
 }
 
+function isMissingToolArgument(value: unknown) {
+  return value === undefined
+    || value === null
+    || (typeof value === 'string' && value.trim() === '');
+}
+
+function buildToolInputRequest(
+  entry: ChatToolRegistryEntry,
+  args: Record<string, unknown>,
+): ChatToolInputRequest | null {
+  const schema = entry.definition.function.parameters as ChatToolObjectSchema | undefined;
+  const properties = schema?.properties ?? {};
+  const requiredNames = new Set([
+    ...(schema?.required ?? []),
+    ...(entry.getAdditionalRequiredArguments?.(args) ?? []),
+  ]);
+  const missingParameters = Array.from(requiredNames).filter((name) => isMissingToolArgument(args[name]));
+
+  if (missingParameters.length === 0) {
+    return null;
+  }
+
+  return {
+    fields: Object.entries(properties).map(([name, field]) => ({
+      name,
+      type: field.type ?? 'string',
+      control: entry.inputControls?.[name],
+      description: field.description,
+      required: requiredNames.has(name),
+      options: field.enum ? [...field.enum] : undefined,
+      itemOptions: field.items?.enum ? [...field.items.enum] : undefined,
+      minimum: field.minimum,
+      maximum: field.maximum,
+      defaultValue: field.default,
+      format: field.format,
+    })),
+    missingParameters,
+  };
+}
+
 function flattenCertificateAuthorities(
   nodes: Awaited<ReturnType<typeof fetchAndProcessCAs>>,
 ): Awaited<ReturnType<typeof fetchAndProcessCAs>> {
@@ -161,6 +289,17 @@ const DEVICE_STATUS_VALUES = [
   'DECOMMISSIONED',
 ] as const;
 const CERTIFICATE_STATUS_VALUES = ['ACTIVE', 'EXPIRED', 'REVOKED'] as const;
+const CERTIFICATE_KEY_MODES = ['generate', 'reuse'] as const;
+const CERTIFICATE_KEY_TYPES = ['RSA', 'ECDSA'] as const;
+const CERTIFICATE_RSA_BITS = [2048, 3072, 4096] as const;
+const CERTIFICATE_ECDSA_CURVE_BITS = {
+  'P-224': 224,
+  'P-256': 256,
+  'P-384': 384,
+  'P-521': 521,
+} as const;
+const CERTIFICATE_ECDSA_CURVES = Object.keys(CERTIFICATE_ECDSA_CURVE_BITS) as Array<keyof typeof CERTIFICATE_ECDSA_CURVE_BITS>;
+const CERTIFICATE_DURATION_PATTERN = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
 
 function serializeCertificate(certificate: CertificateData) {
   return {
@@ -272,6 +411,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }),
       },
     },
+    inputControls: { dms_owner: 'registration-authority' },
     execute: async (args) => {
       const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 10))));
       const sortBy = getEnumArg(args, 'sort_by', ['creation_timestamp', 'id', 'status', 'dms_owner'] as const, 'creation_timestamp');
@@ -390,6 +530,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['raId']),
       },
     },
+    inputControls: { raId: 'registration-authority' },
     execute: async (args) => {
       const raId = getStringArg(args, 'raId');
       const ra = await fetchRaById(raId);
@@ -482,6 +623,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }),
       },
     },
+    inputControls: { ca_id: 'certificate-authority' },
     execute: async (args) => {
       const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 10))));
       const sortBy = getEnumArg(
@@ -530,9 +672,191 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['serial_number']),
       },
     },
+    inputControls: { serial_number: 'certificate' },
     execute: async (args) => {
       const certificate = await fetchCertificateLikeUi(getStringArg(args, 'serial_number'));
       return safeJson(serializeCertificate(certificate));
+    },
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'issue_certificate',
+        description: 'Issue a managed X.509 certificate with the same POST /certificates contract as the Create Certificate screen. This creates live state and must only be used when the user explicitly asks to issue a certificate. Resolve CA, signing-profile, crypto-engine, or KMS-key identifiers with the corresponding list tools when the user provides names instead of IDs.',
+        parameters: objectSchema({
+          ca_id: { type: 'string', description: 'Issuer certificate authority ID.' },
+          common_name: { type: 'string', description: 'Certificate subject common name.' },
+          organization: { type: 'string', description: 'Optional subject organization.' },
+          organizational_unit: { type: 'string', description: 'Optional subject organizational unit.' },
+          country: { type: 'string', description: 'Optional subject country, as accepted by the Create Certificate screen.' },
+          state: { type: 'string', description: 'Optional subject state or province.' },
+          locality: { type: 'string', description: 'Optional subject locality.' },
+          key_mode: {
+            type: 'string',
+            enum: CERTIFICATE_KEY_MODES,
+            default: 'generate',
+            description: 'Generate a managed KMS key or reuse an existing KMS key. Defaults to generate.',
+          },
+          key_type: {
+            type: 'string',
+            enum: CERTIFICATE_KEY_TYPES,
+            default: 'RSA',
+            description: 'Generated key algorithm. Defaults to RSA and is ignored in reuse mode.',
+          },
+          rsa_bits: {
+            type: 'integer',
+            enum: CERTIFICATE_RSA_BITS,
+            default: 2048,
+            description: 'Generated RSA key size. Defaults to 2048.',
+          },
+          ecdsa_curve: {
+            type: 'string',
+            enum: CERTIFICATE_ECDSA_CURVES,
+            default: 'P-256',
+            description: 'Generated ECDSA curve. Defaults to P-256.',
+          },
+          engine_id: { type: 'string', description: 'Optional crypto-engine ID used when generating a key.' },
+          key_identifier: {
+            type: 'string',
+            description: 'Existing KMS KeyID, alias, or PKCS#11 URI. Required when key_mode is reuse.',
+          },
+          profile_id: {
+            type: 'string',
+            description: 'Optional signing-profile ID. When set, inline validity and usage fields are ignored.',
+          },
+          validity_duration: {
+            type: 'string',
+            default: '1y',
+            description: 'Inline-profile duration such as 1y, 30d, or 1y6m. Defaults to 1y and is mutually exclusive with valid_until.',
+          },
+          valid_until: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Inline-profile expiration as an ISO 8601 date-time, mutually exclusive with validity_duration.',
+          },
+          is_ca: { type: 'boolean', default: false, description: 'Issue a CA certificate. Defaults to false.' },
+          key_usage: {
+            type: 'array',
+            items: { type: 'string', enum: keyUsageOptions },
+            description: 'Inline-profile key usages. Defaults to TLS usages, or CA usages when is_ca is true.',
+          },
+          extended_key_usages: {
+            type: 'array',
+            items: { type: 'string', enum: extendedKeyUsageOptions },
+            description: 'Inline-profile extended key usages. Defaults to ClientAuth, or none when is_ca is true.',
+          },
+        }, ['ca_id', 'common_name']),
+      },
+    },
+    inputControls: {
+      ca_id: 'certificate-authority',
+      engine_id: 'crypto-engine',
+      key_identifier: 'kms-key-reference',
+      profile_id: 'signing-profile',
+    },
+    destructive: true,
+    getAdditionalRequiredArguments: (args) => args.key_mode === 'reuse' ? ['key_identifier'] : [],
+    buildConfirmationTitle: (args) => `Issue certificate for ${getStringArg(args, 'common_name', 'this subject')} with CA ${getStringArg(args, 'ca_id', 'the selected CA')}?`,
+    execute: async (args) => {
+      const caId = getStringArg(args, 'ca_id');
+      const commonName = getStringArg(args, 'common_name');
+      const keyMode = getOptionalEnumArg(args, 'key_mode', CERTIFICATE_KEY_MODES) ?? 'generate';
+      const keyType = getOptionalEnumArg(args, 'key_type', CERTIFICATE_KEY_TYPES) ?? 'RSA';
+      const profileId = getOptionalStringArg(args, 'profile_id');
+      const engineId = getOptionalStringArg(args, 'engine_id');
+
+      let keySpec: CreateCertificatePayload['key_spec'];
+      if (keyMode === 'reuse') {
+        keySpec = { key_identifier: getStringArg(args, 'key_identifier') };
+      } else if (keyType === 'ECDSA') {
+        const curve = getOptionalEnumArg(args, 'ecdsa_curve', CERTIFICATE_ECDSA_CURVES) ?? 'P-256';
+        keySpec = {
+          type: 'ECDSA',
+          bits: CERTIFICATE_ECDSA_CURVE_BITS[curve],
+          ...(engineId ? { engine_id: engineId } : {}),
+        };
+      } else {
+        const requestedBits = args.rsa_bits ?? 2048;
+        if (typeof requestedBits !== 'number' || !CERTIFICATE_RSA_BITS.includes(requestedBits as typeof CERTIFICATE_RSA_BITS[number])) {
+          throw new Error(`Invalid value for "rsa_bits". Allowed values: ${CERTIFICATE_RSA_BITS.join(', ')}.`);
+        }
+        keySpec = {
+          type: 'RSA',
+          bits: requestedBits,
+          ...(engineId ? { engine_id: engineId } : {}),
+        };
+      }
+
+      const organization = getOptionalStringArg(args, 'organization');
+      const organizationalUnit = getOptionalStringArg(args, 'organizational_unit');
+      const country = getOptionalStringArg(args, 'country');
+      const state = getOptionalStringArg(args, 'state');
+      const locality = getOptionalStringArg(args, 'locality');
+      const subject: CreateCertificatePayload['subject'] = {
+        common_name: commonName,
+        ...(organization ? { organization } : {}),
+        ...(organizationalUnit ? { organization_unit: organizationalUnit } : {}),
+        ...(country ? { country } : {}),
+        ...(state ? { state } : {}),
+        ...(locality ? { locality } : {}),
+      };
+
+      const payload: CreateCertificatePayload = { ca_id: caId, key_spec: keySpec, subject };
+      if (profileId) {
+        payload.issuance_profile_id = profileId;
+      } else {
+        const duration = getOptionalStringArg(args, 'validity_duration');
+        const validUntil = getOptionalStringArg(args, 'valid_until');
+        if (duration && validUntil) {
+          throw new Error('"validity_duration" and "valid_until" are mutually exclusive.');
+        }
+
+        let validity: CreateCertificateIssuanceProfile['validity'];
+        if (validUntil) {
+          const date = new Date(validUntil);
+          if (Number.isNaN(date.getTime())) {
+            throw new Error('Invalid value for "valid_until". Expected an ISO 8601 date-time.');
+          }
+          validity = { type: 'Date', time: date.toISOString() };
+        } else {
+          const resolvedDuration = duration ?? '1y';
+          if (!CERTIFICATE_DURATION_PATTERN.test(resolvedDuration)) {
+            throw new Error('Invalid value for "validity_duration". Use a duration such as 1y, 30d, or 1y6m.');
+          }
+          validity = { type: 'Duration', duration: resolvedDuration };
+        }
+
+        const isCa = getBooleanArg(args, 'is_ca', false);
+        payload.issuance_profile = {
+          validity,
+          sign_as_ca: isCa,
+          honor_key_usage: false,
+          key_usage: getStringArrayArg(args, 'key_usage', keyUsageOptions, isCa ? CA_KEY_USAGES : TLS_KEY_USAGES),
+          honor_extended_key_usages: false,
+          extended_key_usages: getStringArrayArg(
+            args,
+            'extended_key_usages',
+            extendedKeyUsageOptions,
+            isCa ? [] : CLIENT_AUTH_EXTENDED_KEY_USAGES,
+          ),
+        };
+      }
+
+      const result = await createCertificate(payload);
+      const certificatePem = result.certificate ? atob(result.certificate) : null;
+      return safeJson({
+        ok: true,
+        message: result.serial_number
+          ? `Certificate ${result.serial_number} was issued for ${commonName}.`
+          : `Certificate was issued for ${commonName}.`,
+        ca_id: caId,
+        common_name: commonName,
+        serial_number: result.serial_number ?? null,
+        certificate_pem: certificatePem,
+        key_mode: keyMode,
+        key_identifier: keyMode === 'reuse' ? getStringArg(args, 'key_identifier') : null,
+      });
     },
   },
   {
@@ -548,6 +872,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }),
       },
     },
+    inputControls: { ca_id: 'certificate-authority' },
     execute: async (args) => {
       const days = Math.max(1, Math.min(3650, Math.round(getNumberArg(args, 'days', 30))));
       const pageSize = Math.max(1, Math.min(100, Math.round(getNumberArg(args, 'page_size', 25))));
@@ -588,6 +913,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['serial_number']),
       },
     },
+    inputControls: { serial_number: 'certificate' },
     execute: async (args) => {
       const serialNumber = getStringArg(args, 'serial_number');
       const [certificate, cas] = await Promise.all([
@@ -664,6 +990,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['profileId']),
       },
     },
+    inputControls: { profileId: 'signing-profile' },
     execute: async (args) => safeJson(await fetchSigningProfileById(getStringArg(args, 'profileId'))),
   },
   {
@@ -715,6 +1042,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['keyId']),
       },
     },
+    inputControls: { keyId: 'kms-key-id' },
     execute: async (args) => safeJson(await fetchKmsKey(getStringArg(args, 'keyId'))),
   },
   {
@@ -766,6 +1094,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['raId']),
       },
     },
+    inputControls: { raId: 'registration-authority' },
     destructive: true,
     buildConfirmationTitle: (args) => `Delete registration authority ${getStringArg(args, 'raId', 'this RA')}?`,
     execute: async (args) => {
@@ -785,6 +1114,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['caId']),
       },
     },
+    inputControls: { caId: 'certificate-authority' },
     destructive: true,
     buildConfirmationTitle: (args) => `Delete certificate authority ${getStringArg(args, 'caId', 'this CA')}?`,
     execute: async (args) => {
@@ -809,6 +1139,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['serial_number']),
       },
     },
+    inputControls: { serial_number: 'certificate' },
     destructive: true,
     buildConfirmationTitle: (args) => `Revoke certificate ${getStringArg(args, 'serial_number', 'this certificate')}?`,
     execute: async (args) => {
@@ -834,6 +1165,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['caId']),
       },
     },
+    inputControls: { caId: 'certificate-authority' },
     destructive: true,
     buildConfirmationTitle: (args) => `Revoke certificate authority ${getStringArg(args, 'caId', 'this CA')}?`,
     execute: async (args) => {
@@ -854,6 +1186,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['keyId']),
       },
     },
+    inputControls: { keyId: 'kms-key-id' },
     destructive: true,
     buildConfirmationTitle: (args) => `Delete KMS key ${getStringArg(args, 'keyId', 'this key')}?`,
     execute: async (args) => {
@@ -873,6 +1206,7 @@ const toolRegistryEntries: ChatToolRegistryEntry[] = [
         }, ['profileId']),
       },
     },
+    inputControls: { profileId: 'signing-profile' },
     destructive: true,
     buildConfirmationTitle: (args) => `Delete signing profile ${getStringArg(args, 'profileId', 'this profile')}?`,
     execute: async (args) => {
@@ -928,6 +1262,14 @@ export function isDestructiveTool(toolName: string) {
   return Boolean(toolRegistry.get(toolName)?.destructive);
 }
 
+export function getChatToolInputRequest(
+  toolName: string,
+  parameters: Record<string, unknown>,
+) {
+  const entry = toolRegistry.get(toolName);
+  return entry ? buildToolInputRequest(entry, parameters) : null;
+}
+
 export function createToolResultMessage(toolCallId: string, payload: unknown) {
   return createToolMessage(toolCallId, payload);
 }
@@ -942,11 +1284,37 @@ export function createPendingToolInvocation(toolCall: ChatCompletionMessageToolC
     });
   }
 
+  const inputRequest = buildToolInputRequest(entry, parameters);
+  if (inputRequest) {
+    return buildInvocation(toolCall, entry, parameters, 'pending', {
+      destructive: entry.destructive,
+      inputRequest,
+    });
+  }
+
   return buildInvocation(toolCall, entry, parameters, 'pending', {
-    destructive: true,
+    destructive: entry.destructive,
     state: 'approval-requested',
     approval: { id: toolCall.id },
   });
+}
+
+export function createToolInputInvocation(
+  toolCall: ChatCompletionMessageToolCall,
+): ChatToolInvocation | null {
+  const entry = toolRegistry.get(toolCall.function.name);
+  if (!entry) {
+    return null;
+  }
+
+  const parameters = parseArguments(toolCall);
+  const inputRequest = buildToolInputRequest(entry, parameters);
+  return inputRequest
+    ? buildInvocation(toolCall, entry, parameters, 'pending', {
+        destructive: entry.destructive,
+        inputRequest,
+      })
+    : null;
 }
 
 export async function executeChatToolCall(toolCall: ChatCompletionMessageToolCall): Promise<{
@@ -961,6 +1329,21 @@ export async function executeChatToolCall(toolCall: ChatCompletionMessageToolCal
     return {
       invocation: buildInvocation(toolCall, undefined, parameters, 'error', { error }),
       toolMessage: createToolMessage(toolCall.id, { ok: false, error }),
+    };
+  }
+
+  const inputRequest = buildToolInputRequest(entry, parameters);
+  if (inputRequest) {
+    return {
+      invocation: buildInvocation(toolCall, entry, parameters, 'pending', {
+        destructive: entry.destructive,
+        inputRequest,
+      }),
+      toolMessage: createToolMessage(toolCall.id, {
+        ok: false,
+        input_required: true,
+        missing_parameters: inputRequest.missingParameters,
+      }),
     };
   }
 

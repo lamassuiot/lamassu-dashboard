@@ -69,12 +69,6 @@ import {
   ReasoningTrigger,
 } from '@/components/ai-elements/reasoning';
 import {
-  Task,
-  TaskContent,
-  TaskItem,
-  TaskTrigger,
-} from '@/components/ai-elements/task';
-import {
   Source,
   Sources,
   SourcesContent,
@@ -88,7 +82,7 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ChatToolInputForm } from '@/components/tools/ChatToolInputForm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,8 +94,10 @@ import {
   CHAT_TOOL_COUNT,
   createSyntheticToolCall,
   createPendingToolInvocation,
+  createToolInputInvocation,
   createToolResultMessage,
   executeChatToolCall,
+  getChatToolInputRequest,
   getChatToolPlanningCatalog,
   isDestructiveTool,
   type ChatToolInvocation,
@@ -125,9 +121,10 @@ import {
   streamOpenAICompatibleCompletion,
   type OpenAICompatibleConfig,
 } from '@/lib/openai-compatible';
+import { parseModelJson } from '@/lib/model-json';
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
-import { AlertCircleIcon, BotIcon, CheckIcon, ChevronDownIcon, CloudIcon, CpuIcon, GlobeIcon, GripHorizontalIcon, SearchIcon, SparklesIcon, WandSparklesIcon, WrenchIcon } from 'lucide-react';
+import { AlertCircleIcon, BotIcon, CheckIcon, GlobeIcon, GripHorizontalIcon, InfoIcon, SearchIcon, SettingsIcon, WrenchIcon } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -213,14 +210,17 @@ const TOOL_SYSTEM_PROMPT = [
   'Prefer tool calls over guessing when live data is needed.',
   'If no tool is needed, answer normally.',
   'Destructive tools require explicit user confirmation before execution.',
+  'If a tool is appropriate but required arguments were not provided by the user, call it with the arguments that are known. The dashboard will render a form for the missing values. Do not ask for those values in assistant_response.',
   'Never claim a tool ran unless tool output is present.',
 ].join(' ');
 const PLANNING_RESPONSE_INSTRUCTIONS = [
   'Return JSON only.',
   'Do not include markdown fences.',
+  'Use double quotes around every property name and string value. Do not use single quotes, comments, or trailing commas.',
   'Use this shape exactly:',
   '{"assistant_response": string | null, "tool_calls": [{"name": string, "arguments": object}]}',
   'If live data or a dashboard action is needed, put the tool calls in tool_calls.',
+  'If a needed tool argument is missing from the user request, omit that argument and still return the tool call so the UI can collect it with a form. Never invent missing values.',
   'If no tool is needed, return an empty tool_calls array and fill assistant_response.',
   'After receiving tool results, request another tool call whenever more live data is needed.',
   'For exhaustive list requests, use the largest allowed page_size to minimize pagination calls.',
@@ -237,6 +237,28 @@ const FINAL_RESPONSE_INSTRUCTIONS = [
   'Do not output internal control tokens such as <|open|>, <|close|>, or <|sep|>.',
   'If a safety limit stopped pagination, clearly say that the results are partial.',
 ].join(' ');
+const VISUALIZATION_RESPONSE_INSTRUCTIONS = [
+  'When structured or quantitative data would be clearer as a dashboard block, include a concise textual summary followed by one fenced code block tagged tremor.',
+  'The block must contain valid JSON with no comments and use only the fields described below.',
+  'Supported chart types are bar, line, area, donut, spark-line, spark-area, spark-bar, and category-bar. Supported dashboard blocks are metric, bar-list, progress, progress-circle, tracker, and table.',
+  'For bar use: {"type":"bar","title":"Certificates by status","data":[{"status":"active","count":8}],"index":"status","categories":["count"],"showLegend":false,"showGrid":true,"valueFormat":"number","orientation":"vertical","stack":"none"}. Only bar accepts orientation (vertical or horizontal).',
+  'For area use the same data/index/categories fields with type area and stack set to none, stacked, or percent.',
+  'For line charts prefer a rich layout inspired by Tremor blocks: summary combines an overall metric, chart, and detailed series rows; comparison combines a main chart with a side summary; metric-grid renders one detailed mini-trend per category. Example: {"type":"line","title":"Certificate growth","description":"Current period compared with the first period","data":[{"month":"Jan","active":8,"expired":4},{"month":"Feb","active":12,"expired":2}],"index":"month","categories":["active","expired"],"layout":"comparison","series":[{"category":"active","label":"Active","description":"Ready to use","badge":"Healthy"},{"category":"expired","label":"Expired"}],"summaryLabel":"Current certificates","showGrid":true,"showLegend":true,"valueFormat":"number"}. layout must be summary, comparison, metric-grid, or default.',
+  'For donut charts prefer one of these detailed layouts: breakdown (chart plus value/share rows), rings (concentric progress with max), split (chart plus side breakdown), tabs, tabs-bordered, or tabs-rows. Example: {"type":"donut","title":"Certificates by status","data":[{"status":"active","count":8},{"status":"expired","count":2}],"index":"status","category":"count","variant":"donut","layout":"breakdown","centerLabel":"Total","showLegend":true,"valueFormat":"number"}.',
+  'Tabbed donut layouts require groups instead of data, with 2 to 5 datasets: {"type":"donut","title":"Certificate breakdown","groups":[{"name":"By status","data":[{"name":"Active","count":8},{"name":"Expired","count":2}]},{"name":"By algorithm","data":[{"name":"RSA","count":6},{"name":"ECDSA","count":4}]}],"index":"name","category":"count","layout":"tabs","showLegend":true,"valueFormat":"number"}. Do not invent a seventh donut layout.',
+  'For a compact trend use spark-line, spark-area, or spark-bar: {"type":"spark-line","title":"Issued certificates","data":[{"month":"Jan","count":8},{"month":"Feb","count":12}],"index":"month","category":"count","valueFormat":"number"}.',
+  'For composition on one scale use: {"type":"category-bar","title":"Certificate states","data":[{"name":"Active","value":80},{"name":"Expired","value":20}],"marker":{"value":75,"tooltip":"Target"},"showLegend":true,"valueFormat":"number"}.',
+  'For a KPI use: {"type":"metric","title":"Active certificates","value":42,"description":"Optional context","valueFormat":"number","delta":{"value":"+12%","label":"vs previous period","trend":"up"}}.',
+  'For ranked values use: {"type":"bar-list","title":"Algorithms","data":[{"name":"RSA","value":12}],"sort":"descending","valueFormat":"number"}.',
+  'For genuine bounded progress use progress or progress-circle: {"type":"progress","title":"Rotation rollout","label":"Completed","value":12,"max":20,"display":"percent","variant":"default"}.',
+  'For a status timeline use: {"type":"tracker","title":"Last checks","data":[{"status":"success","tooltip":"Healthy"},{"status":"warning","tooltip":"Delayed"}]}. Status must be success, warning, error, or neutral.',
+  'For exact row data use: {"type":"table","title":"Certificates","columns":[{"key":"name","label":"Name"},{"key":"expires","label":"Expires"},{"key":"status","label":"Status","format":"badge"}],"data":[{"name":"api","expires":"2027-01-01","status":"active"}]}. Column format may be text, number, compact, percent, or badge; align may be left or right.',
+  'valueFormat must be number, compact, or percent. Percent values must be decimals between 0 and 1.',
+  'Put all block data directly in the JSON; never use URLs, code, component names, colors, or arbitrary React properties.',
+  'Do not invent values: visualize only data supplied by the user, retrieved context, or completed tool results.',
+  'Use at most one block unless the user explicitly requests a dashboard. Do not include a block when prose communicates the result better.',
+].join(' ');
+const VISUALIZATION_REQUEST_PATTERN = /(bar.?list|category.?bar|chart|dashboard|graph|kpi|metric|plot|progress|spark|table|tracker|visuali[sz]|estad[ií]st|gr[aá]fic|m[eé]trica|progreso|seguimiento|tabla)/i;
 
 const models: ModelOption[] = [
   {
@@ -479,7 +501,7 @@ function normalizeError(error: unknown) {
 
     try {
       return JSON.stringify(error);
-    } catch (_) {
+    } catch {
       // Fall through to the generic message below.
     }
   }
@@ -782,7 +804,7 @@ function extractJsonObject(text: string) {
 }
 
 function parseToolPlanningResult(text: string): ToolPlanningResult {
-  const parsed = JSON.parse(extractJsonObject(text)) as ToolPlanningResult;
+  const parsed = parseModelJson<ToolPlanningResult>(extractJsonObject(text));
   return {
     assistant_response:
       typeof parsed.assistant_response === 'string' ? parsed.assistant_response : null,
@@ -845,6 +867,7 @@ function buildFinalResponseMessages(
     ...(stopReason ? ['', `Tool loop note: ${stopReason}`] : []),
     '',
     FINAL_RESPONSE_INSTRUCTIONS,
+    VISUALIZATION_RESPONSE_INSTRUCTIONS,
   ].join('\n');
 
   return [
@@ -912,7 +935,7 @@ const QuickPromptItem = ({
 
   return (
     <Button
-      className="h-auto w-full justify-start whitespace-normal px-3 py-2 text-left"
+      className="h-auto w-full justify-start whitespace-normal px-3 py-2 text-left text-xs font-normal text-muted-foreground hover:text-foreground"
       onClick={handleClick}
       type="button"
       variant="outline"
@@ -943,43 +966,31 @@ const ModelItem = ({
   return (
     <Button
       className={cn(
-        'h-auto w-full items-start justify-between rounded-md px-4 py-3 text-left shadow-none',
-        isSelected ? 'border-primary bg-accent/40 hover:bg-accent/50' : 'hover:bg-accent/40',
+        'h-auto w-full items-center justify-start gap-3 rounded-md px-3 py-2.5 text-left shadow-none',
+        isSelected ? 'bg-accent/60' : 'hover:bg-accent/40',
       )}
       onClick={handleSelect}
       type="button"
-      variant="outline"
+      variant="ghost"
     >
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
-          <ModelSelectorLogo className="size-4" provider={getModelLogoProvider(m)} />
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
-            {m.supportsToolCalling ? (
-              <Badge className="h-5 px-1.5 text-[10px]" variant="secondary">
-                Tools
-              </Badge>
-            ) : null}
-          </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{detail}</p>
-          <div className="mt-2">
-            <Badge className="h-5 px-1.5 text-[10px]" variant="outline">
-              {m.vram}
+      <ModelSelectorLogo className="size-4 shrink-0" provider={getModelLogoProvider(m)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{m.vram}</span>
+          {m.supportsToolCalling ? (
+            <Badge className="h-4 px-1.5 text-[10px]" variant="outline">
+              Tools
             </Badge>
-          </div>
+          ) : null}
         </div>
+        <p className="truncate text-xs text-muted-foreground">{detail}</p>
       </div>
-      <div className="ml-3 flex shrink-0 items-center self-center text-muted-foreground">
-        {isLoading ? (
-          <Spinner className="size-4" />
-        ) : isSelected ? (
-          <CheckIcon className="size-4 text-foreground" />
-        ) : (
-          <ChevronDownIcon className="size-4" />
-        )}
-      </div>
+      {isLoading ? (
+        <Spinner className="size-4 shrink-0 text-muted-foreground" />
+      ) : isSelected ? (
+        <CheckIcon className="size-4 shrink-0 text-foreground" />
+      ) : null}
     </Button>
   );
 };
@@ -1017,7 +1028,6 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const [gpuVendor, setGpuVendor] = useState<string | null>(null);
   const [runtimeStats, setRuntimeStats] = useState<string | null>(null);
   const [hasWebGpuSupport, setHasWebGpuSupport] = useState<boolean | null>(null);
-  const [quickPromptsOpen, setQuickPromptsOpen] = useState(false);
   const [ragStatus, setRagStatus] = useState<'idle' | 'indexing' | 'ready' | 'error'>('idle');
   const [ragSummary, setRagSummary] = useState<RagIndexSummary | null>(null);
   const [ragError, setRagError] = useState<string | null>(null);
@@ -1131,7 +1141,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     try {
       const engine = await enginePromise;
       engine.interruptGenerate();
-    } catch (_) {
+    } catch {
       // Nothing else to do if the engine is already unavailable.
     }
   }, []);
@@ -1166,7 +1176,6 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
   const handleSuggestionClick = useCallback((suggestion: string) => {
     setText(suggestion);
-    setQuickPromptsOpen(false);
   }, []);
 
   const initializeLocalRag = useCallback(
@@ -1664,8 +1673,17 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             toolCalls = [...toolCalls, ...roundToolCalls];
             const invocations: ChatToolInvocation[] = [];
             const pendingToolIds = new Set<string>();
+            let inputRequestCount = 0;
 
             for (const toolCall of roundToolCalls) {
+              const inputInvocation = createToolInputInvocation(toolCall);
+              if (inputInvocation) {
+                pendingToolIds.add(toolCall.id);
+                inputRequestCount += 1;
+                invocations.push(inputInvocation);
+                continue;
+              }
+
               if (isDestructiveTool(toolCall.function.name)) {
                 pendingToolIds.add(toolCall.id);
                 invocations.push(createPendingToolInvocation(toolCall));
@@ -1683,7 +1701,9 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               reasoning: {
                 content:
                   pendingToolIds.size > 0
-                    ? `The model selected ${roundToolCalls.length} live API tool${roundToolCalls.length > 1 ? 's' : ''}. Confirm the destructive action${pendingToolIds.size > 1 ? 's' : ''} below to continue.`
+                    ? inputRequestCount > 0
+                      ? `The model selected ${roundToolCalls.length} live API tool${roundToolCalls.length > 1 ? 's' : ''}. Complete ${inputRequestCount > 1 ? 'the input forms' : 'the input form'}${pendingToolIds.size > inputRequestCount ? ' and review the confirmation requests' : ''} below to continue.`
+                      : `The model selected ${roundToolCalls.length} live API tool${roundToolCalls.length > 1 ? 's' : ''}. Confirm the destructive action${pendingToolIds.size > 1 ? 's' : ''} below to continue.`
                     : `Executed ${toolCalls.length} live API tool call${toolCalls.length > 1 ? 's' : ''} across ${round + 1} planning round${round > 0 ? 's' : ''}.`,
                 duration: 0,
                 isStreaming: true,
@@ -1710,7 +1730,9 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                   version.id === assistantVersionId
                     ? {
                         ...version,
-                        content: 'The model requested a destructive action. Review the confirmation block below to continue.',
+                        content: inputRequestCount > 0
+                          ? 'Additional input is required. Complete the tool form below to continue.'
+                          : 'The model requested a destructive action. Review the confirmation block below to continue.',
                       }
                     : version,
                 ),
@@ -1728,18 +1750,21 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             }
           }
 
-          if (finalPlanningResponse && !useWebSearch) {
+          if (
+            finalPlanningResponse
+            && !useWebSearch
+            && toolCalls.length === 0
+            && !VISUALIZATION_REQUEST_PATTERN.test(prompt)
+          ) {
             const sanitizedReply = sanitizeAssistantReply(finalPlanningResponse);
             setStatus('ready');
             updateMessage(assistantKey, (currentMessage) => ({
               ...currentMessage,
               status: undefined,
               reasoning: {
-                content: toolCalls.length > 0
-                  ? `Response generated after ${toolCalls.length} live API tool call${toolCalls.length > 1 ? 's' : ''}.`
-                  : inferenceTarget.kind === 'openai-compatible'
-                    ? `Response generated with ${inferenceTarget.config.model} through the configured provider without using live API tools.`
-                    : `Response generated locally with ${inferenceTarget.name} without using live API tools.`,
+                content: inferenceTarget.kind === 'openai-compatible'
+                  ? `Response generated with ${inferenceTarget.config.model} through the configured provider without using live API tools.`
+                  : `Response generated locally with ${inferenceTarget.name} without using live API tools.`,
                 duration: 1,
                 isStreaming: false,
               },
@@ -1751,6 +1776,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             }));
             return;
           }
+
         } catch (error) {
           const wasAborted = error instanceof Error && error.name === 'AbortError';
           const toolPlanningError = wasAborted
@@ -1862,6 +1888,8 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         return;
       }
 
+      const requiresApproval = isDestructiveTool(toolCall.function.name);
+
       if (!approved) {
         session.toolMessages.set(
           toolId,
@@ -1898,7 +1926,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                   ...version,
                   content:
                     session.unresolvedToolIds.size > 0
-                      ? 'Action cancelled. Resolve the remaining confirmation request(s) to continue.'
+                      ? 'Action cancelled. Resolve the remaining tool request(s) to continue.'
                       : 'Action cancelled. Preparing the final response with the resolved tool outcomes.',
                 }
               : version,
@@ -1912,17 +1940,24 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               ? {
                   ...tool,
                   status: 'running',
-                  state: 'approval-responded',
-                  approval: {
-                    id: toolId,
-                    approved: true,
-                  },
+                  state: requiresApproval ? 'approval-responded' : undefined,
+                  approval: requiresApproval
+                    ? {
+                        id: toolId,
+                        approved: true,
+                      }
+                    : undefined,
                 }
               : tool,
           ),
           versions: message.versions.map((version, index) =>
             index === 0
-              ? { ...version, content: 'Confirmation received. Executing the requested action...' }
+              ? {
+                  ...version,
+                  content: requiresApproval
+                    ? 'Confirmation received. Executing the requested action...'
+                    : 'Input received. Running the tool...',
+                }
               : version,
           ),
         }));
@@ -1944,7 +1979,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                   ...version,
                   content:
                     session.unresolvedToolIds.size > 0
-                      ? 'Action processed. Waiting for the remaining confirmation request(s).'
+                      ? 'Action processed. Waiting for the remaining tool request(s).'
                       : 'Action processed. Preparing the final response...',
                 }
               : version,
@@ -2000,6 +2035,85 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     [continueToolConversation, updateMessage, useWebSearch],
   );
 
+  const handleToolInputSubmit = useCallback(
+    async (messageKey: string, toolId: string, values: Record<string, unknown>) => {
+      const session = pendingToolSessionsRef.current.get(messageKey);
+      const toolCall = session?.toolCalls.find((candidate) => candidate.id === toolId);
+
+      if (!session || !toolCall) {
+        return;
+      }
+
+      let previousArguments: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(toolCall.function.arguments || '{}');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          previousArguments = parsed as Record<string, unknown>;
+        }
+      } catch {
+        previousArguments = {};
+      }
+
+      const parameters = { ...previousArguments, ...values };
+      const updatedToolCall: ChatCompletionMessageToolCall = {
+        ...toolCall,
+        function: {
+          ...toolCall.function,
+          arguments: JSON.stringify(parameters),
+        },
+      };
+      session.toolCalls = session.toolCalls.map((candidate) =>
+        candidate.id === toolId ? updatedToolCall : candidate,
+      );
+
+      const inputRequest = getChatToolInputRequest(toolCall.function.name, parameters);
+      if (inputRequest) {
+        updateMessage(messageKey, (message) => ({
+          ...message,
+          tools: message.tools?.map((tool) =>
+            tool.id === toolId
+              ? { ...tool, parameters, inputRequest }
+              : tool,
+          ),
+          versions: message.versions.map((version, index) =>
+            index === 0
+              ? {
+                  ...version,
+                  content: `More input is required: ${inputRequest.missingParameters.join(', ')}.`,
+                }
+              : version,
+          ),
+        }));
+        return;
+      }
+
+      if (isDestructiveTool(toolCall.function.name)) {
+        const pendingInvocation = createPendingToolInvocation(updatedToolCall);
+        updateMessage(messageKey, (message) => ({
+          ...message,
+          tools: message.tools?.map((tool) => tool.id === toolId ? pendingInvocation : tool),
+          versions: message.versions.map((version, index) =>
+            index === 0
+              ? { ...version, content: 'Input complete. Review and confirm the requested action.' }
+              : version,
+          ),
+        }));
+        return;
+      }
+
+      updateMessage(messageKey, (message) => ({
+        ...message,
+        tools: message.tools?.map((tool) =>
+          tool.id === toolId
+            ? { ...tool, inputRequest: undefined, parameters, status: 'running' }
+            : tool,
+        ),
+      }));
+      await handleToolApproval(messageKey, toolId, true);
+    },
+    [handleToolApproval, updateMessage],
+  );
+
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const panel = conversationPanelRef.current;
@@ -2036,138 +2150,141 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const isRagIndexing = useWebSearch && ragStatus === 'indexing';
   const isComposerLocked = (!isRemoteProvider && hasWebGpuSupport === false) || isBusyGenerating || isSelectedModelLoading || isRagIndexing;
 
+  const providerLabel = isRemoteProvider
+    ? 'OpenAI-compatible'
+    : hasWebGpuSupport === false
+      ? 'Local WebLLM (unavailable)'
+      : 'Local WebLLM';
+  const activeModelLabel = isRemoteProvider
+    ? inferenceTarget.config.model || 'No model configured'
+    : (selectedModelData?.name ?? 'No model selected');
+  const hasBlockingError = Boolean(engineError) || (!isRemoteProvider && hasWebGpuSupport === false);
+  const statusTone = hasBlockingError
+    ? 'bg-destructive'
+    : isSelectedModelLoading || isRagIndexing
+      ? 'bg-amber-500'
+      : 'bg-emerald-500';
+  const statusActivity = isSelectedModelLoading
+    ? progressReport
+      ? `Loading model ${Math.round(formatProgress(progressReport))}%`
+      : 'Loading model'
+    : isRagIndexing
+      ? 'Indexing references'
+      : null;
+
+  const alerts: Array<{ description: string; title: string }> = [];
+  if (!isRemoteProvider && hasWebGpuSupport === false) {
+    alerts.push({
+      description: 'Local inference needs WebGPU. Use a recent Chrome or Edge build, or configure an OpenAI-compatible provider.',
+      title: 'WebGPU unavailable',
+    });
+  }
+  if (engineError) {
+    alerts.push({
+      description: engineError,
+      title: isRemoteProvider ? 'Provider error' : 'Local model error',
+    });
+  }
+  if (ragError && useWebSearch) {
+    alerts.push({ description: ragError, title: 'Retrieval error' });
+  }
+
+  const detailLines: string[] = [];
+  detailLines.push(
+    isRemoteProvider
+      ? `Prompts, retrieved passages, and tool results are sent from this browser to ${inferenceTarget.config.baseUrl || 'the configured endpoint'}.`
+      : 'Prompts and model weights stay in this browser. Nothing is sent to an inference provider.',
+  );
+  if (!isRemoteProvider && selectedModelData?.note) {
+    detailLines.push(selectedModelData.note);
+  }
+  if (!isRemoteProvider && gpuVendor) {
+    detailLines.push(`GPU: ${gpuVendor}`);
+  }
+  detailLines.push(
+    useApiTools
+      ? `Live API tools enabled: the model receives all ${CHAT_TOOL_COUNT} tools on each prompt and decides whether to call them.`
+      : 'Live API tools disabled: answers use model knowledge only.',
+  );
+  if (useWebSearch) {
+    detailLines.push(
+      ragSummary
+        ? `Document retrieval ready: ${ragSummary.indexedDocumentCount}/${ragSummary.documentCount} documents indexed via ${ragSummary.retrievalMode === 'semantic' ? 'local embeddings' : 'lexical fallback'}.`
+        : 'Document retrieval enabled over the bundled reference corpus.',
+    );
+  }
+  if (!isRemoteProvider && runtimeStats && !progressReport) {
+    detailLines.push(runtimeStats);
+  }
+
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col gap-4', isPanel ? 'h-full' : 'min-h-[720px]')}>
+    <div className={cn('flex min-h-0 flex-1 flex-col', isPanel ? 'h-full' : 'min-h-[720px] gap-4')}>
       {!isPanel && (
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">AI Chatbot</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Use an OpenAI-compatible provider when a key is configured, with private in-browser WebLLM as the automatic fallback.
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">AI Assistant</h1>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Chat over your PKI with live dashboard tools and local document retrieval.
           </p>
         </div>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="border-b px-4 py-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {isRemoteProvider ? (
-              <Badge>
-                <CloudIcon className="mr-1 size-3.5" />
-                OpenAI-compatible
-              </Badge>
-            ) : (
-              <Badge variant={hasWebGpuSupport ? 'default' : 'outline'}>
-                {hasWebGpuSupport ? 'Local WebGPU' : 'WebGPU required'}
-              </Badge>
-            )}
-            <Badge variant="outline">
-              {isRemoteProvider ? inferenceTarget.config.model || 'Model required' : selectedModelData?.name}
-            </Badge>
-            {isSelectedModelLoading && (
-              <Badge variant="outline">
-                <Spinner className="mr-1 size-3.5" />
-                {progressReport ? `${Math.round(formatProgress(progressReport))}% loaded` : 'Loading model'}
-              </Badge>
-            )}
-            {!isRemoteProvider && gpuVendor && (
-              <Badge variant="outline">
-                <CpuIcon className="mr-1 size-3.5" />
-                {gpuVendor}
-              </Badge>
-            )}
-            {useWebSearch && (
-              <Badge variant="outline">
-                <GlobeIcon className="mr-1 size-3.5" />
-                {ragStatus === 'indexing'
-                  ? 'Indexing local RAG'
-                  : ragStatus === 'ready'
-                    ? `${ragSummary?.retrievalMode === 'semantic' ? 'Semantic' : 'Lexical'} RAG ${ragSummary?.chunkCount ?? 0} chunks`
-                    : ragStatus === 'error'
-                      ? 'Local RAG error'
-                      : 'Local RAG on'}
-              </Badge>
-            )}
-            {useApiTools && (
-              <Badge variant="outline">
-                <WrenchIcon className="mr-1 size-3.5" />
-                {CHAT_TOOL_COUNT} live API tools ready
-              </Badge>
-            )}
-            {!isRemoteProvider && selectedModelData?.supportsToolCalling && (
-              <Badge variant="outline">
-                <WrenchIcon className="mr-1 size-3.5" />
-                Native tool-calling
-              </Badge>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {isRemoteProvider
-              ? `Prompts, retrieved passages, and tool results are sent directly from this browser to ${inferenceTarget.config.baseUrl || 'the configured endpoint'}.`
-              : selectedModelData?.note}
-          </p>
-          {isSelectedModelLoading && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Loading {selectedModelData?.name}. The chat input stays locked until this model is fully downloaded and initialized.
-            </p>
-          )}
-          {useApiTools ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              The model receives all {CHAT_TOOL_COUNT} live API tools on each prompt and decides whether to call them.
-              {!isRemoteProvider && selectedModelData?.supportsToolCalling ? ' This model also advertises native tool-calling support in WebLLM.' : ''}
-            </p>
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-muted/30 px-4 text-xs">
+          <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', statusTone)} />
+          <span className="shrink-0 font-medium text-foreground">{providerLabel}</span>
+          <span aria-hidden className="shrink-0 text-border">|</span>
+          <span className="truncate text-muted-foreground">{activeModelLabel}</span>
+          {statusActivity ? (
+            <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+              <Spinner className="size-3" />
+              {statusActivity}
+            </span>
           ) : null}
-          {useWebSearch && ragSummary ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Seed corpus ready with {ragSummary.indexedDocumentCount}/{ragSummary.documentCount} documents indexed via{' '}
-              {ragSummary.retrievalMode === 'semantic' ? 'local embeddings' : 'lexical fallback'}.
-              {ragSummary.skippedDocumentCount > 0 ? ` ${ragSummary.skippedDocumentCount} document(s) were skipped.` : ''}
-            </p>
-          ) : null}
-          {!isRemoteProvider && progressReport && (
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <SparklesIcon className="size-3.5" />
-                <span>{progressReport.text}</span>
-              </div>
-              <Progress value={formatProgress(progressReport)} />
-            </div>
-          )}
-          {!isRemoteProvider && runtimeStats && !progressReport && (
-            <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{runtimeStats}</p>
-          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                className="ml-auto size-6 shrink-0 text-muted-foreground"
+                size="icon"
+                title="Session details"
+                type="button"
+                variant="ghost"
+              >
+                <InfoIcon className="size-3.5" />
+                <span className="sr-only">Session details</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[320px] p-3" side="bottom">
+              <p className="text-xs font-medium text-foreground">Session details</p>
+              <ul className="mt-2 space-y-1.5">
+                {detailLines.map((line) => (
+                  <li className="text-xs leading-5 text-muted-foreground" key={line}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </PopoverContent>
+          </Popover>
         </div>
 
-        {!isRemoteProvider && hasWebGpuSupport === false && (
-          <div className="border-b px-4 py-3">
-            <Alert variant="destructive">
-              <AlertCircleIcon className="h-4 w-4" />
-              <AlertTitle>WebGPU unavailable</AlertTitle>
-              <AlertDescription>
-                Local fallback needs WebGPU. Use a compatible Chrome or Edge build, or configure an OpenAI-compatible key below.
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
+        {!isRemoteProvider && progressReport ? (
+          <Progress className="h-0.5 shrink-0 rounded-none" value={formatProgress(progressReport)} />
+        ) : null}
 
-        {engineError && (
-          <div className="border-b px-4 py-3">
-            <Alert variant="destructive">
-              <AlertCircleIcon className="h-4 w-4" />
-              <AlertTitle>{isRemoteProvider ? 'Provider error' : 'Local model error'}</AlertTitle>
-              <AlertDescription>{engineError}</AlertDescription>
-            </Alert>
+        {alerts.length > 0 ? (
+          <div className="shrink-0 divide-y border-b">
+            {alerts.map((alert) => (
+              <div
+                className="flex items-start gap-2 bg-destructive/5 px-4 py-2 text-xs leading-5 text-destructive"
+                key={alert.title}
+              >
+                <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0" />
+                <p>
+                  <span className="font-medium">{alert.title}.</span> {alert.description}
+                </p>
+              </div>
+            ))}
           </div>
-        )}
-
-        {ragError && useWebSearch && (
-          <div className="border-b px-4 py-3">
-            <Alert variant="destructive">
-              <AlertCircleIcon className="h-4 w-4" />
-              <AlertTitle>Local RAG error</AlertTitle>
-              <AlertDescription>{ragError}</AlertDescription>
-            </Alert>
-          </div>
-        )}
+        ) : null}
 
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <div
@@ -2178,13 +2295,26 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           <Conversation>
             <ConversationContent>
               {messages.length === 0 ? (
-                <ConversationEmptyState
-                  description={isRemoteProvider
-                    ? 'Start a conversation using the configured OpenAI-compatible provider.'
-                    : 'Start a conversation and the selected model will load locally in your browser.'}
-                  icon={<BotIcon className="size-5" />}
-                  title="No messages yet"
-                />
+                <ConversationEmptyState className="gap-4">
+                  <div className="flex size-9 items-center justify-center rounded-md border bg-muted/40">
+                    <BotIcon className="size-4 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium text-foreground">Lamassu Assistant</h3>
+                    <p className="max-w-sm text-sm text-muted-foreground">
+                      Ask about certificate authorities, devices, registrations, or keys.
+                    </p>
+                  </div>
+                  <div className="flex w-full max-w-md flex-col gap-1.5">
+                    {suggestions.slice(0, 3).map((suggestion) => (
+                      <QuickPromptItem
+                        key={suggestion}
+                        onClick={handleSuggestionClick}
+                        suggestion={suggestion}
+                      />
+                    ))}
+                  </div>
+                </ConversationEmptyState>
               ) : (
                 messages.map(({ versions, ...message }) => (
                   <MessageBranch defaultBranch={0} key={message.key}>
@@ -2222,16 +2352,30 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                             {message.tools?.length ? (
                               <div className="mb-3 space-y-2">
                                 {message.tools.map((tool) => (
-                                  <Tool defaultOpen={tool.status === 'running' || tool.status === 'error'} key={tool.id}>
+                                  <Tool
+                                    defaultOpen={Boolean(tool.inputRequest) || tool.status === 'running' || tool.status === 'error'}
+                                    key={tool.id}
+                                  >
                                     <ToolHeader
                                       state={getToolUiState(tool)}
+                                      statusLabel={tool.inputRequest ? 'Input required' : undefined}
                                       title={tool.name}
                                       type="dynamic-tool"
                                       toolName={tool.name}
                                     />
                                     <ToolContent>
                                       <p className="text-sm text-muted-foreground">{tool.description}</p>
-                                      <ToolInput input={tool.parameters} />
+                                      {tool.inputRequest ? (
+                                        <ChatToolInputForm
+                                          initialValues={tool.parameters}
+                                          onCancel={() => void handleToolApproval(message.key, tool.id, false)}
+                                          onSubmit={(values) => handleToolInputSubmit(message.key, tool.id, values)}
+                                          request={tool.inputRequest}
+                                          submitLabel={tool.destructive ? 'Review action' : 'Run tool'}
+                                        />
+                                      ) : (
+                                        <ToolInput input={tool.parameters} />
+                                      )}
                                       <ToolOutput
                                         errorText={tool.error}
                                         output={tool.result}
@@ -2325,272 +2469,215 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             </div>
           </div>
 
-          <div className="grid shrink-0">
-            <div className="w-full px-4 pb-4 pt-3">
-              {isRagIndexing ? (
-                <Task className="mb-3 rounded-xl border border-border/70 bg-muted/30 px-4 py-3" defaultOpen>
-                  <TaskTrigger title="Indexing local RAG seed">
-                    <div className="flex w-full items-center gap-2 text-sm text-muted-foreground">
-                      <Spinner className="size-4 text-foreground" />
-                      <p className="font-medium text-foreground">Indexing local RAG seed</p>
-                      <span className="text-xs text-muted-foreground">
-                        Chat input unlocks when retrieval is ready.
-                      </span>
-                    </div>
-                  </TaskTrigger>
-                  <TaskContent>
-                    <TaskItem>Reading the bundled RFC, PQC, and NIST references from `rag-seed`.</TaskItem>
-                    <TaskItem>Chunking the documents and building the retrieval index locally in this browser.</TaskItem>
-                    <TaskItem>Generating embeddings when available, then caching the index in IndexedDB.</TaskItem>
-                  </TaskContent>
-                </Task>
-              ) : null}
-              <PromptInput globalDrop multiple onSubmit={handleSubmit}>
-                <PromptInputHeader>
-                  <PromptInputAttachmentsDisplay />
-                </PromptInputHeader>
-                <PromptInputBody>
-                  <PromptInputTextarea
-                    className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          <div className="shrink-0 px-4 pb-4 pt-3">
+            <PromptInput globalDrop multiple onSubmit={handleSubmit}>
+              <PromptInputHeader>
+                <PromptInputAttachmentsDisplay />
+              </PromptInputHeader>
+              <PromptInputBody>
+                <PromptInputTextarea
+                  className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  disabled={isComposerLocked}
+                  onChange={handleTextChange}
+                  placeholder={
+                    isSelectedModelLoading
+                      ? 'Loading the selected model…'
+                      : isRagIndexing
+                        ? 'Indexing reference documents…'
+                        : 'Ask a question'
+                  }
+                  value={text}
+                />
+              </PromptInputBody>
+              <PromptInputFooter className="items-center gap-1">
+                <PromptInputTools className="gap-0.5">
+                  <PromptInputActionMenu>
+                    <PromptInputActionMenuTrigger disabled={isComposerLocked} tooltip="Attach files" />
+                    <PromptInputActionMenuContent>
+                      <PromptInputActionAddAttachments />
+                    </PromptInputActionMenuContent>
+                  </PromptInputActionMenu>
+                  <SpeechInput
+                    className="shrink-0"
                     disabled={isComposerLocked}
-                    onChange={handleTextChange}
-                    placeholder={
-                      isSelectedModelLoading
-                        ? `Loading ${selectedModelData?.name ?? 'the selected model'} locally before chat unlocks...`
-                        : isRagIndexing
-                          ? 'Indexing the local RAG seed before chat input unlocks...'
-                        : isRemoteProvider
-                          ? `Ask using ${inferenceTarget.config.model || 'the configured remote model'}...`
-                          : 'Ask about PKI, devices, registrations, keys, or anything you want to reason through locally.'
-                    }
-                    value={text}
+                    onTranscriptionChange={handleTranscriptionChange}
+                    size="icon"
+                    variant="ghost"
                   />
-                </PromptInputBody>
-                <PromptInputFooter className="flex-wrap items-center gap-2">
-                  <PromptInputTools className="flex-1 flex-wrap">
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger disabled={isComposerLocked} />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
-                    <SpeechInput
-                      className="shrink-0"
-                      disabled={isComposerLocked}
-                      onTranscriptionChange={handleTranscriptionChange}
-                      size="icon"
-                      variant="ghost"
-                    />
-                    <Popover onOpenChange={setQuickPromptsOpen} open={quickPromptsOpen}>
-                      <PopoverTrigger asChild>
-                        <PromptInputButton disabled={isComposerLocked} type="button" variant={quickPromptsOpen ? 'default' : 'ghost'}>
-                          <WandSparklesIcon size={16} />
-                          <span>Quick prompts</span>
-                        </PromptInputButton>
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="w-[320px] p-3" side="top">
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium text-foreground">Quick prompts</p>
-                            <p className="text-xs text-muted-foreground">
-                              Fill the input with a starter prompt.
-                            </p>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            {(isPanel ? suggestions.slice(0, 4) : suggestions).map((suggestion) => (
-                              <QuickPromptItem
-                                key={suggestion}
-                                onClick={handleSuggestionClick}
-                                suggestion={suggestion}
-                              />
-                            ))}
-                          </div>
+                  <PromptInputButton
+                    aria-pressed={useApiTools}
+                    disabled={isComposerLocked}
+                    onClick={toggleApiTools}
+                    tooltip={useApiTools ? 'Live API tools on' : 'Live API tools off'}
+                    type="button"
+                    variant={useApiTools ? 'default' : 'ghost'}
+                  >
+                    <WrenchIcon size={16} />
+                  </PromptInputButton>
+                  <PromptInputButton
+                    aria-pressed={useWebSearch}
+                    disabled={isComposerLocked}
+                    onClick={toggleWebSearch}
+                    tooltip={useWebSearch ? 'Document retrieval on' : 'Document retrieval off'}
+                    type="button"
+                    variant={useWebSearch ? 'default' : 'ghost'}
+                  >
+                    <GlobeIcon size={16} />
+                  </PromptInputButton>
+                  <Popover onOpenChange={setProviderSettingsOpen} open={providerSettingsOpen}>
+                    <PopoverTrigger asChild>
+                      <PromptInputButton
+                        disabled={isBusyGenerating}
+                        tooltip="Provider settings"
+                        type="button"
+                        variant={isRemoteProvider ? 'default' : 'ghost'}
+                      >
+                        <SettingsIcon size={16} />
+                      </PromptInputButton>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-[360px] p-4" side="top">
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-foreground">OpenAI-compatible provider</p>
+                          <p className="text-xs leading-5 text-muted-foreground">
+                            Requests go directly from this browser, so the endpoint must allow browser CORS. A key entered here stays in memory only.
+                          </p>
                         </div>
-                      </PopoverContent>
-                    </Popover>
-                    <PromptInputButton
-                      disabled={isComposerLocked}
-                      onClick={toggleApiTools}
-                      type="button"
-                      variant={useApiTools ? 'default' : 'ghost'}
-                    >
-                      <WrenchIcon size={16} />
-                      <span>Tools</span>
-                    </PromptInputButton>
-                    <PromptInputButton
-                      disabled={isComposerLocked}
-                      onClick={toggleWebSearch}
-                      type="button"
-                      variant={useWebSearch ? 'default' : 'ghost'}
-                    >
-                      <GlobeIcon size={16} />
-                      <span>Search</span>
-                    </PromptInputButton>
-                    <Popover onOpenChange={setProviderSettingsOpen} open={providerSettingsOpen}>
-                      <PopoverTrigger asChild>
-                        <PromptInputButton
-                          disabled={isBusyGenerating}
-                          type="button"
-                          variant={isRemoteProvider ? 'default' : 'ghost'}
-                        >
-                          <CloudIcon size={16} />
-                          <span>{isRemoteProvider ? 'Remote' : 'Provider'}</span>
-                        </PromptInputButton>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-[360px] p-4" side="top">
-                        <div className="space-y-4">
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium text-foreground">OpenAI-compatible provider</p>
-                            <p className="text-xs leading-5 text-muted-foreground">
-                              Requests go directly from this browser and the endpoint must allow browser CORS. A key entered here stays in memory; a key from config.js is public to users of this UI.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-base-url">
-                              Base URL
-                            </label>
-                            <Input
-                              autoCapitalize="none"
-                              id="openai-compatible-base-url"
-                              onChange={(event) => setRemoteBaseUrl(event.target.value)}
-                              placeholder={DEFAULT_OPENAI_COMPATIBLE_BASE_URL}
-                              spellCheck={false}
-                              value={remoteBaseUrl}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-model">
-                              Model
-                            </label>
-                            <Input
-                              autoCapitalize="none"
-                              id="openai-compatible-model"
-                              onChange={(event) => setRemoteModel(event.target.value)}
-                              placeholder={DEFAULT_OPENAI_COMPATIBLE_MODEL}
-                              spellCheck={false}
-                              value={remoteModel}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-api-key">
-                              API key
-                            </label>
-                            <Input
-                              autoCapitalize="none"
-                              autoComplete="off"
-                              id="openai-compatible-api-key"
-                              onChange={(event) => setRemoteApiKey(event.target.value)}
-                              placeholder="Enter a key to use the remote provider"
-                              spellCheck={false}
-                              type="password"
-                              value={remoteApiKey}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between gap-3 border-t pt-3">
-                            <p className="text-xs text-muted-foreground">
-                              {isRemoteProvider ? 'Remote provider active.' : 'No key: local WebLLM is active.'}
-                            </p>
-                            {remoteApiKey ? (
-                              <Button onClick={() => setRemoteApiKey('')} size="sm" type="button" variant="outline">
-                                Clear key
-                              </Button>
-                            ) : null}
-                          </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-base-url">
+                            Base URL
+                          </label>
+                          <Input
+                            autoCapitalize="none"
+                            id="openai-compatible-base-url"
+                            onChange={(event) => setRemoteBaseUrl(event.target.value)}
+                            placeholder={DEFAULT_OPENAI_COMPATIBLE_BASE_URL}
+                            spellCheck={false}
+                            value={remoteBaseUrl}
+                          />
                         </div>
-                      </PopoverContent>
-                    </Popover>
-                    {!isRemoteProvider ? (
-                    <ModelSelector onOpenChange={handleModelSelectorOpenChange} open={modelSelectorOpen}>
-                      <ModelSelectorTrigger asChild>
-                        <PromptInputButton disabled={isBusyGenerating} type="button">
-                          {selectedModelData ? (
-                            <ModelSelectorLogo provider={getModelLogoProvider(selectedModelData)} />
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-model">
+                            Model
+                          </label>
+                          <Input
+                            autoCapitalize="none"
+                            id="openai-compatible-model"
+                            onChange={(event) => setRemoteModel(event.target.value)}
+                            placeholder={DEFAULT_OPENAI_COMPATIBLE_MODEL}
+                            spellCheck={false}
+                            value={remoteModel}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-foreground" htmlFor="openai-compatible-api-key">
+                            API key
+                          </label>
+                          <Input
+                            autoCapitalize="none"
+                            autoComplete="off"
+                            id="openai-compatible-api-key"
+                            onChange={(event) => setRemoteApiKey(event.target.value)}
+                            placeholder="Enter a key to use the remote provider"
+                            spellCheck={false}
+                            type="password"
+                            value={remoteApiKey}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 border-t pt-3">
+                          <p className="text-xs text-muted-foreground">
+                            {isRemoteProvider ? 'Remote provider active.' : 'No key: local WebLLM is active.'}
+                          </p>
+                          {remoteApiKey ? (
+                            <Button onClick={() => setRemoteApiKey('')} size="sm" type="button" variant="outline">
+                              Clear key
+                            </Button>
                           ) : null}
-                          {isSelectedModelLoading ? <Spinner className="size-3.5" /> : null}
-                          {selectedModelData?.name ? (
-                            <ModelSelectorName>{selectedModelData.name}</ModelSelectorName>
-                          ) : null}
-                        </PromptInputButton>
-                      </ModelSelectorTrigger>
-                      <ModelSelectorContent className="gap-0 overflow-hidden p-0 sm:max-w-5xl" title="Model Selection">
-                        <div className="border-b px-6 py-5">
-                          <div className="flex items-center justify-between gap-4">
-                            <div>
-                              <h2 className="text-xl font-semibold text-foreground">Model Selection</h2>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                Choose the local model the chatbot should load and keep ready in this browser.
-                              </p>
-                            </div>
-                          </div>
                         </div>
-
-                        <div className="border-b px-6 py-4">
-                          <div className="relative">
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {!isRemoteProvider ? (
+                  <ModelSelector onOpenChange={handleModelSelectorOpenChange} open={modelSelectorOpen}>
+                    <ModelSelectorTrigger asChild>
+                      <PromptInputButton disabled={isBusyGenerating} type="button" variant="outline">
+                        {selectedModelData ? (
+                          <ModelSelectorLogo provider={getModelLogoProvider(selectedModelData)} />
+                        ) : null}
+                        {isSelectedModelLoading ? <Spinner className="size-3.5" /> : null}
+                        {selectedModelData?.name ? (
+                          <ModelSelectorName>{selectedModelData.name}</ModelSelectorName>
+                        ) : null}
+                      </PromptInputButton>
+                    </ModelSelectorTrigger>
+                    <ModelSelectorContent className="gap-0 overflow-hidden p-0 sm:max-w-3xl" title="Select a local model">
+                      <div className="space-y-3 border-b px-5 py-4">
+                        <div>
+                          <h2 className="text-base font-semibold text-foreground">Select a local model</h2>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            The model is downloaded once and cached in this browser.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="relative min-w-[200px] flex-1">
                             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                              className="h-11 pl-9"
+                              className="h-9 pl-9"
                               onChange={(event) => setModelSearch(event.target.value)}
-                              placeholder="Search model..."
+                              placeholder="Search models"
                               value={modelSearch}
                             />
                           </div>
+                          {modelFamilies.map((family) => (
+                            <Button
+                              className="h-9 px-3"
+                              key={family.id}
+                              onClick={() =>
+                                setSelectedModelFamily((current) =>
+                                  current === family.id ? null : family.id,
+                                )
+                              }
+                              type="button"
+                              variant={selectedModelFamily === family.id ? 'secondary' : 'outline'}
+                            >
+                              <ModelSelectorLogo provider={family.logoProvider} />
+                              <span>{family.label}</span>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
 
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {modelFamilies.map((family) => {
-                              const isActive = selectedModelFamily === family.id;
-
-                              return (
-                                <Button
-                                  className="h-9 rounded-md px-3"
-                                  key={family.id}
-                                  onClick={() =>
-                                    setSelectedModelFamily((current) =>
-                                      current === family.id ? null : family.id,
-                                    )
-                                  }
-                                  type="button"
-                                  variant={isActive ? 'secondary' : 'outline'}
-                                >
-                                  <ModelSelectorLogo provider={family.logoProvider} />
-                                  <span>{family.label}</span>
-                                </Button>
-                              );
-                            })}
+                      <div className="max-h-[56vh] overflow-y-auto p-2">
+                        {filteredModels.length === 0 ? (
+                          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                            No models match that search.
                           </div>
-                        </div>
-
-                        <div className="max-h-[58vh] overflow-y-auto px-6 py-4">
-                          {filteredModels.length === 0 ? (
-                            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-                              No models match that search.
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                              {filteredModels.map((candidate) => (
-                                <ModelItem
-                                  isLoading={loadingModelId === candidate.id}
-                                  isSelected={model === candidate.id}
-                                  key={candidate.id}
-                                  m={candidate}
-                                  onSelect={handleModelSelect}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </ModelSelectorContent>
-                    </ModelSelector>
-                    ) : null}
-                  </PromptInputTools>
-                  <PromptInputSubmit
-                    className="ml-auto shrink-0"
-                    disabled={isSubmitDisabled}
-                    onStop={() => void handleStop()}
-                    status={status}
-                  />
-                </PromptInputFooter>
-              </PromptInput>
-            </div>
+                        ) : (
+                          <div className="flex flex-col">
+                            {filteredModels.map((candidate) => (
+                              <ModelItem
+                                isLoading={loadingModelId === candidate.id}
+                                isSelected={model === candidate.id}
+                                key={candidate.id}
+                                m={candidate}
+                                onSelect={handleModelSelect}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </ModelSelectorContent>
+                  </ModelSelector>
+                  ) : null}
+                </PromptInputTools>
+                <PromptInputSubmit
+                  className="ml-auto shrink-0"
+                  disabled={isSubmitDisabled}
+                  onStop={() => void handleStop()}
+                  status={status}
+                />
+              </PromptInputFooter>
+            </PromptInput>
           </div>
         </div>
       </div>

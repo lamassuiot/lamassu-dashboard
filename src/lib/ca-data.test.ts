@@ -15,6 +15,7 @@ import {
   revokeCa,
   deleteCa,
   signCertificate,
+  createCertificate,
   updateCaDefaultProfileId,
   fetchCaStatsSummary,
   fetchDevManagerStats,
@@ -31,6 +32,7 @@ import {
   type CaStatsSummaryResponse,
   type ApiSigningProfile,
   type CreateSigningProfilePayload,
+  type CreateCertificatePayload,
 } from './ca-data'
 
 const CA_API_BASE = 'https://api.test.lamassu.io/ca/v1'
@@ -536,6 +538,54 @@ describe('ca-data', () => {
       await expect(signCertificate(caId, payload)).rejects.toThrow(
         'Invalid CSR'
       )
+    })
+  })
+
+  describe('createCertificate', () => {
+    const payload: CreateCertificatePayload = {
+      ca_id: 'issuer-ca',
+      key_spec: { type: 'RSA', bits: 2048 },
+      subject: { common_name: 'device.example.com' },
+      issuance_profile: {
+        validity: { type: 'Duration', duration: '1y' },
+        sign_as_ca: false,
+        honor_key_usage: false,
+        key_usage: ['DigitalSignature', 'KeyEncipherment'],
+        honor_extended_key_usages: false,
+        extended_key_usages: ['ClientAuth'],
+      },
+    }
+
+    it('uses POST /certificates and returns the response consumed by the Create Certificate screen', async () => {
+      let capturedBody: unknown
+
+      server.use(
+        http.post(`${CA_API_BASE}/certificates`, async ({ request }) => {
+          capturedBody = await request.json()
+          return HttpResponse.json({ certificate: 'base64-pem', serial_number: '12:34' })
+        })
+      )
+
+      await expect(createCertificate(payload)).resolves.toEqual({
+        certificate: 'base64-pem',
+        serial_number: '12:34',
+      })
+      expect(capturedBody).toEqual(payload)
+    })
+
+    it('preserves the explicit access token used by the Create Certificate screen', async () => {
+      let authorization: string | null = null
+
+      server.use(
+        http.post(`${CA_API_BASE}/certificates`, ({ request }) => {
+          authorization = request.headers.get('Authorization')
+          return HttpResponse.json({ serial_number: '56:78' })
+        })
+      )
+
+      await createCertificate(payload, 'screen-access-token')
+
+      expect(authorization).toBe('Bearer screen-access-token')
     })
   })
 

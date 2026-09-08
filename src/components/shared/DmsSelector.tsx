@@ -21,6 +21,7 @@ export interface DmsOption {
 }
 
 interface DmsSelectorProps {
+  id?: string;
   value: string | null;
   onChange: (value: string | null, dms?: DmsOption) => void;
   disabled?: boolean;
@@ -35,6 +36,7 @@ interface DmsSelectorProps {
 }
 
 export const DmsSelector: React.FC<DmsSelectorProps> = ({
+  id,
   value,
   onChange,
   disabled = false,
@@ -135,6 +137,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
+          id={id}
           type="button"
           role="combobox"
           aria-expanded={isOpen}
