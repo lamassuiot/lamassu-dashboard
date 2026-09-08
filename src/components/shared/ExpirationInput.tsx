@@ -12,6 +12,7 @@ import { format, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DurationInput } from './DurationInput';
 import { Input } from '@/components/ui/input';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 export type ExpirationType = "Duration" | "Date" | "Indefinite";
 
@@ -29,6 +30,7 @@ interface ExpirationInputProps {
   defaultDuration?: string;
   defaultDate?: Date;
   idPrefix: string; // To ensure unique IDs for elements
+  error?: string;
 }
 
 export const ExpirationInput: React.FC<ExpirationInputProps> = ({
@@ -39,7 +41,9 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
   defaultDuration = "1y",
   defaultDate,
   idPrefix,
+  error,
 }) => {
+  const errorId = `${idPrefix}-error`;
   // Internal state to manage the component's UI without immediately propagating every keystroke
   const [currentType, setCurrentType] = useState<ExpirationType>(value.type || defaultType);
   const [duration, setDuration] = useState<string>(value.durationValue || defaultDuration);
@@ -83,7 +87,7 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
       <Label htmlFor={`${idPrefix}-type`}>{label}</Label>
       <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-2 items-start">
         <Select value={currentType} onValueChange={(val) => handleTypeChange(val as ExpirationType)}>
-          <SelectTrigger id={`${idPrefix}-type`}>
+          <SelectTrigger id={`${idPrefix}-type`} aria-invalid={!!error} aria-describedby={error ? errorId : undefined}>
             <SelectValue placeholder="Select type" />
           </SelectTrigger>
           <SelectContent>
@@ -101,6 +105,8 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
             onChange={handleDurationChange}
             placeholder="e.g., 10y, 365d, 2w"
             description="Valid units: y, w, d, h, m, s."
+            aria-invalid={!!error}
+            aria-describedby={error ? errorId : undefined}
           />
         )}
         {currentType === "Date" && (
@@ -113,6 +119,8 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
                   "h-8 w-full justify-start bg-input/50 px-2.5 text-left font-normal hover:bg-input/70",
                   !selectedDate && "text-muted-foreground"
                 )}
+                aria-invalid={!!error}
+                aria-describedby={error ? errorId : undefined}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {selectedDate && isValid(selectedDate) ? format(selectedDate, "PPP") : <span>Pick a date</span>}
@@ -123,7 +131,6 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
                 mode="single"
                 selected={selectedDate}
                 onSelect={handleDateChange}
-                initialFocus
               />
             </PopoverContent>
           </Popover>
@@ -134,9 +141,12 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
             value="Never Expires (9999-12-31)"
             readOnly
             className="bg-muted/50"
+            aria-invalid={!!error}
+            aria-describedby={error ? errorId : undefined}
           />
         )}
       </div>
+      {error && <FormFieldError id={errorId} title={error} />}
     </div>
   );
 };

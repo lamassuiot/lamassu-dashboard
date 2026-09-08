@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Trash2, Info } from 'lucide-react';
 import type { ClaimCondition } from '@/types/authz';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 interface OidcClaimsEditorProps {
   claims: ClaimCondition[];
@@ -40,12 +41,17 @@ export function OidcClaimsEditor({ claims, disabled, onAdd, onRemove, onUpdate }
           variant="outline"
           onClick={onAdd}
           disabled={disabled}
+          aria-invalid
+          aria-describedby="oidc-claims-required-error"
           className="h-auto w-full flex-col gap-2 border-dashed py-6"
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Add your first claim condition</span>
           <span className="text-xs text-muted-foreground">At least one claim is required to identify this principal</span>
         </Button>
+      )}
+      {claims.length === 0 && (
+        <FormFieldError id="oidc-claims-required-error" title="Claim condition required." description="Add at least one claim before saving." />
       )}
 
       <div className="rounded-lg border divide-y">
@@ -77,7 +83,10 @@ export function OidcClaimsEditor({ claims, disabled, onAdd, onRemove, onUpdate }
                   required
                   disabled={disabled}
                   className="font-mono text-sm"
+                  aria-invalid={!claim.claim.trim()}
+                  aria-describedby={!claim.claim.trim() ? `oidc-claim-name-${index}-error` : undefined}
                 />
+                {!claim.claim.trim() && <FormFieldError id={`oidc-claim-name-${index}-error`} title="Claim Name required." />}
               </div>
 
               <div className="space-y-1.5">
@@ -113,7 +122,10 @@ export function OidcClaimsEditor({ claims, disabled, onAdd, onRemove, onUpdate }
                   required
                   disabled={disabled}
                   className="font-mono text-sm"
+                  aria-invalid={!claim.value.trim()}
+                  aria-describedby={!claim.value.trim() ? `oidc-claim-value-${index}-error` : undefined}
                 />
+                {!claim.value.trim() && <FormFieldError id={`oidc-claim-value-${index}-error`} title="Claim Value required." />}
               </div>
             </div>
 

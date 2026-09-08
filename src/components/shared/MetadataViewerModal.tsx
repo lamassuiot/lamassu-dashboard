@@ -25,9 +25,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { sileo } from '@/lib/toast';
 import { Copy, Check, Edit, Save, Loader2 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> });
 
@@ -65,7 +65,7 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   
   // Internal state to hold the current version of the data being displayed
   const [displayData, setDisplayData] = useState(data);
@@ -83,13 +83,19 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
     setContent(jsonString);
     if (!isOpen) { // Reset editing state when modal closes
         setIsEditing(false);
-        setJsonError(null);
+        setSaveError(null);
     }
   }, [displayData, isOpen]);
 
 
   const jsonStringForDisplay = displayData ? JSON.stringify(displayData, null, 2) : '{}';
   const hasData = displayData && Object.keys(displayData).length > 0;
+  let jsonError: string | null = null;
+  try {
+    JSON.parse(content);
+  } catch (error) {
+    jsonError = `Invalid JSON: ${error instanceof Error ? error.message : 'Unable to parse metadata.'}`;
+  }
 
 
   const handleCopy = async () => {
@@ -104,24 +110,26 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
     }
   };
 
-  const handleEdit = () => setIsEditing(true);
+  const handleEdit = () => {
+    setSaveError(null);
+    setIsEditing(true);
+  };
 
   const handleCancel = () => {
     const currentJsonString = displayData ? JSON.stringify(displayData, null, 2) : '{}';
     setContent(currentJsonString);
     setIsEditing(false);
-    setJsonError(null);
+    setSaveError(null);
   };
   
   const handleSave = async () => {
     if (!onSave || !itemId) return;
+    if (jsonError) return;
     
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
-      setJsonError(null);
-    } catch (e: any) {
-      setJsonError(`Invalid JSON: ${e.message}`);
+    } catch {
       return;
     }
 
@@ -131,8 +139,10 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
       sileo.success({ title: "Success!", description: "Metadata updated successfully." });
       setDisplayData(parsedContent); // Update internal state immediately
       setIsEditing(false);
+      setSaveError(null);
       onUpdateSuccess?.(); // Notify parent to refetch list data in the background
     } catch (e: any) {
+      setSaveError(e.message || 'Metadata could not be saved.');
       sileo.error({ title: "Save Failed", description: e.message });
     } finally {
       setIsSaving(false);
@@ -157,12 +167,15 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
         )}
 
         {isEditing ? (
-          <div className={cn("border rounded-md overflow-hidden h-[400px]", presentation === 'sheet' && "h-full min-h-0")}>
+          <div aria-invalid={!!jsonError} aria-describedby={jsonError ? 'metadata-editor-error' : undefined} className={cn("border rounded-md overflow-hidden h-[400px]", presentation === 'sheet' && "h-full min-h-0", jsonError && "border-destructive ring-3 ring-destructive/20")}>
             <Editor
               height="100%"
               defaultLanguage="json"
               value={content}
-              onChange={(value) => setContent(value || '')}
+              onChange={(value) => {
+                setContent(value || '');
+                setSaveError(null);
+              }}
               theme={monacoTheme}
               options={{ minimap: { enabled: false }, automaticLayout: true }}
             />
@@ -192,17 +205,20 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
         )}
       </div>
 
-      {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
+      {jsonError && <FormFieldError id="metadata-editor-error" title={jsonError} />}
     </>
   );
 
   const footerContent = isEditing ? (
-    <div className="w-full flex justify-end space-x-2">
-      <Button variant="ghost" onClick={handleCancel} disabled={isSaving}>Cancel</Button>
-      <Button onClick={handleSave} disabled={isSaving}>
-        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-        Save
-      </Button>
+    <div className="w-full space-y-3">
+      <FormValidationSummary errors={[...(jsonError ? [jsonError] : []), ...(saveError ? [`Save: ${saveError}`] : [])]} />
+      <div className="flex justify-end space-x-2">
+        <Button variant="ghost" onClick={handleCancel} disabled={isSaving}>Cancel</Button>
+        <Button onClick={handleSave} disabled={isSaving || !!jsonError}>
+          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+          Save
+        </Button>
+      </div>
     </div>
   ) : (
     <div className="w-full flex justify-between items-center">

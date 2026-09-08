@@ -15,6 +15,8 @@ interface TagInputProps {
   className?: string;
   id?: string;
   showHint?: boolean;
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }
 
 export const TagInput: React.FC<TagInputProps> = ({
@@ -24,6 +26,8 @@ export const TagInput: React.FC<TagInputProps> = ({
   className,
   id,
   showHint = true,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const tags = Array.isArray(value) ? value : [];
@@ -55,7 +59,11 @@ export const TagInput: React.FC<TagInputProps> = ({
     <div className={cn("space-y-2", className)}>
       <label
         htmlFor={inputId}
-        className="flex flex-wrap gap-1.5 items-center w-full rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 min-h-8 transition-[color,box-shadow] duration-200 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 cursor-text"
+        aria-invalid={ariaInvalid}
+        className={cn(
+          "flex flex-wrap gap-1.5 items-center w-full rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 min-h-8 transition-[color,box-shadow] duration-200 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 cursor-text",
+          ariaInvalid && "border-destructive ring-3 ring-destructive/20"
+        )}
       >
         {tags.map((tag, index) => (
           <Badge
@@ -88,6 +96,8 @@ export const TagInput: React.FC<TagInputProps> = ({
           placeholder={tags.length === 0 ? placeholder : ""}
           className="flex-grow h-auto p-0 m-0 border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm"
           autoComplete="off"
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
         />
       </label>
       {showHint && <p className="text-xs text-muted-foreground">Press Enter to add a tag. Click 'x' on a tag to remove it.</p>}

@@ -22,6 +22,7 @@ import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -65,6 +66,25 @@ export default function CreateCaImportFullPage() {
   const [customSubjectST, setCustomSubjectST] = useState('');
   const [customSubjectL, setCustomSubjectL] = useState('');
 
+  const certificateError = !importedCaCertPem.trim()
+    ? 'Certificate & Key: Certification Authority Certificate is required.'
+    : decodedImportedCertInfo?.error
+      ? 'Certificate & Key: Certification Authority Certificate must contain valid PEM certificate data.'
+      : null;
+  const privateKeyError = !importedPrivateKeyPem.trim()
+    ? 'Certificate & Key: Certification Authority Private Key is required.'
+    : importedPrivateKeyPem.includes('ENCRYPTED PRIVATE KEY')
+      ? 'Certificate & Key: encrypted private keys are not supported; provide an unencrypted PKCS#8 key.'
+      : null;
+  const validationErrors = [
+    ...(!cryptoEngineId ? ['Import Settings: Crypto Engine is required.'] : []),
+    ...(certificateError ? [certificateError] : []),
+    ...(privateKeyError ? [privateKeyError] : []),
+  ];
+  const validationWarnings = decodedImportedCertInfo && !decodedImportedCertInfo.error && !decodedImportedCertInfo.isCa
+    ? ['Certificate & Key: the imported certificate does not have the CA basic constraint enabled.']
+    : [];
+
   useEffect(() => {
     initPkijsEngine();
   }, []);
@@ -92,11 +112,13 @@ export default function CreateCaImportFullPage() {
   }, []);
 
   const handleKeyUsageChange = (usage: string, checked: boolean) => {
-    setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+    const option = usage as KeyUsageOption;
+    setKeyUsages(prev => checked ? [...prev, option] : prev.filter(u => u !== option));
   };
 
   const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
-    setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+    const option = usage as ExtendedKeyUsageOption;
+    setExtendedKeyUsages(prev => checked ? [...prev, option] : prev.filter(u => u !== option));
   };
 
   const parseCertificatePem = async (pem: string) => {
@@ -216,7 +238,15 @@ export default function CreateCaImportFullPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cryptoEngine">Crypto Engine for Private Key</Label>
-                <CryptoEngineSelector value={cryptoEngineId} onValueChange={setCryptoEngineId} />
+                <CryptoEngineSelector
+                  value={cryptoEngineId}
+                  onValueChange={setCryptoEngineId}
+                  aria-invalid={!cryptoEngineId}
+                  aria-describedby={!cryptoEngineId ? 'import-full-engine-error' : undefined}
+                />
+                {!cryptoEngineId && (
+                  <FormFieldError id="import-full-engine-error" title="Crypto Engine required." description="Select one before importing the CA." />
+                )}
                 <p className="text-xs text-muted-foreground">Select the KMS engine where the imported private key will be stored.</p>
               </div>
             </div>
@@ -241,7 +271,16 @@ export default function CreateCaImportFullPage() {
                   className="font-mono"
                   value={importedCaCertPem}
                   onValueChange={handleImportedCertPemChange}
+                  aria-invalid={!!certificateError}
+                  aria-describedby={certificateError ? 'import-full-certificate-error' : undefined}
                 />
+                {certificateError && (
+                  <FormFieldError
+                    id="import-full-certificate-error"
+                    title={importedCaCertPem.trim() ? 'Invalid CA Certificate.' : 'CA Certificate required.'}
+                    description={importedCaCertPem.trim() ? 'Provide valid PEM certificate data.' : 'Paste the PEM value before importing.'}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">The public certificate of the Certification Authority you are importing.</p>
               </div>
               {decodedImportedCertInfo && (
@@ -278,7 +317,16 @@ export default function CreateCaImportFullPage() {
                   rows={6}
                   required
                   className="font-mono"
+                  aria-invalid={!!privateKeyError}
+                  aria-describedby={privateKeyError ? 'import-full-private-key-error' : undefined}
                 />
+                {privateKeyError && (
+                  <FormFieldError
+                    id="import-full-private-key-error"
+                    title={importedPrivateKeyPem.trim() ? 'Unsupported Private Key.' : 'Private Key required.'}
+                    description={importedPrivateKeyPem.trim() ? 'Provide an unencrypted PKCS#8 key.' : 'Paste the PEM value before importing.'}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">Provide the unencrypted private key in PKCS#8 format.</p>
               </div>
               <div className="space-y-1.5">
@@ -344,11 +392,14 @@ export default function CreateCaImportFullPage() {
 
           <Separator />
 
-          <div className="flex justify-end pt-6">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              {isSubmitting ? 'Importing...' : 'Import Full Certification Authority'}
-            </Button>
+          <div className="space-y-3 pt-6">
+            <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {isSubmitting ? 'Importing...' : 'Import Full Certification Authority'}
+              </Button>
+            </div>
           </div>
         </form>
       </div>

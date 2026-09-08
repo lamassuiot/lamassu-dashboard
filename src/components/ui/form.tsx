@@ -3,6 +3,7 @@
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
 import { Slot } from "@radix-ui/react-slot"
+import { AlertTriangle } from "lucide-react"
 import {
   Controller,
   FormProvider,
@@ -157,10 +158,12 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn("text-sm font-medium text-destructive", className)}
+      role="alert"
+      className={cn("flex items-center gap-1.5 text-xs text-destructive", className)}
       {...props}
     >
-      {body}
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+      <span className="font-medium">{body}</span>
     </p>
   )
 })

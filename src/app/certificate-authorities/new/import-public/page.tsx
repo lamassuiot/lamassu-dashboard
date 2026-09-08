@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface DecodedImportedCertInfo {
   commonName?: string;
@@ -67,6 +68,13 @@ export default function CreateCaImportPublicPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [importedCaCertPem, setImportedCaCertPem] = useState('');
   const [decodedImportedCertInfo, setDecodedImportedCertInfo] = useState<DecodedImportedCertInfo | null>(null);
+
+  const certificateError = !importedCaCertPem.trim()
+    ? 'Certificate: Certification Authority Certificate is required.'
+    : decodedImportedCertInfo?.error
+      ? 'Certificate: Certification Authority Certificate must contain valid PEM certificate data.'
+      : null;
+  const validationErrors = certificateError ? [certificateError] : [];
 
   const parseCertificatePem = async (pem: string) => {
     try {
@@ -127,9 +135,12 @@ export default function CreateCaImportPublicPage() {
 
     const payload: ImportCaPayload = {
       id: crypto.randomUUID(),
+      engine_id: '',
+      private_key: '',
       ca: window.btoa(importedCaCertPem),
       ca_chain: [],
-      ca_type: "EXTERNAL_PUBLIC"
+      ca_type: "EXTERNAL_PUBLIC",
+      parent_id: '',
     };
 
     try {
@@ -192,7 +203,16 @@ export default function CreateCaImportPublicPage() {
                   className="font-mono"
                   value={importedCaCertPem}
                   onValueChange={handleImportedCertPemChange}
+                  aria-invalid={!!certificateError}
+                  aria-describedby={certificateError ? 'import-public-certificate-error' : undefined}
                 />
+                {certificateError && (
+                  <FormFieldError
+                    id="import-public-certificate-error"
+                    title={importedCaCertPem.trim() ? 'Invalid CA Certificate.' : 'CA Certificate required.'}
+                    description={importedCaCertPem.trim() ? 'Provide valid PEM certificate data.' : 'Paste the PEM value before importing.'}
+                  />
+                )}
               </div>
               {decodedImportedCertInfo?.error && (
                 <Alert variant="destructive">{decodedImportedCertInfo.error}</Alert>
@@ -421,11 +441,14 @@ export default function CreateCaImportPublicPage() {
 
           <Separator />
 
-          <div className="flex justify-end pt-6">
-            <Button type="submit" disabled={isSubmitting || !importedCaCertPem.trim()}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              {isSubmitting ? 'Importing...' : 'Import Public Certificate'}
-            </Button>
+          <div className="space-y-3 pt-6">
+            <FormValidationSummary errors={validationErrors} />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting || validationErrors.length > 0}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {isSubmitting ? 'Importing...' : 'Import Public Certificate'}
+              </Button>
+            </div>
           </div>
         </form>
       </div>

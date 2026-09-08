@@ -9,6 +9,7 @@ import { CalendarDays, ListChecks } from "lucide-react";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { CA_KEY_USAGES, extendedKeyUsageOptions, keyUsageOptions } from '@/lib/certificate-usage-options';
+import { isValidPositiveDuration } from '@/components/shared/DurationInput';
 
 /**
  * Simplified schema for inline CA certificate profile during CA creation.
@@ -26,12 +27,11 @@ export const simplifiedInlineProfileSchema = z.object({
     durationValue: z.string().optional(),
     dateValue: z.date().optional(),
   }).refine(data => {
-    if (data.type === 'Duration') return !!data.durationValue;
-    if (data.type === 'Date') return !!data.dateValue;
+    if (data.type === 'Duration') return !!data.durationValue && isValidPositiveDuration(data.durationValue);
+    if (data.type === 'Date') return !!data.dateValue && data.dateValue.getTime() > Date.now();
     return true; // Indefinite is always valid
   }, {
-    message: "A value is required for the selected validity type.",
-    path: ["durationValue"],
+    message: "Certificate validity must be a positive duration or a future date.",
   }),
 
   keyUsages: z.array(z.enum(keyUsageOptions)).optional().default([]),
@@ -68,7 +68,7 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
           <FormField
             control={form.control}
             name="validity"
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <FormItem>
                 <FormControl>
                   <ExpirationInput
@@ -76,10 +76,10 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
                     label="Certificate Validity"
                     value={field.value}
                     onValueChange={field.onChange}
+                    error={fieldState.error?.message}
                   />
                 </FormControl>
                 <FormDescription>Validity period for the CA certificate.</FormDescription>
-                <FormMessage />
               </FormItem>
             )}
           />

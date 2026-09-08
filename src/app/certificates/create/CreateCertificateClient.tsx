@@ -34,6 +34,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ApiKmsKey } from '@/lib/kms-data';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:58.999Z";
 
@@ -98,6 +99,13 @@ export default function CreateCertificateClient() {
     const [profileId, setProfileId] = useState('');
     const [allProfiles, setAllProfiles] = useState<ApiSigningProfile[]>([]);
     const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+
+    const validationErrors = [
+        ...(!selectedCa ? ['Signing CA: Certification Authority is required.'] : []),
+        ...(keyMode === 'reuse' && !kmsKeyIdentifier.trim() ? ['Key Configuration: KMS Key Identifier is required.'] : []),
+        ...(!commonName.trim() ? ['Subject: Common Name is required.'] : []),
+        ...(profileMode === 'reuse' && !profileId.trim() ? ['Issuance Profile: select a signing profile.'] : []),
+    ];
 
     const loadPageData = useCallback(async () => {
         if (!user?.access_token) return;
@@ -267,12 +275,17 @@ export default function CreateCertificateClient() {
                                 className="w-full justify-between font-normal"
                                 onClick={() => setIsCaSelectorOpen(true)}
                                 disabled={isLoadingCAs}
+                                aria-invalid={!selectedCa}
+                                aria-describedby={!selectedCa ? 'create-certificate-ca-error' : undefined}
                             >
                                 <span className={selectedCa ? "text-foreground" : "text-muted-foreground"}>
                                     {isLoadingCAs ? "Loading Certification Authorities..." : selectedCa ? selectedCa.name : "Select a Certification Authority..."}
                                 </span>
                                 <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                             </Button>
+                            {!selectedCa && (
+                                <FormFieldError id="create-certificate-ca-error" title="Certification Authority required." description="Select one before creating the certificate." />
+                            )}
                             {selectedCa && (
                                 <p className="text-xs text-muted-foreground">
                                     ID: <span className="font-mono">{selectedCa.id}</span>{' · '}Algorithm: {selectedCa.keyAlgorithm}
@@ -373,6 +386,8 @@ export default function CreateCertificateClient() {
                                                 }
                                                 allCryptoEngines={allCryptoEngines}
                                                 requirePrivateKey
+                                                aria-invalid={!kmsKeyIdentifier.trim()}
+                                                aria-describedby={!kmsKeyIdentifier.trim() ? 'create-certificate-kms-key-error' : undefined}
                                             />
                                         </div>
                                     )}
@@ -386,7 +401,12 @@ export default function CreateCertificateClient() {
                                             value={kmsKeyIdentifier}
                                             onChange={(e) => setKmsKeyIdentifier(e.target.value)}
                                             className="font-mono"
+                                            aria-invalid={!kmsKeyIdentifier.trim()}
+                                            aria-describedby={!kmsKeyIdentifier.trim() ? 'create-certificate-kms-key-error' : undefined}
                                         />
+                                        {!kmsKeyIdentifier.trim() && (
+                                            <FormFieldError id="create-certificate-kms-key-error" title="KMS Key Identifier required." description="Select or enter one before creating the certificate." />
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -411,7 +431,12 @@ export default function CreateCertificateClient() {
                                     placeholder="e.g. my-service.example.com"
                                     value={commonName}
                                     onChange={(e) => setCommonName(e.target.value)}
+                                    aria-invalid={!commonName.trim()}
+                                    aria-describedby={!commonName.trim() ? 'create-certificate-cn-error' : undefined}
                                 />
+                                {!commonName.trim() && (
+                                    <FormFieldError id="create-certificate-cn-error" title="Common Name required." description="Enter one before creating the certificate." />
+                                )}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
@@ -468,6 +493,7 @@ export default function CreateCertificateClient() {
                                 onKeyUsageChange={handleKeyUsageChange}
                                 extendedKeyUsages={selectedEkus}
                                 onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                                selectionError={profileMode === 'reuse' && !profileId.trim() ? 'Select one before creating the certificate.' : undefined}
                             />
                             {profileMode === 'inline' && (
                                 <div className="flex items-center justify-between gap-4">
@@ -560,44 +586,47 @@ export default function CreateCertificateClient() {
 
             {/* ── Footer actions ── */}
             <Separator />
-            <div className="flex justify-between py-6">
-                {(step === 1 || (step === 2 && !!processingError)) ? (
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => { setStep(1); setProcessingError(null); }}
-                        disabled={step === 1}
-                    >
-                        Back
-                    </Button>
-                ) : <div />}
-
-                <div className="flex gap-2">
-                    {step === 1 && (
-                        <Button type="button" onClick={handleSubmit}>
-                            Create Certificate
+            <div className="space-y-3 py-6">
+                {step === 1 && <FormValidationSummary errors={validationErrors} />}
+                <div className="flex justify-between">
+                    {(step === 1 || (step === 2 && !!processingError)) ? (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => { setStep(1); setProcessingError(null); }}
+                            disabled={step === 1}
+                        >
+                            Back
                         </Button>
-                    )}
-                    {step === 2 && !!processingError && (
-                        <Button type="button" onClick={handleSubmit}>Retry</Button>
-                    )}
-                    {step === 3 && (
-                        <>
-                            <Button type="button" variant="secondary" onClick={() => router.push('/certificates')}>
-                                Back to Certificates
+                    ) : <div />}
+
+                    <div className="flex gap-2">
+                        {step === 1 && (
+                            <Button type="button" onClick={handleSubmit} disabled={validationErrors.length > 0}>
+                                Create Certificate
                             </Button>
-                            {issuedSerialNumber && (
-                                <Button type="button" onClick={() => router.push(`/certificates/details?certificateId=${issuedSerialNumber}`)}>
-                                    View Certificate Details
+                        )}
+                        {step === 2 && !!processingError && (
+                            <Button type="button" onClick={handleSubmit}>Retry</Button>
+                        )}
+                        {step === 3 && (
+                            <>
+                                <Button type="button" variant="secondary" onClick={() => router.push('/certificates')}>
+                                    Back to Certificates
                                 </Button>
-                            )}
-                            {issuedKeyId && (
-                                <Button type="button" variant="secondary" onClick={() => router.push(`/kms/keys/details?keyId=${encodeURIComponent(issuedKeyId)}`)}>
-                                    <KeyRound className="mr-2 h-4 w-4" /> View Key in KMS
-                                </Button>
-                            )}
-                        </>
-                    )}
+                                {issuedSerialNumber && (
+                                    <Button type="button" onClick={() => router.push(`/certificates/details?certificateId=${issuedSerialNumber}`)}>
+                                        View Certificate Details
+                                    </Button>
+                                )}
+                                {issuedKeyId && (
+                                    <Button type="button" variant="secondary" onClick={() => router.push(`/kms/keys/details?keyId=${encodeURIComponent(issuedKeyId)}`)}>
+                                        <KeyRound className="mr-2 h-4 w-4" /> View Key in KMS
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 

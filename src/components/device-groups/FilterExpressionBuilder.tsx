@@ -12,8 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   FilterOperation,
   type DeviceFilterableField,
@@ -26,6 +25,7 @@ import {
   formatFilterCriteria,
   validateFilterCriteria,
 } from '@/lib/device-groups-utils';
+import { FormFieldError } from '@/components/shared/FormValidationSummary';
 
 interface FilterExpressionBuilderProps {
   criteria: DeviceGroupFilterOption[];
@@ -137,10 +137,7 @@ export function FilterExpressionBuilder({
       )}
 
       {(validationError || error) && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{validationError || error}</AlertDescription>
-        </Alert>
+        <FormFieldError title={`${validationError || error}.`} />
       )}
 
       <Button type="button" variant="secondary" onClick={addFilter} className="w-full sm:w-auto">
@@ -160,6 +157,7 @@ interface FilterRowProps {
 
 function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
   const availableOperators = getAvailableOperators(filter.field);
+  const valueMissing = !filter.value.trim();
   
   // Ensure operand has a valid value, default to first available operator if undefined
   const currentOperation = filter.operand ?? (availableOperators.length > 0 ? availableOperators[0] : 'eq');
@@ -211,7 +209,7 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
             value={filter.value}
             onValueChange={(value) => onUpdate(index, 'value', value)}
           >
-            <SelectTrigger id={`value-${index}`}>
+            <SelectTrigger id={`value-${index}`} aria-invalid={valueMissing} aria-describedby={valueMissing ? `filter-value-${index}-error` : undefined}>
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
             <SelectContent>
@@ -228,6 +226,8 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
             type="date"
             value={filter.value}
             onChange={(e) => onUpdate(index, 'value', e.target.value)}
+            aria-invalid={valueMissing}
+            aria-describedby={valueMissing ? `filter-value-${index}-error` : undefined}
           />
         ) : (
           <Input
@@ -236,8 +236,11 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
             placeholder="Enter value"
             value={filter.value}
             onChange={(e) => onUpdate(index, 'value', e.target.value)}
+            aria-invalid={valueMissing}
+            aria-describedby={valueMissing ? `filter-value-${index}-error` : undefined}
           />
         )}
+        {valueMissing && <FormFieldError id={`filter-value-${index}-error`} title="Filter value required." />}
       </div>
 
       <Button

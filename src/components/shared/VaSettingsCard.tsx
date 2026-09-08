@@ -9,9 +9,10 @@ import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import { CertificateCard } from '@/components/shared/CertificateCard';
-import { DurationInput } from '@/components/shared/DurationInput';
+import { DurationInput, isValidPositiveDuration } from '@/components/shared/DurationInput';
 import { cn } from '@/lib/utils';
 import type { VAConfig } from '@/lib/va-api';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface VaSettingsCardProps {
   config: VAConfig;
@@ -44,6 +45,18 @@ export function VaSettingsCard({
   onRefresh,
   limitToCAs,
 }: VaSettingsCardProps) {
+  const refreshIntervalError = !isValidPositiveDuration(config.refreshInterval)
+    ? 'CRL refresh interval must be a positive duration.'
+    : null;
+  const validityError = !isValidPositiveDuration(config.validity)
+    ? 'CRL cache duration must be a positive duration.'
+    : null;
+  const signerError = !selectedCertificateSignerDisplay || !config.subjectKeyIDSigner
+    ? 'CRL signer certificate is required.'
+    : null;
+  const validationErrors = [refreshIntervalError, validityError, signerError]
+    .filter((message): message is string => Boolean(message));
+
   return (
     <div className="space-y-6">
         <DurationInput
@@ -53,6 +66,7 @@ export function VaSettingsCard({
           onChange={(value) => onInputChange('refreshInterval', value)}
           placeholder="e.g., 24h, 30m, 7d"
           description="How often to check for new CRLs."
+          error={refreshIntervalError || undefined}
         />
         <DurationInput
           id="va-validity"
@@ -61,6 +75,7 @@ export function VaSettingsCard({
           onChange={(value) => onInputChange('validity', value)}
           placeholder="e.g., 7d, 48h"
           description="Maximum time to consider a cached CRL valid."
+          error={validityError || undefined}
         />
 
         <div className="space-y-1">
@@ -106,6 +121,8 @@ export function VaSettingsCard({
               onClick={() => onCertificateSignerModalOpenChange(true)}
               className="w-full justify-start text-left font-normal"
               disabled={isSubmitting}
+              aria-invalid={!!signerError}
+              aria-describedby={signerError ? 'va-crl-signer-error' : undefined}
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -114,6 +131,7 @@ export function VaSettingsCard({
               )}
             </Button>
           )}
+          {signerError && <FormFieldError id="va-crl-signer-error" title={signerError} />}
         </div>
 
         <div className="flex flex-row items-center justify-between gap-3">
@@ -146,8 +164,9 @@ export function VaSettingsCard({
           includeCaCertificates
         />
 
+        <FormValidationSummary errors={validationErrors} />
         <div className="flex items-center gap-2">
-          <Button onClick={onSave} disabled={isSubmitting}>
+          <Button onClick={onSave} disabled={isSubmitting || validationErrors.length > 0}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSubmitting ? 'Saving...' : 'Save VA Configuration'}
           </Button>

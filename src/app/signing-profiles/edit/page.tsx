@@ -23,6 +23,7 @@ import { Form } from '@/components/ui/form';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 
 const getValidityLabel = (profile: ApiSigningProfile) => {
   if (!profile.validity) return 'Not specified';
@@ -49,7 +50,14 @@ export default function EditSigningProfilePage() {
 
   const form = useForm<SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
+    mode: 'onChange',
   });
+
+  const validationErrors = getFormErrorMessages(form.formState.errors);
+
+  useEffect(() => {
+    if (profileData) void form.trigger();
+  }, [form, profileData]);
 
   const mapApiProfileToFormValues = (profile: ApiSigningProfile): SigningProfileFormValues => {
     const crypto = profile.crypto_enforcement || {};
@@ -269,14 +277,17 @@ export default function EditSigningProfilePage() {
 
               <SigningProfileForm form={form} />
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting || !profileData} className="min-w-36">
-                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save Changes
-                </Button>
+              <div className="space-y-3">
+                <FormValidationSummary errors={validationErrors} />
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting || !profileData || !form.formState.isValid} className="min-w-36">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </div>
           </SplitPanelLayout>

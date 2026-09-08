@@ -6,17 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
-import { Loader2, AlertCircle, Upload, ShieldAlert } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
 import { parseCertificatePemDetails } from '@/lib/ca-data';
 import { format as formatDate } from 'date-fns';
 import dynamic from 'next/dynamic';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { cn } from '@/lib/utils';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -206,6 +207,19 @@ export default function ImportCertificatePage() {
 
   const hasValidCert = decodedCertInfo && !decodedCertInfo.error;
   const isCaBlocked = hasValidCert && decodedCertInfo.isCa;
+  const certificateError = !certificatePem.trim()
+    ? 'Certificate: PEM Content is required.'
+    : decodedCertInfo?.error
+      ? 'Certificate: PEM Content must contain a valid X.509 certificate.'
+      : isCaBlocked
+        ? 'Certificate: CA certificates must be imported from the Certificate Authorities page.'
+        : !decodedCertInfo
+          ? 'Certificate: wait for the PEM Content validation to finish.'
+          : null;
+  const validationErrors = [
+    ...(certificateError ? [certificateError] : []),
+    ...(metadataError ? ['Metadata: JSON Metadata must contain valid JSON.'] : []),
+  ];
 
   return (
     <BreadcrumbPage
@@ -274,25 +288,23 @@ export default function ImportCertificatePage() {
                   allowedExtensions={ALLOWED_EXTENSIONS}
                   maxFileSize={MAX_FILE_SIZE}
                   className="font-mono text-sm"
+                  aria-invalid={!!certificateError}
+                  aria-describedby={certificateError ? 'certificate-import-pem-error' : undefined}
                 />
+                {certificateError && (
+                  <FormFieldError
+                    id="certificate-import-pem-error"
+                    title={!certificatePem.trim() ? 'Certificate required.' : isCaBlocked ? 'CA Certificate not allowed.' : 'Invalid Certificate.'}
+                    description={
+                      !certificatePem.trim()
+                        ? 'Paste or upload the PEM value before importing.'
+                        : isCaBlocked
+                          ? 'Use the Certificate Authorities import page.'
+                          : decodedCertInfo?.error || 'Wait for validation to finish.'
+                    }
+                  />
+                )}
               </div>
-
-              {decodedCertInfo?.error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Parsing Error</AlertTitle>
-                  <AlertDescription>{decodedCertInfo.error}</AlertDescription>
-                </Alert>
-              )}
-              {isCaBlocked && (
-                <Alert variant="destructive">
-                  <ShieldAlert className="h-4 w-4" />
-                  <AlertTitle>CA Certificate Not Allowed</AlertTitle>
-                  <AlertDescription>
-                    This certificate has the CA basic constraint set. Use the <strong>Certificate Authorities</strong> import page to import CA certificates.
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
           </div>
 
@@ -529,7 +541,11 @@ export default function ImportCertificatePage() {
             </div>
             <div className="space-y-1.5 lg:col-span-2">
               <Label>JSON Metadata</Label>
-              <div className="rounded-md border overflow-hidden">
+              <div
+                aria-invalid={!!metadataError}
+                aria-describedby={metadataError ? 'certificate-import-metadata-error' : undefined}
+                className={cn('overflow-hidden rounded-md border', metadataError && 'border-destructive ring-3 ring-destructive/20')}
+              >
                 <MonacoEditor
                   height="200px"
                   language="json"
@@ -548,13 +564,7 @@ export default function ImportCertificatePage() {
                   theme={monacoTheme}
                 />
               </div>
-              {metadataError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>JSON Error</AlertTitle>
-                  <AlertDescription>{metadataError}</AlertDescription>
-                </Alert>
-              )}
+              {metadataError && <FormFieldError id="certificate-import-metadata-error" title="Invalid metadata." description="Enter valid JSON before importing." />}
               <p className="text-xs text-muted-foreground">
                 Custom key-value metadata in JSON (e.g., <code className="text-xs">{"{"}"environment": "production"{"}"}</code>).
               </p>
@@ -563,15 +573,15 @@ export default function ImportCertificatePage() {
 
           <Separator />
 
-          <div className="flex justify-end pt-6">
-            <Button
-              type="submit"
-              disabled={isLoading || !certificatePem.trim() || !!decodedCertInfo?.error || !!isCaBlocked || !!metadataError}
-            >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Upload className="mr-2 h-4 w-4" />
-              Import Certificate
-            </Button>
+          <div className="space-y-3 pt-6">
+            <FormValidationSummary errors={validationErrors} />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isLoading || validationErrors.length > 0}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Upload className="mr-2 h-4 w-4" />
+                Import Certificate
+              </Button>
+            </div>
           </div>
 
         </form>

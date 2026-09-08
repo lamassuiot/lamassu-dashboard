@@ -1,8 +1,7 @@
 'use client';
 
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { AlertCircle, Loader2, PlusCircle, ShieldCheck, UserCheck } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, PlusCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +13,7 @@ import { CardSelector, type CardSelectorOption } from '@/components/shared/CardS
 import { OidcClaimsEditor } from '@/components/authz/OidcClaimsEditor';
 import { SubjectAttributesEditor } from '@/components/authz/SubjectAttributesEditor';
 import { X509ConfigEditor } from '@/components/authz/X509ConfigEditor';
-import { newSubjectAttributeRow, type SubjectAttributeRow } from '@/lib/principal-subject-attributes';
+import { newSubjectAttributeRow, validateSubjectAttributeRows, type SubjectAttributeRow } from '@/lib/principal-subject-attributes';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type {
@@ -23,6 +22,7 @@ import type {
   X509AuthConfig,
   X509CaTrustIdentityType,
 } from '@/types/authz';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const PRINCIPAL_TYPE_OPTIONS: CardSelectorOption<PrincipalType>[] = [
   {
@@ -126,6 +126,23 @@ export function PrincipalForm({
   onSubmit,
 }: PrincipalFormProps) {
   const isCreate = mode === 'create';
+  const subjectAttributeError = validateSubjectAttributeRows(subjectAttributes, subjectAttributeMappings, type);
+  const validationErrors = [
+    ...(!name.trim() ? ['Identity: Principal Name is required.'] : []),
+    ...(!isCreate && !principalId ? ['Identity: Principal ID is required.'] : []),
+    ...(type === 'oidc' && claims.length === 0 ? ['Authentication Method: at least one OIDC claim condition is required.'] : []),
+    ...(type === 'oidc'
+      ? claims.flatMap((claim, index) => [
+          ...(!claim.claim.trim() ? [`Authentication Method: Claim ${index + 1} name is required.`] : []),
+          ...(!claim.value.trim() ? [`Authentication Method: Claim ${index + 1} value is required.`] : []),
+        ])
+      : []),
+    ...(type === 'x509' && !selectedCa && !caTrustValue.trim() ? ['Authentication Method: Certification Authority is required.'] : []),
+    ...(type === 'x509' && matchMode === 'serial_and_ca' && !serialNumber.trim() ? ['Authentication Method: Serial Number is required for the selected match mode.'] : []),
+    ...(type === 'x509' && (matchMode === 'cn_and_ca' || matchMode === 'subject_cn') && !subjectCn.trim() ? ['Authentication Method: Subject Common Name is required for the selected match mode.'] : []),
+    ...(subjectAttributeError ? [`Subject Attributes: ${subjectAttributeError}.`] : []),
+  ];
+  const summaryErrors = error ? [...validationErrors, `Submission: ${error}`] : validationErrors;
 
   const handleAddClaim = () => {
     setClaims([...claims, { claim: '', operator: 'equals', value: '' }]);
@@ -161,15 +178,6 @@ export function PrincipalForm({
           </p>
         </div>
 
-        {error && (
-          <div className="pt-6">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
           <div>
             <p className="font-semibold">Identity</p>
@@ -188,15 +196,17 @@ export function PrincipalForm({
                   onChange={(e) => setName(e.target.value)}
                   required
                   disabled={submitting}
+                  aria-invalid={!name.trim()}
+                  aria-describedby={!name.trim() ? 'principal-name-error' : undefined}
                 />
-                {isCreate && !name.trim() && (
-                  <p className="text-xs text-destructive">Principal name is required.</p>
+                {!name.trim() && (
+                  <FormFieldError id="principal-name-error" title="Principal Name required." description="Enter one before saving." />
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="id">{isCreate ? 'Principal ID (auto-generated)' : 'Principal ID'}</Label>
-                <Input id="id" value={principalId} readOnly className="bg-muted/50 font-mono text-xs" />
+                <Input id="id" value={principalId} readOnly className="bg-muted/50 font-mono text-xs" aria-invalid={!isCreate && !principalId} />
                 {isCreate && (
                   <p className="text-xs text-muted-foreground">Auto-generated unique identifier.</p>
                 )}
@@ -340,16 +350,19 @@ export function PrincipalForm({
 
         <Separator />
 
-        <div className="flex justify-end pt-6">
-          <Button type="submit" disabled={submitting}>
-            {submitting ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isCreate ? 'Creating...' : 'Saving...'}</>
-            ) : isCreate ? (
-              <><PlusCircle className="mr-2 h-4 w-4" /> Create Principal</>
-            ) : (
-              'Save Changes'
-            )}
-          </Button>
+        <div className="space-y-3 pt-6">
+          <FormValidationSummary errors={summaryErrors} />
+          <div className="flex justify-end">
+            <Button type="submit" disabled={submitting || validationErrors.length > 0}>
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isCreate ? 'Creating...' : 'Saving...'}</>
+              ) : isCreate ? (
+                <><PlusCircle className="mr-2 h-4 w-4" /> Create Principal</>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
         </div>
       </form>
 

@@ -2,16 +2,16 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
-import { normalizePolicyRules } from '@/lib/policy-format';
+import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import type { HTTPRule, Rule } from '@/types/authz';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface PolicyFormData {
   id: string;
@@ -41,6 +41,12 @@ export function PolicyForm({
   onSubmit,
 }: PolicyFormProps) {
   const isCreate = mode === 'create';
+  const wildcardErrors = validatePolicyRelationWildcardRestrictions(formData.rules);
+  const validationErrors = [
+    ...(!formData.name.trim() ? ['Identity: Policy Name is required.'] : []),
+    ...wildcardErrors.map((validationError) => `Access Rules: ${validationError.message}`),
+  ];
+  const summaryErrors = error ? [...validationErrors, `Submission: ${error}`] : validationErrors;
 
   return (
     <div className="space-y-0">
@@ -52,15 +58,6 @@ export function PolicyForm({
             : 'Update the authorization policy and its access rules.'}
         </p>
       </div>
-
-      {error && (
-        <div className="pt-6">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
         <div>
@@ -79,9 +76,11 @@ export function PolicyForm({
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 disabled={submitting}
+                aria-invalid={!formData.name.trim()}
+                aria-describedby={!formData.name.trim() ? 'policy-name-error' : undefined}
               />
-              {isCreate && !formData.name.trim() && (
-                <p className="text-xs text-destructive">Policy name is required.</p>
+              {!formData.name.trim() && (
+                <FormFieldError id="policy-name-error" title="Policy Name required." description="Enter one before saving." />
               )}
             </div>
 
@@ -129,21 +128,24 @@ export function PolicyForm({
             onChange={(rules) => setFormData((prev) => ({ ...prev, rules: normalizePolicyRules(rules) }))}
             httpRules={formData.http_rules}
             onHttpRulesChange={(http_rules) => setFormData((prev) => ({ ...prev, http_rules }))}
-            error={error}
+            error={wildcardErrors[0]?.message}
           />
         </div>
       </div>
 
       <Separator />
 
-      <div className="flex justify-end pt-6">
-        <Button onClick={onSubmit} disabled={submitting}>
-          {submitting ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isCreate ? 'Creating...' : 'Saving...'}</>
-          ) : (
-            <><SubmitIcon className="mr-2 h-4 w-4" /> {isCreate ? 'Create Policy' : 'Save Changes'}</>
-          )}
-        </Button>
+      <div className="space-y-3 pt-6">
+        <FormValidationSummary errors={summaryErrors} />
+        <div className="flex justify-end">
+          <Button onClick={onSubmit} disabled={submitting || validationErrors.length > 0}>
+            {submitting ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isCreate ? 'Creating...' : 'Saving...'}</>
+            ) : (
+              <><SubmitIcon className="mr-2 h-4 w-4" /> {isCreate ? 'Create Policy' : 'Save Changes'}</>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

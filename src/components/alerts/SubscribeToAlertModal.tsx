@@ -27,6 +27,7 @@ import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
 import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
@@ -56,6 +57,17 @@ const filterOptions = [
     { value: 'JSON-SCHEMA', label: 'JSON Schema' },
     { value: 'JAVASCRIPT', label: 'Javascript' },
 ];
+
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+const isValidWebhookUrl = (value: string) => {
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' || url.protocol === 'http:';
+    } catch {
+        return false;
+    }
+};
 
 
 export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
@@ -214,31 +226,76 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
     evaluate();
   }, [filterCondition, jsFunction, filterType, inputEvent, jsonSchema]);
 
+  const emailError = channelType === 'EMAIL'
+      ? !email.trim()
+          ? 'Email address is required.'
+          : !isValidEmail(email)
+              ? 'Enter a valid email address.'
+              : null
+      : null;
+  const webhookNameError = channelType === 'WEBHOOK' && !webhookName.trim()
+      ? 'Webhook name is required.'
+      : null;
+  const teamsNameError = channelType === 'TEAMS_WEBHOOK' && !teamsName.trim()
+      ? 'Microsoft Teams webhook name is required.'
+      : null;
+  const webhookUrlError = channelType !== 'EMAIL'
+      ? !webhookUrl.trim()
+          ? 'Webhook URL is required.'
+          : !isValidWebhookUrl(webhookUrl)
+              ? 'Enter a valid HTTP or HTTPS webhook URL.'
+              : null
+      : null;
+
+  let filterError: string | null = null;
+  if (filterType === 'JSON-PATH') {
+      filterError = !filterCondition.trim()
+          ? 'JSONPath expression is required.'
+          : !filterCondition.trim().startsWith('$')
+              ? 'JSONPath expression must start with "$".'
+              : null;
+  } else if (filterType === 'JSON-SCHEMA') {
+      if (!jsonSchema.trim()) {
+          filterError = 'JSON Schema is required.';
+      } else {
+          try {
+              JSON.parse(jsonSchema);
+          } catch {
+              filterError = 'JSON Schema must contain valid JSON.';
+          }
+      }
+  } else if (filterType === 'JAVASCRIPT') {
+      if (!jsFunction.trim()) {
+          filterError = 'Javascript function is required.';
+      } else {
+          try {
+              new Function('event', `return (${jsFunction})(event)`);
+          } catch {
+              filterError = 'Javascript filter must contain a valid function.';
+          }
+      }
+  }
+
+  const channelValidationErrors = [emailError, webhookNameError, teamsNameError, webhookUrlError]
+      .filter((error): error is string => Boolean(error));
+  const validationErrors = [
+      !eventType ? 'Event type is required.' : null,
+      ...channelValidationErrors,
+      filterError,
+  ].filter((error): error is string => Boolean(error));
+
   const handleNext = () => {
     if(step === 1) {
-        if(channelType === 'EMAIL' && !email.trim()) {
-            sileo.error({ title: 'Validation Error', description: 'Email address is required.' });
-            return;
-        }
-        if(channelType === 'WEBHOOK' && (!webhookUrl.trim() || !webhookName.trim())) {
-            sileo.error({ title: 'Validation Error', description: 'Name and Webhook URL are required.' });
-            return;
-        }
-        if(channelType === 'TEAMS_WEBHOOK' && (!webhookUrl.trim() || !teamsName.trim())) {
-            sileo.error({ title: 'Validation Error', description: 'Name and Webhook URL are required for Teams.' });
-            return;
-        }
+        if(channelValidationErrors.length > 0) return;
     }
+    if (step === 2 && filterError) return;
     setStep(s => s + 1);
   }
 
   const handleBack = () => setStep(s => s - 1);
 
   const handleSubmit = async () => {
-    if (!eventType ) {
-        sileo.error({ title: "Error", description: "Event type or authentication is missing." });
-        return;
-    }
+    if (!eventType || validationErrors.length > 0) return;
     
     setIsSubmitting(true);
     try {
@@ -317,14 +374,16 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 {channelType === 'EMAIL' && (
                     <div>
                         <Label htmlFor="email-input">Email Address</Label>
-                        <Input id="email-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your.email@example.com" />
+                        <Input id="email-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your.email@example.com" aria-invalid={!!emailError} aria-describedby={emailError ? 'email-input-error' : undefined} />
+                        {emailError && <FormFieldError id="email-input-error" className="mt-1.5" title={emailError} />}
                     </div>
                 )}
                 {channelType === 'WEBHOOK' && (
                      <div className="space-y-4">
                         <div>
                             <Label htmlFor="webhook-name-input">Name</Label>
-                            <Input id="webhook-name-input" type="text" value={webhookName} onChange={e => setWebhookName(e.target.value)} placeholder="e.g., My Notification Endpoint" />
+                            <Input id="webhook-name-input" type="text" value={webhookName} onChange={e => setWebhookName(e.target.value)} placeholder="e.g., My Notification Endpoint" aria-invalid={!!webhookNameError} aria-describedby={webhookNameError ? 'webhook-name-error' : undefined} />
+                            {webhookNameError && <FormFieldError id="webhook-name-error" className="mt-1.5" title={webhookNameError} />}
                         </div>
                         <div>
                             <Label htmlFor="webhook-method-select">Method</Label>
@@ -338,7 +397,8 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                         </div>
                         <div>
                             <Label htmlFor="webhook-url-input">Webhook URL</Label>
-                            <Input id="webhook-url-input" type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://your-webhook-url.com" />
+                            <Input id="webhook-url-input" type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://your-webhook-url.com" aria-invalid={!!webhookUrlError} aria-describedby={webhookUrlError ? 'webhook-url-error' : undefined} />
+                            {webhookUrlError && <FormFieldError id="webhook-url-error" className="mt-1.5" title={webhookUrlError} />}
                         </div>
                     </div>
                 )}
@@ -346,11 +406,13 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                      <div className="space-y-4">
                         <div>
                             <Label htmlFor="teams-name-input">Name</Label>
-                            <Input id="teams-name-input" type="text" value={teamsName} onChange={e => setTeamsName(e.target.value)} placeholder="e.g., Critical Alerts Team" />
+                            <Input id="teams-name-input" type="text" value={teamsName} onChange={e => setTeamsName(e.target.value)} placeholder="e.g., Critical Alerts Team" aria-invalid={!!teamsNameError} aria-describedby={teamsNameError ? 'teams-name-error' : undefined} />
+                            {teamsNameError && <FormFieldError id="teams-name-error" className="mt-1.5" title={teamsNameError} />}
                         </div>
                         <div>
                             <Label htmlFor="webhook-url-input-teams">Incoming Microsoft Teams Webhook URL</Label>
-                            <Input id="webhook-url-input-teams" type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://your-tenant.webhook.office.com/..." />
+                            <Input id="webhook-url-input-teams" type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://your-tenant.webhook.office.com/..." aria-invalid={!!webhookUrlError} aria-describedby={webhookUrlError ? 'teams-webhook-url-error' : undefined} />
+                            {webhookUrlError && <FormFieldError id="teams-webhook-url-error" className="mt-1.5" title={webhookUrlError} />}
                         </div>
                     </div>
                 )}
@@ -375,13 +437,14 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 {filterType === 'JSON-PATH' && (
                     <div>
                         <Label htmlFor="filter-condition-jsonpath">JSONPath Expression</Label>
-                        <Input id="filter-condition-jsonpath" value={filterCondition} onChange={e => setFilterCondition(e.target.value)} placeholder={`Enter JSONPath expression...`} />
+                        <Input id="filter-condition-jsonpath" value={filterCondition} onChange={e => setFilterCondition(e.target.value)} placeholder={`Enter JSONPath expression...`} aria-invalid={!!filterError} aria-describedby={filterError ? 'filter-condition-error' : undefined} />
+                        {filterError && <FormFieldError id="filter-condition-error" className="mt-1.5" title={filterError} />}
                     </div>
                 )}
                 {filterType === 'JAVASCRIPT' && (
                     <div>
                         <Label htmlFor="filter-condition-js">Javascript Function</Label>
-                        <div id="filter-condition-js" className="mt-2 overflow-hidden rounded-md border">
+                        <div id="filter-condition-js" aria-invalid={!!filterError} aria-describedby={filterError ? 'filter-js-error' : undefined} className={cn("mt-2 overflow-hidden rounded-md border", filterError && "border-destructive ring-3 ring-destructive/20")}>
                             <MonacoEditor
                                 height="220px"
                                 language="javascript"
@@ -398,12 +461,13 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                 }}
                             />
                         </div>
+                        {filterError && <FormFieldError id="filter-js-error" className="mt-1.5" title={filterError} />}
                     </div>
                 )}
                 {filterType === 'JSON-SCHEMA' && (
                     <div>
                         <Label htmlFor="filter-condition-jsonschema">JSON Schema</Label>
-                        <div id="filter-condition-jsonschema" className="mt-2 overflow-hidden rounded-md border">
+                        <div id="filter-condition-jsonschema" aria-invalid={!!filterError} aria-describedby={filterError ? 'filter-schema-error' : undefined} className={cn("mt-2 overflow-hidden rounded-md border", filterError && "border-destructive ring-3 ring-destructive/20")}>
                             <MonacoEditor
                                 height="220px"
                                 language="json"
@@ -419,6 +483,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                 }}
                             />
                         </div>
+                        {filterError && <FormFieldError id="filter-schema-error" className="mt-1.5" title={filterError} />}
                     </div>
                 )}
                 {(filterType !== 'NONE') && (
@@ -583,17 +648,20 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 </div>
             </div>
 
-            <div className="flex w-full items-center justify-between border-t p-6 pt-4">
-                <div>
-                    {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
-                </div>
-                <div className="flex space-x-2">
-                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
-                    {step < 3 && <Button onClick={handleNext}>Next</Button>}
-                    {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
-                    </Button>}
+            <div className="space-y-3 border-t p-6 pt-4">
+                <FormValidationSummary errors={validationErrors} />
+                <div className="flex w-full items-center justify-between">
+                    <div>
+                        {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
+                    </div>
+                    <div className="flex space-x-2">
+                        <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+                        {step < 3 && <Button onClick={handleNext} disabled={step === 1 ? channelValidationErrors.length > 0 : !!filterError}>Next</Button>}
+                        {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting || validationErrors.length > 0}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                            {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
+                        </Button>}
+                    </div>
                 </div>
             </div>
         </>

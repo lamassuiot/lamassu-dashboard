@@ -27,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 
 interface AwsIotIntegrationTabProps {
   ra: ApiRaItem;
@@ -162,10 +163,12 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
   const form = useForm<AwsIntegrationFormValues>({
     resolver: zodResolver(awsIntegrationSchema),
     defaultValues: getDefaultFormValues(ra, configKey),
+    mode: 'onChange',
   });
 
   useEffect(() => {
     form.reset(getDefaultFormValues(ra, configKey));
+    void form.trigger();
     const shadowName = form.getValues('shadow_config.shadow_name');
     if (shadowName) {
         setShadowType('named');
@@ -187,6 +190,11 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
   const hasRemediationPolicy = useMemo(() => {
     return currentPolicies?.some(p => p.policy_name === LmsRemediationPolicyName);
   }, [currentPolicies, LmsRemediationPolicyName]);
+
+  const validationErrors = getFormErrorMessages(form.formState.errors);
+  const validationWarnings = shadowEnabled && !hasRemediationPolicy
+    ? [`Device shadow: add the ${LmsRemediationPolicyName} policy so Lamassu can manage shadows.`]
+    : [];
 
   const loadCaData = useCallback(async () => {
     if (!ra?.settings.enrollment_settings.enrollment_ca) return;
@@ -508,7 +516,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
                   <FormItem>
                     <FormLabel>Thing Groups</FormLabel>
                     <FormControl>
-                      <TagInput {...field} placeholder="Add thing groups..." />
+                      <TagInput {...field} value={field.value ?? []} placeholder="Add thing groups..." />
                     </FormControl>
                   </FormItem>
                 )}
@@ -665,11 +673,14 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
           </div>
         </div>
 
-        <div className="flex justify-end pt-4">
-            <Button type="submit" disabled={form.formState.isSubmitting || !isIntegrationEnabled}>
+        <div className="space-y-3 pt-4">
+          <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
+          <div className="flex justify-end">
+            <Button type="submit" disabled={form.formState.isSubmitting || !isIntegrationEnabled || !form.formState.isValid}>
                 {form.formState.isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
                 Update DMS
             </Button>
+          </div>
         </div>
       </form>
     </Form>

@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, CheckCircle2, Download as DownloadIcon, X as XIcon, KeyRound, FileText, ChevronRight, UploadCloud } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
@@ -30,6 +29,8 @@ import { SigningProfileSelector } from '@/components/shared/SigningProfileSelect
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
+import { isValidPositiveDuration } from '@/components/shared/DurationInput';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 
 // This specific date string is used to represent "indefinite validity" (no expiration) in the API.
@@ -175,6 +176,36 @@ export default function IssueCertificateFormClient() {
     }
     return null;
   }, [profileMode, selectedProfileId, signingProfiles]);
+
+  const issuerCaError = !isLoadingCa && !issuerCa ? 'Issuing CA could not be loaded.' : null;
+  const commonNameError = issuanceMode === 'generate' && !commonName.trim()
+    ? 'Common Name is required.'
+    : null;
+  const csrError = issuanceMode === 'upload'
+    ? !csrPem.trim()
+      ? 'Certificate Signing Request is required.'
+      : decodedCsrInfo?.error
+        ? `Certificate Signing Request is invalid: ${decodedCsrInfo.error}`
+        : !decodedCsrInfo
+          ? 'Certificate Signing Request is being validated.'
+          : null
+    : null;
+  const profileError = profileMode === 'reuse' && !selectedProfileId
+    ? 'Select an issuance profile.'
+    : profileMode === 'create'
+      ? 'Create an issuance profile before issuing the certificate.'
+      : null;
+  const validityError = profileMode === 'inline' && validity.type === 'Duration' && !isValidPositiveDuration(validity.durationValue || '')
+    ? 'Certificate validity must be a positive duration.'
+    : profileMode === 'inline' && validity.type === 'Date' && (!validity.dateValue || Number.isNaN(validity.dateValue.getTime()))
+      ? 'Certificate expiration date is required.'
+      : null;
+  const customSubjectError = profileMode === 'inline' && !honorSubject && !customSubjectCN.trim()
+    ? 'Custom Common Name is required.'
+    : null;
+  const validationErrors = [issuerCaError, commonNameError, csrError, profileError, validityError, customSubjectError]
+    .filter((message): message is string => Boolean(message));
+  const validationWarnings = validityWarning ? [validityWarning] : [];
 
   const fullChainPem = useMemo(() => {
     if (!issuedCertificate?.pem || !issuerCa?.rawApiData?.certificate?.certificate) return '';
@@ -371,10 +402,12 @@ export default function IssueCertificateFormClient() {
   };
 
   const handleKeyUsageChange = (usage: string, checked: boolean) => {
-    setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+    const option = usage as KeyUsageOption;
+    setKeyUsages(prev => checked ? [...prev, option] : prev.filter(u => u !== option));
   };
   const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
-    setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+    const option = usage as ExtendedKeyUsageOption;
+    setExtendedKeyUsages(prev => checked ? [...prev, option] : prev.filter(u => u !== option));
   };
 
   const buildProfilePayload = () => {
@@ -407,10 +440,7 @@ export default function IssueCertificateFormClient() {
 
   const handleGenerateAndIssue = async () => {
     if (isGenerating) return;
-    if (!commonName.trim()) {
-      sileo.error({ title: "Validation Error", description: "Common Name is required." });
-      return;
-    }
+    if (validationErrors.length > 0) return;
 
     setStep(2);
     setIsGenerating(true);
@@ -458,14 +488,7 @@ export default function IssueCertificateFormClient() {
   };
 
   const handleIssueCertificateFromUpload = async () => {
-    if (!csrPem.trim() || !caId) {
-        sileo.error({ title: "Error", description: "CSR or CA ID is missing." });
-        return;
-    }
-     if (decodedCsrInfo?.error) {
-        sileo.error({ title: "CSR Error", description: `Cannot proceed, CSR is invalid: ${decodedCsrInfo.error}` });
-        return;
-    }
+    if (!caId || validationErrors.length > 0) return;
 
     setStep(2);
     setIsGenerating(true);
@@ -697,7 +720,10 @@ export default function IssueCertificateFormClient() {
                           required
                           readOnly={!!prefilledCn}
                           className={cn(!!prefilledCn && 'bg-muted/50')}
+                          aria-invalid={!!commonNameError}
+                          aria-describedby={commonNameError ? 'issue-common-name-error' : undefined}
                         />
+                        {commonNameError && <FormFieldError id="issue-common-name-error" title={commonNameError} />}
                         {!!prefilledCn && (
                           <p className="text-xs text-muted-foreground">Common Name pre-filled from device ID and cannot be changed.</p>
                         )}
@@ -789,11 +815,12 @@ export default function IssueCertificateFormClient() {
                     <>
                       <div className="space-y-1.5">
                         <Label htmlFor="csrFile">Upload CSR File</Label>
-                        <Input id="csrFile" type="file" accept=".csr,.pem" onChange={handleCsrFileUpload} />
+                        <Input id="csrFile" type="file" accept=".csr,.pem" onChange={handleCsrFileUpload} aria-invalid={!!csrError} aria-describedby={csrError ? 'issue-csr-error' : undefined} />
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="csrPemTextarea">Or Paste CSR (PEM)</Label>
-                        <Textarea id="csrPemTextarea" value={csrPem} onChange={e => setCsrPem(e.target.value)} rows={8} className="font-mono" />
+                        <Textarea id="csrPemTextarea" value={csrPem} onChange={e => setCsrPem(e.target.value)} rows={8} className="font-mono" aria-invalid={!!csrError} aria-describedby={csrError ? 'issue-csr-error' : undefined} />
+                        {csrError && <FormFieldError id="issue-csr-error" title={csrError} />}
                       </div>
                       {decodedCsrInfo && (
                         <Card className={DETAIL_CARD_CLASSNAME}>
@@ -885,6 +912,7 @@ export default function IssueCertificateFormClient() {
                     validity={validity}
                     onValidityChange={setValidity}
                     validityWarning={validityWarning}
+                    validityError={validityError || undefined}
                     keyUsages={keyUsages}
                     onKeyUsageChange={handleKeyUsageChange}
                     extendedKeyUsages={extendedKeyUsages}
@@ -897,6 +925,13 @@ export default function IssueCertificateFormClient() {
                     customSubjectC={customSubjectC}
                     customSubjectST={customSubjectST}
                     customSubjectL={customSubjectL}
+                    customSubjectError={customSubjectError || undefined}
+                    selectionError={profileError || undefined}
+                    onProfileCreated={(profile) => {
+                      setSigningProfiles((profiles) => [...profiles, profile]);
+                      setSelectedProfileId(profile.id);
+                      setProfileMode('reuse');
+                    }}
                     onCustomSubjectChange={(field, value) => {
                       switch (field) {
                         case 'CN': setCustomSubjectCN(value); break;
@@ -913,13 +948,15 @@ export default function IssueCertificateFormClient() {
 
               <Separator />
 
-              <div className="flex justify-end pt-6">
+              <div className="space-y-3 pt-6">
+                <FormValidationSummary errors={validationErrors} warnings={validationWarnings} />
+                <div className="flex justify-end">
                 {issuanceMode === 'generate' && (
                   <Button
                     type="button"
                    
                     onClick={handleGenerateAndIssue}
-                    disabled={isLoadingCa || isGenerating || !commonName.trim()}
+                    disabled={isLoadingCa || isGenerating || validationErrors.length > 0}
                   >
                     {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Generate & Issue
@@ -930,12 +967,13 @@ export default function IssueCertificateFormClient() {
                     type="button"
                    
                     onClick={handleIssueCertificateFromUpload}
-                    disabled={isLoadingCa || isGenerating || !csrPem.trim() || !!decodedCsrInfo?.error}
+                    disabled={isLoadingCa || isGenerating || validationErrors.length > 0}
                   >
                     {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Issue Certificate
                   </Button>
                 )}
+                </div>
               </div>
             </div>
           )}

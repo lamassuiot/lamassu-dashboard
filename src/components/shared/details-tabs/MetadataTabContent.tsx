@@ -7,9 +7,10 @@ import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Copy, Check, Save, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { PatchOperation } from '@/lib/ca-data';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { cn } from '@/lib/utils';
+import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 const EDITOR_HEIGHT = '26rem';
 
@@ -38,12 +39,18 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
   const [copied, setCopied] = useState(false);
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const canEdit = isEditable && !!onSave && !!itemId;
   const isEmpty = !rawJsonData || Object.keys(rawJsonData).length === 0;
   const initialContent = isEmpty ? '{\n  \n}' : JSON.stringify(rawJsonData, null, 2);
   const isDirty = canEdit && content !== initialContent;
+  let jsonError: string | null = null;
+  try {
+    JSON.parse(content);
+  } catch (error) {
+    jsonError = `Invalid JSON: ${error instanceof Error ? error.message : 'Unable to parse metadata.'}`;
+  }
 
   useEffect(() => {
     setContent(initialContent);
@@ -68,13 +75,12 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
 
   const handleSave = async () => {
     if (!onSave || !itemId) return;
+    if (jsonError) return;
 
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
-      setJsonError(null);
-    } catch (e: any) {
-      setJsonError(`Invalid JSON: ${e.message}`);
+    } catch {
       return;
     }
 
@@ -83,8 +89,10 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
       const patch: PatchOperation[] = [{ op: 'replace', path: '', value: parsedContent }];
       await onSave(itemId, patch);
       sileo.success({ title: "Success!", description: "Metadata updated successfully." });
+      setSaveError(null);
       onUpdateSuccess?.();
     } catch (e: any) {
+      setSaveError(e.message || 'Metadata could not be saved.');
       sileo.error({ title: "Save Failed", description: e.message });
     } finally {
       setIsSaving(false);
@@ -105,21 +113,15 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
             {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
             {copied ? 'Copied' : 'Copy JSON'}
           </Button>
-          {isDirty && (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Save Changes
-            </Button>
-          )}
         </div>
-        <div className="overflow-hidden rounded-lg border">
+        <div aria-invalid={!!jsonError} aria-describedby={jsonError ? 'metadata-tab-editor-error' : undefined} className={cn("overflow-hidden rounded-lg border", jsonError && "border-destructive ring-3 ring-destructive/20")}>
           <Editor
             height={EDITOR_HEIGHT}
             defaultLanguage="json"
             value={content}
             onChange={(value) => {
               setContent(value || '');
-              if (jsonError) setJsonError(null);
+              setSaveError(null);
             }}
             theme={monacoTheme}
             options={{
@@ -133,7 +135,18 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
             }}
           />
         </div>
-        {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
+        {jsonError && <FormFieldError id="metadata-tab-editor-error" title={jsonError} />}
+        {isDirty && (
+          <div className="space-y-3">
+            <FormValidationSummary errors={[...(jsonError ? [jsonError] : []), ...(saveError ? [`Save: ${saveError}`] : [])]} />
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={isSaving || !!jsonError}>
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

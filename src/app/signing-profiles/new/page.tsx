@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, ChevronRight, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
 import { cn } from '@/lib/utils';
@@ -18,9 +17,9 @@ import {
 } from '@/lib/ca-data';
 import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues, templateDefaults, defaultFormValues } from '@/components/shared/SigningProfileForm';
 import { Form } from '@/components/ui/form';
-import { Stepper } from '@/components/shared/Stepper';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 
 
 const templateMetadata = [
@@ -43,7 +42,14 @@ export default function CreateSigningProfilePage() {
   const form = useForm<SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     values: initialFormValues || defaultFormValues,
+    mode: 'onChange',
   });
+
+  React.useEffect(() => {
+    if (view === 'form') void form.trigger();
+  }, [form, view]);
+
+  const validationErrors = getFormErrorMessages(form.formState.errors);
 
   async function handleSubmit(data: SigningProfileFormValues) {
     setIsSubmitting(true);
@@ -273,14 +279,17 @@ export default function CreateSigningProfilePage() {
 
                 <SigningProfileForm form={form} />
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting} className="min-w-36">
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Create Profile
-                  </Button>
+                <div className="space-y-3">
+                  <FormValidationSummary errors={validationErrors} />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                    <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting || !form.formState.isValid} className="min-w-36">
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Create Profile
+                    </Button>
+                  </div>
                 </div>
               </div>
             </SplitPanelLayout>
