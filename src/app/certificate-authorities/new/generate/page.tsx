@@ -20,6 +20,7 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
+import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { formatISO, add, format } from 'date-fns';
