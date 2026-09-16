@@ -21,10 +21,11 @@ import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { KMSFilterBar } from '@/components/shared/filters/KMSFilterBar';
+import { KMSFilterBar, type KmsDateFilterValue, type KmsPrivateKeyFilterValue, DEFAULT_KMS_PRIVATE_KEY_FILTER, DEFAULT_KMS_DATE_OPERATOR } from '@/components/shared/filters/KMSFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
+import { format } from 'date-fns';
 
 interface KmsKey {
   id: string;
@@ -70,6 +71,16 @@ export default function KmsKeysPage() {
   const [debouncedAliasSearchTerm, setDebouncedAliasSearchTerm] = useState<string>('');
   const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
   const [debouncedMetadataFilters, setDebouncedMetadataFilters] = useState<MetadataFilter[]>([]);
+  const [engineIdFilter, setEngineIdFilter] = useState<string>('');
+  const [debouncedEngineIdFilter, setDebouncedEngineIdFilter] = useState<string>('');
+  const [algorithmFilters, setAlgorithmFilters] = useState<string[]>([]);
+  const [debouncedAlgorithmFilters, setDebouncedAlgorithmFilters] = useState<string[]>([]);
+  const [privateKeyFilter, setPrivateKeyFilter] = useState<KmsPrivateKeyFilterValue>(DEFAULT_KMS_PRIVATE_KEY_FILTER);
+  const [debouncedPrivateKeyFilter, setDebouncedPrivateKeyFilter] = useState<KmsPrivateKeyFilterValue>(DEFAULT_KMS_PRIVATE_KEY_FILTER);
+  const [tagsFilter, setTagsFilter] = useState<string>('');
+  const [debouncedTagsFilter, setDebouncedTagsFilter] = useState<string>('');
+  const [creationDateFilter, setCreationDateFilter] = useState<KmsDateFilterValue>({ operator: DEFAULT_KMS_DATE_OPERATOR });
+  const [debouncedCreationDateFilter, setDebouncedCreationDateFilter] = useState<KmsDateFilterValue>({ operator: DEFAULT_KMS_DATE_OPERATOR });
 
   // Debounce effect for alias search
   useEffect(() => {
@@ -90,6 +101,51 @@ export default function KmsKeysPage() {
 
     return () => clearTimeout(timer);
   }, [metadataFilters]);
+
+  // Debounce effect for engine ID filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedEngineIdFilter(engineIdFilter);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [engineIdFilter]);
+
+  // Debounce effect for algorithm filters
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAlgorithmFilters(algorithmFilters);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [algorithmFilters]);
+
+  // Debounce effect for public/private filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPrivateKeyFilter(privateKeyFilter);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [privateKeyFilter]);
+
+  // Debounce effect for tags filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTagsFilter(tagsFilter);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [tagsFilter]);
+
+  // Debounce effect for creation date filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCreationDateFilter(creationDateFilter);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [creationDateFilter]);
 
 
   const loadData = useCallback(async (bookmark: string | null) => {
@@ -113,6 +169,43 @@ export default function KmsKeysPage() {
       // Add alias filter if search term is provided
       if (debouncedAliasSearchTerm.trim() !== '') {
         params.append('filter', `name[contains_ignorecase]${debouncedAliasSearchTerm.trim()}`);
+      }
+
+      // Add crypto engine filter if selected
+      const trimmedEngineId = debouncedEngineIdFilter.trim();
+      if (trimmedEngineId !== '') {
+        params.append('filter', `engine_id[equal]${trimmedEngineId}`);
+      }
+
+      // Add algorithm filters if provided (single -> equal, multiple -> in)
+      if (debouncedAlgorithmFilters.length === 1) {
+        params.append('filter', `algorithm[equal]${debouncedAlgorithmFilters[0]}`);
+      } else if (debouncedAlgorithmFilters.length > 1) {
+        params.append('filter', `algorithm[in]${debouncedAlgorithmFilters.join(',')}`);
+      }
+
+      // Add public/private filter if provided
+      if (debouncedPrivateKeyFilter !== DEFAULT_KMS_PRIVATE_KEY_FILTER) {
+        params.append('filter', `has_private_key[equal]${debouncedPrivateKeyFilter}`);
+      }
+
+      // Add tags filter if provided
+      const trimmedTagsFilter = debouncedTagsFilter.trim();
+      if (trimmedTagsFilter !== '') {
+        params.append('filter', `tags[contains_ignorecase]${trimmedTagsFilter}`);
+      }
+
+      // Add creation date filter if provided
+      if (debouncedCreationDateFilter.date) {
+        const dateValue = debouncedCreationDateFilter.includeTime
+          ? format(debouncedCreationDateFilter.date, "yyyy-MM-dd'T'HH:mm:ss")
+          : format(debouncedCreationDateFilter.date, 'yyyy-MM-dd');
+        const dateOperator = debouncedCreationDateFilter.operator === 'bf'
+          ? 'before'
+          : debouncedCreationDateFilter.operator === 'eq'
+            ? 'equal'
+            : 'after';
+        params.append('filter', `creation_ts[${dateOperator}]${dateValue}`);
       }
 
       // Add metadata filters if provided
@@ -151,7 +244,7 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, pageSize, sortConfig]);
+  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, debouncedEngineIdFilter, debouncedAlgorithmFilters, debouncedPrivateKeyFilter, debouncedTagsFilter, debouncedCreationDateFilter, pageSize, sortConfig]);
 
   useEffect(() => {
     // Reset pagination when page size changes
@@ -175,7 +268,7 @@ export default function KmsKeysPage() {
     // Reset pagination when metadata filters change
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [debouncedMetadataFilters]);
+  }, [debouncedMetadataFilters, debouncedEngineIdFilter, debouncedAlgorithmFilters, debouncedPrivateKeyFilter, debouncedTagsFilter, debouncedCreationDateFilter]);
 
   useEffect(() => {
     loadData(bookmarkStack[currentPageIndex]);
@@ -303,6 +396,17 @@ export default function KmsKeysPage() {
         onSearchTermChange={setAliasSearchTerm}
         metadataFilters={metadataFilters}
         onMetadataFiltersChange={setMetadataFilters}
+        engineIdFilter={engineIdFilter}
+        onEngineIdFilterChange={setEngineIdFilter}
+        cryptoEngines={allCryptoEngines}
+        algorithmFilters={algorithmFilters}
+        onAlgorithmFiltersChange={setAlgorithmFilters}
+        privateKeyFilter={privateKeyFilter}
+        onPrivateKeyFilterChange={setPrivateKeyFilter}
+        tagsFilter={tagsFilter}
+        onTagsFilterChange={setTagsFilter}
+        creationDateFilter={creationDateFilter}
+        onCreationDateFilterChange={setCreationDateFilter}
         disabled={isLoading}
       />
 
@@ -356,7 +460,9 @@ export default function KmsKeysPage() {
                           {key.name}
                         </button>
                       </TableCell>
-                      <TableCell>{key.keyTypeDisplay}</TableCell>
+                      <TableCell>
+                        <span>{key.keyTypeDisplay}</span>
+                      </TableCell>
                       <TableCell>
                         <KeyStrengthIndicator algorithm={key.algorithm} size={key.size} />
                       </TableCell>
