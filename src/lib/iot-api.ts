@@ -4,8 +4,8 @@
 
 import { get_CLIENT_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
-import { fetchJobs as fetchWfxJobs } from './wfx-api';
-import type { UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, DeviceListApiResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, DevicePackWithArtifacts, CampaignPrecondition, PreconditionFailure, GroupLatestPack, DeviceLatestDrift, GroupVersionCompliance, GroupVersionStatus } from '@/types/iot';
+import { getDevicesByGroup } from './device-groups-api';
+import type { SoftwareModuleBuildPayload, UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, DevicePackWithArtifacts, CampaignPrecondition, GroupLatestPack, DeviceLatestDrift, GroupVersionCompliance, GroupVersionStatus, UpdatesCapabilities, SoftwareModule, SoftwareModuleRef, ReusableSoftwareModule, SoftwareModuleImport } from '@/types/iot';
 
 
 export interface ApiParams {
@@ -26,6 +26,18 @@ export interface FetchUpdatePacksOptions {
 export interface UpdatePacksResponse {
   list: UpdatePack[];
   next: string | null;
+}
+
+/**
+ * What the deployment's active updates backend ("native" or "hawkbit") can and cannot do.
+ * GET /v1/capabilities — deliberately unauthenticated on the backend, so this is fetched without an
+ * access token: it describes the deployment's shape, not any tenant's data, and needs to resolve
+ * before login so the UI can gate features from the very first render.
+ */
+export async function fetchUpdatesCapabilities(opts?: ApiCallOptions): Promise<UpdatesCapabilities> {
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/capabilities`;
+  const response = await apiFetch(url, { auth: false, signal: opts?.signal ?? undefined });
+  return handleApiError(response, 'Failed to fetch updates backend capabilities');
 }
 
 export async function fetchUpdatePacks(
@@ -112,6 +124,422 @@ export async function createUpdatePack(
   return handleApiError(response, 'Failed to create distribution set');
 }
 
+// --- Software module composition ---
+//
+// Gated by the 'software_module_composition' capability: a backend without it answers 501, so a
+// caller should check isSupported('software_module_composition') before offering these rather than
+// letting the request fail. See UpdatesCapabilitiesContext.
+//
+// The module key is "<type>:<name>" and goes into a path segment. It is percent-encoded because the
+// NAME half is operator-supplied and could otherwise break the path.
+//
+// Note encodeURIComponent DOES escape the colon (to %3A) — it is not left alone. The backend accepts
+// both the encoded and the literal form (see moduleKeyParam in internal/updates/module_controllers.go);
+// before it did, every module-scoped write from here 404'd while the listing still showed the module.
+
+/**
+ * List the software modules composing a pack's current version, each with its artifacts. The set is
+ * assembled into ONE atomic .swu from every module's artifacts, so a module carrying nothing
+ * contributes nothing to the build.
+ * GET /groups/:groupId/updatepacks/:packName/modules
+ */
+export async function fetchSoftwareModules(
+  { groupId, packName }: ApiParams & { packName: string },
+  opts?: ApiCallOptions
+): Promise<SoftwareModule[]> {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules`, {
+    signal: opts?.signal ?? undefined,
+  });
+  const data = await handleApiError(response, `Failed to load the software modules of pack ${packName}`);
+  return data?.modules ?? [];
+}
+
+/**
+ * Add a software module to a pack's composition. Fails once the pack version is built — a built
+ * version's composition is immutable, so a new version is needed instead.
+ * POST /groups/:groupId/updatepacks/:packName/modules
+ */
+export async function addSoftwareModule(
+  { groupId, packName, module }: ApiParams & { packName: string; module: SoftwareModuleRef },
+  opts?: ApiCallOptions
+): Promise<SoftwareModule> {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(module),
+    signal: opts?.signal ?? undefined,
+  });
+  return handleApiError(response, `Failed to add the software module to pack ${packName}`);
+}
+
+/**
+ * Remove a software module from a pack's composition. The mandatory 'os' module cannot be removed.
+ * DELETE /groups/:groupId/updatepacks/:packName/modules/:moduleKey
+ */
+export async function removeSoftwareModule(
+  { groupId, packName, moduleKey }: ApiParams & { packName: string; moduleKey: string },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}`,
+    { method: 'DELETE', signal: opts?.signal ?? undefined }
+  );
+  return handleApiError(response, `Failed to remove the software module ${moduleKey}`);
+}
+
+/**
+ * Replace one software module's release notes — the operator-authored changelog for that module
+ * version. PUT, not PATCH: the body IS the whole value, and an empty string is a meaningful request
+ * (clear the notes) rather than "leave unchanged".
+ *
+ * Works regardless of the module's built/locked state, unlike every other module write. Notes are
+ * metadata no device downloads, so correcting them after a version has shipped is allowed by both
+ * backends (hawkBit's lock covers content, not description).
+ */
+export async function setSoftwareModuleReleaseNotes(
+  { groupId, packName, moduleKey, notes }: ApiParams & { packName: string; moduleKey: string; notes: string },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/release-notes`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+      signal: opts?.signal ?? undefined,
+    }
+  );
+  return handleApiError(response, `Failed to save release notes for the software module ${moduleKey}`);
+}
+
+/**
+ * Read one pack's launch preconditions. A dedicated single-pack call — like the sw-description,
+ * this is deliberately NOT part of the fleet-wide pack list (fetchUpdatePacks), so it costs nothing
+ * extra on every list view and has to be fetched on its own wherever it's actually shown.
+ */
+export async function fetchPackPreconditions(
+  { groupId, packName }: ApiParams & { packName: string },
+  opts?: ApiCallOptions
+): Promise<UpdatePack> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/preconditions`,
+    { signal: opts?.signal ?? undefined }
+  );
+  return handleApiError(response, `Failed to load launch preconditions for pack ${packName}`);
+}
+
+/**
+ * Replace the whole list of launch preconditions on a distribution set — see
+ * UpdatePack.preconditions / CampaignPrecondition. PUT, not PATCH: the body is the whole list; an
+ * empty array clears it (every device then qualifies).
+ *
+ * Like release notes, this is metadata about who a launch may target rather than what is built, so
+ * it works regardless of the pack's build/lock state.
+ */
+export async function setPackPreconditions(
+  { groupId, packName, preconditions }: ApiParams & { packName: string; preconditions: CampaignPrecondition[] },
+  opts?: ApiCallOptions
+): Promise<UpdatePack> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/preconditions`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preconditions }),
+      signal: opts?.signal ?? undefined,
+    }
+  );
+  return handleApiError(response, `Failed to save launch preconditions for pack ${packName}`);
+}
+
+/**
+ * List software modules defined on OTHER packs, offered as candidates to compose this one with, so
+ * an operator can reuse a module instead of re-declaring and re-uploading it.
+ * GET /groups/:groupId/updatepacks/:packName/modules/reusable
+ *
+ * Each candidate carries where it comes from and a `shared` flag saying what importing it MEANS,
+ * which differs by backend and matters to the operator:
+ *  - shared: true (hawkbit mode) — the import LINKS. Both packs then hold one module, so its
+ *    artifacts exist once and a rebuild is seen by both.
+ *  - shared: false (native mode) — the import COPIES. Artifact links are carried over so nothing is
+ *    re-uploaded, but the two modules diverge from then on.
+ */
+export async function fetchReusableSoftwareModules(
+  { groupId, packName }: ApiParams & { packName: string },
+  opts?: ApiCallOptions
+): Promise<ReusableSoftwareModule[]> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/reusable`,
+    { signal: opts?.signal ?? undefined }
+  );
+  const data = await handleApiError(response, `Failed to load the modules available to import into ${packName}`);
+  return data?.modules ?? [];
+}
+
+/**
+ * The fleet-wide software module catalog: every module that exists, each carrying the pack version
+ * that defines it. GET /softwaremodules
+ *
+ * Browse-only. A module is still DEFINED on a pack version, so creating one means adding it to a
+ * pack (addSoftwareModule) and reusing one means importSoftwareModule against a target pack.
+ *
+ * Two deliberate differences from fetchReusableSoftwareModules, which is the same data narrowed to
+ * one target pack:
+ *  - No eligibility filtering: there is no target pack, so nothing is dropped and a module appears
+ *    once per pack version defining it (which is what "where is this used" needs).
+ *  - OS modules ARE included. The reusable list omits them because a pack already has exactly one,
+ *    but hiding them here would hide the default module every pack is created with. Anything
+ *    offering an import action must filter them out itself.
+ */
+export async function fetchAllSoftwareModules(opts?: ApiCallOptions): Promise<ReusableSoftwareModule[]> {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/softwaremodules`, {
+    signal: opts?.signal ?? undefined,
+  });
+  const data = await handleApiError(response, 'Failed to load the software module catalog');
+  return data?.modules ?? [];
+}
+
+/**
+ * Declare a software module that belongs to no distribution set yet, for composing into one later.
+ * POST /softwaremodules
+ *
+ * Only offered where the 'standalone_software_modules' capability is present — whether a parentless
+ * module can exist is a property of the backend's storage model (hawkbit yes, native not yet), and a
+ * backend without it answers 501. Where absent, a module is created by adding it to a distribution
+ * set (addSoftwareModule) instead.
+ *
+ * version is required, unlike addSoftwareModule's: there is no pack whose version to inherit.
+ */
+export async function createStandaloneSoftwareModule(
+  module: SoftwareModuleRef & { version: string },
+  opts?: ApiCallOptions
+): Promise<SoftwareModule> {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/softwaremodules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(module),
+    signal: opts?.signal ?? undefined,
+  });
+  return handleApiError(response, `Failed to create the software module ${module.name}`);
+}
+
+/**
+ * Delete a software module from the catalog outright, addressed by its "<type>:<name>" key and
+ * version. DELETE /softwaremodules/:moduleKey/versions/:version
+ *
+ * The counterpart to createStandaloneSoftwareModule, sharing its 'standalone_software_modules'
+ * capability: this is the only call that can remove a module composed into NO distribution set,
+ * which removeSoftwareModule cannot reach (it is addressed THROUGH a pack). A module still held by a
+ * set is refused with a 400 naming the sets — removing it from a set is removeSoftwareModule's job,
+ * and that already deletes the module once the last set lets go of it.
+ *
+ * The version is part of the address, not optional: a module key spans versions.
+ */
+export async function deleteSoftwareModule(
+  { moduleKey, version }: { moduleKey: string; version: string },
+  opts?: ApiCallOptions
+): Promise<void> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/softwaremodules/${encodeURIComponent(moduleKey)}/versions/${encodeURIComponent(version)}`,
+    { method: 'DELETE', signal: opts?.signal ?? undefined }
+  );
+  await handleApiError(response, `Failed to delete the software module ${moduleKey} v${version}`);
+}
+
+/**
+ * Compose a pack from a module that already exists on another one. Subject to the same rules as
+ * addSoftwareModule (the composition must stay valid, the pack version must not be built yet).
+ * POST /groups/:groupId/updatepacks/:packName/modules/import
+ */
+export async function importSoftwareModule(
+  { groupId, packName, source }: ApiParams & { packName: string; source: SoftwareModuleImport },
+  opts?: ApiCallOptions
+): Promise<SoftwareModule> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/import`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(source),
+      signal: opts?.signal ?? undefined,
+    }
+  );
+  return handleApiError(response, `Failed to import the software module into pack ${packName}`);
+}
+
+/**
+ * Link an already-uploaded global artifact to ONE module of a pack — the operation the flat
+ * pack-level API cannot express once a pack has more than one module.
+ * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/artifact/link
+ */
+export async function linkArtifactToSoftwareModule(
+  { groupId, packName, moduleKey, artifactId }: ApiParams & { packName: string; moduleKey: string; artifactId: string },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/link`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artifact_id: artifactId }),
+      signal: opts?.signal ?? undefined,
+    }
+  );
+  return handleApiError(response, `Failed to link the artifact to module ${moduleKey}`);
+}
+
+/**
+ * Upload a binary and attach it to ONE module in a single request.
+ * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/artifact/upload
+ *
+ * The pack-level upload has nowhere to say which module it meant, and linkArtifactToSoftwareModule
+ * can only attach something already in the catalogue — so this is the only way to get a NEW binary
+ * onto a specific module of a composed pack.
+ *
+ * What the file IS matters and cannot be inferred from its name: a finished .swu is delivered to the
+ * device as-is, while a raw firmware image is a build INPUT that the module's build turns into one.
+ * The caller decides, and the module reports built only once it holds something installable.
+ */
+export async function uploadModuleArtifactBinary(
+  {
+    groupId,
+    packName,
+    moduleKey,
+    moduleId,
+    file,
+    artifactName,
+    version,
+  }: ApiParams & { packName: string; moduleKey: string; moduleId?: string; file: File; artifactName?: string; version?: string },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('artifact_name', artifactName ?? file.name.replace(/\.[^/.]+$/, ''));
+  form.append('version', version ?? '');
+  const response = await apiFetch(
+    moduleId ? `${catalogModuleUrl(moduleId)}/artifacts` : `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/upload`,
+    { method: 'POST', body: form, signal: opts?.signal ?? undefined }
+  );
+  return handleApiError(response, `Failed to upload the binary to module ${moduleKey}`);
+}
+
+/**
+ * Store one software module's own sw-description, which its build assembles from. A module without
+ * one falls back to the set's.
+ * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/descriptor/upload
+ *
+ * Requires 'software_module_deliverables' — a backend whose set builds one atomic deliverable has a
+ * single descriptor and answers 501 here.
+ */
+export async function uploadModuleSwDescriptor(
+  { groupId, packName, moduleKey, file }: ApiParams & { packName: string; moduleKey: string; file: File },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/descriptor/upload`,
+    { method: 'POST', body: form, signal: opts?.signal ?? undefined }
+  );
+  return handleApiError(response, `Failed to store the sw-description for module ${moduleKey}`);
+}
+
+/**
+ * Build ONE module's deliverable from the build inputs staged on it.
+ * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/build
+ *
+ * Requires 'software_module_deliverables'. In hawkbit mode each module carries its own .swu, which
+ * is what a hawkBit target expects (it downloads every module's artifacts). In native mode the set
+ * builds one deliverable from all modules, so this answers 501 and Generate SWU is the build action.
+ */
+export async function buildSoftwareModule(
+  {
+    groupId,
+    packName,
+    moduleKey,
+    payload,
+  }: ApiParams & { packName: string; moduleKey: string; payload?: SoftwareModuleBuildPayload },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/build`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload ?? {}),
+      signal: opts?.signal ?? undefined,
+    }
+  );
+  return handleApiError(response, `Failed to build the software module ${moduleKey}`);
+}
+
+/**
+ * Download ONE software module's own deliverable — the same bytes a device fetches for it.
+ * GET /groups/:groupId/updatepacks/:packName/modules/:moduleKey/artifact/download
+ *
+ * Requires 'software_module_deliverables': only there does a module have a deliverable of its own to
+ * download (native's set builds one atomic deliverable instead — see downloadSwuVersion for that).
+ */
+export async function downloadModuleArtifact(
+  { groupId, packName, moduleKey }: ApiParams & { packName: string; moduleKey: string },
+  opts?: ApiCallOptions
+): Promise<Blob> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/download`,
+    { signal: opts?.signal ?? undefined }
+  );
+  if (!response.ok) {
+    let detail = `HTTP error ${response.status}`;
+    try {
+      const body = await response.json();
+      detail = body?.err || detail;
+    } catch { /* keep default */ }
+    throw new Error(`Failed to download module ${moduleKey}: ${detail}`);
+  }
+  return response.blob();
+}
+
+/**
+ * List the modules composing a SPECIFIC past version of a pack — the version-history counterpart to
+ * fetchSoftwareModules, which only ever answers for the pack's current version.
+ * GET /groups/:groupId/updatepacks/:packName/versions/:version/modules
+ */
+export async function fetchSoftwareModulesVersion(
+  { groupId, packName, version }: ApiParams & { packName: string; version: string },
+  opts?: ApiCallOptions
+): Promise<SoftwareModule[]> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions/${encodeURIComponent(version)}/modules`,
+    { signal: opts?.signal ?? undefined }
+  );
+  const data = await handleApiError(response, `Failed to load the software modules of ${packName} v${version}`);
+  return data?.modules ?? [];
+}
+
+/**
+ * Download one software module's deliverable from a SPECIFIC past version — the version-history
+ * counterpart to downloadModuleArtifact, which only ever answers for the current version.
+ * GET /groups/:groupId/updatepacks/:packName/versions/:version/modules/:moduleKey/artifact/download
+ */
+export async function downloadModuleArtifactVersion(
+  { groupId, packName, version, moduleKey }: ApiParams & { packName: string; version: string; moduleKey: string },
+  opts?: ApiCallOptions
+): Promise<Blob> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions/${encodeURIComponent(version)}/modules/${encodeURIComponent(moduleKey)}/artifact/download`,
+    { signal: opts?.signal ?? undefined }
+  );
+  if (!response.ok) {
+    let detail = `HTTP error ${response.status}`;
+    try {
+      const body = await response.json();
+      detail = body?.err || detail;
+    } catch { /* keep default */ }
+    throw new Error(`Failed to download module ${moduleKey} v${version}: ${detail}`);
+  }
+  return response.blob();
+}
+
 /**
  * Create a new VERSION of an existing pack (bumps the version, ready for fresh artifacts + SWU).
  * POST /groups/:groupId/updatepacks/:packName/new
@@ -174,6 +602,35 @@ export async function uploadPackDescriptor(
     signal: opts?.signal ?? undefined,
   });
   return handleApiError(response, `Failed to upload descriptor for pack ${packName}`);
+}
+
+/**
+ * Attach an already-built deliverable to a pack, instead of having the backend assemble one from
+ * artifacts + descriptor. The file is stored and served to devices verbatim — nothing inspects,
+ * repacks, signs or encrypts it — so whatever signature/encryption it carries is the uploader's.
+ *
+ * This is the one route to a deliverable that works on every backend (pkg/updates
+ * CapabilityPrebuiltDeliverable): hawkbit mode ships no swugenerator, so "generate" cannot produce
+ * a file there at all.
+ *
+ * POST /groups/:groupId/updatepacks/:packName/{swu,package}/upload
+ */
+export async function uploadPrebuiltDeliverable(
+  { groupId, packName, file, isNonSwu, user }: ApiParams & { packName: string; file: File; isNonSwu?: boolean; user?: string },
+  opts?: ApiCallOptions
+): Promise<any> {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (user) fd.append('user', user);
+  // The path mirrors the build action's ("…/swu" → "…/swu/upload"); both routes reach the same
+  // handler, which decides what to expect from the pack's packaging rather than from the URL.
+  const kind = isNonSwu ? 'package' : 'swu';
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/${kind}/upload`, {
+    method: 'POST',
+    body: fd,
+    signal: opts?.signal ?? undefined,
+  });
+  return handleApiError(response, `Failed to upload the pre-built ${kind} for pack ${packName}`);
 }
 
 export interface GenerateSwuPayload {
@@ -353,59 +810,21 @@ export async function fetchJobsByCampaign({
   };
 }
 
-// ── WFX tag-based job lookup ──────────────────────────────────────────────────
-// The secure-updates backend stamps every device job it creates for a campaign with WFX
-// tags so jobs can be queried in bulk by the workflow executor instead of one request per
-// device:
-//   lms://dms/<groupID>             — the owning device group
-//   lms://secure-updates/<launchID> — the campaign (launch) the job belongs to
-// See the WFX `GET /jobs?tag=...` filter (repeatable query parameter).
-export const CAMPAIGN_LAUNCH_TAG_PREFIX = 'lms://secure-updates/';
-export const DEVICE_GROUP_TAG_PREFIX = 'lms://dms/';
-
-/** WFX tag that scopes a job query to a single campaign (launch). */
-export function buildCampaignLaunchTag(campaignId: string): string {
-  return `${CAMPAIGN_LAUNCH_TAG_PREFIX}${campaignId}`;
-}
-
-/** WFX tag that scopes a job query to a single device group. */
-export function buildDeviceGroupTag(groupId: string): string {
-  return `${DEVICE_GROUP_TAG_PREFIX}${groupId}`;
-}
-
-// Map a WFX job (northbound API shape) onto the DeviceJob shape the updates UI consumes.
-function wfxJobToDeviceJob(w: Awaited<ReturnType<typeof fetchWfxJobs>>['content'][number]): DeviceJob {
-  return {
-    clientId: w.clientId || w.status?.clientId || '',
-    definition: (w.definition ?? {}) as unknown as DeviceJob['definition'],
-    id: w.id,
-    mtime: w.mtime || '',
-    status: (w.status ?? { state: '', definitionHash: '' }) as unknown as DeviceJob['status'],
-    stime: w.stime || '',
-    tags: w.tags || [],
-    workflow: (w.workflow ?? {}) as unknown as DeviceJob['workflow'],
-  };
-}
-
-// Fetch every device job belonging to a campaign in a single tag-filtered WFX query,
-// paginating until the full set is retrieved. Replaces the per-device fan-out
-// (fetchAllDeviceJobs) when viewing a campaign's details.
-export async function fetchCampaignJobsByTag(
+// Fetch every job belonging to a campaign via the backend-agnostic /launch/:id/jobs endpoint,
+// paginating until the full set is retrieved. Works against both the native and hawkbit backends
+// (unlike fetchCampaignJobsByTag, which queries WFX directly and only exists in native mode).
+export async function fetchAllJobsByCampaign(
   { campaignId, pageSize = 100 }: { campaignId: string; pageSize?: number },
 ): Promise<DeviceJob[]> {
-  const tag = buildCampaignLaunchTag(campaignId);
   const jobs: DeviceJob[] = [];
-  let offset = 0;
+  let bookmark: string | undefined;
   const maxIterations = 50; // Safety bound to prevent runaway pagination
 
   for (let i = 0; i < maxIterations; i++) {
-    const page = await fetchWfxJobs({ tag: [tag], limit: pageSize, offset });
-    const content = page.content || [];
-    jobs.push(...content.map(wfxJobToDeviceJob));
-
-    const total = page.pagination?.total ?? jobs.length;
-    offset += content.length;
-    if (content.length === 0 || offset >= total) break;
+    const page = await fetchJobsByCampaign({ campaignId, pageSize, bookmark });
+    jobs.push(...page.list);
+    if (!page.next) break;
+    bookmark = page.next;
   }
 
   return jobs;
@@ -417,12 +836,24 @@ export interface CreateCampaignPayload {
   workflow_type: string;
   rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
+  // Optional UTC ISO 8601 timestamp (e.g. "2026-09-01T09:00:00Z") to schedule
+  // the campaign start; omit to launch immediately.
+  scheduled_at?: string;
+  // Optional campaign display name; when omitted the backend defaults it to the
+  // distribution set's name (prior behavior).
+  name?: string;
+  // Optional free-text notes for the campaign.
+  description?: string;
+  // Optional priority hint (0–1000, validated server-side); stored but not
+  // currently enforced by anything.
+  weight?: number;
   test_device_id?: string;
   auto?: boolean;
   approval_threshold?: number; // % of batch that must succeed before next batch (auto only)
   error_threshold?: number; // % of all devices that can fail before aborting (auto only)
-  // Campaign preconditions (optional; omit/empty = no gating)
-  preconditions?: CampaignPrecondition[];
+  // Whether to deploy anyway despite a precondition failure (the requirement itself lives on the
+  // distribution set being launched — see UpdatePack.preconditions / setPackPreconditions — not
+  // here; a launch only triggers the check).
   force_preconditions?: boolean;
 }
 
@@ -596,7 +1027,7 @@ export async function fetchAllDeviceJobs({
 
         // If we're looking for a specific campaign, check if we found it
         if (targetCampaignId) {
-          const foundTargetJob = jobs.some((job: DeviceJob) => job.definition.launchID === targetCampaignId);
+          const foundTargetJob = jobs.some((job: DeviceJob) => job.definition?.launchID === targetCampaignId);
           if (foundTargetJob) {
             // We found jobs for the target campaign, stop fetching
             break;
@@ -706,16 +1137,26 @@ export async function transitionJobs(
  * Fetch devices belonging to a DMS (for per-device SWU downloads).
  * GET /v1/dms/:dmsID/devices
  */
+/** What a caller of fetchGroupDevices actually reads off a device. Narrower than either ApiDevice
+ *  declaration on purpose: the device manager's and the updates service's differ in fields neither
+ *  caller touches, and widening to one of them would only force a cast at the boundary. */
+export interface GroupDeviceRef {
+  id: string;
+  status: string;
+}
+
 export async function fetchGroupDevices(
   { groupId }: ApiParams,
-  opts?: ApiCallOptions
-): Promise<DeviceListApiResponse> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/devices`;
-
-  const response = await apiFetch(url, {
-    signal: opts?.signal ?? undefined,
-  });
-  return handleApiError(response, `Failed to fetch devices for DMS ${groupId}`);
+  _opts?: ApiCallOptions
+): Promise<{ list: GroupDeviceRef[]; next: string | null }> {
+  // Delegates to the DEVICE MANAGER rather than asking the updates service, which has no such route:
+  // this used to GET {updates}/groups/:id/devices and answered 404 for every group, silently. The
+  // two callers both degrade quietly on failure — the campaign form falls back to a free-text canary
+  // field, the pack-details page to an empty list — so nothing looked broken, it just never offered
+  // a device to pick. Group membership is the device manager's to answer anyway; the updates service
+  // only ever knew a group as a targeting tag.
+  const { list, next } = await getDevicesByGroup(groupId, { pageSize: 100 });
+  return { list: list ?? [], next: next ?? null };
 }
 
 /**
@@ -743,6 +1184,33 @@ export async function downloadPerDeviceSwu(
     throw new Error(`Failed to download SWU for device ${deviceId}. HTTP error ${response.status}`);
   }
 
+  return response.blob();
+}
+
+/**
+ * Get the current-version download URL for a built pack. This is the same URL the native backend
+ * stores in the pack's own `uri` field (see internal/updates/service.go's MarkBuilt calls) — kept
+ * as a fallback for backends that report a pack as built (`status === 'built'`) without populating
+ * `uri` themselves, e.g. hawkbit mode, where there is no separate build step to produce one.
+ * GET /groups/:groupID/updatepacks/:name/swu/download | /package/download
+ */
+export function getCurrentBuildDownloadUrl(groupId: string, packName: string, isNonSwu: boolean): string {
+  const kind = isNonSwu ? 'package' : 'swu';
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/${kind}/download`;
+}
+
+/** Download the current build of a pack, via the pack's own `uri` when set or this route otherwise. */
+export async function downloadCurrentBuild(
+  { groupId, packName, isNonSwu }: ApiParams & { packName: string; isNonSwu: boolean },
+  opts?: ApiCallOptions
+): Promise<Blob> {
+  const url = getCurrentBuildDownloadUrl(groupId, packName, isNonSwu);
+  const response = await apiFetch(url, {
+    signal: opts?.signal ?? undefined,
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to download ${packName}. HTTP error ${response.status}`);
+  }
   return response.blob();
 }
 
@@ -1255,3 +1723,66 @@ export async function fetchWorkflows(opts?: ApiCallOptions
   return data.content || data.list || (Array.isArray(data) ? data : []);
 }
 
+
+
+const catalogModuleUrl = (id: string) => `${get_CLIENT_UPDATES_API_BASE_URL()}/softwaremodules/by-id/${encodeURIComponent(id)}`;
+/**
+ * Change what is mutable on a catalog module version: its delivery intent, its release notes, or
+ * both. PUT /softwaremodules/by-id/:id
+ *
+ * Send ONLY the fields being changed — an omitted field is left alone by the backend. Passing both
+ * unconditionally is what masked a pair of API bugs (a notes-only edit reset the intent to
+ * undecided, making the module uncomposable; an intent-only edit wiped the notes), so this signature
+ * takes a partial patch rather than every field.
+ *
+ * Name, type and version are NOT updatable: they identify a module version. hawkBit ignores such a
+ * change and still answers 200, so "renaming" one is impossible — create a new version instead.
+ */
+export async function updateCatalogModule(
+  moduleId: string,
+  patch: { delivery_intent?: import('@/types/iot').ModuleDeliveryIntent; release_notes?: string }
+): Promise<SoftwareModule> {
+  const response = await apiFetch(catalogModuleUrl(moduleId), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return handleApiError(response, 'Could not save the software module');
+}
+export async function deleteCatalogModuleFile(moduleId: string, artifactId: string): Promise<void> {
+  const response = await apiFetch(`${catalogModuleUrl(moduleId)}/artifacts/${encodeURIComponent(artifactId)}`, { method: 'DELETE' });
+  if (!response.ok) await handleApiError(response, 'Could not remove artifact');
+}
+export async function downloadCatalogModuleFile(moduleId: string, artifactId: string): Promise<Blob> {
+  const response = await apiFetch(`${catalogModuleUrl(moduleId)}/artifacts/${encodeURIComponent(artifactId)}/download`);
+  if (!response.ok) await handleApiError(response, 'Could not download artifact');
+  return response.blob();
+}
+export async function fetchCatalogModule(moduleId: string): Promise<SoftwareModule> {
+  return handleApiError(await apiFetch(catalogModuleUrl(moduleId)), 'Could not load module');
+}
+
+/**
+ * The by-id counterparts of uploadModuleSwDescriptor and buildSoftwareModule, for a module addressed
+ * on its own rather than through a distribution set.
+ *
+ * They exist because a module in the catalog has no pack to route through, and the pack-scoped
+ * endpoints are the only ones the UI used to call — which is why creating a "build a SWU from
+ * inputs" module could stage its binaries but never its sw-description, and never build. The backend
+ * has had both routes all along (POST /softwaremodules/by-id/:id/{descriptor,build}).
+ */
+export async function uploadCatalogModuleDescriptor(moduleId: string, file: File): Promise<any> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await apiFetch(`${catalogModuleUrl(moduleId)}/descriptor`, { method: 'POST', body: form });
+  return handleApiError(response, 'Failed to store the sw-description for this module');
+}
+
+export async function buildCatalogModule(moduleId: string, payload?: SoftwareModuleBuildPayload): Promise<any> {
+  const response = await apiFetch(`${catalogModuleUrl(moduleId)}/build`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload ?? {}),
+  });
+  return handleApiError(response, 'Failed to build the module');
+}
