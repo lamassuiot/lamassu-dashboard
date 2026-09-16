@@ -12,6 +12,7 @@ import {
 } from "pkijs";
 import { format } from "date-fns";
 import { certificatePemToDer } from "./cert-parser";
+import { DN_ATTRIBUTE_OID_MAP } from "./oid-labels";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -36,11 +37,6 @@ export interface OcspResponseDetails {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-const OID_MAP: Record<string, string> = {
-  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST",
-  "2.5.4.10": "O", "2.5.4.11": "OU",
-};
-
 const CERT_STATUS_TAG: Record<number, OcspResponseDetails["status"]> = {
   0: "good",
   1: "revoked",
@@ -60,7 +56,7 @@ function getRevocationReason(code?: number): string {
 function formatResponderId(responderID: any): string {
   if (responderID.typesAndValues) {
     return responderID.typesAndValues
-      .map((tv: any) => `${OID_MAP[tv.type] ?? tv.type}=${tv.value.valueBlock.value}`)
+      .map((tv: any) => `${DN_ATTRIBUTE_OID_MAP[tv.type] ?? tv.type}=${tv.value.valueBlock.value}`)
       .join(", ");
   }
   if (responderID.valueBlock?.valueHex) {

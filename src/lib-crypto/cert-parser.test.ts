@@ -9,7 +9,7 @@ describe('cert-parser', () => {
     expect(parsed.subject).toContain('O=Internet Widgits Pty Ltd')
     expect(parsed.issuer).toContain('O=Internet Widgits Pty Ltd')
     expect(parsed.publicKeyAlgorithm).toContain('RSA')
-    expect(parsed.signatureAlgorithm).toContain('sha')
+    expect(parsed.signatureAlgorithm.toLowerCase()).toContain('sha')
     expect(parsed.fingerprintSha256).toBeDefined()
   })
 

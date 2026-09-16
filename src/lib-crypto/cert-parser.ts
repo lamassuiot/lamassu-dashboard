@@ -4,32 +4,17 @@ import {
   CRLDistributionPoints,
   BasicConstraints,
   ExtKeyUsage,
-  RelativeDistinguishedNames,
-  PublicKeyInfo,
   AuthorityKeyIdentifier,
   AttributeTypeAndValue,
 } from "pkijs";
+import type { RelativeDistinguishedNames } from "pkijs";
+import { DN_ATTRIBUTE_OID_MAP, formatDistinguishedName, formatPublicKeyInfo, resolveSignatureAlgorithmLabel } from "./oid-labels";
+
+export { formatDistinguishedName as formatSubject, formatPublicKeyInfo } from "./oid-labels";
 
 // ---------------------------------------------------------------------------
 // OID lookup tables
 // ---------------------------------------------------------------------------
-
-const OID_MAP: Record<string, string> = {
-  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST",
-  "2.5.4.10": "O", "2.5.4.11": "OU",
-  "1.2.840.113549.1.1.1": "RSA", "1.2.840.10045.2.1": "EC",
-  "1.2.840.10045.3.1.7": "P-256", "1.3.132.0.34": "P-384", "1.3.132.0.35": "P-521",
-};
-
-const SIG_OID_MAP: Record<string, string> = {
-  "1.2.840.113549.1.1.11": "sha256WithRSAEncryption",
-  "1.2.840.113549.1.1.12": "sha384WithRSAEncryption",
-  "1.2.840.113549.1.1.13": "sha512WithRSAEncryption",
-  "1.2.840.113549.1.1.14": "sha224WithRSAEncryption",
-  "1.2.840.10045.4.3.2": "ecdsa-with-SHA256",
-  "1.2.840.10045.4.3.3": "ecdsa-with-SHA384",
-  "1.2.840.10045.4.3.4": "ecdsa-with-SHA512",
-};
 
 const EKU_OID_MAP: Record<string, string> = {
   "1.3.6.1.5.5.7.3.1": "ServerAuth",
@@ -71,16 +56,6 @@ export function abToHex(
   return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join(separator);
 }
 
-/**
- * Formats a pkijs `RelativeDistinguishedNames` object into a human-readable
- * DN string, e.g. `CN=example.com, O=ACME, C=US`.
- */
-export function formatSubject(subject: RelativeDistinguishedNames): string {
-  return subject.typesAndValues
-    .map(tv => `${OID_MAP[tv.type] ?? tv.type}=${(tv.value as any).valueBlock.value}`)
-    .join(", ");
-}
-
 /** The common attributes of a distinguished name; repeated attributes are joined with ", ". */
 export interface DistinguishedNameFields {
   cn: string;
@@ -97,29 +72,10 @@ export interface DistinguishedNameFields {
  */
 export function distinguishedNameFields(name: RelativeDistinguishedNames): DistinguishedNameFields {
   const valuesOf = (label: string) => name.typesAndValues
-    .filter(tv => OID_MAP[tv.type] === label)
+    .filter(tv => DN_ATTRIBUTE_OID_MAP[tv.type] === label)
     .map(tv => String((tv.value as any).valueBlock.value))
     .join(", ");
   return { cn: valuesOf("CN"), c: valuesOf("C"), st: valuesOf("ST"), l: valuesOf("L"), o: valuesOf("O"), ou: valuesOf("OU") };
-}
-
-/**
- * Formats a pkijs `PublicKeyInfo` into a readable algorithm description,
- * e.g. `EC (Curve: P-256)` or `RSA (2048 bits)`.
- */
-export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
-  const algoOid = publicKeyInfo.algorithm.algorithmId;
-  const algoName = OID_MAP[algoOid] ?? algoOid;
-  let details = "";
-  if (algoName === "EC" && (publicKeyInfo.algorithm as any).parameters && (publicKeyInfo.algorithm as any).parameters.valueBlock) {
-    const curveOid = (publicKeyInfo.algorithm as any).parameters.valueBlock.value as string;
-    details = `(Curve: ${OID_MAP[curveOid] ?? curveOid})`;
-  } else if (algoName === "RSA" && publicKeyInfo.parsedKey && (publicKeyInfo.parsedKey as any).modulus) {
-    const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
-    const leadingZero = new Uint8Array((publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex)[0] === 0 ? 1 : 0;
-    details = `(${(modulusBytes - leadingZero) * 8} bits)`;
-  }
-  return `${algoName} ${details}`;
 }
 
 /** Decodes a PEM-encoded certificate into its DER bytes. */
@@ -275,8 +231,8 @@ export async function parseCertificatePem(pem: string): Promise<ParsedCertificat
     }
   }
 
-  result.subject = formatSubject(cert.subject);
-  result.issuer = formatSubject(cert.issuer);
+  result.subject = formatDistinguishedName(cert.subject);
+  result.issuer = formatDistinguishedName(cert.issuer);
   result.subjectFields = distinguishedNameFields(cert.subject);
   result.issuerFields = distinguishedNameFields(cert.issuer);
   result.serialNumber = abToHex(cert.serialNumber.valueBlock.valueHex, ":");
@@ -285,8 +241,7 @@ export async function parseCertificatePem(pem: string): Promise<ParsedCertificat
   result.publicKeyAlgorithm = formatPublicKeyInfo(cert.subjectPublicKeyInfo);
 
   try {
-    result.signatureAlgorithm =
-      SIG_OID_MAP[cert.signatureAlgorithm.algorithmId] ?? cert.signatureAlgorithm.algorithmId;
+    result.signatureAlgorithm = resolveSignatureAlgorithmLabel(cert.signatureAlgorithm.algorithmId);
   } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Signature Algorithm:", e); }
 
   try {
