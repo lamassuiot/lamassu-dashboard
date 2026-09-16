@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, Download, Package, FileText, Info,
   Copy, Shield, History, Plus, Loader2, UploadCloud, Link2,
-  ChevronDown, ChevronRight, MoreVertical
+  ChevronDown, ChevronRight, MoreVertical, Layers
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -17,17 +17,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import {
-  fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchGroupDevices,
+  fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchGroupDevices, type GroupDeviceRef,
   getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion,
   fetchArtifactCatalog, downloadArtifact, fetchVersionSignature,
   downloadVersionArtifactsArchive, fetchAllArtifacts, linkArtifactToPack,
-  fetchAllDevicePackVersions,
+  fetchAllDevicePackVersions, downloadCurrentBuild, deleteUpdatePackApi,
 } from '@/lib/iot-api';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { fetchKmsKey, type ApiKmsKey } from '@/lib/kms-data';
 import { GenerateSwuDialog } from '@/components/iot/generate-swu-dialog';
 import { GeneratePackageDialog } from '@/components/iot/generate-package-dialog';
 import { TargetedUpdateDialog } from '@/components/iot/targeted-update-dialog';
+import { SoftwareModulesCard } from '@/components/iot/SoftwareModulesCard';
+import { PackPreconditionsCard } from '@/components/iot/pack-preconditions-card';
+import { VersionModulesPanel } from '@/components/iot/version-modules-panel';
+import { HawkbitUnsupportedFeatures } from '@/components/iot/HawkbitUnsupportedFeatures';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn, formatBytes, isValidSemver } from '@/lib/utils';
 import type { DeviceListApiResponse, UpdatePackVersion, Artifact, ArtifactRef } from '@/types/iot';
@@ -70,6 +79,25 @@ export default function UpdatePackDetailsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { availableDms } = useDms();
+  const { isSupported: isUpdatesCapabilitySupported } = useUpdatesCapabilities();
+  // GetVersionSignature / DownloadVersionArtifactsArchive are this platform's KMS-signed anti-rollback
+  // manifest pipeline (pkg/updates.CapabilityArtifactSignatures) — hawkbit mode has no equivalent.
+  const artifactSignaturesSupported = isUpdatesCapabilitySupported('artifact_signatures');
+  // GetArtifactPath (the staged-build-dir, by-filename download route behind handleDownloadArtifact
+  // below) has no hawkBit translation — hawkBit artifacts are addressed by ID within a software
+  // module (pkg/updates.CapabilityArtifactDownloadByName). The catalog tab's by-ID download
+  // (handleDownloadCatalogArtifact) is unaffected and needs no gating.
+  const artifactDownloadByNameSupported = isUpdatesCapabilitySupported('artifact_download_by_name');
+  // Whether this distribution set can be addressed as a composition of software modules — an 'os'
+  // 'os' (core firmware/OS) module plus 'application' modules, each with its own deliverable
+  // (pkg/updates.CapabilitySoftwareModuleComposition). Reported dynamically: in hawkbit mode it
+  // depends on which module types that hawkBit server actually has configured.
+  const compositionSupported = isUpdatesCapabilitySupported('software_module_composition');
+  // Whether each software module carries its OWN deliverable. This decides where a build even
+  // happens: with it (hawkbit) the modules ARE the SWUs, so the set-level Generate/Download SWU
+  // buttons are meaningless — building and downloading are per module. Without it (native) the set
+  // builds one SWU from every module's artifacts and the header buttons are the right place.
+  const perModuleDeliverables = isUpdatesCapabilitySupported('software_module_deliverables');
 
   const groupId = searchParams.get('groupId');
   const packName = searchParams.get('packName');
@@ -89,7 +117,7 @@ export default function UpdatePackDetailsPage() {
 
   const [signingKey, setSigningKey] = useState<ApiKmsKey | undefined>(undefined);
 
-  const [dmsDevicesResponse, setDmsDevicesResponse] = useState<DeviceListApiResponse | undefined>(undefined);
+  const [dmsDevicesResponse, setDmsDevicesResponse] = useState<{ list: GroupDeviceRef[] } | undefined>(undefined);
   const [devicesLoading, setDevicesLoading] = useState(false);
 
   const [versionsResponse, setVersionsResponse] = useState<{ list: UpdatePackVersion[] } | undefined>(undefined);
@@ -144,7 +172,15 @@ export default function UpdatePackDetailsPage() {
       const result = await fetchUpdatePackDescriptor({ groupId, packName });
       setDescriptorContent(result);
     } catch (err) {
-      console.error(err);
+      // A pack that has never had a descriptor generated returns 404. That's a
+      // normal state, not a failure, so surface it as "no descriptor" instead of
+      // logging an error on every visit to such a pack.
+      const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+      if (msg.includes('404') || msg.includes('not found')) {
+        setDescriptorContent('');
+      } else {
+        console.error(err);
+      }
     } finally {
       setDescriptorLoading(false);
     }
@@ -233,6 +269,16 @@ export default function UpdatePackDetailsPage() {
   useEffect(() => { fetchCatalogData(); }, [fetchCatalogData]);
 
   const isNonSwu = updatePack?.packaging === 'non-swu';
+  // `status` is the backend's authoritative, mode-agnostic build flag — a hawkbit-mode pack is
+  // built the moment it has an artifact and never gets a `uri` (there's no separate build step to
+  // produce one), so `uri` truthiness alone under-reports "built" for that backend.
+  const isBuilt = updatePack?.status === 'built';
+  // A build that ran and broke, as opposed to one nobody has started. The pack is still editable and
+  // the build still retryable — this only drives what we tell the operator, and whether we offer the
+  // way out (retry, or delete) instead of a pack that looks untouched.
+  const buildError = updatePack?.status === 'build_failed'
+    ? updatePack.last_build_error || 'The last build attempt failed.'
+    : updatePack?.last_build_error || updatePack?.generationError;
 
   // ── UI state ──────────────────────────────────────────────────────────────
 
@@ -240,12 +286,31 @@ export default function UpdatePackDetailsPage() {
   const [isGenerateSwuOpen, setIsGenerateSwuOpen] = useState(false);
   const [isGeneratePackageOpen, setIsGeneratePackageOpen] = useState(false);
   const [isTargetedOpen, setIsTargetedOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [versionActionBusy, setVersionActionBusy] = useState<string | null>(null);
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
 
   const [isLinkOpen, setIsLinkOpen] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
   const [linkingArtifactId, setLinkingArtifactId] = useState<string | null>(null);
+
+  // Deleting from here matters most for a pack whose build failed: the name stays taken until it is
+  // gone (the backend rejects a duplicate name within a group), so without this the operator has to
+  // leave the flow entirely and hunt the pack down in Package Inventory to get unstuck.
+  const handleDeletePack = async () => {
+    if (!groupId || !packName) return;
+    setIsDeleting(true);
+    try {
+      await deleteUpdatePackApi({ groupId, packName });
+      toast({ title: 'Distribution Set Deleted', description: `"${packName}" has been deleted.` });
+      router.push('/package-inventory');
+    } catch (err: Error | any) {
+      toast({ variant: 'destructive', title: 'Deletion Failed', description: `Could not delete "${packName}". ${err.message}` });
+      setIsDeleting(false);
+      setIsDeleteOpen(false);
+    }
+  };
 
   const fetchGlobalArtifacts = useCallback(async () => {
     if (!isLinkOpen || !user?.access_token) return;
@@ -321,6 +386,10 @@ export default function UpdatePackDetailsPage() {
     } finally { setLinkingArtifactId(null); }
   };
 
+  // The extension this set's deliverable actually has. A non-SWU set delivers a .tar.gz package,
+  // so naming its download ".swu" produced a file that lies about its own contents.
+  const deliverableExt = updatePack?.packaging === 'non-swu' ? 'tar.gz' : 'swu';
+
   const triggerBlobDownload = (blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -333,7 +402,7 @@ export default function UpdatePackDetailsPage() {
     if (!groupId || !packName || !user?.access_token) return;
     try {
       const blob = await downloadSwuVersion({ groupId, packName, version });
-      triggerBlobDownload(blob, `${packName}_v${version}.swu`);
+      triggerBlobDownload(blob, `${packName}_v${version}.${deliverableExt}`);
     } catch (err: any) {
       toast({ title: 'Download failed', description: err.message, variant: 'destructive' });
     }
@@ -359,7 +428,7 @@ export default function UpdatePackDetailsPage() {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Status ${response.status}`);
       const blob = await response.blob();
-      triggerBlobDownload(blob, `${packName}-${deviceId}.swu`);
+      triggerBlobDownload(blob, `${packName}-${deviceId}.${deliverableExt}`);
       toast({ title: 'Download Started' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Download Failed', description: error.message });
@@ -389,14 +458,20 @@ export default function UpdatePackDetailsPage() {
   };
 
   const handleDownload = async () => {
-    if (!updatePack?.uri) { toast({ variant: 'destructive', title: 'Download Failed', description: 'URI not available.' }); return; }
+    if (!updatePack || !isBuilt || !groupId || !packName) { toast({ variant: 'destructive', title: 'Download Failed', description: 'This pack has not been built yet.' }); return; }
     setIsDownloadingCurrent(true);
     try {
-      const response = await fetch(updatePack.uri);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const ext = updatePack.packaging === 'non-swu' ? 'tar.gz' : 'swu';
-      triggerBlobDownload(blob, updatePack.binaryFileName || `${updatePack.name}-v${updatePack.version}.${ext}`);
+      // Prefer the pack's own `uri` when the backend set one (native mode); fall back to the
+      // generic current-build route otherwise — needed for hawkbit mode, which reports a pack
+      // built without ever populating `uri` (see downloadCurrentBuild's comment).
+      const blob = updatePack.uri
+        ? await (async () => {
+            const response = await fetch(updatePack.uri!);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.blob();
+          })()
+        : await downloadCurrentBuild({ groupId, packName, isNonSwu });
+      triggerBlobDownload(blob, updatePack.binaryFileName || `${updatePack.name}-v${updatePack.version}.${deliverableExt}`);
       toast({ title: 'Download Started' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Download Failed', description: err.message });
@@ -439,21 +514,39 @@ export default function UpdatePackDetailsPage() {
 
   // ── Build status ─────────────────────────────────────────────────────────
 
-  const buildStatus = updatePack.uri
+  const buildStatus = isBuilt
     ? isNonSwu ? 'Package built' : 'SWU built'
-    : updatePack.generationError
+    : buildError
       ? 'Build failed'
       : isNonSwu ? 'Package not built' : 'SWU not built';
 
-  const buildDescription = updatePack.uri
+  const buildDescription = isBuilt
     ? isNonSwu
       ? 'Devices download this distribution set as a .tar.gz package.'
       : 'This distribution set is ready for deployment.'
-    : updatePack.generationError
-      ? updatePack.generationError
+    : buildError
+      ? buildError
       : isNonSwu
         ? 'Upload artifacts, then generate the package devices will download.'
         : 'Upload artifacts, then generate the SWU devices will download.';
+
+  // What an artifact actually IS on this set, which is not the same question everywhere and was
+  // previously answered as "an input to the SWU" regardless. Three genuinely different shapes:
+  //
+  //   - non-SWU: nothing is built at all. Whatever is added IS what each device downloads and
+  //     installs — a raw binary, an archive, an already-built .swu, whatever the device expects.
+  //   - SWU with per-module deliverables (hawkbit): each software module builds its own .swu, so an
+  //     artifact belongs to a module and the building happens on that tab, not here.
+  //   - SWU built at set level (native): the artifacts plus a sw-description are the INPUTS one SWU
+  //     is built from — or an already-built .swu can be added directly and ships as-is.
+  //
+  // Stated per set because getting it wrong is not cosmetic: "will be built into the SWU" told an
+  // operator on a non-SWU set that a build would happen to their file, and none ever would.
+  const artifactRole = isNonSwu
+    ? 'Nothing is built here: whatever you add is what each device downloads and installs — a binary, an archive, or an already-built image.'
+    : perModuleDeliverables
+      ? 'On this backend each software module builds its own SWU, so an artifact belongs to a module — add and build them on the Software Modules tab.'
+      : 'The inputs one SWU is built from, together with a sw-description. An already-built .swu can be added instead, and is delivered as-is.';
 
   // ── Version history — sorted newest-first ─────────────────────────────────
 
@@ -492,23 +585,35 @@ export default function UpdatePackDetailsPage() {
       className="space-y-5"
       actions={
         <>
-          {!isNonSwu && (
-            <Button onClick={() => setIsGenerateSwuOpen(true)} variant={updatePack.uri ? 'outline' : 'default'}>
-              {updatePack.uri ? 'Regenerate SWU' : 'Generate SWU'}
+          {/* A set-level SWU only exists where the set builds ONE deliverable from every module.
+              Where each module carries its own .swu (hawkbit), these buttons are wrong in two ways:
+              "Regenerate SWU" always failed with "already built — create a new version", and
+              "Download SWU" silently returned a single module's .swu for a set that ships several.
+              Building and downloading belong per module, on the Software Modules tab. */}
+          {!isNonSwu && !perModuleDeliverables && (
+            <Button onClick={() => setIsGenerateSwuOpen(true)} variant={isBuilt ? 'outline' : 'default'}>
+              {isBuilt ? 'Regenerate SWU' : 'Generate SWU'}
             </Button>
           )}
-          {!isPerDevice && !isNonSwu && (
-            <Button onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent}>
+          {!isPerDevice && !isNonSwu && !perModuleDeliverables && (
+            <Button onClick={handleDownload} disabled={!isBuilt || isDownloadingCurrent}>
               {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Download SWU
             </Button>
           )}
+          {/* The replacement: point the operator at where the work actually happens. */}
+          {!isNonSwu && perModuleDeliverables && (
+            <Button variant="outline" onClick={() => setActiveTab('modules')}>
+              <Layers className="mr-2 h-4 w-4" />
+              Build software modules
+            </Button>
+          )}
           {isNonSwu && (
             <>
-              <Button onClick={() => setIsGeneratePackageOpen(true)} variant={updatePack.uri ? 'outline' : 'default'}>
-                {updatePack.uri ? 'Regenerate Package' : 'Generate Package'}
+              <Button onClick={() => setIsGeneratePackageOpen(true)} variant={isBuilt ? 'outline' : 'default'}>
+                {isBuilt ? 'Regenerate Package' : 'Generate Package'}
               </Button>
-              <Button onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent}>
+              <Button onClick={handleDownload} disabled={!isBuilt || isDownloadingCurrent}>
                 {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 Download Package
               </Button>
@@ -521,8 +626,11 @@ export default function UpdatePackDetailsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setIsTargetedOpen(true)} disabled={!updatePack.uri}>
+              <DropdownMenuItem onClick={() => setIsTargetedOpen(true)} disabled={!isBuilt}>
                 Targeted Update
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsDeleteOpen(true)} className="text-destructive focus:text-destructive">
+                Delete Distribution Set
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -583,7 +691,21 @@ export default function UpdatePackDetailsPage() {
           <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
             {([
               { value: 'overview', icon: Info, label: 'Overview' },
-              { value: 'artifacts', icon: Package, label: 'Artifacts' },
+              // Software Modules is capability-gated rather than always present: on a backend without
+              // composition every request behind it answers 501, so an always-visible tab would be a
+              // dead end. Filtered out of the trigger list here AND its TabsContent renders the
+              // not-available state, so neither route reaches a failing request.
+              ...(compositionSupported
+                ? [{ value: 'modules', icon: Layers, label: 'Software Modules' }]
+                : []),
+              // Artifacts is the INVERSE of Software Modules, not a companion to it. Where
+              // composition exists, a binary always belongs to some module and Software Modules
+              // shows it there — a second flat list of the same files was redundant, and worse, it
+              // offered a pack-level upload that cannot say which module it meant. Where
+              // composition does not exist, this is the only view of a pack's binaries, so it stays.
+              ...(compositionSupported
+                ? []
+                : [{ value: 'artifacts', icon: Package, label: 'Artifacts' }]),
               { value: 'contents', icon: FileText, label: 'Contents' },
               { value: 'versions', icon: History, label: 'Version History' },
             ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
@@ -658,8 +780,8 @@ export default function UpdatePackDetailsPage() {
                         <p className="mt-1 text-sm font-medium">{buildStatus}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{buildDescription}</p>
                       </div>
-                      <Badge variant={updatePack.uri ? 'secondary' : updatePack.generationError ? 'destructive' : 'outline'} className="shrink-0 text-xs">
-                        {updatePack.uri ? 'Built' : updatePack.generationError ? 'Failed' : 'Pending'}
+                      <Badge variant={isBuilt ? 'secondary' : buildError ? 'destructive' : 'outline'} className="shrink-0 text-xs">
+                        {isBuilt ? 'Built' : buildError ? 'Failed' : 'Pending'}
                       </Badge>
                     </div>
                     <div className="grid grid-cols-1 gap-4 py-3 last:pb-0 sm:grid-cols-2">
@@ -673,6 +795,24 @@ export default function UpdatePackDetailsPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+                <div>
+                  <p className="font-semibold">Launch Preconditions</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Requirements a device must already meet before a campaign may deploy this set to it.
+                  </p>
+                </div>
+                <div className="lg:col-span-2">
+                  <PackPreconditionsCard
+                    groupId={groupId ?? ''}
+                    packName={packName ?? ''}
+                    onSaved={fetchUpdatePacksData}
+                  />
                 </div>
               </div>
 
@@ -772,6 +912,10 @@ export default function UpdatePackDetailsPage() {
                         )}
                       </div>
                     )}
+                    {/* Signed manifest + artifacts-archive downloads are tied to the native backend's
+                        KMS-signing pipeline, which hawkbit mode doesn't have (it never sets `uri`
+                        either) — checking `uri` here isn't a build-status check, it's deliberately
+                        scoping this section to backends that actually support it. */}
                     {updatePack.uri && (
                       <div className="py-3 last:pb-0">
                         <p className="text-xs font-medium text-muted-foreground">Downloads</p>
@@ -780,16 +924,64 @@ export default function UpdatePackDetailsPage() {
                             {versionActionBusy === `artifacts:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Package className="mr-2 h-3.5 w-3.5" />}
                             Artifacts
                           </Button>
-                          <Button variant="outline" size="sm" disabled={versionActionBusy === `signature:${updatePack.version}`} onClick={() => handleDownloadSignature(updatePack.version)}>
-                            {versionActionBusy === `signature:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Shield className="mr-2 h-3.5 w-3.5" />}
-                            Signature
-                          </Button>
+                          {/* Gated on the capability like its twin in the Version History table.
+                              GetVersionSignature answers 501 where signatures are unsupported, and
+                              while the enclosing `updatePack.uri` check already keeps this block out
+                              of hawkbit mode today, that is incidental — it scopes on a URI, not on
+                              signing. Gating explicitly means a backend that populates `uri` but
+                              cannot sign still never offers a button that 501s. */}
+                          {artifactSignaturesSupported && (
+                            <Button variant="outline" size="sm" disabled={versionActionBusy === `signature:${updatePack.version}`} onClick={() => handleDownloadSignature(updatePack.version)}>
+                              {versionActionBusy === `signature:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Shield className="mr-2 h-3.5 w-3.5" />}
+                              Signature
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
+
+              {/* Which of hawkBit's own options this platform leaves at hawkBit's defaults. Renders
+                  only in hawkbit mode, and is collapsed by default so it informs without competing
+                  with the pack's own details. */}
+              <details className="group border-t py-4">
+                <summary className="cursor-pointer list-none text-sm font-semibold marker:content-none">
+                  <span className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                    <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                    hawkBit options not managed here
+                  </span>
+                </summary>
+                <div className="pt-4">
+                  <HawkbitUnsupportedFeatures />
+                </div>
+              </details>
+            </div>
+          </TabsContent>
+
+          {/* ── Software Modules ─────────────────────────────────────── */}
+          <TabsContent value="modules" className="mt-0">
+            <div className="space-y-4">
+              <div>
+                <p className="font-semibold">Software Modules</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  What this distribution set is composed of: an OS/firmware module plus the applications on top of it, each
+                  independently versioned and carrying its own artifacts.
+                  {isNonSwu
+                    ? ' Nothing is built into a SWU here: this set delivers its artifacts as they are, and the modules say which part of the set each belongs to.'
+                    : perModuleDeliverables
+                      ? ' Each module is delivered as its own SWU, so building happens here rather than at the set level.'
+                      : ' The set builds one SWU from every module’s artifacts — use Generate SWU above.'}
+                </p>
+              </div>
+              <SoftwareModulesCard
+                groupId={groupId ?? ''}
+                packName={packName ?? ''}
+                packVersion={updatePack?.version}
+                packIsBuilt={isBuilt}
+                packaging={updatePack?.packaging}
+              />
             </div>
           </TabsContent>
 
@@ -800,32 +992,47 @@ export default function UpdatePackDetailsPage() {
                 <div>
                   <p className="font-semibold">Artifacts</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {updatePack.uri
+                    {isBuilt
                       ? `v${updatePack.version} is built and immutable. Create a new version (semver greater than ${updatePack.version}) to change artifacts — current artifacts carry forward.`
-                      : 'Binary files for this pack version. Upload or link artifacts that will be built into the SWU/package.'}
+                      : artifactRole}
                   </p>
+                  {/* Says how this differs from Software Modules, which lists the same binaries. The
+                      two are not duplicates: this is where a binary enters the catalogue and gets
+                      linked, that is where it is attributed to a part of the composition. Without
+                      saying so, the flat list reads as a redundant copy. */}
+                  {compositionSupported && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      This is the flat view — every binary across the whole set, and where you upload or
+                      link one. To see which software module each belongs to
+                      {perModuleDeliverables ? ', and to build them,' : ','} use the Software Modules tab.
+                    </p>
+                  )}
                 </div>
-                {updatePack.uri ? (
+                {isBuilt ? (
                   <Button size="sm" variant="outline" onClick={() => router.push(`/updates/create-version?basePackId=${encodeURIComponent(updatePack.id)}&groupId=${encodeURIComponent(groupId || '')}`)}>
                     <Plus className="mr-2 h-4 w-4" /> New Version to Edit
                   </Button>
                 ) : (
+                  /* Full size, not `sm`: adding an artifact is the primary thing this tab is for
+                     and the small pair read as incidental controls next to the paragraph above. */
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => { setIsLinkOpen(v => !v); setIsUploadOpen(false); }}>
-                      <Link2 className="mr-2 h-4 w-4" /> Link Existing
+                    <Button variant="outline" onClick={() => { setIsLinkOpen(v => !v); setIsUploadOpen(false); }}>
+                      <Link2 className="mr-2 h-4 w-4" /> Link existing
                     </Button>
-                    <Button size="sm" onClick={() => { setIsUploadOpen(v => !v); setIsLinkOpen(false); }}>
-                      <Plus className="mr-2 h-4 w-4" /> Upload Artifact
+                    <Button onClick={() => { setIsUploadOpen(v => !v); setIsLinkOpen(false); }}>
+                      <Plus className="mr-2 h-4 w-4" /> Add artifact
                     </Button>
                   </div>
                 )}
               </div>
 
-              {isUploadOpen && !updatePack.uri && (
+              {isUploadOpen && !isBuilt && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                   <h4 className="text-sm font-semibold">Upload new artifact</h4>
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">Binary file</Label>
+                    <Label className="text-xs text-muted-foreground mb-1 block">
+                      File{isNonSwu ? ' — a binary, an archive, or an already-built image' : ' — a build input, or an already-built .swu'}
+                    </Label>
                     <div {...getArtifactRootProps()} className={cn('p-5 border-2 border-dashed rounded-md cursor-pointer transition-colors text-center', isArtifactDragActive || uploadFile ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground/50')}>
                       <input {...getArtifactInputProps()} />
                       <UploadCloud className={cn('w-8 h-8 mx-auto mb-1', isArtifactDragActive ? 'text-primary' : 'text-muted-foreground')} />
@@ -856,7 +1063,7 @@ export default function UpdatePackDetailsPage() {
                 </div>
               )}
 
-              {isLinkOpen && !updatePack.uri && (
+              {isLinkOpen && !isBuilt && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold">Link existing artifact</h4>
@@ -896,12 +1103,28 @@ export default function UpdatePackDetailsPage() {
               {catalogLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="h-4 w-4 animate-spin" /> Loading artifacts…</div>
               ) : catalogArtifacts.length === 0 ? (
-                <div className="rounded-md border-2 border-dashed border-border p-8 text-center bg-muted/10">
-                  <Package className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm font-medium text-muted-foreground">No artifacts uploaded yet</p>
-                  <Button size="sm" variant="outline" className="mt-3" onClick={() => setIsUploadOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Upload first artifact
-                  </Button>
+                /* Deliberately NOT a dashed box. Every dropzone on this page is a dashed box with a
+                   centred icon (see the upload panel above, and ModuleFilesDropzone), so an empty
+                   state drawn the same way reads as "drop a file here" — and this one takes no
+                   drop, so the gesture silently does nothing. A solid panel with a real button says
+                   what actually has to happen. */
+                <div className="rounded-md border border-border bg-muted/20 p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="min-w-[16rem] flex-1 space-y-1">
+                      <p className="text-sm font-semibold">No artifacts on this version yet</p>
+                      <p className="text-sm text-muted-foreground">{artifactRole}</p>
+                    </div>
+                    {!isBuilt && (
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => { setIsLinkOpen(true); setIsUploadOpen(false); }}>
+                          <Link2 className="mr-2 h-4 w-4" /> Link existing
+                        </Button>
+                        <Button onClick={() => { setIsUploadOpen(true); setIsLinkOpen(false); }}>
+                          <Plus className="mr-2 h-4 w-4" /> Add artifact
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <Table>
@@ -979,8 +1202,13 @@ export default function UpdatePackDetailsPage() {
           <TabsContent value="contents" className="mt-0">
             <div className="space-y-4">
               <p className="font-semibold">Package Contents</p>
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                <div className="space-y-3 lg:col-span-2">
+              <p className="mt-1 text-sm text-muted-foreground">{artifactRole}</p>
+              {/* A sw-description is an SWU concept: it is the recipe a SWU build reads. A non-SWU
+                  set builds nothing, so it has none and never will — showing it a 400px editor
+                  reading "No descriptor available" stated the opposite, that one was missing. Its
+                  artifacts take the full width instead. */}
+              <div className={cn('grid grid-cols-1 gap-6', !isNonSwu && 'lg:grid-cols-5')}>
+                <div className={cn('space-y-3', !isNonSwu && 'lg:col-span-2')}>
                   <div className="text-sm font-semibold text-muted-foreground">Artifacts</div>
                   <div className="overflow-x-auto">
                     {(() => {
@@ -1006,7 +1234,27 @@ export default function UpdatePackDetailsPage() {
                         } catch { /* ignore */ }
                       }
                       if (artifactsLoading) return <p className="text-sm text-muted-foreground italic p-4">Loading files…</p>;
-                      if (filesToDisplay.length === 0) return <p className="text-sm text-muted-foreground italic p-4">No files found.</p>;
+                      if (filesToDisplay.length === 0) return (
+                        <div className="rounded-md border border-border bg-muted/20 p-4">
+                          <p className="text-sm font-medium">No artifacts on this version yet</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {isBuilt
+                              ? 'This version is built and immutable — create a new version to change what it delivers.'
+                              : compositionSupported
+                                ? 'An artifact belongs to a software module, which is where one is added.'
+                                : 'Add one on the Artifacts tab.'}
+                          </p>
+                          {!isBuilt && (
+                            <Button
+                              className="mt-3"
+                              onClick={() => setActiveTab(compositionSupported ? 'modules' : 'artifacts')}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add artifact
+                            </Button>
+                          )}
+                        </div>
+                      );
                       return (
                         <Table>
                           <TableHeader><TableRow><TableHead>Name</TableHead><TableHead className="w-20 text-right">Actions</TableHead></TableRow></TableHeader>
@@ -1015,7 +1263,14 @@ export default function UpdatePackDetailsPage() {
                               <TableRow key={i}>
                                 <TableCell className="font-medium">{fileName}</TableCell>
                                 <TableCell className="text-right">
-                                  <Button variant="ghost" size="icon" onClick={() => handleDownloadArtifact(fileName)} className="h-8 w-8">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={!artifactDownloadByNameSupported}
+                                    title={!artifactDownloadByNameSupported ? 'Not supported by the active updates backend' : undefined}
+                                    onClick={() => handleDownloadArtifact(fileName)}
+                                    className="h-8 w-8"
+                                  >
                                     <Download className="h-4 w-4" />
                                   </Button>
                                 </TableCell>
@@ -1027,10 +1282,16 @@ export default function UpdatePackDetailsPage() {
                     })()}
                   </div>
                 </div>
+                {!isNonSwu && (
                 <div className="space-y-3 lg:col-span-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-muted-foreground">Descriptor Configuration</div>
-                    <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(descriptorContent || updatePack.descriptorContent || ''); toast({ title: 'Copied' }); }}>
+                    <div className="text-sm font-semibold text-muted-foreground">sw-description</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!(descriptorContent || updatePack.descriptorContent)}
+                      onClick={() => { navigator.clipboard.writeText(descriptorContent || updatePack.descriptorContent || ''); toast({ title: 'Copied' }); }}
+                    >
                       <Copy className="mr-2 h-3 w-3" /> Copy
                     </Button>
                   </div>
@@ -1038,18 +1299,28 @@ export default function UpdatePackDetailsPage() {
                     <div className="bg-muted/50 p-6 rounded-lg border flex items-center justify-center h-96">
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
-                  ) : (
+                  ) : descriptorContent || updatePack.descriptorContent ? (
                     <div className="rounded-lg border overflow-hidden shadow-sm">
                       <Editor
                         height="400px"
                         defaultLanguage="lua"
-                        value={descriptorContent || updatePack.descriptorContent || 'No descriptor available'}
+                        value={descriptorContent || updatePack.descriptorContent || ''}
                         theme="vs-dark"
                         options={{ readOnly: true, minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 12, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, padding: { top: 10, bottom: 10 } }}
                       />
                     </div>
+                  ) : (
+                    <div className="rounded-md border border-border bg-muted/20 p-4">
+                      <p className="text-sm font-medium">No sw-description yet</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        The recipe the SWU build reads: which files to install and where. It is supplied with the
+                        build{perModuleDeliverables ? ', per software module' : ''} — a set without one falls back
+                        to whatever the build is given.
+                      </p>
+                    </div>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -1133,10 +1404,22 @@ export default function UpdatePackDetailsPage() {
                                     <TableCell>{changeSummary}</TableCell>
                                     <TableCell className="text-right">
                                       <div className="flex justify-end gap-2">
-                                        <Button variant="outline" size="sm" disabled={versionActionBusy === `artifacts:${v.version}`} onClick={() => handleDownloadVersionArtifacts(v.version)}>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={!artifactSignaturesSupported || versionActionBusy === `artifacts:${v.version}`}
+                                          title={!artifactSignaturesSupported ? 'Not supported by the active updates backend' : undefined}
+                                          onClick={() => handleDownloadVersionArtifacts(v.version)}
+                                        >
                                           {versionActionBusy === `artifacts:${v.version}` ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Artifacts'}
                                         </Button>
-                                        <Button variant="outline" size="sm" disabled={versionActionBusy === `signature:${v.version}`} onClick={() => handleDownloadSignature(v.version)}>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={!artifactSignaturesSupported || versionActionBusy === `signature:${v.version}`}
+                                          title={!artifactSignaturesSupported ? 'Not supported by the active updates backend' : undefined}
+                                          onClick={() => handleDownloadSignature(v.version)}
+                                        >
                                           {versionActionBusy === `signature:${v.version}` ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Signature'}
                                         </Button>
                                         {!isNonSwu && !perDevice && (
@@ -1197,6 +1480,22 @@ export default function UpdatePackDetailsPage() {
                                             </div>
                                           </div>
 
+                                          {/* Download each software module INSIDE this version — not
+                                              only the current one, which is all the Software Modules
+                                              tab and the whole-pack .swu download above ever answer
+                                              for. Fetched lazily, only while this row is expanded. */}
+                                          {compositionSupported && (
+                                            <div>
+                                              <p className="text-xs font-medium text-muted-foreground">Software Modules</p>
+                                              <VersionModulesPanel
+                                                groupId={groupId!}
+                                                packName={packName!}
+                                                version={v.version}
+                                                perModuleDeliverables={perModuleDeliverables}
+                                              />
+                                            </div>
+                                          )}
+
                                           {delta && delta.unchanged.length > 0 && (
                                             <div>
                                               <p className="text-xs font-medium text-muted-foreground">Unchanged Artifacts</p>
@@ -1231,6 +1530,8 @@ export default function UpdatePackDetailsPage() {
           groupId={groupId!}
           packName={packName!}
           catalogArtifacts={catalogArtifacts}
+          isBuilt={isBuilt}
+          builtVersion={updatePack.version}
           onGenerated={() => {
             fetchUpdatePacksData();
             fetchVersionsData();
@@ -1247,6 +1548,8 @@ export default function UpdatePackDetailsPage() {
           groupId={groupId!}
           packName={packName!}
           catalogArtifacts={catalogArtifacts}
+          isBuilt={isBuilt}
+          builtVersion={updatePack.version}
           onGenerated={() => {
             fetchUpdatePacksData();
             fetchVersionsData();
@@ -1263,6 +1566,28 @@ export default function UpdatePackDetailsPage() {
           onClose={() => setIsTargetedOpen(false)}
         />
       )}
+
+      <AlertDialog open={isDeleteOpen} onOpenChange={(open) => { if (!open && !isDeleting) setIsDeleteOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Distribution Set</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes &quot;{packName}&quot; and its version history, and frees its name for reuse
+              within this group. Devices already running it are not affected. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeletePack(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </BreadcrumbPage>
   );
 }
