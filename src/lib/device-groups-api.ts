@@ -157,6 +157,42 @@ export async function getDevicesByGroup(
 }
 
 /**
+ * Resolve which OTA device groups a device actually belongs to.
+ *
+ * There is no reverse (device -> groups) lookup on the backend — group membership is decided by
+ * each group's own dynamic filter criteria, evaluated server-side, not stored on the device. This
+ * fetches every group and, for each, asks the backend's own membership check "does this group,
+ * with its real criteria, contain this exact device id?" (`id[equal]<deviceId>`, pageSize 1) rather
+ * than re-implementing filter evaluation (operators, jsonpath metadata, etc.) client-side, which
+ * would drift from the backend's actual semantics.
+ *
+ * A device can match more than one group (criteria aren't exclusive), so this returns every match
+ * rather than assuming exactly one — callers that need a single group (e.g. a launch dialog) must
+ * decide what to do with zero or multiple results themselves.
+ */
+export async function resolveDeviceGroups(
+  deviceId: string
+): Promise<Array<{ id: string; name: string }>> {
+  const { list: groups } = await getDeviceGroups({ pageSize: 100 });
+  const membership = await Promise.all(
+    groups.map(async (group) => {
+      try {
+        const result = await getDevicesByGroup(group.id, {
+          pageSize: 1,
+          filters: [`id[equal]${deviceId}`],
+        });
+        return result.list.length > 0 ? { id: group.id, name: group.name } : null;
+      } catch {
+        // A single group's membership check failing (e.g. transient error) shouldn't hide every
+        // other group this device does belong to.
+        return null;
+      }
+    })
+  );
+  return membership.filter((g): g is { id: string; name: string } => g !== null);
+}
+
+/**
  * Get statistics for a device group
  */
 export async function getDeviceGroupStats(
