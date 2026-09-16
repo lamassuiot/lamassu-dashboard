@@ -15,8 +15,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Package, ShieldAlert, Info } from 'lucide-react';
+import { PrebuiltDeliverableUpload } from '@/components/iot/prebuilt-deliverable-upload';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { toast } from '@/hooks/use-toast';
 import { generatePackage, type GeneratePackagePayload } from '@/lib/iot-api';
 import { fetchKmsKeys } from '@/lib/kms-data';
@@ -39,6 +42,10 @@ interface GeneratePackageDialogProps {
   packName: string;
   catalogArtifacts: Artifact[];
   onGenerated?: () => void;
+  // Whether this version already has a deliverable. Only the upload path cares: it cannot replace
+  // one (see PrebuiltDeliverableUpload), whereas rebuilding is allowed.
+  isBuilt?: boolean;
+  builtVersion?: string;
 }
 
 /**
@@ -47,7 +54,7 @@ interface GeneratePackageDialogProps {
  * artifact digests + timestamp) so devices can verify authenticity and resist rollback/freeze. No
  * sw-descriptor — that is SWU-only.
  */
-export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ open, onOpenChange, groupId, packName, catalogArtifacts, onGenerated }) => {
+export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ open, onOpenChange, groupId, packName, catalogArtifacts, onGenerated, isBuilt = false, builtVersion }) => {
   const { user } = useAuth();
   const sub = user?.profile?.sub || '';
 
@@ -55,10 +62,22 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
   const [signingKeyId, setSigningKeyId] = useState('none');
   const [signingMethod, setSigningMethod] = useState('');
   const [signingCertificate, setSigningCertificate] = useState('');
+  const { isSupported } = useUpdatesCapabilities();
+  // Per-artifact encryption at build time has no hawkBit translation (validateBuildable rejects it
+  // outright) — pkg/updates.CapabilityArtifactEncryption. Disabling the option up front avoids a
+  // build that always fails once encryption is selected.
+  const artifactEncryptionSupported = isSupported('artifact_encryption');
+  // Reported separately from shared-key encryption: hawkbit mode builds encrypted deliverables fine
+  // but cannot do per-device, because one hawkBit distribution set serves the same artifacts to every
+  // target assigned to it. Offering the option there produced a build that always failed.
+  const perDeviceEncryptionSupported = isSupported('per_device_encryption');
   const [encryptionMode, setEncryptionMode] = useState<'none' | 'shared' | 'per-device'>('none');
   const [encryptionKeyId, setEncryptionKeyId] = useState('none');
   const [encryptionAlgName, setEncryptionAlgName] = useState('AES-256-GCM');
   const [isGenerating, setIsGenerating] = useState(false);
+  // Build here, or attach an archive built elsewhere — alternatives to the same end (a built,
+  // launchable version), so they live as two tabs rather than two entry points.
+  const [mode, setMode] = useState<'build' | 'upload'>('build');
 
   const [signingKeysResponse, setSigningKeysResponse] = useState<any>(undefined);
   const [symmetricKeysResponse, setSymmetricKeysResponse] = useState<any>(undefined);
@@ -179,12 +198,33 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Generate Package</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Package deliverable</DialogTitle>
           <DialogDescription>
-            Build a non-SWU package (.tar.gz) from this pack's artifacts. Sign it to protect against tampering, rollback and freeze attacks; optionally encrypt it.
+            Build a non-SWU package (.tar.gz) from this pack's artifacts, or attach one you built elsewhere.
           </DialogDescription>
         </DialogHeader>
 
+        <Tabs value={mode} onValueChange={(v) => setMode(v as 'build' | 'upload')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="build" disabled={isGenerating}>Build here</TabsTrigger>
+            <TabsTrigger value="upload" disabled={isGenerating}>Upload pre-built</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upload" className="py-2">
+            <PrebuiltDeliverableUpload
+              groupId={groupId}
+              packName={packName}
+              isNonSwu
+              isBuilt={isBuilt}
+              builtVersion={builtVersion}
+              onUploaded={() => {
+                onGenerated?.();
+                onOpenChange(false);
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="build">
         <div className="space-y-5 py-2">
           {/* Artifact selection */}
           <div className="space-y-2">
@@ -258,14 +298,19 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
             <p className="text-xs text-muted-foreground">The archive is encrypted with AES-GCM using the selected key's bytes.</p>
             <div className="space-y-1.5">
               <Label className="text-xs">Mode</Label>
-              <Select value={encryptionMode} onValueChange={(v) => setEncryptionMode(v as any)}>
+              <Select value={encryptionMode} onValueChange={(v) => setEncryptionMode(v as any)} disabled={!artifactEncryptionSupported}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   <SelectItem value="shared">Shared (one key for all devices)</SelectItem>
-                  <SelectItem value="per-device">Per-device (key per device)</SelectItem>
+                  {perDeviceEncryptionSupported && (
+                    <SelectItem value="per-device">Per-device (key per device)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {!artifactEncryptionSupported && (
+                <p className="text-xs text-muted-foreground">Not supported by the active updates backend.</p>
+              )}
             </div>
             {encryptionMode === 'shared' && (
               <div className="space-y-1.5">
@@ -301,13 +346,19 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
             </Alert>
           )}
         </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isGenerating}>Cancel</Button>
-          <Button onClick={handleGenerate} disabled={isGenerating || catalogArtifacts.length === 0}>
-            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Generate Package
-          </Button>
+          {/* No submit on the upload tab: dropping the file starts the upload, so a second
+              "confirm" button here would be a no-op the user would reasonably click. */}
+          {mode === 'build' && (
+            <Button onClick={handleGenerate} disabled={isGenerating || catalogArtifacts.length === 0}>
+              {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Generate Package
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

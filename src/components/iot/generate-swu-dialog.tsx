@@ -9,16 +9,21 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Rocket, ShieldAlert, Lock } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { AlertTriangle, CheckCircle2, Loader2, Rocket, ShieldAlert, Lock } from 'lucide-react';
+import { checkDescriptorFiles, extractDescriptorFiles } from '@/lib/sw-descriptor';
+import { PrebuiltDeliverableUpload } from '@/components/iot/prebuilt-deliverable-upload';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { toast } from '@/hooks/use-toast';
 import { FileUpload } from '@/components/iot/file-upload';
 import { uploadPackDescriptor, generateSwu, type GenerateSwuPayload } from '@/lib/iot-api';
@@ -46,23 +51,6 @@ function toSwuGenAlg(algorithm: string): string {
     ascon80pq: 'Ascon-80pq', ascon128: 'Ascon-128', ascon128a: 'Ascon-128a',
   };
   return map[a] || algorithm;
-}
-
-// Extract the list of files a descriptor declares (JSON `files[]` / swupdate `filename = "…"`).
-function extractDescriptorFiles(content: string): string[] {
-  if (!content.trim()) return [];
-  try {
-    const d = JSON.parse(content);
-    if (Array.isArray(d.files)) return d.files.map((f: any) => (typeof f === 'string' ? f : f?.filename)).filter(Boolean);
-    if (Array.isArray(d?.software?.ecs?.files)) return d.software.ecs.files.map((f: any) => f?.filename).filter(Boolean);
-    if (Array.isArray(d?.software?.files)) return d.software.files.map((f: any) => f?.filename || f).filter(Boolean);
-    return [];
-  } catch {
-    const matches = content.match(/filename\s*=\s*["']([^"']+)["']/g) || [];
-    return matches
-      .map((m) => { const mm = m.match(/filename\s*=\s*["']([^"']+)["']/); return mm ? mm[1] : ''; })
-      .filter(Boolean);
-  }
 }
 
 // Mark the given file indices as encrypted in the descriptor (JSON `encrypted: true` or swupdate
@@ -117,9 +105,13 @@ interface GenerateSwuDialogProps {
   packName: string;
   catalogArtifacts: Artifact[]; // the pack's artifacts, selectable for this build
   onGenerated?: () => void;
+  // Whether this version already has a deliverable. Only the upload path cares: it cannot replace
+  // one (see PrebuiltDeliverableUpload), whereas rebuilding is allowed.
+  isBuilt?: boolean;
+  builtVersion?: string;
 }
 
-export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOpenChange, groupId, packName, catalogArtifacts, onGenerated }) => {
+export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOpenChange, groupId, packName, catalogArtifacts, onGenerated, isBuilt = false, builtVersion }) => {
   const { user } = useAuth();
   const sub = user?.profile?.sub || '';
 
@@ -131,6 +123,15 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   const [signingKeyId, setSigningKeyId] = useState('none');
   const [signingMethod, setSigningMethod] = useState('');
   const [signingCertificate, setSigningCertificate] = useState('');
+  const { isSupported } = useUpdatesCapabilities();
+  // Per-artifact encryption at build time has no hawkBit translation (validateBuildable rejects it
+  // outright) — pkg/updates.CapabilityArtifactEncryption. Disabling the option up front avoids a
+  // build that always fails once encryption is selected.
+  const artifactEncryptionSupported = isSupported('artifact_encryption');
+  // Reported separately from shared-key encryption: hawkbit mode builds encrypted deliverables fine
+  // but cannot do per-device, because one hawkBit distribution set serves the same artifacts to every
+  // target assigned to it. Offering the option there produced a build that always failed.
+  const perDeviceEncryptionSupported = isSupported('per_device_encryption');
   const [encryptionMode, setEncryptionMode] = useState<'none' | 'shared' | 'per-device'>('none');
   const [encryptionKeyId, setEncryptionKeyId] = useState('none');
   const [encryptionAlgName, setEncryptionAlgName] = useState('Ascon-128a');
@@ -138,6 +139,9 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   const [encryptAllFiles, setEncryptAllFiles] = useState(false);
   const [encryptedFileIdx, setEncryptedFileIdx] = useState<Set<number>>(new Set());
   const [isGenerating, setIsGenerating] = useState(false);
+  // Build here, or attach a .swu built elsewhere. They are alternatives to the same end — a built,
+  // launchable version — so they live as two tabs rather than two entry points.
+  const [mode, setMode] = useState<'build' | 'upload'>('build');
 
   // Signing keys
   const [signingKeysResponse, setSigningKeysResponse] = useState<any>(undefined);
@@ -209,6 +213,18 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   }, [open, catalogArtifacts.length]);
 
   const descriptorFiles = useMemo(() => extractDescriptorFiles(descriptorContent), [descriptorContent]);
+
+  // The build packages ONLY the artifacts the descriptor names, out of the ones selected here. So a
+  // declared file that is not selected produces an image whose recipe points at something not in
+  // it: the build succeeds, the pack reports built, and the install fails on the device. Checked
+  // before the build rather than discovered there.
+  const descriptorCheck = useMemo(
+    () => checkDescriptorFiles({
+      content: descriptorContent,
+      stored: catalogArtifacts.filter((a) => selectedArtifactIds.has(a.id)).map((a) => a.filename).filter(Boolean),
+    }),
+    [descriptorContent, catalogArtifacts, selectedArtifactIds],
+  );
 
   const selectedSigningKey = signingKeys.find((k) => (k.key_id || k.id) === signingKeyId);
   const signingMethods = useMemo(() => {
@@ -301,16 +317,56 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-primary" /> Generate SWU</DialogTitle>
-          <DialogDescription>
-            Build a signed/encrypted SWU from this pack's artifacts. The sw-descriptor is required.
-          </DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className={cn(
+          'flex flex-col gap-0 p-0',
+          // The base SheetContent clamps a right sheet to sm:max-w-sm; override with
+          // the same data-[side=right] modifier chain so tailwind-merge replaces it,
+          // giving the SWU build form room to breathe.
+          'data-[side=right]:w-full data-[side=right]:sm:max-w-2xl data-[side=right]:lg:max-w-3xl',
+        )}
+        onInteractOutside={(e) => {
+          // Don't let a background refetch / outside focus shift dismiss the form mid-build.
+          if (isGenerating) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isGenerating) e.preventDefault();
+        }}
+      >
+        <SheetHeader className="border-b p-6 pb-4 pr-12">
+          <SheetTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-primary" /> SWU deliverable</SheetTitle>
+          <SheetDescription>
+            Build the SWU from this pack's artifacts, or attach one you built elsewhere.
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="space-y-5 py-2">
+        <Tabs value={mode} onValueChange={(v) => setMode(v as 'build' | 'upload')} className="flex flex-1 min-h-0 flex-col gap-0">
+          <div className="px-6 pt-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="build" disabled={isGenerating}>Build here</TabsTrigger>
+              <TabsTrigger value="upload" disabled={isGenerating}>Upload pre-built</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="upload" className="mt-0 flex-1 min-h-0 overflow-y-auto px-6">
+            <div className="py-5">
+              <PrebuiltDeliverableUpload
+                groupId={groupId}
+                packName={packName}
+                isBuilt={isBuilt}
+                builtVersion={builtVersion}
+                onUploaded={() => {
+                  onGenerated?.();
+                  onOpenChange(false);
+                }}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="build" className="mt-0 flex-1 min-h-0 overflow-y-auto px-6">
+          <div className="space-y-5 py-5">
           {/* Artifact selection */}
           <div className="space-y-2">
             <Label>Artifacts to include</Label>
@@ -352,6 +408,37 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
                 ? `${descriptorFiles.length} file(s) declared. Edits here are uploaded as the descriptor.`
                 : 'Load a descriptor to edit it live; it is required to build the SWU.'}
             </p>
+            {/* Declared vs selected. Counting the declared files said nothing about whether they
+                are actually in the build, which is the only question that matters here. */}
+            {descriptorCheck.declared.length > 0 && (
+              <ul className="space-y-1">
+                {descriptorCheck.declared.map((d) => (
+                  <li key={d.name} className="flex items-center gap-2 text-xs">
+                    {d.status === 'missing'
+                      ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                      : <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                    <code className="font-mono">{d.name}</code>
+                    <span className="text-muted-foreground">{d.status === 'missing' ? 'not selected above' : 'selected'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {descriptorCheck.missing.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>
+                  {descriptorCheck.missing.length === 1 ? 'A declared file is not selected' : 'Declared files are not selected'}
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  The SWU contains only what the descriptor names, so it would be built pointing at{' '}
+                  <span className="font-mono">{descriptorCheck.missing.join(', ')}</span> without including{' '}
+                  {descriptorCheck.missing.length === 1 ? 'it' : 'them'} — every device would then fail the
+                  install. Select {descriptorCheck.missing.length === 1 ? 'it' : 'them'} above, upload{' '}
+                  {descriptorCheck.missing.length === 1 ? 'it' : 'them'} first, or remove{' '}
+                  {descriptorCheck.missing.length === 1 ? 'it' : 'them'} from the descriptor.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
           {/* Signing */}
@@ -398,14 +485,19 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
             <Label className="text-sm font-semibold">Encryption</Label>
             <div className="space-y-1.5">
               <Label className="text-xs">Mode</Label>
-              <Select value={encryptionMode} onValueChange={(v) => setEncryptionMode(v as any)}>
+              <Select value={encryptionMode} onValueChange={(v) => setEncryptionMode(v as any)} disabled={!artifactEncryptionSupported}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   <SelectItem value="shared">Shared (one key for all devices)</SelectItem>
-                  <SelectItem value="per-device">Per-device (key per device)</SelectItem>
+                  {perDeviceEncryptionSupported && (
+                    <SelectItem value="per-device">Per-device (key per device)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {!artifactEncryptionSupported && (
+                <p className="text-xs text-muted-foreground">Not supported by the active updates backend.</p>
+              )}
             </div>
             {encryptionMode === 'shared' && (
               <div className="space-y-3">
@@ -468,16 +560,26 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
               <AlertDescription>This SWU will be neither signed nor encrypted. You can still proceed.</AlertDescription>
             </Alert>
           )}
-        </div>
+          </div>
+          </TabsContent>
+        </Tabs>
 
-        <DialogFooter>
+        <SheetFooter className="border-t p-6">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isGenerating}>Cancel</Button>
-          <Button onClick={handleGenerate} disabled={isGenerating || !descriptorContent.trim() || catalogArtifacts.length === 0}>
-            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Generate SWU
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {/* The upload tab has no submit of its own: dropping the file starts the upload, so a
+              second "confirm" button here would be a no-op the user would reasonably click. */}
+          {mode === 'build' && (
+            <Button
+              onClick={handleGenerate}
+              disabled={isGenerating || !descriptorContent.trim() || catalogArtifacts.length === 0 || descriptorCheck.missing.length > 0}
+              title={descriptorCheck.missing.length > 0 ? `The descriptor names files that are not selected: ${descriptorCheck.missing.join(', ')}` : undefined}
+            >
+              {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Generate SWU
+            </Button>
+          )}
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 };
