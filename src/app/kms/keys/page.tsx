@@ -15,7 +15,7 @@ import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/kms-data';
+import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey, parseBoundResources, BOUND_RESOURCES_METADATA_KEY } from '@/lib/kms-data';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
@@ -23,6 +23,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KMSFilterBar } from '@/components/shared/filters/KMSFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { SortableTableHead } from '@/components/shared/SortableTableHead';
 
 interface KmsKey {
   id: string;
@@ -35,7 +37,12 @@ interface KmsKey {
   aliases: string[];
   tags?: string[];
   metadata?: Record<string, any>;
+  creationTimestamp?: string;
 }
+
+type KmsSortColumn = 'creation_ts';
+type SortDirection = 'asc' | 'desc';
+interface SortConfig { column: KmsSortColumn; direction: SortDirection }
 
 export default function KmsKeysPage() {
   const router = useRouter();
@@ -48,6 +55,9 @@ export default function KmsKeysPage() {
   const [keyToDelete, setKeyToDelete] = useState<KmsKey | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'creation_ts', direction: 'desc' });
 
   // Pagination State
   const [pageSize, setPageSize] = useState('10');
@@ -95,7 +105,7 @@ export default function KmsKeysPage() {
 
       setAllCryptoEngines(enginesData);
 
-      const params = new URLSearchParams({ page_size: pageSize });
+      const params = new URLSearchParams({ page_size: pageSize, sort_by: sortConfig.column, sort_mode: sortConfig.direction });
       if (bookmark) {
         params.set('bookmark', bookmark);
       }
@@ -126,6 +136,7 @@ export default function KmsKeysPage() {
           aliases: apiKey.aliases,
           tags: apiKey.tags || [],
           metadata: apiKey.metadata,
+          creationTimestamp: apiKey.creation_ts,
         };
       });
 
@@ -140,13 +151,19 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, pageSize]);
+  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, pageSize, sortConfig]);
 
   useEffect(() => {
     // Reset pagination when page size changes
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
   }, [pageSize]);
+
+  useEffect(() => {
+    // Reset pagination when sort changes
+    setCurrentPageIndex(0);
+    setBookmarkStack([null]);
+  }, [sortConfig]);
 
   useEffect(() => {
     // Reset pagination when alias search term changes
@@ -167,6 +184,14 @@ export default function KmsKeysPage() {
 
   const handleRefresh = () => {
     loadData(bookmarkStack[currentPageIndex]);
+  };
+
+  const requestSort = (column: KmsSortColumn) => {
+    setSortConfig(prev =>
+      prev.column === column
+        ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' }
+    );
   };
 
   const handleNextPage = () => {
@@ -304,6 +329,15 @@ export default function KmsKeysPage() {
                   <TableHead>Crypto Engine</TableHead>
                   <TableHead>Aliases</TableHead>
                   <TableHead>Tags</TableHead>
+                  <SortableTableHead
+                    column="creation_ts"
+                    title="Created"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    align="center"
+                    isDateColumn
+                  />
                   <TableHead>Related Entities</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -372,25 +406,16 @@ export default function KmsKeysPage() {
                           <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
+                      <TableCell className="text-center">
+                        {key.creationTimestamp ? (
+                          <DateDisplay date={key.creationTimestamp} className="items-center" />
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {(() => {
-                          const bindedResources = key.metadata?.['lamassu.io/kms/binded-resources'];
-                          if (!bindedResources) return <span className="text-muted-foreground text-xs">-</span>;
-
-                          // Parse the binded resources
-                          let resources: Array<{ resource_id: string; resource_type: string }> = [];
-                          try {
-                            if (typeof bindedResources === 'string') {
-                              resources = [JSON.parse(bindedResources)];
-                            } else if (Array.isArray(bindedResources)) {
-                              resources = bindedResources;
-                            } else if (typeof bindedResources === 'object') {
-                              resources = [bindedResources];
-                            }
-                          } catch (e) {
-                            console.error("Failed to parse binded resources:", e);
-                            return <span className="text-muted-foreground text-xs">-</span>;
-                          }
+                          const resources = parseBoundResources(key.metadata?.[BOUND_RESOURCES_METADATA_KEY]);
 
                           if (resources.length === 0) return <span className="text-muted-foreground text-xs">-</span>;
 

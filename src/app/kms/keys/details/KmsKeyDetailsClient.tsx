@@ -12,7 +12,7 @@ import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,7 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
-import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, type PatchOperation } from '@/lib/kms-data';
+import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, parseBoundResources, BOUND_RESOURCES_METADATA_KEY, type PatchOperation } from '@/lib/kms-data';
 import {
   SIGNATURE_ALGORITHMS,
   MLDSA_ALGORITHMS,
@@ -52,34 +52,6 @@ interface KmsKeyDetailed {
   tags?: string[];
   metadata?: Record<string, any>;
 }
-
-interface BoundResource {
-  resource_id: string;
-  resource_type: string;
-}
-
-const parseBoundResources = (value: unknown): BoundResource[] => {
-  if (!value) return [];
-
-  try {
-    if (typeof value === 'string') {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [parsed];
-    }
-
-    if (Array.isArray(value)) {
-      return value as BoundResource[];
-    }
-
-    if (typeof value === 'object') {
-      return [value as BoundResource];
-    }
-  } catch (error) {
-    console.error('Failed to parse binded-resources:', error);
-  }
-
-  return [];
-};
 
 const getCertSubjectCommonName = (subject: string): string => {
   const match = subject.match(/CN=([^,]+)/i);
@@ -190,7 +162,7 @@ export default function KmsKeyDetailsClient() {
   }, [allCryptoEngines, keyDetails?.cryptoEngineId]);
 
   const boundCertificateResources = useMemo(() => {
-    const resources = parseBoundResources(keyDetails?.metadata?.['lamassu.io/kms/binded-resources']);
+    const resources = parseBoundResources(keyDetails?.metadata?.[BOUND_RESOURCES_METADATA_KEY]);
     return resources.filter(resource => resource.resource_type === 'certificate');
   }, [keyDetails?.metadata]);
 
@@ -475,10 +447,14 @@ export default function KmsKeyDetailsClient() {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
         const certificateResults = await Promise.all(
           uniqueSerials.map(async (serialNumber) => {
-            const { certificates } = await fetchIssuedCertificates({
-              apiQueryString: `serial_number=${encodeURIComponent(serialNumber)}&page_size=1`,
-            });
-            return certificates[0] || null;
+            try {
+              return await fetchIssuedCertificate(serialNumber);
+            } catch (error) {
+              // A bound certificate may have since been deleted; skip it rather than
+              // failing the whole table.
+              console.error(`Failed to fetch bound certificate ${serialNumber}:`, error);
+              return null;
+            }
           })
         );
 
@@ -1069,7 +1045,7 @@ export default function KmsKeyDetailsClient() {
                             <TableRow>
                               <TableHead>Common Name</TableHead>
                               <TableHead>Serial Number</TableHead>
-                              <TableHead>Expiration</TableHead>
+                              <TableHead className="text-center">Expiration</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>

@@ -25,6 +25,36 @@ interface ApiKmsKeyListResponse {
     list: ApiKmsKey[];
 }
 
+export const BOUND_RESOURCES_METADATA_KEY = 'lamassu.io/kms/binded-resources';
+
+export interface BoundResource {
+  resource_id: string;
+  resource_type: string;
+}
+
+const isBoundResource = (value: unknown): value is BoundResource =>
+  typeof value === 'object'
+  && value !== null
+  && typeof (value as BoundResource).resource_type === 'string';
+
+// The backend may send this metadata value as an object, an array, or a JSON-encoded
+// string of either, so normalise all four shapes before rendering.
+export function parseBoundResources(value: unknown): BoundResource[] {
+  if (!value) return [];
+
+  let candidate = value;
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate);
+    } catch (error) {
+      console.error('Failed to parse binded-resources:', error);
+      return [];
+    }
+  }
+
+  return (Array.isArray(candidate) ? candidate : [candidate]).filter(isBoundResource);
+}
+
 export interface CreateKmsKeyPayload {
     engine_id: string;
     name: string;
