@@ -32,6 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useDms } from '@/contexts/DmsContext';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -119,6 +120,11 @@ export function UpdatePackForm({
   onSwuGenerationError,
 }: UpdatePackFormProps) {
   const { availableDms, selectedDms } = useDms();
+  // Per-device encryption is reported separately from shared-key encryption: hawkbit mode can build
+  // encrypted deliverables but not one per device, since a hawkBit distribution set serves the same
+  // artifacts to every target assigned to it.
+  const { isSupported, backend } = useUpdatesCapabilities();
+  const perDeviceEncryptionSupported = isSupported('per_device_encryption');
   const { user } = useAuth();
   const [binaryFiles, setBinaryFiles] = useState<File[]>([]);
   // Per-binary artifact metadata (logical name + semantic version), keyed by filename. Sent on
@@ -1361,9 +1367,19 @@ export function UpdatePackForm({
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs">
                               <p className="font-semibold mb-1">SWU:</p>
-                              <p className="text-xs mb-2">Builds and signs a single SWU; devices run the phased/direct workflow with an activation step.</p>
+                              <p className="text-xs mb-2">
+                                Builds and signs a single SWU from every module.{' '}
+                                {backend === 'hawkbit'
+                                  ? 'Uploaded to hawkBit in place of the raw module artifacts.'
+                                  : 'Devices run the phased/direct workflow with an activation step.'}
+                              </p>
                               <p className="font-semibold mb-1">Non-SWU:</p>
-                              <p className="text-xs">Delivers raw artifact binaries; devices run a simple download-and-install workflow (no SWU build, no activation).</p>
+                              <p className="text-xs">
+                                Delivers raw artifact binaries, nothing built.{' '}
+                                {backend === 'hawkbit'
+                                  ? "Whether the device installs immediately or may postpone comes from hawkBit's own Direct/Phased action type at launch — unrelated to this."
+                                  : 'Devices run the download-install workflow instead (no SWU build, no activation) — pick that workflow when launching, or the update will look stuck.'}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -1381,19 +1397,28 @@ export function UpdatePackForm({
                         <SelectContent>
                           <SelectItem value="swu">
                             <div className="flex flex-col">
-                              <span>SWU</span>
-                              <span className="text-xs text-muted-foreground">Build + sign an SWU</span>
+                              <span>Build a SWU</span>
+                              <span className="text-xs text-muted-foreground">
+                                Artifacts + a sw-description are built and signed into one .swu. An already-built
+                                .swu can be uploaded instead.
+                              </span>
                             </div>
                           </SelectItem>
                           <SelectItem value="non-swu">
                             <div className="flex flex-col">
-                              <span>Non-SWU</span>
-                              <span className="text-xs text-muted-foreground">Raw download &amp; install</span>
+                              <span>Deliver files as they are</span>
+                              <span className="text-xs text-muted-foreground">
+                                Nothing is built: a binary, an archive, or any file the device expects is downloaded
+                                and installed as uploaded.
+                              </span>
                             </div>
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormDescription>How the pack is delivered to devices.</FormDescription>
+                      <FormDescription>
+                        Whether this set&apos;s files are built into a SWU or delivered as they are. Not every update
+                        is a SWU — and this cannot be changed later, only replaced by a new set.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1783,7 +1808,9 @@ export function UpdatePackForm({
                           <SelectContent>
                             <SelectItem value="none">No Encryption</SelectItem>
                             <SelectItem value="shared">Shared Key (one SWU, one key for all devices)</SelectItem>
-                            <SelectItem value="per-device">Per-Device (one SWU per device from inventory)</SelectItem>
+                            {perDeviceEncryptionSupported && (
+                              <SelectItem value="per-device">Per-Device (one SWU per device from inventory)</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         <FormDescription>
