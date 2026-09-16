@@ -50,12 +50,13 @@ const EVENT_CATEGORY_OPTIONS: { label: string; value: EventCategoryFilter }[] = 
 ];
 
 const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
-  const eventType = event.type.toLowerCase();
+  // Defensive: one malformed event should not take the whole page down.
+  const eventType = (event.type ?? '').toLowerCase();
   return eventType.startsWith('audit.') ? 'AUDIT' : 'API';
 };
 
 export default function AlertsPage() {
-  const { user, isLoggedIn, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<ApiSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -192,7 +193,7 @@ export default function AlertsPage() {
 
 
   const loadAlertsData = useCallback(async () => {
-    if (authLoading || !isLoggedIn || !user) return;
+    if (authLoading || !isAuthenticated() || !user) return;
 
     setIsLoading(true);
     setError(null);
@@ -236,14 +237,26 @@ export default function AlertsPage() {
         subscriptionsMap.get(sub.event_type)?.push(subscriptionDisplay);
       }
 
-      const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => ({
-        id: apiAlert.event_types,
-        type: apiAlert.event_types,
-        lastSeen: apiAlert.seen_at,
-        eventCounter: apiAlert.counter,
-        activeSubscriptions: subscriptionsMap.get(apiAlert.event_types) || [],
-        payload: apiAlert.event,
-      }));
+      // The alerts API leaves `event_types` null and carries the real type on the
+      // embedded CloudEvent (`event.type`), so read that first and keep
+      // `event_types` only as a fallback for older payload shapes. Reading
+      // event_types alone left every row's type undefined, which crashed
+      // getEventCategory on `.toLowerCase()`.
+      const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => {
+        const eventType = apiAlert.event?.type || apiAlert.event_types || 'unknown';
+        return {
+          // The event TYPE is the identity here: this list is one aggregated row per
+          // type (with a counter), and it is unique. event.id is the id of the last
+          // instance seen and repeats across rows (13 distinct ids for 25 rows), which
+          // produced React duplicate-key warnings when used as the row id.
+          id: eventType,
+          type: eventType,
+          lastSeen: apiAlert.seen_at,
+          eventCounter: apiAlert.counter,
+          activeSubscriptions: subscriptionsMap.get(eventType) || [],
+          payload: apiAlert.event,
+        };
+      });
 
       setEvents(uiEvents);
       setNextBookmark(apiEventsResponse.next || '');
@@ -253,7 +266,12 @@ export default function AlertsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, isLoggedIn, authLoading, pageSize, currentBookmark]);
+    // isAuthenticated is deliberately NOT a dependency: in the auth-disabled dev
+    // path AuthContext supplies `isAuthenticated: () => true` inline, a fresh
+    // function on every render, so depending on it would refire this fetch in a
+    // loop. `user` + `authLoading` already capture the auth state that matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading, pageSize, currentBookmark]);
 
   useEffect(() => {
     loadAlertsData();

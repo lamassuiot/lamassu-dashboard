@@ -23,7 +23,14 @@ export interface ExpirationConfig {
 
 interface ExpirationInputProps {
   label: string;
-  value: ExpirationConfig;
+  /**
+   * May legitimately be undefined at runtime: consumers render this before their
+   * async data has loaded, and a route reached without a valid record id never
+   * loads one at all. Dereferencing it unguarded threw a TypeError that escaped
+   * to the root error boundary and blanked the entire app (white "Application
+   * error" screen) — see the fallback in the component body.
+   */
+  value?: ExpirationConfig;
   onValueChange: (config: ExpirationConfig) => void;
   defaultType?: ExpirationType;
   defaultDuration?: string;
@@ -40,17 +47,21 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
   defaultDate,
   idPrefix,
 }) => {
+  // Never trust `value` to be present — see the prop's doc comment.
+  const safeValue: ExpirationConfig = value ?? { type: defaultType };
+
   // Internal state to manage the component's UI without immediately propagating every keystroke
-  const [currentType, setCurrentType] = useState<ExpirationType>(value.type || defaultType);
-  const [duration, setDuration] = useState<string>(value.durationValue || defaultDuration);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(value.dateValue || defaultDate);
+  const [currentType, setCurrentType] = useState<ExpirationType>(safeValue.type || defaultType);
+  const [duration, setDuration] = useState<string>(safeValue.durationValue || defaultDuration);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(safeValue.dateValue || defaultDate);
 
   // Effect to sync internal state if the prop `value` changes from the parent
   useEffect(() => {
-    setCurrentType(value.type);
-    setDuration(value.durationValue || defaultDuration);
-    setSelectedDate(value.dateValue || defaultDate);
-  }, [value, defaultDuration, defaultDate]);
+    setCurrentType(safeValue.type || defaultType);
+    setDuration(safeValue.durationValue || defaultDuration);
+    setSelectedDate(safeValue.dateValue || defaultDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, defaultType, defaultDuration, defaultDate]);
 
   const handleTypeChange = (newType: ExpirationType) => {
     setCurrentType(newType);

@@ -220,8 +220,14 @@ export default function CertificateDetailsClient() { // Renamed component
                 // If this succeeds, the device exists, so cert is in use.
                 certIsInUse = true;
             } catch (error: any) {
-                // A 404 error means the device does not exist, so the cert is NOT in use.
-                if (error.message && (error.message.includes('404') || error.message.toLowerCase().includes('not found'))) {
+                // A 404 means no such device, so the cert is NOT in use. A 400 means the
+                // common name isn't even a valid device identifier — which is the normal
+                // case for a CA certificate ("Sample Imported Root CA") — and equally
+                // proves no device holds it. Treating 400 as an unknown error left every
+                // CA cert permanently "in use" (blocking delete) and logged an error on
+                // an entirely routine page view.
+                const msg = (error?.message ?? '').toLowerCase();
+                if (msg.includes('404') || msg.includes('not found') || msg.includes('400') || msg.includes('bad request')) {
                     certIsInUse = false;
                 } else {
                     // Another error occurred, assume it's in use to be safe.

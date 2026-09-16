@@ -44,6 +44,12 @@ export interface ApiSubscription {
             url?: string;
             method?: 'POST' | 'PUT';
             name?: string;
+            // Legacy field names still emitted by older deployments. The UI reads
+            // `webhook_url || url` (and the method equivalent) on purpose; declaring
+            // them here keeps that intentional fallback type-safe instead of leaving
+            // three call sites failing typecheck.
+            webhook_url?: string;
+            webhook_method?: 'POST' | 'PUT';
         };
     };
 }
@@ -62,6 +68,12 @@ export interface SubscriptionPayload {
             url?: string;
             method?: 'POST' | 'PUT';
             name?: string;
+            // Legacy field names still emitted by older deployments. The UI reads
+            // `webhook_url || url` (and the method equivalent) on purpose; declaring
+            // them here keeps that intentional fallback type-safe instead of leaving
+            // three call sites failing typecheck.
+            webhook_url?: string;
+            webhook_method?: 'POST' | 'PUT';
         };
     };
 }
