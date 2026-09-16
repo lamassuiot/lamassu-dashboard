@@ -2,18 +2,55 @@
 
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Boxes, CheckCircle2, AlertTriangle, CircleSlash } from 'lucide-react';
+import { Boxes, CheckCircle2, AlertTriangle, CircleSlash, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getDeviceLatestDrift } from '@/lib/iot-api';
-import type { PackDrift } from '@/types/iot';
+import { fetchDevicePackVersions, getDeviceLatestDrift } from '@/lib/iot-api';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
+import type { DevicePackVersion, PackDrift } from '@/types/iot';
 
-// Per-pack status derived from a drift entry: a device is "in sync" only on an exact version match;
-// "missing" when it does not track the pack at all; otherwise it is behind ("outdated").
-type PackStatus = 'in-sync' | 'outdated' | 'missing';
+// Per-pack status, merged from two INDEPENDENT sources — see the merge in the component below for
+// why neither is sufficient alone:
+//   'in-sync' / 'outdated' — the device has this pack installed AND the group has declared a
+//                            "latest version" target for it (SetLatestPackVersion) to compare against.
+//   'no-target'            — the device genuinely has this pack installed, but nobody has declared a
+//                            target for it. This is NOT "nothing installed" — omitting these rows
+//                            (the previous behaviour) made a device with real installed packs read as
+//                            "does not follow any distribution set" whenever its group had no
+//                            declared targets at all, which for most groups in practice is ALWAYS.
+//   'missing'              — the group declared a target for this pack, but the device has never
+//                            installed it.
+type PackStatus = 'in-sync' | 'outdated' | 'no-target' | 'missing';
 
-function statusOf(drift: PackDrift): PackStatus {
-  if (drift.missing || !drift.current_version) return 'missing';
-  return drift.in_sync ? 'in-sync' : 'outdated';
+interface Row {
+  packName: string;
+  currentVersion: string | null;
+  targetVersion: string | null;
+  status: PackStatus;
+}
+
+function mergeRows(installed: DevicePackVersion[], drifts: PackDrift[] | null): Row[] {
+  const byName = new Map<string, Row>();
+  for (const v of installed) {
+    byName.set(v.pack_name, { packName: v.pack_name, currentVersion: v.version, targetVersion: null, status: 'no-target' });
+  }
+  for (const d of drifts ?? []) {
+    const existing = byName.get(d.pack_name);
+    if (d.missing || !d.current_version) {
+      // Declared as a target, but the device has never installed it — real only when the device
+      // truly has no row for it; an installed row always wins (see the drift-omits-a-pack case below).
+      if (!existing) {
+        byName.set(d.pack_name, { packName: d.pack_name, currentVersion: null, targetVersion: d.latest_version, status: 'missing' });
+      }
+      continue;
+    }
+    byName.set(d.pack_name, {
+      packName: d.pack_name,
+      currentVersion: d.current_version,
+      targetVersion: d.latest_version,
+      status: d.in_sync ? 'in-sync' : 'outdated',
+    });
+  }
+  return [...byName.values()].sort((a, b) => a.packName.localeCompare(b.packName));
 }
 
 const STATUS_META: Record<PackStatus, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
@@ -32,24 +69,48 @@ const STATUS_META: Record<PackStatus, { label: string; cls: string; Icon: typeof
     cls: 'bg-muted text-muted-foreground border-border',
     Icon: CircleSlash,
   },
+  'no-target': {
+    label: 'No target set',
+    cls: 'bg-muted text-muted-foreground border-border',
+    Icon: HelpCircle,
+  },
 };
 
-// A quick, at-a-glance overview of the distribution sets a device follows: how many it tracks,
-// the version it runs vs the group's latest, and whether each is outdated. Detail lives in the
-// device's Package Inventory tab — this is intentionally compact and fails quietly.
+// A quick, at-a-glance overview of the distribution sets a device follows: how many it tracks, the
+// version it runs vs its group's declared latest (where one exists), and whether each is outdated.
+// Detail lives in the device's Package Inventory tab — this is intentionally compact and fails
+// quietly.
+//
+// Sourced from TWO independent reads, merged (see mergeRows): fetchDevicePackVersions is the ground
+// truth of what the device has actually finished installing — always available, in both backends —
+// while getDeviceLatestDrift adds the operator's declared target where one has been set
+// (latest_versions capability only). A device can genuinely have installed packs with no declared
+// target at all, and that used to render as "does not follow any distribution set" — indistinguishable
+// from a device with nothing installed — because the card only ever looked at drift.
 export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string }) {
-  const [drifts, setDrifts] = useState<PackDrift[] | null>(null);
+  const { isSupported, isLoading: capabilitiesLoading } = useUpdatesCapabilities();
+  const latestVersionsSupported = isSupported('latest_versions');
+  const [rows, setRows] = useState<Row[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (capabilitiesLoading) return;
     let cancelled = false;
     const controller = new AbortController();
     setIsLoading(true);
     setError(false);
-    getDeviceLatestDrift({ deviceId }, { signal: controller.signal })
-      .then((res) => {
-        if (!cancelled) setDrifts(res.drifts ?? []);
+    Promise.all([
+      fetchDevicePackVersions({ deviceId }, { signal: controller.signal }).then((r) => r.list),
+      // Drift is optional: a backend without the capability, or a group with no declared target,
+      // both legitimately have none — that must not fail the whole card when installed packs are
+      // still real data worth showing.
+      latestVersionsSupported
+        ? getDeviceLatestDrift({ deviceId }, { signal: controller.signal }).then((r) => r.drifts ?? []).catch(() => [])
+        : Promise.resolve([]),
+    ])
+      .then(([installed, drifts]) => {
+        if (!cancelled) setRows(mergeRows(installed, drifts));
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -61,9 +122,9 @@ export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string 
       cancelled = true;
       controller.abort();
     };
-  }, [deviceId]);
+  }, [deviceId, capabilitiesLoading, latestVersionsSupported]);
 
-  const outdatedCount = (drifts ?? []).filter((d) => statusOf(d) !== 'in-sync').length;
+  const outdatedCount = (rows ?? []).filter((r) => r.status === 'outdated' || r.status === 'missing').length;
 
   return (
     <section className="rounded-lg border bg-card lg:col-span-2">
@@ -72,16 +133,23 @@ export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string 
           <Boxes className="h-4 w-4 text-primary" />
           Distribution Sets
         </h3>
-        {!isLoading && !error && drifts && drifts.length > 0 && (
+        {!isLoading && !error && rows && rows.length > 0 && (
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">{drifts.length} tracked</Badge>
+            <Badge variant="secondary" className="text-xs">{rows.length} tracked</Badge>
             {outdatedCount > 0 ? (
               <Badge variant="outline" className={cn('text-xs', STATUS_META.outdated.cls)}>
                 {outdatedCount} outdated
               </Badge>
-            ) : (
+            ) : rows.some((r) => r.status === 'in-sync') ? (
+              // "All up to date" is a claim that a comparison was actually made — only earned once at
+              // least one row has a real target it matched. Silent on 'no-target' rows for the same
+              // reason: nothing was compared, so nothing was verified up to date.
               <Badge variant="outline" className={cn('text-xs', STATUS_META['in-sync'].cls)}>
                 All up to date
+              </Badge>
+            ) : (
+              <Badge variant="outline" className={cn('text-xs', STATUS_META['no-target'].cls)}>
+                No declared target
               </Badge>
             )}
           </div>
@@ -93,28 +161,27 @@ export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string 
           <p className="py-2 text-sm text-muted-foreground">Loading distribution sets…</p>
         ) : error ? (
           <p className="py-2 text-sm text-muted-foreground">Distribution set status is unavailable for this device.</p>
-        ) : !drifts || drifts.length === 0 ? (
+        ) : !rows || rows.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">This device does not follow any distribution set.</p>
         ) : (
           <ul className="divide-y">
-            {drifts.map((d) => {
-              const status = statusOf(d);
-              const { label, cls, Icon } = STATUS_META[status];
+            {rows.map((r) => {
+              const { label, cls, Icon } = STATUS_META[r.status];
               return (
-                <li key={d.update_pack_id} className="flex items-center justify-between gap-3 py-2.5">
+                <li key={r.packName} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium" title={d.pack_name}>{d.pack_name}</p>
+                    <p className="truncate text-sm font-medium" title={r.packName}>{r.packName}</p>
                     <p className="font-mono text-xs text-muted-foreground">
-                      {status === 'missing' ? (
-                        <>— → v{d.latest_version}</>
-                      ) : status === 'outdated' ? (
-                        <>v{d.current_version} → v{d.latest_version}</>
+                      {r.status === 'missing' ? (
+                        <>— → v{r.targetVersion}</>
+                      ) : r.status === 'outdated' ? (
+                        <>v{r.currentVersion} → v{r.targetVersion}</>
                       ) : (
-                        <>v{d.current_version}</>
+                        <>v{r.currentVersion}</>
                       )}
                     </p>
                   </div>
-                  <Badge variant="outline" className={cn('flex shrink-0 items-center gap-1 text-xs', cls)}>
+                  <Badge variant="outline" className={cn('flex shrink-0 items-center gap-1 text-xs', cls)} title={r.status === 'no-target' ? 'Installed — no declared latest version to compare against' : undefined}>
                     <Icon className="h-3 w-3" />
                     {label}
                   </Badge>

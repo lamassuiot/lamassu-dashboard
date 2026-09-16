@@ -541,11 +541,9 @@ export default function DevicesPage() {
                             <DropdownMenuItem onClick={() => handleViewDetails(device.id)}>
                               <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
-                            {device.deviceGroup && (
-                                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id, groupId: device.deviceGroup })}>
-                                    <Rocket className="mr-2 h-4 w-4" /> Launch Update...
-                                </DropdownMenuItem>
-                            )}
+                            <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id })}>
+                                <Rocket className="mr-2 h-4 w-4" /> Launch Update...
+                            </DropdownMenuItem>
                             {device.status === 'NO_IDENTITY' && (
                                 <DropdownMenuItem onClick={() => handleOpenEnrollModal(device)}>
                                     <TerminalSquare className="mr-2 h-4 w-4" /> EST Enroll...

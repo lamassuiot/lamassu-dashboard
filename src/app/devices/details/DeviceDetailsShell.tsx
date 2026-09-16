@@ -298,7 +298,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
                 <Button variant="secondary" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id, groupId: device.dms_owner })}>
+                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id })}>
                   <Rocket className="mr-2 h-4 w-4" /> Launch Update...
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
