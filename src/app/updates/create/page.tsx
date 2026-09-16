@@ -47,14 +47,6 @@ export default function CreateUpdatePackPage() {
     return null;
   }
 
-  if (!selectedDms) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">Please select a Device Group above to manage distribution sets.</p>
-      </div>
-    );
-  }
-
   return (
     <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set', href: '/package-inventory' }, { label: 'Create New Distribution Set' }]} className="space-y-6">
       {/* Hero */}
@@ -71,8 +63,14 @@ export default function CreateUpdatePackPage() {
         </div>
       </div>
 
-      {/* Lightweight "create pack = repo" form. Artifacts + SWU come later on the pack-details page. */}
-      <CreatePackForm onCreated={handleCreated} />
+      {/* The group is picked inside the form rather than gating the whole page on the header's
+          current selection: this is also where the Distribution Set list's "New" button lands, and
+          arriving to "please select a device group above" instead of a form was a dead end. */}
+      <CreatePackForm
+        onCreated={handleCreated}
+        showGroupSelector
+        defaultGroupId={dmsIdParam ?? selectedDms?.id}
+      />
     </BreadcrumbPage>
   );
 }
