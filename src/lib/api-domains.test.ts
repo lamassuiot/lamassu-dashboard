@@ -161,6 +161,21 @@ describe('api-domains', () => {
         handleApiError(mockResponse, 'Network request failed')
       ).rejects.toThrow('Network request failed (HTTP 0)')
     })
+
+    it('quotes a plain-text error body, which is where the real reason usually is', async () => {
+      const mockResponse = new Response('pack is already built', { status: 409 })
+
+      await expect(
+        handleApiError(mockResponse, 'Upload failed')
+      ).rejects.toThrow('Upload failed. HTTP error 409: pack is already built')
+    })
+
+    it('returns null for an empty success body instead of throwing', async () => {
+      // 204 (and some 200s on DELETE) carry no body, and response.json() throws
+      // "Unexpected end of JSON input" on those — turning a successful call into a spurious failure.
+      expect(await handleApiError(new Response(null, { status: 204 }), 'Delete failed')).toBeNull()
+      expect(await handleApiError(new Response('', { status: 200 }), 'Delete failed')).toBeNull()
+    })
   })
 
   describe('environment variable fallback', () => {

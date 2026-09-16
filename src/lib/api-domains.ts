@@ -1,3 +1,4 @@
+import { getDebugUpdatesBaseUrl } from './debug-backend';
 // src/lib/api-domains.ts
 export const getApiBaseUrl = (): string => {
     // 1. Check for configuration from config.js on the window object
