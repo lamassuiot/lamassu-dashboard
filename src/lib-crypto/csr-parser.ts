@@ -5,45 +5,8 @@ import {
   Extension as PkijsExtension,
   GeneralNames as PkijsGeneralNames,
   BasicConstraints as PkijsBasicConstraints,
-  PublicKeyInfo as PkijsPublicKeyInfo,
-  RelativeDistinguishedNames as PkijsRelativeDistinguishedNames,
 } from "pkijs";
-
-// ---------------------------------------------------------------------------
-// OID lookup
-// ---------------------------------------------------------------------------
-
-const OID_MAP: Record<string, string> = {
-  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST",
-  "2.5.4.10": "O", "2.5.4.11": "OU",
-  "1.2.840.113549.1.1.1": "RSA", "1.2.840.10045.2.1": "EC",
-  "1.2.840.10045.3.1.7": "P-256", "1.3.132.0.34": "P-384", "1.3.132.0.35": "P-521",
-};
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function decodeSubject(subject: PkijsRelativeDistinguishedNames): string {
-  return subject.typesAndValues
-    .map(tv => `${OID_MAP[tv.type] ?? tv.type}=${(tv.value as any).valueBlock.value}`)
-    .join(", ");
-}
-
-function decodePublicKeyInfo(publicKeyInfo: PkijsPublicKeyInfo): string {
-  const algoOid = publicKeyInfo.algorithm.algorithmId;
-  const algoName = OID_MAP[algoOid] ?? algoOid;
-  let details = "";
-  if (algoName === "EC" && (publicKeyInfo.algorithm as any).parameters) {
-    const curveOid = (publicKeyInfo.algorithm as any).parameters.valueBlock.value as string;
-    details = `(Curve: ${OID_MAP[curveOid] ?? curveOid})`;
-  } else if (algoName === "RSA" && publicKeyInfo.parsedKey) {
-    const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
-    const leadingZero = new Uint8Array((publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex)[0] === 0 ? 1 : 0;
-    details = `(${(modulusBytes - leadingZero) * 8} bits)`;
-  }
-  return `${algoName} ${details}`;
-}
+import { formatDistinguishedName, formatPublicKeyInfo } from "./oid-labels";
 
 function decodeSans(extensions: PkijsExtension[]): string[] {
   const sans: string[] = [];
@@ -101,8 +64,8 @@ export async function parseCsr(pem: string): Promise<DecodedCsrInfo> {
     if (asn1.offset === -1) throw new Error("Cannot parse CSR. Invalid ASN.1 structure.");
 
     const pkcs10 = new CertificationRequest({ schema: asn1.result });
-    const subject = decodeSubject(pkcs10.subject);
-    const publicKeyInfo = decodePublicKeyInfo(pkcs10.subjectPublicKeyInfo);
+    const subject = formatDistinguishedName(pkcs10.subject);
+    const publicKeyInfo = formatPublicKeyInfo(pkcs10.subjectPublicKeyInfo);
 
     let sans: string[] = [];
     let basicConstraints: string | null = null;

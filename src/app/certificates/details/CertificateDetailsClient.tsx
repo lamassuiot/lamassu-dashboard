@@ -26,6 +26,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 import { parseISO, differenceInDays, isPast } from 'date-fns';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { Progress } from '@/components/ui/progress';
@@ -488,7 +490,11 @@ export default function CertificateDetailsClient() { // Renamed component
               </Button>
               {certificateDetails.publicKeyAlgorithm && (
                 <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2 text-xs text-muted-foreground">
-                  <KeyRound className="h-3 w-3 shrink-0" />
+                  {isPqcAlgorithm(certificateDetails.publicKeyAlgorithm) ? (
+                    <QuantumAlgorithmIcon className="h-3 w-3 shrink-0" />
+                  ) : (
+                    <KeyRound className="h-3 w-3 shrink-0" />
+                  )}
                   {certificateDetails.publicKeyAlgorithm}
                 </span>
               )}

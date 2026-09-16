@@ -69,6 +69,13 @@ export const KEY_SPEC_OPTIONS: Record<string, { value: string, label: string }[]
 };
 
 /**
+ * Human-readable display name for the `Composite-ML-DSA-RSA` key/algorithm
+ * type. Kept as a single constant so every UI surface (key type dropdowns,
+ * key detail badges, signature algorithm labels) renders the same wording.
+ */
+export const COMPOSITE_MLDSA_RSA_DISPLAY_NAME = 'Composite-Signature';
+
+/**
  * Composite-ML-DSA-RSA (IETF composite-sigs draft) parameter set metadata.
  * Keys are the numeric IDs (1–8) returned by the KMS API as the key size.
  */

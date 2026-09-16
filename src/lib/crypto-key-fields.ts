@@ -1,4 +1,5 @@
 import {
+  COMPOSITE_MLDSA_RSA_DISPLAY_NAME,
   COMPOSITE_MLDSA_RSA_PARAM_SET_INFO,
   ECDSA_CURVE_OPTIONS,
   MLDSA_SECURITY_LEVEL_OPTIONS,
@@ -48,10 +49,14 @@ const normalizeMlDsaValue = (rawValue: string): string => {
   return matchedOption?.value ?? trimmedValue;
 };
 
+const KEY_TYPE_DISPLAY_LABELS: Record<string, string> = {
+  'Composite-ML-DSA-RSA': COMPOSITE_MLDSA_RSA_DISPLAY_NAME,
+};
+
 export function getSupportedKeyTypeOptions(engine?: ApiCryptoEngine | null): CryptoSelectOption[] {
   return (engine?.supported_key_types ?? []).map((keyType) => ({
     value: keyType.type,
-    label: keyType.type,
+    label: KEY_TYPE_DISPLAY_LABELS[keyType.type] ?? keyType.type,
   }));
 }
 
@@ -167,7 +172,7 @@ export function formatKeyTypeDisplay(algorithm: string, size: string): string {
 
   if (algorithm === 'Composite-ML-DSA-RSA') {
     const info = COMPOSITE_MLDSA_RSA_PARAM_SET_INFO[rawSize];
-    return info ? `${algorithm} ${info.name}` : `${algorithm} ${rawSize}`;
+    return `${COMPOSITE_MLDSA_RSA_DISPLAY_NAME} ${info ? info.name : rawSize}`;
   }
 
   return `${algorithm} ${rawSize}`;
@@ -196,7 +201,7 @@ const SIGNATURE_ALGORITHM_LABELS: Record<string, string> = {
   ...Object.fromEntries(
     Object.entries(COMPOSITE_MLDSA_RSA_PARAM_SET_INFO).map(([id, info]) => [
       `COMPOSITE_MLDSA_RSA_${id}`,
-      `Composite-ML-DSA-RSA ${info.name}`,
+      `${COMPOSITE_MLDSA_RSA_DISPLAY_NAME} ${info.name}`,
     ]),
   ),
 };
