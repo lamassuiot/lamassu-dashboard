@@ -14,7 +14,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { UpdateStrategyForm } from '@/components/iot/update-strategy-form';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent, pageTabsListClass, pageTabsTr
 import { cn } from '@/lib/utils';
 import {
   fetchUpdatePacks,
+  fetchPackPreconditions,
   createCampaign,
   type CreateCampaignPayload,
   fetchAllCampaigns,
@@ -261,7 +262,7 @@ export default function UpdatesPage() {
     }
   };
 
-  const handleStrategySave = (formDataFromForm: UpdateStrategy) => {
+  const handleStrategySave = async (formDataFromForm: UpdateStrategy) => {
     if (!formDataFromForm.updatePackId) {
       toast({ variant: "destructive", title: "Validation Error", description: "Please select an distribution set" });
       return;
@@ -273,23 +274,48 @@ export default function UpdatesPage() {
       return;
     }
 
-    const preconditions = (formDataFromForm.preconditions || []).filter(p => p.required_pack_name && p.min_version);
+    // Preconditions are a single-pack read (see fetchPackPreconditions) — deliberately excluded from
+    // the fleet-wide list `updatePacks` came from, so `selectedPack.preconditions` here is never
+    // populated. Fetched fresh at submit time, not cached in list state that would go stale the
+    // moment someone edits the pack's requirement from its own page.
+    let packPreconditionCount = 0;
+    if (!selectedDms?.id) {
+      toast({ variant: "destructive", title: "Validation Error", description: "No Device Group selected" });
+      return;
+    }
+    try {
+      const fresh = await fetchPackPreconditions({ groupId: selectedDms.id, packName: selectedPack.name });
+      packPreconditionCount = fresh.preconditions?.length ?? 0;
+    } catch (err) {
+      // Best-effort: if this read fails, fall back to dry-running anyway rather than risking a
+      // silent direct-create that skips a real precondition this read just couldn't confirm.
+      packPreconditionCount = 1;
+      console.error('Could not read the pack\'s launch preconditions before submitting; dry-running to be safe:', err);
+    }
 
     const campaignPayload: CreateCampaignPayload = {
       update_pack_name: selectedPack.name, // Backend expects pack name
       workflow_type: formDataFromForm.workflowType,
       rollout_type: formDataFromForm.rolloutType,
       rollout_value: formDataFromForm.rolloutValue,
+      // Planned start: the form holds a local <datetime-local> string; the API
+      // wants a UTC ISO 8601 timestamp. Omit when not scheduled (launch now).
+      ...(formDataFromForm.scheduledAt ? { scheduled_at: new Date(formDataFromForm.scheduledAt).toISOString() } : {}),
+      // Optional metadata: name defaults server-side to the pack name when
+      // omitted; description is free text; weight is a 0–1000 priority hint.
+      ...(formDataFromForm.name ? { name: formDataFromForm.name } : {}),
+      ...(formDataFromForm.description ? { description: formDataFromForm.description } : {}),
+      ...(formDataFromForm.weight != null ? { weight: formDataFromForm.weight } : {}),
       test_device_id: formDataFromForm.testDeviceId || undefined,
       auto: formDataFromForm.auto || false,
       ...(formDataFromForm.auto && formDataFromForm.approvalThreshold != null ? { approval_threshold: formDataFromForm.approvalThreshold } : {}),
       ...(formDataFromForm.auto && formDataFromForm.errorThreshold != null ? { error_threshold: formDataFromForm.errorThreshold } : {}),
-      ...(preconditions.length > 0 ? { preconditions } : {}),
     };
 
-    // With preconditions configured, run a dry-run first to show qualifying / failing devices and
-    // let the user decide whether to force-deploy. Otherwise create the campaign directly.
-    if (preconditions.length > 0) {
+    // Preconditions now live on the PACK being launched (set on its own page, not here — see
+    // PackPreconditionsCard), so whether to dry-run first is decided by what the selected pack
+    // requires, not by anything this form collected. With none configured, create directly.
+    if (packPreconditionCount > 0) {
       dryRunMutate(campaignPayload);
     } else {
       createCampaignMutate(campaignPayload);
@@ -677,12 +703,12 @@ export default function UpdatesPage() {
           </div>
           {!packNameFilter && (
             <div className="flex items-center gap-3 shrink-0">
-              <div className="w-[210px]">
+              <div className="max-w-[260px]">
                 <Select value={filterDmsId} onValueChange={setFilterDmsId}>
-                  <SelectTrigger>
-                    <span className="flex items-center gap-2 truncate">
-                      <Boxes className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="All Device Groups" />
+                  <SelectTrigger className="w-auto max-w-[260px]">
+                    <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                      <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="All Device Groups" className="truncate" />
                     </span>
                   </SelectTrigger>
                   <SelectContent>
@@ -1070,14 +1096,23 @@ export default function UpdatesPage() {
       )}
 
       {/* New Launch dialog: pick the device group + pack, then configure the rollout strategy */}
-      <Dialog open={isStrategyDialogOpen} onOpenChange={(open) => {
+      <Sheet open={isStrategyDialogOpen} onOpenChange={(open) => {
         setIsStrategyDialogOpen(open);
         if (!open) {
           setSelectedPackForCampaign(null);
         }
       }}>
-        <DialogContent
-          className="max-w-5xl w-[95vw] max-h-[90vh] flex flex-col gap-0"
+        <SheetContent
+          side="right"
+          className={cn(
+            'flex flex-col gap-0 p-0',
+            // The base SheetContent clamps a right sheet to sm:max-w-sm; override
+            // with the same data-[side=right] modifier chain so tailwind-merge
+            // actually replaces it, giving the campaign form room to breathe.
+            // Wider again at xl, which is where UpdateStrategyForm moves its summary panel beside
+            // the fields instead of under them — at 3xl the two columns would each be too narrow.
+            'data-[side=right]:w-full data-[side=right]:sm:max-w-2xl data-[side=right]:lg:max-w-3xl data-[side=right]:xl:max-w-5xl',
+          )}
           onInteractOutside={(e) => {
             // Don't let a background refetch / outside focus shift dismiss the form mid-edit.
             if (isCreatingCampaign || isDryRunPending) e.preventDefault();
@@ -1086,17 +1121,17 @@ export default function UpdatesPage() {
             if (isCreatingCampaign || isDryRunPending) e.preventDefault();
           }}
         >
-          <DialogHeader className="pr-8 pb-4 shrink-0">
-            <DialogTitle className="flex items-center gap-2">
+          <SheetHeader className="border-b p-6 pb-4 pr-12">
+            <SheetTitle className="flex items-center gap-2">
               <Rocket className="h-5 w-5 text-primary" />
               New Campaign
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               Roll out an distribution set to the devices of a group. Every campaign carries its own workflow and rollout strategy.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="flex-1 min-h-0 overflow-y-auto -mx-6 border-y px-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6">
             <div className="space-y-5 py-5">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Device Group</label>
@@ -1110,10 +1145,10 @@ export default function UpdatesPage() {
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <span className="flex items-center gap-2 truncate">
-                      <Boxes className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="Select a device group" />
+                  <SelectTrigger className="w-full">
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="Select a device group" className="truncate" />
                     </span>
                   </SelectTrigger>
                   <SelectContent>
@@ -1136,7 +1171,6 @@ export default function UpdatesPage() {
                   defaultSelectedPackId={selectedPackForCampaign || undefined}
                   onStrategySavedOrUpdated={handleStrategySave}
                   showSubmitButton={false}
-                  showPreconditions
                   groupId={selectedDms.id}
                   formId="campaign-strategy-form"
                 />
@@ -1144,7 +1178,7 @@ export default function UpdatesPage() {
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
+          <SheetFooter className="border-t p-6">
             <Button
               type="submit"
               form="campaign-strategy-form"
@@ -1163,9 +1197,9 @@ export default function UpdatesPage() {
                 </>
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Campaign Preconditions confirmation dialog (shown after a dry-run) */}
       <AlertDialog

@@ -23,14 +23,16 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { fetchCampaignJobsByTag, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
+import { fetchAllJobsByCampaign, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
 import type { CampaignItem, DeviceJob } from '@/types/iot';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { JobWorkflowGraph } from '@/components/devices/JobWorkflowGraph';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import {
   isPhasedWorkflow, isDirectWorkflow, extractWfxEligibleTransitions,
   CampaignProgressCell, CampaignStatusCell, TestDeviceBadge, getTestDeviceStatus,
@@ -84,10 +86,9 @@ function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsCh
   const [isTransitioning, setIsTransitioning] = React.useState<string | null>(null);
 
   const memoizedWorkflow = React.useMemo(() => {
-    const relJobs = jobs?.filter(job => job.definition.launchID === campaign.id) || [];
-    const first = relJobs.find(job => job.workflow?.transitions);
+    const first = jobs?.find(job => job.workflow?.transitions);
     return first?.workflow;
-  }, [jobs, campaign.id]);
+  }, [jobs]);
 
   const emptyJobHistory = React.useMemo(() => [] as any[], []);
 
@@ -100,7 +101,9 @@ function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsCh
     );
   }
 
-  const relevantJobs = jobs?.filter(job => job.definition.launchID === campaign.id) || [];
+  // The endpoint already scopes jobs to this campaign server-side, so no client-side launchID
+  // filter is needed here (and definition, WFX-only, may not even be present in hawkbit mode).
+  const relevantJobs = jobs || [];
   const firstJobWithWorkflow = relevantJobs.find(job => job.workflow?.transitions);
   const wfxTransitions = extractWfxEligibleTransitions(firstJobWithWorkflow?.workflow);
 
@@ -308,20 +311,17 @@ function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsCh
 interface DeviceJobStatusRowProps {
   groupId: string;
   deviceId: string;
-  targetCampaignId: string;
   accessToken: string | null;
   jobs: DeviceJob[] | undefined;
   isDeviceActive: boolean;
   onJobsChanged: () => void;
 }
 
-function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, jobs, isDeviceActive, onJobsChanged }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActive, onJobsChanged }: DeviceJobStatusRowProps) {
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
-  // Match the job belonging to BOTH this device and this campaign. The tag query returns every
-  // device's job for the campaign, so the clientId guard is required to pick the right row.
+  // jobs is already scoped to this campaign server-side; match on clientId to pick this device's row.
   const relevantJob = jobs?.find(job =>
-    job.definition.launchID === targetCampaignId &&
     (job.clientId || job.status?.clientId) === deviceId
   );
 
@@ -456,7 +456,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
           )}
         </div>
       </TableCell>
-      <TableCell className="py-2 truncate w-[200px]">{relevantJob.definition.artifacts[0]?.name || 'N/A'}</TableCell>
+      <TableCell className="py-2 truncate w-[200px]">{relevantJob.definition?.artifacts[0]?.name || 'N/A'}</TableCell>
       <TableCell className="font-mono text-xs py-2">
         <span className="block truncate" title={relevantJob.id}>{relevantJob.id}</span>
       </TableCell>
@@ -522,7 +522,7 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
     const isInitialFetch = !hasLoadedJobsRef.current;
     if (isInitialFetch) setIsLoadingJobs(true);
     try {
-      const result = await fetchCampaignJobsByTag({ campaignId: campaign.id });
+      const result = await fetchAllJobsByCampaign({ campaignId: campaign.id });
       setJobs(result);
       setJobsError(null);
       hasLoadedJobsRef.current = true;
@@ -627,14 +627,13 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoadingJobs && !jobsError && (jobs?.filter(j => j.definition.launchID === campaign.id) ?? []).map(job => {
+              {!isLoadingJobs && !jobsError && (jobs ?? []).map(job => {
                 const deviceId = job.clientId || job.status?.clientId || '';
                 return (
                   <DeviceJobStatusRow
                     key={deviceId || job.id}
                     groupId={groupId}
                     deviceId={deviceId}
-                    targetCampaignId={campaign.id}
                     accessToken={accessToken}
                     jobs={jobs}
                     isDeviceActive={false}
@@ -673,6 +672,8 @@ export default function CampaignDetailsPage() {
   const isFetchingCampaignRef = React.useRef(false);
   const { user } = useAuth();
   const { availableDms } = useDms();
+  const { isSupported: isUpdatesCapabilitySupported } = useUpdatesCapabilities();
+  const canEditRolloutStrategy = isUpdatesCapabilitySupported('launch_strategy_update');
 
   const groupId = searchParams.get('groupId');
   const campaignId = searchParams.get('campaignId');
@@ -857,8 +858,14 @@ export default function CampaignDetailsPage() {
   }
 
   const hasPendingDevices = (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
+  const isPaused = campaign.status === 'paused';
   // Auto mode manages rollouts automatically — manual execution must be blocked while it is active.
-  const canExecute = hasPendingDevices && !campaign.auto;
+  // Paused is blocked too, but for a backend-specific reason worth calling out at the call site:
+  // native's ExecuteUpdateLaunch silently no-ops while paused (RolloutHalted), while hawkbit's
+  // resumes AND advances the next batch — so without this check, the same click here would do
+  // nothing on one backend and quietly resume the rollout on the other. Resuming is the list page's
+  // job (pauseCampaign/resumeCampaign in updates/page.tsx), not this button's.
+  const canExecute = hasPendingDevices && !campaign.auto && !isPaused;
   // Canary gate: the test device must complete successfully before the fleet rolls out.
   const testStatus = getTestDeviceStatus(campaign);
   const testBlocks = testStatus === 'testing' || testStatus === 'failed';
@@ -919,9 +926,25 @@ export default function CampaignDetailsPage() {
               )}
             </div>
             <CampaignProgressCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
-            {(canExecute || (hasPendingDevices && campaign.auto)) && (
+            {(canExecute || (hasPendingDevices && (campaign.auto || isPaused))) && (
               <div className="flex items-center gap-2 pt-1">
-                {campaign.auto ? (
+                {isPaused ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
+                            <PlayCircle className="h-4 w-4" />
+                            Execute Campaign
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>This campaign is paused — resume it from the campaign list to continue.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : campaign.auto ? (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1047,8 +1070,8 @@ export default function CampaignDetailsPage() {
                           <p className="text-xs font-medium text-muted-foreground">Configured prerequisites</p>
                           <div className="flex flex-wrap gap-2">
                             {campaign.preconditions.map((pc, idx) => (
-                              <Badge key={`${pc.required_pack_name}-${idx}`} variant="outline" className="font-mono text-xs">
-                                {pc.required_pack_name} &gt;= {pc.min_version}
+                              <Badge key={`${preconditionTargetLabel(pc)}-${idx}`} variant="outline" className="font-mono text-xs">
+                                {preconditionTargetLabel(pc)} &gt;= {pc.min_version}
                               </Badge>
                             ))}
                           </div>
@@ -1135,9 +1158,26 @@ export default function CampaignDetailsPage() {
                             : 'Not Set'}
                         </p>
                       </div>
-                      <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={openEditRollout}>
-                        <Pencil className="h-3.5 w-3.5" /> Edit
-                      </Button>
+                      {canEditRolloutStrategy ? (
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={openEditRollout}>
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </Button>
+                      ) : (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" disabled>
+                                  <Pencil className="h-3.5 w-3.5" /> Edit
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Editing a running rollout isn&apos;t supported by this deployment&apos;s updates backend.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                     {/* Auto Mode */}
                     <div className="flex items-center justify-between gap-3 py-3">
