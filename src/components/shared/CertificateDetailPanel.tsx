@@ -27,7 +27,7 @@ export function CertificateDetailPanel({ certificate }: Props) {
         <Row label="Subject">{certificate.subject}</Row>
         <Row label="Issuer">{certificate.issuer}</Row>
         <Row label="Serial Number">
-          <IdentifierDisplay value={certificate.serialNumber} className="text-xs" />
+          <IdentifierDisplay value={certificate.serialNumber} />
         </Row>
         <Row label="Status">
           <ApiStatusBadge status={certificate.apiStatus} />
@@ -47,7 +47,7 @@ export function CertificateDetailPanel({ certificate }: Props) {
         )}
         {certificate.fingerprintSha256 && (
           <Row label="SHA-256 Fingerprint">
-            <IdentifierDisplay value={certificate.fingerprintSha256} className="text-xs" />
+            <IdentifierDisplay value={certificate.fingerprintSha256} />
           </Row>
         )}
       </div>

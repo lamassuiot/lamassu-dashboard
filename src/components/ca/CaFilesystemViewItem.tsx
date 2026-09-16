@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import type { CA } from '@/lib/ca-data';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import {
   Ban,
   ShieldAlert,
@@ -28,14 +28,6 @@ interface CaFilesystemViewItemProps {
   allCryptoEngines: ApiCryptoEngine[];
 }
 
-type StatusVariant = 'active' | 'expired' | 'revoked';
-
-const statusBadgeClasses: Record<StatusVariant, string> = {
-  active: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-  expired: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
-  revoked: '',
-};
-
 export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
   ca,
   level,
@@ -49,10 +41,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
   const expiryDate = parseISO(ca.expires);
   const isExpired = isPast(expiryDate);
 
-  const statusVariant: StatusVariant =
-    ca.status === 'revoked' ? 'revoked' : isExpired ? 'expired' : 'active';
-
-  const statusLabel = statusVariant === 'revoked' ? 'Revoked' : isExpired ? 'Expired' : 'Active';
+  const displayStatus = ca.status === 'revoked' ? 'REVOKED' : isExpired ? 'EXPIRED' : 'ACTIVE';
 
   const expiryText =
     ca.status === 'revoked'
@@ -130,12 +119,9 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
           <p className="text-xs text-muted-foreground truncate">{expiryText}</p>
         </div>
 
-        <Badge
-          variant={statusVariant === 'revoked' ? 'destructive' : 'outline'}
-          className={cn('hidden sm:inline-flex shrink-0', statusBadgeClasses[statusVariant])}
-        >
-          {statusLabel}
-        </Badge>
+        <div className="hidden shrink-0 sm:block">
+          <ApiStatusBadge status={displayStatus} />
+        </div>
 
         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button

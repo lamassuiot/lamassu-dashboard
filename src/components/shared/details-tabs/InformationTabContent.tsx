@@ -494,14 +494,14 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 label="SHA-256 Fingerprint"
                 value={
                   certDetails.fingerprintSha256
-                    ? <IdentifierDisplay value={certDetails.fingerprintSha256} className="text-xs" />
+                    ? <IdentifierDisplay value={certDetails.fingerprintSha256} />
                     : 'N/A'
                 }
               />
               {certDetails.rawApiData?.subject_key_id && (
                 <DetailInfoRow
                   label="SKI"
-                  value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} className="text-xs" />}
+                  value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} />}
                 />
               )}
               <DetailInfoRow
@@ -513,10 +513,10 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                       className="text-left text-primary hover:underline"
                       title="Find Issuer CA by AKI"
                     >
-                      <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
+                      <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} />
                     </button>
                   ) : certDetails.rawApiData?.authority_key_id ? (
-                    <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
+                    <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} />
                   ) : 'N/A'
                 }
                 className="last:pb-0"
