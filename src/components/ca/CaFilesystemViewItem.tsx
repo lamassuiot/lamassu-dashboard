@@ -6,6 +6,7 @@ import type { CA } from '@/lib/ca-data';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
+  Ban,
   ShieldAlert,
   ChevronRight,
   FileSearch,
@@ -47,7 +48,6 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
 
   const expiryDate = parseISO(ca.expires);
   const isExpired = isPast(expiryDate);
-  const isCritical = ca.status === 'revoked' || isExpired;
 
   const statusVariant: StatusVariant =
     ca.status === 'revoked' ? 'revoked' : isExpired ? 'expired' : 'active';
@@ -62,7 +62,9 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
       : `Expires in ${formatDistanceToNowStrict(expiryDate)}`;
 
   let iconNode: React.ReactNode;
-  if (isCritical) {
+  if (ca.status === 'revoked') {
+    iconNode = <Ban className="h-4 w-4 text-destructive" />;
+  } else if (isExpired) {
     iconNode = <ShieldAlert className="h-4 w-4 text-destructive" />;
   } else if (ca.kmsKeyId) {
     const engine = allCryptoEngines.find(e => e.id === ca.kmsKeyId);

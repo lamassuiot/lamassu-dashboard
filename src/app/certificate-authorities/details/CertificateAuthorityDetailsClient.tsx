@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
+import { ArrowLeft, FileText, Ban, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronDown, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
@@ -22,13 +22,15 @@ import { ReissueCaModal } from '@/components/shared/ReissueCaModal';
 import { InformationTabContent } from '@/components/shared/details-tabs/InformationTabContent';
 import { PemTabContent } from '@/components/shared/details-tabs/PemTabContent';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
-import { parseISO, isPast } from 'date-fns';
+import { differenceInDays, parseISO, isPast } from 'date-fns';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
-import { CryptoEngineViewer, getEngineIconStyle } from '@/components/shared/CryptoEngineViewer';
+import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
 import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { Progress } from '@/components/ui/progress';
 
 
 interface CaStats {
@@ -55,6 +57,15 @@ const buildCaPathToRoot = (targetCaId: string | undefined, allCAs: CA[]): CA[] =
     safetyNet++;
   }
   return path;
+};
+
+const parseDistinguishedName = (distinguishedName: string) => {
+  return Array.from(
+    distinguishedName.matchAll(/(?:^|,\s*)(C|ST|L|O|OU|CN)=((?:\\.|[^,])*)/gi)
+  ).map((match) => ({
+    label: match[1].toUpperCase(),
+    value: match[2].replaceAll('\\,', ',').trim(),
+  }));
 };
 
 export default function CertificateAuthorityDetailsClient() {
@@ -374,20 +385,49 @@ export default function CertificateAuthorityDetailsClient() {
 
   // Status visual helpers
   const statusDotClass = caIsActive
-    ? 'bg-emerald-500'
-    : caDetails.status === 'revoked'
-    ? 'bg-destructive'
-    : 'bg-amber-500';
-  const statusPillClass = caIsActive
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
-    : caDetails.status === 'revoked'
-    ? 'bg-destructive/10 text-destructive border-destructive/20'
-    : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800';
-  const accentBarClass = caIsActive
     ? 'bg-primary'
     : caDetails.status === 'revoked'
     ? 'bg-destructive'
-    : 'bg-amber-500';
+    : 'bg-muted-foreground';
+  const statusPillClass = caIsActive
+    ? 'border border-primary/20 bg-primary/10 text-primary'
+    : caDetails.status === 'revoked'
+    ? 'border border-destructive/20 bg-destructive/10 text-destructive'
+    : 'border border-border bg-muted text-muted-foreground';
+
+  const issuerCa = caDetails.issuer !== 'Self-signed'
+    ? findCaById(caDetails.issuer, allCertificateAuthoritiesData)
+    : null;
+  const issuerDisplayName = issuerCa?.name || caDetails.issuer || 'Unknown';
+  const structuredIssuerDistinguishedNameParts = [
+    { label: 'C', value: caDetails.issuerDN?.country },
+    { label: 'ST', value: caDetails.issuerDN?.state },
+    { label: 'L', value: caDetails.issuerDN?.locality },
+    { label: 'O', value: caDetails.issuerDN?.organization },
+    { label: 'OU', value: caDetails.issuerDN?.organization_unit },
+    { label: 'CN', value: caDetails.issuerDN?.common_name },
+  ].filter((part): part is { label: string; value: string } => Boolean(part.value));
+  const issuerDistinguishedNameParts = structuredIssuerDistinguishedNameParts.length > 0
+    ? structuredIssuerDistinguishedNameParts
+    : parseDistinguishedName(caDetails.issuer || '');
+  const validFrom = caDetails.rawApiData?.certificate.valid_from;
+  const validityInfo = (() => {
+    if (!validFrom || !caDetails.expires) return null;
+    try {
+      const from = parseISO(validFrom).getTime();
+      const to = parseISO(caDetails.expires).getTime();
+      const total = to - from;
+      const elapsed = Date.now() - from;
+      const percent = total > 0 ? Math.min(100, Math.max(0, Math.round((elapsed / total) * 100))) : 0;
+      return {
+        percent,
+        daysLeft: differenceInDays(to, Date.now()),
+        expired: isPast(parseISO(caDetails.expires)),
+      };
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <BreadcrumbPage
@@ -409,164 +449,204 @@ export default function CertificateAuthorityDetailsClient() {
       ]}
       >
 
-      {/* ── Hero + Tabs (flush, no space-y gap between them) ── */}
       <div className="flex flex-col">
-
-      {/* ── Hero ── */}
-      <div className="pb-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-
-          {/* Identity */}
-          <div className="flex items-start gap-4">
-            {cryptoEngine ? (
-              <div className={cn(
-                'relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border',
-                getEngineIconStyle(cryptoEngine.type).border,
-                getEngineIconStyle(cryptoEngine.type).bg,
+      <section className="border-b">
+        <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-semibold tracking-tight" title={caDetails.name}>
+                {caDetails.name}
+              </h1>
+              <span className={cn(
+                'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
+                statusPillClass
               )}>
-                <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
-              </div>
-            ) : (
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
-                <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
-              </div>
-            )}
+                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotClass)} />
+                {caDetails.status.toUpperCase()}
+              </span>
+              {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
+                <span className="inline-flex h-6 items-center rounded-md bg-destructive/10 px-2 text-xs text-destructive">
+                  {caDetails.rawApiData.certificate.revocation_reason}
+                </span>
+              )}
+            </div>
 
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight">{caDetails.name}</h1>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
-                    {caDetails.id}
-                  </code>
-                  <Button
-                    variant="ghost"
-                   
-                    className="h-6 w-6 p-0 shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(caDetails.id);
-                      setCopiedId(true);
-                      setTimeout(() => setCopiedId(false), 2000);
-                    }}
-                  >
-                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                  </Button>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">CA ID</span>
+              <code className="max-w-full truncate rounded-sm border bg-muted px-2 py-0.5 font-mono text-xs">
+                {caDetails.id}
+              </code>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                aria-label="Copy certificate authority ID"
+                onClick={() => {
+                  navigator.clipboard.writeText(caDetails.id);
+                  setCopiedId(true);
+                  setTimeout(() => setCopiedId(false), 2000);
+                }}
+              >
+                {copiedId ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+              </Button>
+              {caDetails.caType && (
+                <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                  {caDetails.caType.replaceAll('_', ' ').toUpperCase()}
+                </span>
+              )}
+              {cryptoEngine && (
+                <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                  <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                  {cryptoEngine.name || cryptoEngine.type}
+                </span>
+              )}
+              {caDetails.rawApiData?.certificate?.key_metadata && (
+                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
+                  <KeyRound className="h-3 w-3 shrink-0" />
+                  {caDetails.rawApiData.certificate.key_metadata.type}
+                  {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
+                  {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 sm:self-center sm:justify-end">
+            {isCaOnHold ? (
+              <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
+                <ShieldCheck className="h-4 w-4" /> Re-activate
+              </Button>
+            ) : caDetails.status !== 'revoked' ? (
+              <Button
+                variant="secondary"
+                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+                onClick={handleCARevocation}
+                disabled={isRevoking}
+              >
+                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                {isRevoking ? 'Revoking…' : 'Revoke'}
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                className="gap-2"
+                onClick={handleDeleteCA}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isDeleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" aria-label="Certificate authority actions">
+                  Actions
+                  <ChevronDown data-icon="inline-end" className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
+                  <Shield className="mr-2 h-4 w-4" /> Validation Authority
+                </DropdownMenuItem>
+                {caDetails.status !== 'revoked' && (
+                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Reissue CA
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                  disabled={!caIsActive}
+                >
+                  <FileText className="mr-2 h-4 w-4" /> Issue Certificate
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <div className="divide-y border-t lg:grid lg:grid-cols-[minmax(300px,1.2fr)_minmax(360px,1.2fr)_minmax(320px,1fr)] lg:divide-x lg:divide-y-0">
+          <div className="py-3 lg:pr-6">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-muted-foreground">Issuer</p>
+              {issuerCa && (
+                <button
+                  className="text-xs font-medium text-primary hover:underline"
+                  onClick={() => routerHook.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
+                >
+                  View CA
+                </button>
+              )}
+            </div>
+            {issuerDistinguishedNameParts.length > 0 ? (
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                {issuerDistinguishedNameParts.map(({ label, value }) => (
+                  <div key={label} className="flex min-w-0 items-baseline gap-2">
+                    <dt className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm bg-primary px-1 font-mono text-[10px] font-semibold text-primary-foreground">{label}</dt>
+                    <dd className="truncate text-sm text-foreground" title={value}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : issuerCa ? (
+              <button
+                className="mt-1 text-left text-sm text-primary hover:underline"
+                onClick={() => routerHook.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
+              >
+                {issuerDisplayName}
+              </button>
+            ) : (
+              <p className="mt-1 text-sm text-foreground">{issuerDisplayName}</p>
+            )}
+          </div>
+
+          <div className="py-3 lg:px-6">
+            {validityInfo && validFrom ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs font-medium text-muted-foreground">Validity period</p>
+                  <span className={cn(
+                    'text-xs font-medium tabular-nums',
+                    validityInfo.expired || validityInfo.daysLeft <= 30
+                      ? 'text-destructive'
+                      : 'text-muted-foreground'
+                  )}>
+                    {validityInfo.expired
+                      ? 'Expired'
+                      : validityInfo.daysLeft === 0
+                      ? 'Expires today'
+                      : `${validityInfo.daysLeft}d remaining`}
+                  </span>
+                </div>
+                <Progress
+                  value={validityInfo.percent}
+                  className={cn('h-1.5 rounded-sm', validityInfo.expired && '[&_[data-slot=progress-indicator]]:bg-destructive')}
+                  aria-label={`${validityInfo.percent}% of the certificate authority validity period elapsed`}
+                />
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Issued</p>
+                    <DateDisplay date={validFrom} className="text-xs" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Expires</p>
+                    <DateDisplay date={caDetails.expires} highlightExpired className="items-end text-xs" />
+                  </div>
                 </div>
               </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {/* Status */}
-                <span className={cn(
-                  'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                  caIsActive
-                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                    : caDetails.status === 'revoked'
-                    ? 'bg-destructive/10 text-destructive'
-                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                )}>
-                  <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotClass)} />
-                  {caDetails.status.toUpperCase()}
-                </span>
-
-                {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                  <span className="inline-flex h-6 items-center rounded-md bg-destructive/10 px-2 text-xs text-destructive">
-                    {caDetails.rawApiData.certificate.revocation_reason}
-                  </span>
-                )}
-
-                {caDetails.caType && (
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    {caDetails.caType.replaceAll('_', ' ').toUpperCase()}
-                  </span>
-                )}
-
-                {cryptoEngine && (
-                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    <CryptoEngineViewer engine={cryptoEngine} iconOnly />
-                    {cryptoEngine.name || cryptoEngine.type}
-                  </span>
-                )}
-
-                {caDetails.rawApiData?.certificate?.key_metadata && (
-                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
-                    <KeyRound className="h-3 w-3 shrink-0" />
-                    {caDetails.rawApiData.certificate.key_metadata.type}
-                    {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
-                    {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                  </span>
-                )}
+            ) : (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Validity period</p>
+                <p className="mt-2 text-sm text-muted-foreground">Unavailable</p>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Actions + Stats */}
-          <div className="flex flex-col gap-4 xl:flex-1 xl:pl-6 xl:border-l">
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 xl:justify-end">
-              {isCaOnHold ? (
-                <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
-                  <ShieldAlert className="h-4 w-4" /> Re-activate
-                </Button>
-              ) : caDetails.status !== 'revoked' ? (
-                <Button
-                  variant="secondary"
-                  className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-                  onClick={handleCARevocation}
-                  disabled={isRevoking}
-                >
-                  {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
-                  {isRevoking ? 'Revoking…' : 'Revoke'}
-                </Button>
-              ) : (
-                <Button
-                  variant="destructive"
-                  className="gap-2"
-                  onClick={handleDeleteCA}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  {isDeleting ? 'Deleting…' : 'Delete'}
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" className="px-2.5">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
-                    <Shield className="mr-2 h-4 w-4" /> Validation Authority
-                  </DropdownMenuItem>
-                  {caDetails.status !== 'revoked' && (
-                    <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                      <RefreshCw className="mr-2 h-4 w-4" /> Reissue CA
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
-                    disabled={!caIsActive}
-                  >
-                    <FileText className="mr-2 h-4 w-4" /> Issue Certificate
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Stats */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
-              <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
-            </div>
-
+          <div className="py-3 lg:pl-6 lg:pr-1">
+            <p className="mb-3 text-xs font-medium text-muted-foreground">Issued certificates</p>
+            <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
           </div>
-
         </div>
-      </div>
+      </section>
 
-      {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, "min-w-max")}>
