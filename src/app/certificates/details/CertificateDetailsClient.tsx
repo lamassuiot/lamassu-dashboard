@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
-import { FileText, Ban, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
+import { FileText, Ban, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, ChevronDown, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { sileo } from '@/lib/toast';
@@ -448,7 +448,7 @@ export default function CertificateDetailsClient() { // Renamed component
       />
 
       <section className="border-b">
-        <div className="flex flex-col gap-4 pb-4 pt-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-semibold tracking-tight" title={certificateDetails.subject}>
@@ -495,7 +495,7 @@ export default function CertificateDetailsClient() { // Renamed component
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+          <div className="flex shrink-0 items-center gap-2 sm:self-center sm:justify-end">
             {isOnHold ? (
               <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
                 <ShieldCheck className="h-4 w-4" /> Re-activate
@@ -514,8 +514,9 @@ export default function CertificateDetailsClient() { // Renamed component
             {canDelete && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" aria-label="Certificate actions">
-                    <Settings className="h-4 w-4" />
+                  <Button variant="outline" aria-label="Certificate actions">
+                    Actions
+                    <ChevronDown data-icon="inline-end" className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
