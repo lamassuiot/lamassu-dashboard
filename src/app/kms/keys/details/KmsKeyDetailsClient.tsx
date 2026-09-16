@@ -14,11 +14,13 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
+import { CertificateList } from '@/components/CertificateList';
+import { fetchAndProcessCAs, type CA } from '@/lib/ca-data';
+import type { CertSortConfig, SortableCertColumn } from '@/app/certificates/page';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, parseBoundResources, BOUND_RESOURCES_METADATA_KEY, type PatchOperation } from '@/lib/kms-data';
@@ -34,7 +36,6 @@ import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
@@ -52,11 +53,6 @@ interface KmsKeyDetailed {
   tags?: string[];
   metadata?: Record<string, any>;
 }
-
-const getCertSubjectCommonName = (subject: string): string => {
-  const match = subject.match(/CN=([^,]+)/i);
-  return match ? match[1].trim() : subject;
-};
 
 const signatureAlgorithms = [...SIGNATURE_ALGORITHMS];
 
@@ -138,8 +134,13 @@ export default function KmsKeyDetailsClient() {
 
   // Related entities state
   const [boundCertificates, setBoundCertificates] = useState<CertificateData[]>([]);
+  const [certificateAuthorities, setCertificateAuthorities] = useState<CA[]>([]);
   const [isLoadingBoundCertificates, setIsLoadingBoundCertificates] = useState(false);
   const [boundCertificatesError, setBoundCertificatesError] = useState<string | null>(null);
+  const [boundCertificatesSort, setBoundCertificatesSort] = useState<CertSortConfig>({
+    column: 'validFrom',
+    direction: 'desc',
+  });
 
 
   // Aliases management state
@@ -165,6 +166,50 @@ export default function KmsKeyDetailsClient() {
     const resources = parseBoundResources(keyDetails?.metadata?.[BOUND_RESOURCES_METADATA_KEY]);
     return resources.filter(resource => resource.resource_type === 'certificate');
   }, [keyDetails?.metadata]);
+
+  const sortedBoundCertificates = useMemo(() => {
+    const getSortValue = (certificate: CertificateData, column: SortableCertColumn): string | number => {
+      switch (column) {
+        case 'commonName': {
+          const commonName = certificate.subject.match(/CN=([^,]+)/i)?.[1] ?? certificate.subject;
+          return commonName.toLocaleLowerCase();
+        }
+        case 'serialNumber':
+          return certificate.serialNumber.toLocaleLowerCase();
+        case 'expires':
+          return new Date(certificate.validTo).getTime();
+        case 'status':
+          return certificate.apiStatus?.toLocaleLowerCase() ?? '';
+        case 'validFrom':
+          return new Date(certificate.validFrom).getTime();
+        case 'revocationTime':
+          return certificate.revocationTimestamp ? new Date(certificate.revocationTimestamp).getTime() : 0;
+      }
+    };
+
+    return [...boundCertificates].sort((left, right) => {
+      const leftValue = getSortValue(left, boundCertificatesSort.column);
+      const rightValue = getSortValue(right, boundCertificatesSort.column);
+      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue));
+
+      return boundCertificatesSort.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [boundCertificates, boundCertificatesSort]);
+
+  const handleBoundCertificatesSort = useCallback((column: SortableCertColumn) => {
+    setBoundCertificatesSort(current => ({
+      column,
+      direction: current.column === column && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  }, []);
+
+  const handleBoundCertificateUpdated = useCallback((updatedCertificate: CertificateData) => {
+    setBoundCertificates(current => current.map(certificate =>
+      certificate.id === updatedCertificate.id ? updatedCertificate : certificate
+    ));
+  }, []);
 
   const handleTabChange = useCallback((nextTab: string) => {
     setActiveTab(nextTab);
@@ -435,6 +480,7 @@ export default function KmsKeyDetailsClient() {
     const loadBoundCertificates = async () => {
       if (boundCertificateResources.length === 0) {
         setBoundCertificates([]);
+        setCertificateAuthorities([]);
         setBoundCertificatesError(null);
         setIsLoadingBoundCertificates(false);
         return;
@@ -447,13 +493,16 @@ export default function KmsKeyDetailsClient() {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
         // A bound certificate may have since been deleted, in which case the lookup
         // resolves to null and the row is skipped. Any other failure propagates.
-        const certificateResults = await Promise.all(
-          uniqueSerials.map(serialNumber => fetchIssuedCertificate(serialNumber))
-        );
+        const [certificateResults, cas] = await Promise.all([
+          Promise.all(uniqueSerials.map(serialNumber => fetchIssuedCertificate(serialNumber))),
+          fetchAndProcessCAs().catch(() => []),
+        ]);
 
         setBoundCertificates(certificateResults.filter((certificate): certificate is CertificateData => certificate !== null));
+        setCertificateAuthorities(cas);
       } catch (error: any) {
         setBoundCertificates([]);
+        setCertificateAuthorities([]);
         setBoundCertificatesError(error.message || 'Failed to load bound certificates.');
       } finally {
         setIsLoadingBoundCertificates(false);
@@ -1032,30 +1081,14 @@ export default function KmsKeyDetailsClient() {
                           <AlertTitle>Error</AlertTitle>
                           <AlertDescription>{boundCertificatesError}</AlertDescription>
                         </Alert>
-                      ) : boundCertificates.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Common Name</TableHead>
-                              <TableHead>Serial Number</TableHead>
-                              <TableHead className="text-center">Expiration</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {boundCertificates.map((certificate) => (
-                              <TableRow key={certificate.serialNumber}>
-                                <TableCell className="font-medium">
-                                  <button type="button" className="text-left text-primary hover:underline"
-                                    onClick={() => router.push(`/certificates/details?certificateId=${certificate.serialNumber}`)}>
-                                    {getCertSubjectCommonName(certificate.subject) || certificate.serialNumber}
-                                  </button>
-                                </TableCell>
-                                <TableCell className="font-mono text-xs break-all">{certificate.serialNumber}</TableCell>
-                                <TableCell><DateDisplay date={certificate.validTo} highlightExpired className="items-center" /></TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                      ) : sortedBoundCertificates.length > 0 ? (
+                        <CertificateList
+                          certificates={sortedBoundCertificates}
+                          allCAs={certificateAuthorities}
+                          onCertificateUpdated={handleBoundCertificateUpdated}
+                          sortConfig={boundCertificatesSort}
+                          requestSort={handleBoundCertificatesSort}
+                        />
                       ) : (
                         <p className="text-sm text-muted-foreground py-4">No related certificates found.</p>
                       )}
