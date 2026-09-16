@@ -8,18 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, RefreshCw, ArrowRight, AlertTriangle, Search } from 'lucide-react';
+import { CheckCircle2, RefreshCw, ArrowRight, AlertTriangle, Search, CircleSlash } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { getGroupVersionStatus, forceDeviceVersion } from '@/lib/iot-api';
 import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import type { DevicePackVersionStatus } from '@/types/iot';
 
 // GroupLatestVersionsCard shows, for every tracked device in a group, which version of each pack it
 // is on versus the pack's latest version — compliant devices included. Outdated rows can be pushed
 // to the latest from here. "Latest" is the pack's current version.
 export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
+  const { isSupported, isLoading: capabilitiesLoading } = useUpdatesCapabilities();
+  // GetGroupVersionStatus (the data this whole card is built on) has no hawkBit translation — see
+  // pkg/updates.CapabilityVersionCompliance. Without this check the card would always render its
+  // permanent error state under hawkbit mode instead of explaining why the feature isn't offered.
+  const versionComplianceSupported = isSupported('version_compliance');
   const [updating, setUpdating] = React.useState<Set<string>>(new Set());
   const [filter, setFilter] = React.useState('');
   const [onlyOutdated, setOnlyOutdated] = React.useState(false);
@@ -33,7 +39,7 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
   const [isFetching, setIsFetching] = React.useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!groupId) return;
+    if (!groupId || !versionComplianceSupported) return;
     setIsFetching(true);
     if (!data) setIsLoading(true);
     try {
@@ -47,11 +53,12 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
       setIsLoading(false);
       setIsFetching(false);
     }
-  }, [groupId]);
+  }, [groupId, versionComplianceSupported]);
 
   useEffect(() => {
+    if (capabilitiesLoading) return;
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, capabilitiesLoading]);
 
   const refetch = fetchData;
 
@@ -100,6 +107,28 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
     setWorkflow(DEFAULT_LAUNCH_WORKFLOW);
     setUpdateTarget(r);
   };
+
+  if (capabilitiesLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </div>
+    );
+  }
+
+  if (!versionComplianceSupported) {
+    return (
+      <div className="rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center">
+        <CircleSlash className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+        <p className="text-sm font-medium">Not available for this deployment</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Group-wide version compliance reporting isn&apos;t supported by the active updates backend.
+        </p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
