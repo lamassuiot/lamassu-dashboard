@@ -73,7 +73,8 @@ const EVENT_CATEGORY_OPTIONS: { label: string; value: EventCategoryFilter }[] = 
 ];
 
 const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
-  const eventType = event.type.toLowerCase();
+  // Defensive: one malformed event should not take the whole page down.
+  const eventType = (event.type ?? '').toLowerCase();
   return eventType.startsWith('audit.') ? 'AUDIT' : 'API';
 };
 

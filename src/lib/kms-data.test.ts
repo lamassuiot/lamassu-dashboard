@@ -518,6 +518,8 @@ describe('kms-data', () => {
         })
       )
 
+      // A JSON body carrying neither `err` nor `message` says nothing, so the status is all the
+      // message can report. ("...with status 500" was never the wording handleApiError produced.)
       await expect(signWithKmsKey(keyId, signPayload)).rejects.toThrow(
         'Signing failed (HTTP 500)'
       )
@@ -609,6 +611,8 @@ describe('kms-data', () => {
         })
       )
 
+      // A plain-text body IS the reason, so it is quoted into the message rather than dropped on
+      // a SyntaxError from trying to parse it as JSON.
       await expect(verifyWithKmsKey(keyId, verifyPayload)).rejects.toThrow(
         'Verification failed: Internal Server Error (HTTP 500)'
       )
