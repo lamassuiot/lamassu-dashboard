@@ -32,6 +32,8 @@ import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
 import { parseDistinguishedName } from '@/lib-crypto';
 import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -412,7 +414,7 @@ export default function CertificateDetailsClient() { // Renamed component
         copyValue={cleanSerialNumber}
         meta={certificateDetails.publicKeyAlgorithm && (
           <Badge variant="secondary">
-            <KeyRound />
+            {isPqcAlgorithm(certificateDetails.publicKeyAlgorithm) ? <QuantumAlgorithmIcon className="h-3 w-3" /> : <KeyRound />}
             {certificateDetails.publicKeyAlgorithm}
           </Badge>
         )}

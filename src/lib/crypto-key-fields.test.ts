@@ -35,7 +35,7 @@ describe('crypto-key-fields', () => {
       { value: 'ECDSA', label: 'ECDSA' },
       { value: 'ML-DSA', label: 'ML-DSA' },
       { value: 'SLH-DSA', label: 'SLH-DSA' },
-      { value: 'Composite-ML-DSA-RSA', label: 'Composite-ML-DSA-RSA' },
+      { value: 'Composite-ML-DSA-RSA', label: 'Composite-Signature' },
     ]);
   });
 
