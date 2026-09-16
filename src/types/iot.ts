@@ -17,10 +17,21 @@ export interface DeviceUpdateEvent {
   logUrl?: string;
 }
 
-// A single campaign precondition: a device must already have `required_pack_name` installed at a
-// version >= `min_version` to qualify (API-facing, snake_case).
+// One requirement a device must already satisfy to qualify for a launch (API-facing, snake_case).
+// It names exactly ONE target — a distribution set (required_pack_name) or a software module
+// (required_module_key, "<type>:<name>") — plus the minimum version of it the device must already
+// carry. The module form matters because a dependency is often finer than a whole set: "needs
+// bootloader >= 2.1" is about a module, and which set ships it changes between releases.
+//
+// Preconditions are declared ONLY on the DISTRIBUTION SET being launched (UpdatePack.preconditions,
+// a list of 1..N of these, set via setPackPreconditions) — never on a software module. What gets
+// deployed is a set, so the set is what carries the rules gating its deployment; a module appears
+// here only as the TARGET of one of those rules. A campaign merely TRIGGERS the check at launch time
+// (its outcome comes back as qualifying_devices / precondition_failures) and carries no copy of the
+// requirement list.
 export interface CampaignPrecondition {
-  required_pack_name: string;
+  required_pack_name?: string;
+  required_module_key?: string;
   min_version: string;
 }
 
@@ -28,7 +39,10 @@ export interface CampaignPrecondition {
 // the campaign). `current_version` is "" when the pack is not installed; `required` is ">=<min>".
 export interface PreconditionFailure {
   device_id: string;
+  // Whichever target was checked; module_key is also set when it was a module, so the two are
+  // distinguishable without parsing the string.
   pack_name: string;
+  module_key?: string;
   current_version: string;
   required: string;
 }
@@ -44,7 +58,17 @@ export interface UpdateStrategy {
   auto?: boolean; // Auto mode toggle
   approvalThreshold?: number; // % of batch that must succeed before next batch (auto only)
   errorThreshold?: number; // % of all devices that can fail before aborting (auto only)
-  preconditions?: CampaignPrecondition[];
+  // Optional planned start. Held as the raw <input type="datetime-local">
+  // value (local wall-clock, e.g. "2026-09-01T09:00"); converted to a UTC ISO
+  // string for the launch payload's scheduled_at. Empty ⇒ launch immediately.
+  scheduledAt?: string;
+  // Optional campaign display name; when empty the backend defaults it to the
+  // distribution set's name.
+  name?: string;
+  // Optional free-text notes for the campaign.
+  description?: string;
+  // Optional priority hint (0–1000, validated server-side).
+  weight?: number;
 }
 
 export interface ApiCreateUpdatePackPayload {
@@ -54,6 +78,11 @@ export interface ApiCreateUpdatePackPayload {
   type: string;
   packaging?: string; // 'swu' (default, build+sign an SWU) or 'non-swu' (raw download-install)
   allow_previous_version_download?: boolean; // enable downloading previous (snapshotted) versions
+  // Launch preconditions declared up front — the same requirement setPackPreconditions edits later
+  // (see UpdatePack.preconditions). Optional: omitted means no requirement. The backend validates
+  // and stores these as part of creating the set, so nothing is half-configured if the caller never
+  // returns to the set's page.
+  preconditions?: CampaignPrecondition[];
 }
 
 export type EncryptionMode = '' | 'shared' | 'per-device';
@@ -65,12 +94,16 @@ export interface UpdatePack {
   version: string; // semver (x.y.z)
   type: 'rawfile' | 'firmware' | string; // Allow string for other potential types
   packaging?: 'swu' | 'non-swu' | string; // delivery mode: 'swu' builds/signs an SWU; 'non-swu' delivers raw artifacts
-  status?: 'draft' | 'built' | string; // build lifecycle of the current version (URI remains the download link)
+  // build lifecycle of the current version (URI remains the download link). 'build_failed' is a
+  // build that was attempted and broke: still editable and retryable like 'draft', but distinguishable
+  // from it — see last_build_error for the reason.
+  status?: 'draft' | 'built' | 'build_failed' | string;
   descriptorFileName?: string;
   descriptorContent?: string; // Added for viewing descriptor
   uri?: string;
   createdAt?: string; // ISO Date string
   binaryFileName?: string; // Name of the uploaded binary file
+  last_build_error?: string; // why the last build attempt failed (set with status 'build_failed')
   generationError?: string; // Error message if SWU generation failed
   
   // Security fields
@@ -86,6 +119,12 @@ export interface UpdatePack {
 
   // Versioning: when true, previously-snapshotted versions of this pack can be downloaded.
   allow_previous_version_download?: boolean;
+
+  // Launch preconditions: gate deployability for every launch of THIS pack (see
+  // CampaignPrecondition). Read on every pack read, set via setPackPreconditions — not part of the
+  // creation payload, matching release notes / the sw-description (metadata set after the pack
+  // exists, editable independently of its build/lock state).
+  preconditions?: CampaignPrecondition[];
 }
 
 // A (logical name, semantic version) reference to one software component a SWU build delivers.
@@ -362,13 +401,15 @@ export interface DeviceJobWorkflow {
 
 export interface DeviceJob { // This is one item from the /api/dms/[dmsId]/device/[deviceId]/jobs list
   clientId: string;
-  definition: DeviceJobDefinition;
+  // Populated for WFX-backed jobs (native mode). The backend-agnostic /launch/:id/jobs endpoint
+  // (used for hawkbit mode, which has no WFX definition/workflow to report) omits both.
+  definition?: DeviceJobDefinition;
   id: string; // Job ID
   mtime: string; // ISO Date string
   status: DeviceJobStatus; // Job's overall status
   stime: string; // ISO Date string
   tags: string[];
-  workflow: DeviceJobWorkflow;
+  workflow?: DeviceJobWorkflow;
   // REMOVED 'history' from here as it's not part of the direct API response
 }
 
@@ -448,4 +489,127 @@ export interface ApiDevice {
 export interface DeviceListApiResponse {
   next: string | null;
   list: ApiDevice[] | null;
+}
+
+// Mirrors pkg/updates.Capability on the backend — a client should treat an unrecognised string as an
+// unknown/future capability (present in `supported` as false if the backend reports it missing) rather
+// than erroring, since new entries can appear from a newer backend.
+export type UpdatesCapabilityKey =
+  | 'latest_versions'
+  | 'version_compliance'
+  | 'artifact_signatures'
+  | 'artifact_encryption'
+  | 'per_device_encryption'
+  | 'artifact_download_by_name'
+  | 'workflows'
+  | 'launch_strategy_update'
+  | 'launch_complete'
+  | 'launch_device_assignment'
+  | 'scheduled_launch'
+  | 'push_events'
+  | 'launch_preconditions'
+  | 'campaigns'
+  | 'canary_device'
+  | 'device_inventory'
+  | 'artifact_catalog'
+  | 'prebuilt_deliverable'
+  | 'software_module_composition'
+  | 'software_module_deliverables'
+  // Whether a module can be created BEFORE any distribution set composes it. A property of the
+  // backend's storage model, not of composition: hawkbit has it (a SoftwareModule is a first-class
+  // entity owned by nothing), native does not yet (a module row is keyed by its owning pack version).
+  // Where absent, modules are still created — by adding one to a distribution set.
+  | 'standalone_software_modules';
+
+// --- Software module composition (gated by the 'software_module_composition' capability) ---
+//
+// A distribution set (an "update pack" in the older API vocabulary) is composed of software modules:
+// exactly one mandatory 'os' base image plus any number of 'application' modules. Each module holds
+// its own artifacts and builds its own deliverable, which is what makes an OS image and an
+// application independently versionable. Mirrors pkg/models.SoftwareModule on the backend.
+export type SoftwareModuleType = 'os' | 'application';
+
+export type ModuleDeliveryIntent = 'undecided' | 'swu-build' | 'swu-prebuilt' | 'raw';
+export interface SoftwareModule {
+  id?: string;
+  delivery_intent?: ModuleDeliveryIntent;
+  // key is the stable "<type>:<name>" handle every module-scoped request addresses this module by.
+  // It survives a pack version bump, unlike a backend-assigned id.
+  key: string;
+  type: SoftwareModuleType;
+  name: string;
+  // version is the module's own version, which need not match the pack version composing it.
+  version: string;
+  // built is whether this module has a deliverable. A pack is launchable only once EVERY module is
+  // built, so the pack-level status is the AND over these.
+  built: boolean;
+  artifacts: Artifact[];
+  // locked is hawkBit's own immutability flag, set automatically once this module's owning
+  // distribution set is assigned to a target — a client can rely on it to mean "shipped to a
+  // device" without tracking assignment itself. Always false on a backend with no such concept.
+  // NOT the same as `built`: a module can hold a finished deliverable and still be unlocked, if
+  // nothing has been rolled out to it yet.
+  locked: boolean;
+  // encrypted reports whether this module's artifacts are stored encrypted at rest on the backend.
+  // Unrelated to encrypting the deliverable a device decrypts — see the backend model's comment.
+  encrypted: boolean;
+  // release_notes is the operator-authored changelog for this module version — free text, markdown
+  // by convention. Unlike every other field here it is METADATA rather than backend-derived state,
+  // and it stays editable after the module is built and even after it is locked (both backends allow
+  // it; hawkBit's lock covers content, not description). Optional so a backend that predates the
+  // field still deserialises.
+  release_notes?: string;
+}
+
+// POST body for building one module's deliverable. Every field is optional — an empty body means
+// "no encryption, no signing". Only meaningful where 'software_module_deliverables' is supported.
+export interface SoftwareModuleBuildPayload {
+  user?: string;
+  encryption_key_name?: string;
+  encryption_alg_name?: string;
+  sw_desc_encrypted?: boolean;
+  signature_key_id?: string;
+  signature_alg_name?: string;
+  signature_certificate?: string;
+}
+
+// POST body for adding a module to a pack's composition. version defaults to the pack's version.
+export interface SoftwareModuleRef {
+  delivery_intent?: ModuleDeliveryIntent;
+  type: SoftwareModuleType;
+  name: string;
+  version?: string;
+}
+
+// A module already defined on ANOTHER pack, offered as a candidate to compose this one with.
+export interface ReusableSoftwareModule extends SoftwareModule {
+  // Where this module is defined today. Both are needed to address it: a pack's composition is per
+  // VERSION, so the same pack can offer different modules at different versions.
+  source_pack_name: string;
+  source_pack_version: string;
+  source_group_id: string;
+  // What importing it MEANS, which differs by backend and is worth telling the operator:
+  //  - true (hawkbit): the import LINKS. Both packs hold one module, so its artifacts exist once
+  //    and a rebuild is seen by both — but so is a change.
+  //  - false (native): the import COPIES. Artifact links come along so nothing is re-uploaded, and
+  //    the two modules are independent from then on.
+  shared: boolean;
+}
+
+// POST body for importing an existing module. source_group_id defaults to the importing pack's.
+export interface SoftwareModuleImport {
+  source_module_id?: string;
+  source_group_id?: string;
+  source_pack_name: string;
+  source_pack_version: string;
+  module_key: string;
+}
+
+// GET /updates/v1/capabilities — what the deployment's active updates backend ("native" or "hawkbit")
+// can and cannot do. A client should read this once at startup and hide features it reports missing,
+// instead of discovering each gap from a failed request.
+export interface UpdatesCapabilities {
+  backend: string;
+  supported: Record<string, boolean>;
+  unsupported: string[];
 }
