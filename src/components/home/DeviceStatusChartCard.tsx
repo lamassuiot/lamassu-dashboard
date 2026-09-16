@@ -3,8 +3,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { fetchDeviceStats } from '@/lib/devices-api';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface ChartData {
   name: string;
@@ -117,8 +118,12 @@ export function DeviceStatusChartCard() {
         )}
 
         {!isLoading && error && (
-          <div className="flex h-[320px] items-center justify-center">
-            <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">Error: {error}</p>
+          <div className="flex h-[320px] items-center justify-center p-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error Loading Data</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           </div>
         )}
 

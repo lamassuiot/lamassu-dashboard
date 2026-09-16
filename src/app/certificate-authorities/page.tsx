@@ -253,7 +253,9 @@ export default function CertificateAuthoritiesPage() {
               <AlertTitle>Error Loading Data</AlertTitle>
               {errorCas && <AlertDescription>CAs: {errorCas}</AlertDescription>}
               {viewMode === 'list' && errorCryptoEngines && <AlertDescription>Crypto Engines: {errorCryptoEngines}</AlertDescription>}
-              <Button variant="link" onClick={loadData} className="p-0 h-auto">Try again?</Button>
+              <AlertDescription>
+                <Button variant="link" onClick={loadData} className="p-0 h-auto">Try again?</Button>
+              </AlertDescription>
             </Alert>
           )}
           
