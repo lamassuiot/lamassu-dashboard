@@ -109,14 +109,12 @@ describe('api-domains', () => {
       expect(result).toEqual({ data: 'success' })
     })
 
-    it('should throw error with default message for failed response without JSON body', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 500,
-        json: async () => {
-          throw new Error('Not JSON')
-        },
-      } as unknown as Response
+    // Real Response objects rather than hand-rolled doubles: an error body is read as TEXT and
+    // only then parsed (a gateway 502 returns HTML, or nothing), so a double carrying json() alone
+    // no longer resembles what the function is actually handed.
+    it('should throw error with default message for failed response with an HTML body', async () => {
+      // An HTML error page is noise, so it is deliberately NOT quoted into the message.
+      const mockResponse = new Response('<html><body>Bad Gateway</body></html>', { status: 500 })
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
@@ -124,11 +122,7 @@ describe('api-domains', () => {
     })
 
     it('should throw error with API error message when available', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 400,
-        json: async () => ({ err: 'Invalid request parameters' }),
-      } as unknown as Response
+      const mockResponse = new Response(JSON.stringify({ err: 'Invalid request parameters' }), { status: 400 })
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
@@ -136,11 +130,7 @@ describe('api-domains', () => {
     })
 
     it('should handle error with "message" field instead of "err"', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 403,
-        json: async () => ({ message: 'Forbidden access' }),
-      } as unknown as Response
+      const mockResponse = new Response(JSON.stringify({ message: 'Forbidden access' }), { status: 403 })
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
@@ -148,11 +138,7 @@ describe('api-domains', () => {
     })
 
     it('should handle 404 errors', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 404,
-        json: async () => ({ err: 'Resource not found' }),
-      } as unknown as Response
+      const mockResponse = new Response(JSON.stringify({ err: 'Resource not found' }), { status: 404 })
 
       await expect(
         handleApiError(mockResponse, 'Fetch resource failed')
@@ -160,10 +146,12 @@ describe('api-domains', () => {
     })
 
     it('should handle network errors without JSON response', async () => {
+      // Status 0 is not constructible via Response, so this one stays a double — with the body
+      // reader failing the way a dropped connection does.
       const mockResponse = {
         ok: false,
         status: 0,
-        json: async () => {
+        text: async () => {
           throw new Error('Network error')
         },
       } as unknown as Response
@@ -171,6 +159,21 @@ describe('api-domains', () => {
       await expect(
         handleApiError(mockResponse, 'Network request failed')
       ).rejects.toThrow('Network request failed. HTTP error 0')
+    })
+
+    it('quotes a plain-text error body, which is where the real reason usually is', async () => {
+      const mockResponse = new Response('pack is already built', { status: 409 })
+
+      await expect(
+        handleApiError(mockResponse, 'Upload failed')
+      ).rejects.toThrow('Upload failed. HTTP error 409: pack is already built')
+    })
+
+    it('returns null for an empty success body instead of throwing', async () => {
+      // 204 (and some 200s on DELETE) carry no body, and response.json() throws
+      // "Unexpected end of JSON input" on those — turning a successful call into a spurious failure.
+      expect(await handleApiError(new Response(null, { status: 204 }), 'Delete failed')).toBeNull()
+      expect(await handleApiError(new Response('', { status: 200 }), 'Delete failed')).toBeNull()
     })
   })
 

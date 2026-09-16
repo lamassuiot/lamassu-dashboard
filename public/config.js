@@ -25,7 +25,7 @@ window.lamassuConfig = {
     // (Optional) Base URL for Updates and SymKMS API services
     // Both /updates/v1 and /symkms/v1 paths will be appended to this base URL
     // If not provided, will default to LAMASSU_API
-    LAMASSU_UPDATES_API: "http://localhost:10090",
+    LAMASSU_UPDATES_API: "http://localhost:10091",
 
 
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.

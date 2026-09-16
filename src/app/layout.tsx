@@ -5,6 +5,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
+import { UpdatesCapabilitiesProvider } from '@/contexts/UpdatesCapabilitiesContext';
 import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -30,7 +31,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Lock, PlaySquare, Package, Boxes, Rocket, ClipboardList, Workflow } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Lock, PlaySquare, Package, Boxes, Rocket, ClipboardList, Workflow, LayoutDashboard, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { jwtDecode } from 'jwt-decode';
@@ -59,6 +60,7 @@ import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
 import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { PageSearchMenu, type PageSearchAccent } from '@/components/shared/PageSearchMenu';
+import { DebugBackendSwitch } from '@/components/shared/DebugBackendSwitch';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
@@ -126,7 +128,11 @@ const navigationConfig: NavGroup[] = [
     label: 'OTA UPDATES MANAGER',
     accent: 'ota',
     items: [
+      { href: '/updates/dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Fleet OTA overview' },
+      { href: '/updates/devices', label: 'OTA Devices', icon: Router, description: 'Installed versions across the fleet' },
+      { href: '/updates/device-groups', label: 'OTA Device Groups', icon: Layers, description: 'Fleet-targeting groups and their rollout compliance' },
       { href: '/package-inventory', label: 'Distribution Set', icon: Package, description: 'Packages and update artifacts' },
+      { href: '/updates/software-modules', label: 'Software Modules', icon: Boxes, description: 'Fleet-wide software module catalog' },
       { href: '/updates', label: 'Campaigns', icon: Rocket, description: 'OTA rollout campaigns' },
     ],
   },
@@ -346,6 +352,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                         />
                       </div>
                     </div>
+                    {/* Developer builds only: it fakes what the server reported, so it has no place
+                        in an operator's menu. Sits with the other display toggles because it is the
+                        same kind of knob — it changes what this browser shows, nothing on the server. */}
+                    {isDeveloperMode && <DebugBackendSwitch />}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
                       <User className="mr-2 h-4 w-4" />
@@ -733,14 +743,16 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <ConfigProvider>
-          <AuthProvider>
-            <IdentifierDisplayProvider>
-              <React.Suspense fallback={<LoadingState />}>
-                <InnerLayout>{children}</InnerLayout>
-              </React.Suspense>
-              <Toaster />
-            </IdentifierDisplayProvider>
-          </AuthProvider>
+          <UpdatesCapabilitiesProvider>
+            <AuthProvider>
+              <IdentifierDisplayProvider>
+                <React.Suspense fallback={<LoadingState />}>
+                  <InnerLayout>{children}</InnerLayout>
+                </React.Suspense>
+                <Toaster />
+              </IdentifierDisplayProvider>
+            </AuthProvider>
+          </UpdatesCapabilitiesProvider>
         </ConfigProvider>
       </body>
     </html>

@@ -1,3 +1,4 @@
+import { getDebugUpdatesBaseUrl } from './debug-backend';
 // src/lib/api-domains.ts
 export const getApiBaseUrl = (): string => {
     // 1. Check for configuration from config.js on the window object
@@ -29,6 +30,12 @@ export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
 // Helper function to get the base URL for updates and symkms services
 // These services can be on a separate server from the main API
 const getUpdatesSymkmsBaseUrl = (): string => {
+    // 0. A developer override wins over the deployment's configuration: the two backends are separate
+    //    services with their own data, so previewing the other one means TALKING to it, not relabelling
+    //    this one's answers. See src/lib/debug-backend.ts.
+    const debugBase = getDebugUpdatesBaseUrl();
+    if (debugBase) return debugBase.replace(/\/+$/g, '');
+
     // 1. Check for configuration from config.js on the window object
     let configured: string | undefined;
     if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_UPDATES_API) {
@@ -73,17 +80,38 @@ export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well
 
 export const handleApiError = async (response: Response, defaultMessage: string) => {
     if (!response.ok) {
-        let errorJson;
         let errorMessage = `${defaultMessage}. HTTP error ${response.status}`;
+        // An error body is NOT necessarily JSON: a gateway 502/504 returns HTML or
+        // nothing at all. Read it as text first and only then try to parse, so a
+        // non-JSON body degrades into a useful message instead of logging a
+        // SyntaxError stack on top of the real failure (which buried genuine
+        // errors in the console whenever an upstream service was down).
+        let body = '';
         try {
-            errorJson = await response.json();
-            if (errorJson && (errorJson.err || errorJson.message)) {
-                errorMessage = `${defaultMessage}: ${errorJson.err || errorJson.message}`;
+            body = await response.text();
+        } catch { /* body already consumed or connection dropped */ }
+        if (body) {
+            try {
+                const errorJson = JSON.parse(body);
+                if (errorJson && (errorJson.err || errorJson.message)) {
+                    errorMessage = `${defaultMessage}: ${errorJson.err || errorJson.message}`;
+                }
+            } catch {
+                // Plain-text/HTML error body: include a short excerpt, skipping HTML
+                // error pages, which are noise rather than information.
+                const snippet = body.trim().slice(0, 200);
+                if (snippet && !snippet.startsWith('<')) {
+                    errorMessage = `${defaultMessage}. HTTP error ${response.status}: ${snippet}`;
+                }
             }
-        } catch (e) {
-            console.error("Failed to parse error response as JSON:", e);
         }
         throw new Error(errorMessage);
     }
-    return response.json();
+    // A successful response is not guaranteed to have a body — 204 No Content (and
+    // some 200s on DELETE) are empty, and response.json() throws "Unexpected end of
+    // JSON input" on those, turning a successful call into a spurious failure.
+    if (response.status === 204) return null;
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
 };
