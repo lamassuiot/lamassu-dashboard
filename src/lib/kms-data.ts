@@ -32,10 +32,13 @@ export interface BoundResource {
   resource_type: string;
 }
 
+// Metadata is user-editable, so an entry is only usable once both fields are present.
 const isBoundResource = (value: unknown): value is BoundResource =>
   typeof value === 'object'
   && value !== null
-  && typeof (value as BoundResource).resource_type === 'string';
+  && typeof (value as BoundResource).resource_type === 'string'
+  && typeof (value as BoundResource).resource_id === 'string'
+  && (value as BoundResource).resource_id.trim() !== '';
 
 // The backend may send this metadata value as an object, an array, or a JSON-encoded
 // string of either, so normalise all four shapes before rendering.

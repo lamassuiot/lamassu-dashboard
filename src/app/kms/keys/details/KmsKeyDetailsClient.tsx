@@ -445,17 +445,10 @@ export default function KmsKeyDetailsClient() {
 
       try {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
+        // A bound certificate may have since been deleted, in which case the lookup
+        // resolves to null and the row is skipped. Any other failure propagates.
         const certificateResults = await Promise.all(
-          uniqueSerials.map(async (serialNumber) => {
-            try {
-              return await fetchIssuedCertificate(serialNumber);
-            } catch (error) {
-              // A bound certificate may have since been deleted; skip it rather than
-              // failing the whole table.
-              console.error(`Failed to fetch bound certificate ${serialNumber}:`, error);
-              return null;
-            }
-          })
+          uniqueSerials.map(serialNumber => fetchIssuedCertificate(serialNumber))
         );
 
         setBoundCertificates(certificateResults.filter((certificate): certificate is CertificateData => certificate !== null));

@@ -119,9 +119,17 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
   };
 }
 
-export async function fetchIssuedCertificate(serialNumber: string): Promise<CertificateData> {
+/**
+ * Returns null if the certificate does not exist (404). Any other failure throws.
+ */
+export async function fetchIssuedCertificate(serialNumber: string): Promise<CertificateData | null> {
   const apiSerial = serialNumber.replace(/:/g, '');
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiSerial)}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
   const apiCert = await handleApiError<ApiIssuedCertificateItem>(response, 'Failed to fetch certificate');
   return transformApiIssuedCertificateToLocal(apiCert!);
 }
