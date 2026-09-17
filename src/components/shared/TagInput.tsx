@@ -15,6 +15,7 @@ interface TagInputProps {
   className?: string;
   id?: string;
   showHint?: boolean;
+  hint?: string;
   'aria-invalid'?: boolean;
   'aria-describedby'?: string;
 }
@@ -26,6 +27,7 @@ export const TagInput: React.FC<TagInputProps> = ({
   className,
   id,
   showHint = true,
+  hint = "Press Enter to add a tag. Click 'x' on a tag to remove it.",
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedBy,
 }) => {
@@ -100,7 +102,7 @@ export const TagInput: React.FC<TagInputProps> = ({
           aria-describedby={ariaDescribedBy}
         />
       </label>
-      {showHint && <p className="text-xs text-muted-foreground">Press Enter to add a tag. Click 'x' on a tag to remove it.</p>}
+      {showHint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 };

@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, PlusCircle, Copy, Check, Settings, Lock, Edit, Delete } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, Copy, Check, ChevronDown, Lock, Edit, Delete } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Separator } from '@/components/ui/separator';
@@ -38,6 +38,7 @@ import { TagInput } from '@/components/shared/TagInput';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
@@ -50,6 +51,7 @@ interface KmsKeyDetailed {
   hasPrivateKey: boolean;
   publicKeyPem?: string;
   cryptoEngineId?: string;
+  createdAt?: string;
   tags?: string[];
   metadata?: Record<string, any>;
 }
@@ -147,7 +149,6 @@ export default function KmsKeyDetailsClient() {
   const [keyAliases, setKeyAliases] = useState<string[]>([]);
   const [originalAliases, setOriginalAliases] = useState<string[]>([]); // Track original state
   const [isEditingAliases, setIsEditingAliases] = useState(false);
-  const [newAlias, setNewAlias] = useState('');
   const [isSavingAliases, setIsSavingAliases] = useState(false);
 
   // Tags management state
@@ -234,20 +235,6 @@ export default function KmsKeyDetailsClient() {
   };
 
   // --- Alias Management Handlers ---
-  const handleAddAlias = () => {
-    if (!newAlias.trim()) return;
-    if (keyAliases.includes(newAlias.trim())) {
-      sileo.error({ title: "Duplicate Alias", description: "This alias already exists." });
-      return;
-    }
-    setKeyAliases(prev => [...prev, newAlias.trim()]);
-    setNewAlias('');
-  };
-
-  const handleRemoveAlias = (index: number) => {
-    setKeyAliases(prev => prev.filter((_, i) => i !== index));
-  };
-
   const handleSaveAliases = async () => {
     if (!keyDetails ) return;
 
@@ -307,7 +294,6 @@ export default function KmsKeyDetailsClient() {
     // Restore original aliases
     setKeyAliases([...originalAliases]);
     setIsEditingAliases(false);
-    setNewAlias('');
   };
 
   // --- Tags Management Handlers ---
@@ -419,6 +405,7 @@ export default function KmsKeyDetailsClient() {
           hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
           cryptoEngineId: apiKey.engine_id,
+          createdAt: apiKey.creation_ts,
           tags: apiKey.tags || [],
           metadata: apiKey.metadata || {},
         };
@@ -715,40 +702,13 @@ export default function KmsKeyDetailsClient() {
     );
   }
 
-  const accentBarClass = 'bg-primary';
-
-  const accessPillClass = keyDetails.hasPrivateKey
-    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-    : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
-
   const accessDotClass = keyDetails.hasPrivateKey ? 'bg-emerald-500' : 'bg-amber-500';
   const algorithmBadgeClass = keyDetails.algorithm === 'ECDSA'
     ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'
     : keyDetails.algorithm === 'RSA'
       ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
       : 'border-border bg-muted text-muted-foreground';
-  const summaryCards = [
-    {
-      label: 'Key Size',
-      value: keyDetails.keySize ? keyDetails.keySize.toString() : 'N/A',
-      hint: 'Bit length',
-    },
-    {
-      label: 'Aliases',
-      value: keyAliases.length.toString(),
-      hint: keyAliases.length === 1 ? 'Alternative name' : 'Alternative names',
-    },
-    {
-      label: 'Tags',
-      value: keyTags.length.toString(),
-      hint: keyTags.length === 1 ? 'Classification label' : 'Classification labels',
-    },
-    {
-      label: 'Linked certs',
-      value: boundCertificateResources.length.toString(),
-      hint: boundCertificateResources.length === 1 ? 'Bound certificate' : 'Bound certificates',
-    },
-  ];
+
   return (
     <BreadcrumbPage
       className="space-y-5"
@@ -764,109 +724,116 @@ export default function KmsKeyDetailsClient() {
           ),
         },
       ]}
-      actions={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="px-2.5">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem disabled>
-              <Delete className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
     >
 
       {/* ── Hero ── */}
-      <div className="border-b pb-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-
-          {/* Identity */}
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-              {cryptoEngine
-                ? <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
-                : <KeyRound className={cn('h-7 w-7', keyDetails.hasPrivateKey ? 'text-primary' : 'text-amber-500')} />
-              }
+      <section className="border-b">
+        <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-semibold tracking-tight" title={keyDetails.alias}>
+                {keyDetails.alias}
+              </h1>
+              <span className={cn(
+                'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
+                keyDetails.hasPrivateKey
+                  ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                  : 'border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              )}>
+                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', accessDotClass)} />
+                {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
+              </span>
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight truncate" title={keyDetails.alias}>
-                  {keyDetails.alias}
-                </h1>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
-                    {keyDetails.id}
-                  </code>
-                  <Button
-                    variant="ghost"
-                   
-                    className="h-6 w-6 p-0 shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(keyDetails.id);
-                      setCopiedId(true);
-                      setTimeout(() => setCopiedId(false), 2000);
-                    }}
-                  >
-                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {/* Access */}
-                <span className={cn(
-                  'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                  keyDetails.hasPrivateKey
-                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                )}>
-                  <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', accessDotClass)} />
-                  {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Key ID</span>
+              <code className="max-w-full truncate rounded-sm border bg-muted px-2 py-0.5 font-mono text-xs">
+                {keyDetails.id}
+              </code>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                aria-label="Copy key ID"
+                onClick={() => {
+                  navigator.clipboard.writeText(keyDetails.id);
+                  setCopiedId(true);
+                  setTimeout(() => setCopiedId(false), 2000);
+                }}
+              >
+                {copiedId ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+              </Button>
+              {cryptoEngine && (
+                <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                  <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                  {cryptoEngine.name || cryptoEngine.type}
                 </span>
-
-                {/* Algorithm */}
-                <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
-                  {keyDetails.algorithm}
-                </span>
-
-                {/* Key type */}
-                <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                  {keyDetails.keyTypeDisplay}
-                </span>
-
-                {/* Engine */}
-                {cryptoEngine && (
-                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    <CryptoEngineViewer engine={cryptoEngine} iconOnly />
-                    {cryptoEngine.name || cryptoEngine.type}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Summary stats */}
-          <div className="xl:flex-1 xl:pl-6 xl:border-l">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-              {summaryCards.map((item, index) => (
-                <div key={item.label} className={cn('min-w-0', index > 0 && 'sm:border-l sm:pl-6')}>
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className="mt-0.5 text-2xl font-semibold tracking-tight tabular-nums">{item.value}</p>
-                  <p className="text-xs text-muted-foreground/60">{item.hint}</p>
-                </div>
-              ))}
-            </div>
+          <div className="flex shrink-0 items-center gap-2 sm:self-center sm:justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" aria-label="Key actions">
+                  Actions
+                  <ChevronDown data-icon="inline-end" className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem disabled>
+                  <Delete className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-
         </div>
-      </div>
+
+        <div className="divide-y border-t lg:grid lg:grid-cols-[minmax(300px,1.2fr)_minmax(320px,1.4fr)_minmax(260px,1fr)] lg:divide-x lg:divide-y-0">
+          <div className="py-3 lg:pr-6">
+            <p className="text-xs font-medium text-muted-foreground">Cryptographic profile</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
+                {keyDetails.algorithm}
+              </span>
+              {keyDetails.keySize && (
+                <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                  {keyDetails.keySize} bits
+                </span>
+              )}
+              <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
+            </div>
+          </div>
+
+          <div className="py-3 lg:px-6">
+            <p className="text-xs font-medium text-muted-foreground">Created</p>
+            <p className="mt-1">
+              {keyDetails.createdAt
+                ? <DateDisplay date={keyDetails.createdAt} className="text-sm" />
+                : <span className="text-sm text-muted-foreground">Unknown</span>}
+            </p>
+          </div>
+
+          <div className="py-3 lg:pl-6 lg:pr-1">
+            <p className="text-xs font-medium text-muted-foreground">Inventory</p>
+            <div className="mt-1 grid grid-cols-3 gap-x-4 gap-y-2">
+              <div>
+                <p className="text-sm font-semibold tabular-nums">{keyAliases.length}</p>
+                <p className="text-xs text-muted-foreground">{keyAliases.length === 1 ? 'Alias' : 'Aliases'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold tabular-nums">{keyTags.length}</p>
+                <p className="text-xs text-muted-foreground">{keyTags.length === 1 ? 'Tag' : 'Tags'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold tabular-nums">{boundCertificateResources.length}</p>
+                <p className="text-xs text-muted-foreground">{boundCertificateResources.length === 1 ? 'Linked cert' : 'Linked certs'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
@@ -912,35 +879,31 @@ export default function KmsKeyDetailsClient() {
                       <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{keyDetails.id}</p>
                     </div>
                     <div className="py-3 last:pb-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-medium text-muted-foreground">Tags</p>
-                        {!isEditingTags && (
-                          <Button variant="ghost" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
-                            <Edit className="mr-1.5 h-3 w-3" /> Edit
-                          </Button>
-                        )}
-                      </div>
+                      <p className="text-xs font-medium text-muted-foreground">Tags</p>
                       {isEditingTags ? (
-                        <div className="mt-3 space-y-3 rounded-lg border bg-background px-3 py-3">
+                        <div className="space-y-4">
                           <TagInput value={keyTags} onChange={setKeyTags} placeholder="Add tags..." />
                           <div className="flex justify-end gap-2">
                             <Button variant="secondary" onClick={handleCancelEditTags} disabled={isSavingTags}>Cancel</Button>
                             <Button onClick={handleSaveTags} disabled={isSavingTags}>
-                              {isSavingTags ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" />Saving...</> : 'Save'}
+                              {isSavingTags ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
                             </Button>
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-3">
                           {keyTags.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
                               {keyTags.map((tag, idx) => (
-                                <span key={idx} className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">{tag}</span>
+                                <Badge key={idx} variant="secondary">{tag}</Badge>
                               ))}
                             </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground">No tags configured</span>
+                            <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">No tags configured for this key</div>
                           )}
+                          <Button variant="secondary" onClick={() => setIsEditingTags(true)}>
+                            <Edit className="mr-2 h-3 w-3" /> Edit Tags
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -959,27 +922,13 @@ export default function KmsKeyDetailsClient() {
                 <div className="lg:col-span-2">
                   {isEditingAliases ? (
                     <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Enter new alias..."
-                          value={newAlias}
-                          onChange={(e) => setNewAlias(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAlias(); } }}
-                        />
-                        <Button onClick={handleAddAlias}><PlusCircle className="mr-2 h-4 w-4" />Add</Button>
-                      </div>
-                      <div className="space-y-2">
-                        {keyAliases.length > 0 ? keyAliases.map((alias, idx) => (
-                          <div key={idx} className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
-                            <span className="text-sm font-medium">{alias}</span>
-                            <Button variant="ghost" onClick={() => handleRemoveAlias(idx)} className="h-7 w-7 p-0">
-                              <XIcon className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        )) : (
-                          <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">No aliases configured</div>
-                        )}
-                      </div>
+                      <TagInput
+                        value={keyAliases}
+                        onChange={setKeyAliases}
+                        placeholder="Add alias..."
+                        id="alias-input-field"
+                        hint="Press Enter to add an alias. Click 'x' on an alias to remove it."
+                      />
                       <div className="flex justify-end gap-2">
                         <Button variant="secondary" onClick={handleCancelEditAliases} disabled={isSavingAliases}>Cancel</Button>
                         <Button onClick={handleSaveAliases} disabled={isSavingAliases}>
@@ -992,7 +941,7 @@ export default function KmsKeyDetailsClient() {
                       {keyAliases.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {keyAliases.map((alias, idx) => (
-                            <span key={idx} className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs font-medium text-muted-foreground">{alias}</span>
+                            <Badge key={idx} variant="secondary" className="font-mono">{alias}</Badge>
                           ))}
                         </div>
                       ) : (

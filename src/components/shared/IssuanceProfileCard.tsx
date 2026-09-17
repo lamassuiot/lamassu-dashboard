@@ -1,11 +1,17 @@
-
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Edit, Trash2, Eye, Users } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ShieldCheck, Edit, Trash2, Braces, Users, MoreVertical, ScrollText, Landmark } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
@@ -26,56 +32,93 @@ function getValidityLabel(profile: ApiSigningProfile) {
   }
 }
 
-function getExtensionRows(profile: ApiSigningProfile) {
-  return {
-    ku: {
-      honors: profile.honor_key_usage,
-      value: profile.honor_key_usage ? "Follows CSR" : profile.key_usage?.join(', ') || 'None',
-    },
-    eku: {
-      honors: profile.honor_extended_key_usages,
-      value: profile.honor_extended_key_usages ? "Follows CSR" : profile.extended_key_usages?.join(', ') || 'None',
-    },
-  };
+/** "OCSPSigning" → "OCSP Signing", "DigitalSignature" → "Digital Signature" */
+function humanizeUsage(usage: string) {
+  return usage
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
 }
 
 function getCryptoRules(profile: ApiSigningProfile) {
   if (!profile.crypto_enforcement?.enabled) return null;
-  return {
-    rsa: profile.crypto_enforcement.allow_rsa_keys ? (profile.crypto_enforcement.allowed_rsa_key_sizes ?? []) : null,
-    ecdsa: profile.crypto_enforcement.allow_ecdsa_keys ? (profile.crypto_enforcement.allowed_ecdsa_key_sizes ?? []) : null,
-  };
+  const { crypto_enforcement: ce } = profile;
+  const tokens: string[] = [];
+  if (ce.allow_rsa_keys) {
+    const sizes = ce.allowed_rsa_key_sizes ?? [];
+    tokens.push(...(sizes.length > 0 ? sizes.map(s => `RSA ${s}`) : ['RSA']));
+  }
+  if (ce.allow_ecdsa_keys) {
+    const sizes = ce.allowed_ecdsa_key_sizes ?? [];
+    tokens.push(...(sizes.length > 0 ? sizes.map(s => `EC P-${s}`) : ['ECDSA']));
+  }
+  return tokens;
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-const HonorToken: React.FC<{ honors: boolean }> = ({ honors }) => (
+/** Whether a field is taken from the CSR or pinned by the profile. */
+const SourceTag: React.FC<{ honors: boolean }> = ({ honors }) => (
   <span className={cn(
-    "text-[9px] font-mono font-semibold uppercase tracking-wide rounded px-1 py-0.5 shrink-0",
+    "shrink-0 rounded-sm border px-1.5 py-px text-[10px] font-medium uppercase tracking-wider",
     honors
-      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-      : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      ? "border-primary/25 bg-primary/5 text-primary"
+      : "border-border bg-muted/60 text-muted-foreground"
   )}>
-    {honors ? "CSR" : "FIXED"}
+    {honors ? "From CSR" : "Enforced"}
   </span>
 );
 
-const AlgoBadge: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <Badge className="rounded-sm border border-primary/30 bg-primary/10 text-primary font-mono text-[9px] h-4 px-1">
+const Token: React.FC<React.PropsWithChildren<{ mono?: boolean }>> = ({ children, mono }) => (
+  <span className={cn(
+    "inline-flex h-5 items-center rounded-sm border border-border bg-muted/50 px-1.5 text-[11px] leading-none text-foreground/80",
+    mono && "font-mono"
+  )}>
     {children}
-  </Badge>
+  </span>
 );
 
-const StatusBadge: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <Badge className="rounded-sm border border-primary/30 bg-primary/10 text-primary text-[9px] font-semibold uppercase tracking-wide h-5 px-1.5">
-    {children}
-  </Badge>
-);
+/** Wrapping token list that collapses the tail into a "+N" chip with a tooltip. */
+const TokenList: React.FC<{ items: string[]; max?: number; mono?: boolean; empty?: string }> = ({
+  items, max = 3, mono, empty = "None",
+}) => {
+  if (items.length === 0) {
+    return <span className="text-xs text-muted-foreground">{empty}</span>;
+  }
+  const shown = items.slice(0, max);
+  const overflow = items.slice(max);
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {shown.map(item => <Token key={item} mono={mono}>{item}</Token>)}
+      {overflow.length > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex h-5 cursor-default items-center rounded-sm border border-dashed border-border px-1.5 text-[11px] leading-none text-muted-foreground">
+                +{overflow.length}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-56">
+              {overflow.join(', ')}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  );
+};
 
-const PropRow: React.FC<{ label: string; value: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
-  <div className="flex items-center gap-2 py-1.5">
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-24 shrink-0">{label}</span>
-    <div className={cn("text-xs text-foreground/80 min-w-0 truncate", mono && "font-mono")}>{value}</div>
+/** One row of the spec grid: micro-caps label on a fixed rail, value on the right. */
+const SpecRow: React.FC<{ label: string; children: React.ReactNode; aside?: React.ReactNode }> = ({
+  label, children, aside,
+}) => (
+  <div className="grid grid-cols-[6.5rem_1fr] items-start gap-3 px-4 py-2.5">
+    <span className="pt-px text-[10px] font-semibold uppercase leading-4 tracking-wider text-muted-foreground">
+      {label}
+    </span>
+    <div className="flex min-w-0 items-start justify-between gap-2">
+      <div className="min-w-0 text-xs leading-5 text-foreground/90">{children}</div>
+      {aside && <div className="shrink-0 pt-px">{aside}</div>}
+    </div>
   </div>
 );
 
@@ -95,88 +138,129 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const validityLabel = getValidityLabel(profile);
-  const certificateScope = profile.sign_as_ca ? 'CA certs' : 'End-entity';
-  const subjectMode = profile.honor_subject ? 'Follows CSR' : 'Override';
-
-  const { ku, eku } = getExtensionRows(profile);
-  const cryptoRules = getCryptoRules(profile);
+  const cryptoTokens = getCryptoRules(profile);
+  const keyUsages = (profile.key_usage ?? []).map(humanizeUsage);
+  const extendedKeyUsages = (profile.extended_key_usages ?? []).map(humanizeUsage);
+  const hasActions = Boolean(onEdit || onDelete || onViewUsage);
 
   return (
     <>
-      <Card className={cn("overflow-hidden", className)}>
-
-        {/* ── Header ── */}
-        <CardHeader className="px-4 border-b">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm font-semibold tracking-tight leading-none text-primary">{profile.name}</CardTitle>
-              {profile.description && (
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{profile.description}</p>
-              )}
+      <Card
+        className={cn(
+          "group/profile h-full gap-0 py-0 transition-shadow duration-200",
+          hasActions && "hover:shadow-md",
+          className
+        )}
+      >
+        {/* ── Identity ── */}
+        <CardHeader className="gap-0 border-b bg-muted/30 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <div className="mt-px shrink-0 rounded-md border border-primary/20 bg-primary/10 p-1.5">
+              {profile.sign_as_ca
+                ? <Landmark className="h-4 w-4 text-primary" />
+                : <ScrollText className="h-4 w-4 text-primary" />}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              {profile.sign_as_ca && <StatusBadge>CA</StatusBadge>}
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-semibold leading-5 tracking-tight" title={profile.name}>
+                {profile.name}
+              </h3>
+              <p className="mt-0.5 line-clamp-1 text-xs leading-4 text-muted-foreground">
+                {profile.description || 'No description'}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Badge
+                variant="outline"
+                className="h-5 rounded-sm bg-card px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+              >
+                {profile.sign_as_ca ? 'CA' : 'End entity'}
+              </Badge>
+              {hasActions && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="-mr-1.5 h-7 w-7" title="Profile actions">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Profile actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onEdit && (
+                      <DropdownMenuItem onClick={onEdit}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit profile
+                      </DropdownMenuItem>
+                    )}
+                    {onViewUsage && (
+                      <DropdownMenuItem onClick={onViewUsage}>
+                        <Users className="mr-2 h-4 w-4" /> Show usage
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => setIsDetailsModalOpen(true)}>
+                      <Braces className="mr-2 h-4 w-4" /> View raw JSON
+                    </DropdownMenuItem>
+                    {onDelete && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </CardHeader>
 
-        {/* ── Property list ── */}
-        <CardContent className="px-4 py-1 divide-y">
-          <PropRow label="Validity" value={validityLabel} mono />
-          <PropRow label="Scope" value={certificateScope} />
-          <PropRow label="Subject" value={subjectMode} />
-          <PropRow label="Key usage" value={<div className="flex items-center gap-1.5"><HonorToken honors={ku.honors} /><span>{ku.value}</span></div>} />
-          <PropRow label="Ext. key usage" value={<div className="flex items-center gap-1.5"><HonorToken honors={eku.honors} /><span>{eku.value}</span></div>} />
-          <div className="flex items-center gap-2 py-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-24 shrink-0">Crypto</span>
-            <div className="flex flex-1 items-center gap-1 min-w-0">
-              {cryptoRules ? (
-                <>
-                  <div className="flex flex-wrap gap-1">
-                    {cryptoRules.rsa !== null && (cryptoRules.rsa.length > 0 ? cryptoRules.rsa.map(s => <AlgoBadge key={`rsa-${s}`}>RSA-{s}</AlgoBadge>) : <AlgoBadge>RSA</AlgoBadge>)}
-                    {cryptoRules.ecdsa !== null && (cryptoRules.ecdsa.length > 0 ? cryptoRules.ecdsa.map(s => <AlgoBadge key={`ec-${s}`}>EC {s}</AlgoBadge>) : <AlgoBadge>ECDSA</AlgoBadge>)}
-                  </div>
-                  <span className="ml-auto shrink-0"><StatusBadge><ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Enforced</StatusBadge></span>
-                </>
-              ) : (
-                <span className="text-xs text-foreground/80">Not enforced</span>
-              )}
-            </div>
-          </div>
+        {/* ── Specification ── */}
+        <CardContent className="flex-1 divide-y divide-border/60 px-0 py-0">
+          <SpecRow label="Validity">
+            <span className="font-mono">{validityLabel}</span>
+          </SpecRow>
+
+          <SpecRow label="Subject" aside={<SourceTag honors={profile.honor_subject} />}>
+            {profile.honor_subject
+              ? 'Copied verbatim from the request'
+              : 'Replaced by profile values'}
+          </SpecRow>
+
+          <SpecRow label="Key usage" aside={<SourceTag honors={profile.honor_key_usage} />}>
+            {profile.honor_key_usage
+              ? <span className="text-muted-foreground">Taken from the request</span>
+              : <TokenList items={keyUsages} />}
+          </SpecRow>
+
+          <SpecRow label="Ext. usage" aside={<SourceTag honors={profile.honor_extended_key_usages} />}>
+            {profile.honor_extended_key_usages
+              ? <span className="text-muted-foreground">Taken from the request</span>
+              : <TokenList items={extendedKeyUsages} />}
+          </SpecRow>
+
+          <SpecRow
+            label="Key policy"
+            aside={cryptoTokens ? (
+              <span className="inline-flex items-center gap-1 rounded-sm border border-primary/25 bg-primary/5 px-1.5 py-px text-[10px] font-medium uppercase tracking-wider text-primary">
+                <ShieldCheck className="h-3 w-3" /> Enforced
+              </span>
+            ) : undefined}
+          >
+            {cryptoTokens
+              ? <TokenList items={cryptoTokens} mono empty="No algorithms allowed" />
+              : <span className="text-muted-foreground">Any algorithm accepted</span>}
+          </SpecRow>
         </CardContent>
 
-        {/* ── Footer ── */}
-        {onEdit && onDelete && (
-          <CardFooter className="px-3 py-2 flex items-center justify-between border-t bg-muted/5">
-            <div className="flex items-center gap-0.5">
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => setIsDetailsModalOpen(true)}>
-                <Eye className="mr-1 h-3 w-3" />
-                Raw
-              </Button>
-              {onViewUsage && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={onViewUsage}>
-                  <Users className="mr-1 h-3 w-3" />
-                  Usage
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-0.5">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={onDelete}
-              >
-                <Trash2 className="mr-1 h-3 w-3" />
-                Delete
-              </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={onEdit}>
-                <Edit className="mr-1 h-3 w-3" />
-                Edit
-              </Button>
-            </div>
-          </CardFooter>
-        )}
+        {/* ── Identifier / quick actions ── */}
+        <CardFooter className="justify-between gap-3 border-t bg-muted/20 px-4 py-2">
+          <span className="truncate font-mono text-[11px] text-muted-foreground" title={profile.id}>
+            {profile.id}
+          </span>
+          {hasActions && onEdit && (
+            <Button variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" onClick={onEdit}>
+              <Edit className="mr-1.5 h-3 w-3" /> Edit
+            </Button>
+          )}
+        </CardFooter>
       </Card>
 
       <Sheet open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
