@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, Copy, Check, ChevronDown, Lock, Edit, Delete } from "lucide-react";
 import { sileo } from '@/lib/toast';
@@ -817,19 +818,36 @@ export default function KmsKeyDetailsClient() {
 
           <div className="py-3 lg:pl-6 lg:pr-1">
             <p className="text-xs font-medium text-muted-foreground">Inventory</p>
-            <div className="mt-1 grid grid-cols-3 gap-x-4 gap-y-2">
-              <div>
-                <p className="text-sm font-semibold tabular-nums">{keyAliases.length}</p>
-                <p className="text-xs text-muted-foreground">{keyAliases.length === 1 ? 'Alias' : 'Aliases'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold tabular-nums">{keyTags.length}</p>
-                <p className="text-xs text-muted-foreground">{keyTags.length === 1 ? 'Tag' : 'Tags'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold tabular-nums">{boundCertificateResources.length}</p>
-                <p className="text-xs text-muted-foreground">{boundCertificateResources.length === 1 ? 'Linked cert' : 'Linked certs'}</p>
-              </div>
+            <div className="mt-1">
+              {boundCertificateResources.length === 0 ? (
+                <span className="text-xs text-muted-foreground">No linked certs</span>
+              ) : (
+                (() => {
+                  const maxVisible = 3;
+                  const visibleResources = boundCertificateResources.slice(0, maxVisible);
+                  const remainingCount = boundCertificateResources.length - maxVisible;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold tabular-nums">{boundCertificateResources.length}</p>
+                      <AvatarGroup>
+                        {visibleResources.map((resource, idx) => {
+                          const label = resource.resource_type.charAt(0).toUpperCase();
+                          return (
+                            <Avatar key={idx} title={`${resource.resource_type}: ${resource.resource_id}`}>
+                              <AvatarFallback className="bg-primary text-secondary">
+                                {label}
+                              </AvatarFallback>
+                            </Avatar>
+                          );
+                        })}
+                        {remainingCount > 0 && (
+                          <AvatarGroupCount>+{remainingCount}</AvatarGroupCount>
+                        )}
+                      </AvatarGroup>
+                    </div>
+                  );
+                })()
+              )}
             </div>
           </div>
         </div>
