@@ -71,8 +71,8 @@ export default function KmsKeysPage() {
   const [debouncedAliasSearchTerm, setDebouncedAliasSearchTerm] = useState<string>('');
   const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
   const [debouncedMetadataFilters, setDebouncedMetadataFilters] = useState<MetadataFilter[]>([]);
-  const [engineIdFilter, setEngineIdFilter] = useState<string>('');
-  const [debouncedEngineIdFilter, setDebouncedEngineIdFilter] = useState<string>('');
+  const [engineIdFilter, setEngineIdFilter] = useState<string[]>([]);
+  const [debouncedEngineIdFilter, setDebouncedEngineIdFilter] = useState<string[]>([]);
   const [algorithmFilters, setAlgorithmFilters] = useState<string[]>([]);
   const [debouncedAlgorithmFilters, setDebouncedAlgorithmFilters] = useState<string[]>([]);
   const [privateKeyFilter, setPrivateKeyFilter] = useState<KmsPrivateKeyFilterValue>(DEFAULT_KMS_PRIVATE_KEY_FILTER);
@@ -171,10 +171,11 @@ export default function KmsKeysPage() {
         params.append('filter', `name[contains_ignorecase]${debouncedAliasSearchTerm.trim()}`);
       }
 
-      // Add crypto engine filter if selected
-      const trimmedEngineId = debouncedEngineIdFilter.trim();
-      if (trimmedEngineId !== '') {
-        params.append('filter', `engine_id[equal]${trimmedEngineId}`);
+      // Add crypto engine filters if provided (single -> equal, multiple -> in)
+      if (debouncedEngineIdFilter.length === 1) {
+        params.append('filter', `engine_id[equal]${debouncedEngineIdFilter[0]}`);
+      } else if (debouncedEngineIdFilter.length > 1) {
+        params.append('filter', `engine_id[in]${debouncedEngineIdFilter.join(',')}`);
       }
 
       // Add algorithm filters if provided (single -> equal, multiple -> in)

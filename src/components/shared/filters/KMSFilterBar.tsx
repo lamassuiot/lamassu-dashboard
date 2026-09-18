@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { X } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
-import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
+import { CryptoEngineMultiSelector } from '@/components/shared/CryptoEngineMultiSelector';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 import {
@@ -25,8 +23,8 @@ interface KMSFilterBarProps {
   onSearchTermChange: (value: string) => void;
   metadataFilters: MetadataFilter[];
   onMetadataFiltersChange: (value: MetadataFilter[]) => void;
-  engineIdFilter?: string;
-  onEngineIdFilterChange?: (value: string) => void;
+  engineIdFilter?: string[];
+  onEngineIdFilterChange?: (value: string[]) => void;
   cryptoEngines?: ApiCryptoEngine[];
   algorithmFilters?: string[];
   onAlgorithmFiltersChange?: (value: string[]) => void;
@@ -44,7 +42,7 @@ interface KMSFilterBarProps {
 interface KMSFilterValues {
   searchTerm: string;
   metadataFilters: MetadataFilter[];
-  engineIdFilter: string;
+  engineIdFilter: string[];
   algorithmFilters: string[];
   privateKeyFilter: KmsPrivateKeyFilterValue;
   tagsFilter: string;
@@ -78,7 +76,7 @@ export function KMSFilterBar({
   onSearchTermChange,
   metadataFilters,
   onMetadataFiltersChange,
-  engineIdFilter = '',
+  engineIdFilter = [],
   onEngineIdFilterChange,
   cryptoEngines = [],
   algorithmFilters = [],
@@ -124,43 +122,32 @@ export function KMSFilterBar({
           label: 'Crypto Engine',
           type: 'custom',
           visibility: 'advanced',
-          renderControl: ({ id, value, clearValue, disabled: controlDisabled }) => (
-            <div className="relative">
-              <CryptoEngineSelector
-                id={id}
-                value={typeof value === 'string' && value ? value : undefined}
-                onValueChange={(nextValue) => onEngineIdFilterChange(nextValue ?? '')}
-                disabled={controlDisabled}
-                autoSelectDefault={false}
-                placeholder="All Engines"
-                variant="compact"
-              />
-              {typeof value === 'string' && value && (
-                <Button
-                  variant="ghost"
-                  onClick={clearValue}
-                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
-                  title="Clear crypto engine filter"
-                  disabled={controlDisabled}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+          renderControl: ({ id, value, disabled: controlDisabled }) => (
+            <CryptoEngineMultiSelector
+              id={id}
+              engines={cryptoEngines}
+              value={Array.isArray(value) ? (value as string[]) : []}
+              onValueChange={onEngineIdFilterChange}
+              disabled={controlDisabled}
+              placeholder="All Engines"
+            />
           ),
           getActiveBadges: (fieldValue, _currentValues, helpers) => {
-            const selectedEngineId = typeof fieldValue === 'string' ? fieldValue.trim() : '';
-            if (!selectedEngineId) return [];
-            const selectedEngine = cryptoEngines.find((engine) => engine.id === selectedEngineId);
+            const selectedEngineIds = Array.isArray(fieldValue) ? (fieldValue as string[]) : [];
+            if (selectedEngineIds.length === 0) return [];
+            const labels = selectedEngineIds.map((engineId) => {
+              const engine = cryptoEngines.find((item) => item.id === engineId);
+              return engine?.name || engineId;
+            });
             return [
               {
                 key: 'kms-engine',
-                label: `Crypto Engine: ${selectedEngine?.name || selectedEngineId}`,
+                label: `Crypto Engine: ${labels.join(', ')}`,
                 onRemove: () => helpers.clearField('engineIdFilter'),
               },
             ];
           },
-          getClearValue: () => '',
+          getClearValue: () => [],
         } satisfies GenericFilterField<KMSFilterValues>]
       : []),
     ...(onAlgorithmFiltersChange
@@ -237,7 +224,7 @@ export function KMSFilterBar({
             onMetadataFiltersChange((Array.isArray(value) ? value : []) as MetadataFilter[]);
             break;
           case 'engineIdFilter':
-            onEngineIdFilterChange?.(String(value ?? ''));
+            onEngineIdFilterChange?.((Array.isArray(value) ? value : []) as string[]);
             break;
           case 'algorithmFilters':
             onAlgorithmFiltersChange?.((Array.isArray(value) ? value : []) as string[]);
@@ -259,7 +246,7 @@ export function KMSFilterBar({
       onClearAll={() => {
         onSearchTermChange('');
         onMetadataFiltersChange([]);
-        onEngineIdFilterChange?.('');
+        onEngineIdFilterChange?.([]);
         onAlgorithmFiltersChange?.([]);
         onPrivateKeyFilterChange?.(DEFAULT_KMS_PRIVATE_KEY_FILTER);
         onTagsFilterChange?.('');

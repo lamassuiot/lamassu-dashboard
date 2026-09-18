@@ -178,9 +178,7 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({
         align="start"
         sideOffset={4}
       >
-        <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-          Select Engine
-        </DropdownMenuLabel>
+        <DropdownMenuLabel>Select options</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
         {validEngines.map(engine => {
