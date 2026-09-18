@@ -18,6 +18,12 @@ export interface CertificateData {
   // Optional fields that will be parsed on demand
   sans?: string[]; 
   signatureAlgorithm?: string;
+  /**
+   * T (traditional) / PQ (pure post-quantum) / PQ/T (hybrid), derived from the
+   * certificate's actual public key OID rather than the backend's
+   * `key_metadata.type`, which can report "0" (unknown) for composite keys.
+   */
+  algorithmFamily?: 'T' | 'PQ' | 'PQ/T';
   ocspUrls?: string[]; 
   crlDistributionPoints?: string[];
   caIssuersUrls?: string[];

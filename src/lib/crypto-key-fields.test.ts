@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 import {
+  getAllKeyTypeOptions,
   getKeySpecLabel,
   getKeySpecOptions,
   getKeyTypeDetails,
@@ -25,6 +26,8 @@ const mockEngine: ApiCryptoEngine = {
     { type: 'ML-DSA', sizes: [44, 65] },
     { type: 'SLH-DSA', sizes: [1] },
     { type: 'Composite-ML-DSA-RSA', sizes: [1] },
+    { type: 'Composite-ML-DSA-ECDSA', sizes: [9] },
+    { type: 'Composite-ML-DSA-Ed25519', sizes: [14] },
   ],
 };
 
@@ -35,8 +38,37 @@ describe('crypto-key-fields', () => {
       { value: 'ECDSA', label: 'ECDSA' },
       { value: 'ML-DSA', label: 'ML-DSA' },
       { value: 'SLH-DSA', label: 'SLH-DSA' },
-      { value: 'Composite-ML-DSA-RSA', label: 'Composite-Signature' },
+      { value: 'Composite-ML-DSA-RSA', label: 'Composite-ML-DSA-RSA' },
+      { value: 'Composite-ML-DSA-ECDSA', label: 'Composite-ML-DSA-ECDSA' },
+      { value: 'Composite-ML-DSA-Ed25519', label: 'Composite-ML-DSA-Ed25519' },
     ]);
+  });
+
+  it('lists every key type grouped by family, disabling ones the engine does not support', () => {
+    const options = getAllKeyTypeOptions(mockEngine);
+
+    expect(options.map((o) => [o.value, o.group, o.disabled])).toEqual([
+      ['RSA', 'T (Traditional)', false],
+      ['ECDSA', 'T (Traditional)', false],
+      ['Ed25519', 'T (Traditional)', true],
+      ['ML-DSA', 'PQ (Pure PQC)', false],
+      ['SLH-DSA', 'PQ (Pure PQC)', false],
+      ['Composite-ML-DSA-RSA', 'PQ/T (Hybrid)', false],
+      ['Composite-ML-DSA-ECDSA', 'PQ/T (Hybrid)', false],
+      ['Composite-ML-DSA-Ed25519', 'PQ/T (Hybrid)', false],
+    ]);
+  });
+
+  it('names composite ML-DSA-ECDSA and ML-DSA-Ed25519 key specs from the shared parameter-set table, not bare numbers', () => {
+    const ecdsaSpecs = getKeySpecOptions('Composite-ML-DSA-ECDSA', getKeyTypeDetails(mockEngine, 'Composite-ML-DSA-ECDSA'));
+    expect(ecdsaSpecs).toEqual([{ value: '9', label: '9 - MLDSA44-ECDSA-P256-SHA256' }]);
+
+    const ed25519Specs = getKeySpecOptions('Composite-ML-DSA-Ed25519', getKeyTypeDetails(mockEngine, 'Composite-ML-DSA-Ed25519'));
+    expect(ed25519Specs).toEqual([{ value: '14', label: '14 - MLDSA44-Ed25519-SHA512' }]);
+  });
+
+  it('disables every key type when no engine is selected', () => {
+    expect(getAllKeyTypeOptions(undefined).every((o) => o.disabled)).toBe(true);
   });
 
   it('normalizes ECDSA and ML-DSA size options to shared canonical values', () => {

@@ -1,6 +1,7 @@
 import type { PublicKeyInfo, RelativeDistinguishedNames } from "pkijs";
-import { SIGNATURE_OID_MAP } from "./constants";
+import { OPAQUE_SIGNATURE_ALGORITHMS, SIGNATURE_OID_MAP } from "./constants";
 import { getSignatureAlgorithmLabel } from "@/lib/crypto-key-fields";
+import { formatSignatureAlgorithm } from "@/lib/pqc";
 
 /**
  * Single source of truth for X.509/PKCS#10 OID → human-readable-name lookups.
@@ -37,6 +38,18 @@ for (const [algorithmId, oid] of Object.entries(SIGNATURE_OID_MAP)) {
   OID_TO_ALGORITHM_LABEL[oid] = getSignatureAlgorithmLabel(algorithmId);
 }
 
+/**
+ * ML-DSA, SLH-DSA, composite ML-DSA, and Ed25519 use the same algorithm
+ * identifier (and OID) for both the public key and the signature — unlike
+ * RSA/ECDSA, which use a generic public-key OID plus a hash-specific
+ * signature OID. Their labels include the parameter set (e.g. `SLH-DSA-SHAKE-128f`).
+ */
+const OPAQUE_OID_TO_ALGORITHM_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(SIGNATURE_OID_MAP)
+    .filter(([algorithmId]) => OPAQUE_SIGNATURE_ALGORITHMS.has(algorithmId))
+    .map(([algorithmId, oid]) => [oid, formatSignatureAlgorithm(algorithmId)]),
+);
+
 /** Formats a pkijs `RelativeDistinguishedNames` object, e.g. `CN=example.com, O=ACME, C=US`. */
 export function formatDistinguishedName(subject: RelativeDistinguishedNames): string {
   return subject.typesAndValues
@@ -50,6 +63,9 @@ export function formatDistinguishedName(subject: RelativeDistinguishedNames): st
  */
 export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
+  const opaqueLabel = OPAQUE_OID_TO_ALGORITHM_LABEL[algoOid];
+  if (opaqueLabel) return opaqueLabel;
+
   const algoName = PUBLIC_KEY_ALGORITHM_OID_MAP[algoOid] ?? OID_TO_ALGORITHM_LABEL[algoOid] ?? algoOid;
   let details = "";
   if (algoName === "EC" && (publicKeyInfo.algorithm as any).parameters?.valueBlock) {
@@ -65,5 +81,5 @@ export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
 
 /** Resolves a signature-algorithm OID to a human-readable label, falling back to the raw OID. */
 export function resolveSignatureAlgorithmLabel(oid: string): string {
-  return OID_TO_ALGORITHM_LABEL[oid] ?? oid;
+  return OPAQUE_OID_TO_ALGORITHM_LABEL[oid] ?? OID_TO_ALGORITHM_LABEL[oid] ?? oid;
 }

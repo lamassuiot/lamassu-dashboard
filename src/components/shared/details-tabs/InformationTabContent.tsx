@@ -23,6 +23,7 @@ import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { differenceInDays, isPast, parseISO } from 'date-fns';
@@ -249,7 +250,21 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </div>
           <div className="lg:col-span-2">
             <DetailInfoRows>
-              <DetailInfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow
+                label="Public Key Algorithm"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span>{caDetails.keyAlgorithm || 'N/A'}</span>
+                    {caDetails.rawApiData?.certificate?.key_metadata && (
+                      <KeyStrengthIndicator
+                        algorithm={caDetails.rawApiData.certificate.key_metadata.type}
+                        size={caDetails.rawApiData.certificate.key_metadata.bits ?? caDetails.rawApiData.certificate.key_metadata.curve_name}
+                      />
+                    )}
+                  </div>
+                }
+                className="first:pt-0"
+              />
               <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} /> : 'N/A'} />
               <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} /> : 'N/A'} className="last:pb-0" />
@@ -487,7 +502,21 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </div>
           <div className="lg:col-span-2">
             <DetailInfoRows>
-              <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow
+                label="Public Key Algorithm"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span>{certDetails.publicKeyAlgorithm || 'N/A'}</span>
+                    {certDetails.rawApiData?.key_metadata && (
+                      <KeyStrengthIndicator
+                        algorithm={certDetails.rawApiData.key_metadata.type}
+                        size={certDetails.rawApiData.key_metadata.bits ?? certDetails.rawApiData.key_metadata.curve_name}
+                      />
+                    )}
+                  </div>
+                }
+                className="first:pt-0"
+              />
               <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow
                 label="SHA-256 Fingerprint"

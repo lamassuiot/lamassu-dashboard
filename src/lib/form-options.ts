@@ -37,19 +37,25 @@ export const MLDSA_SECURITY_LEVEL_OPTIONS = [
 /**
  * SLH-DSA (FIPS 205) parameter set metadata.
  * Keys are the numeric IDs (1–12) returned by the KMS API as the key size.
+ *
+ * Ordered to match the circl `slhdsa.ID` enum used by the KMS engine
+ * (SHA2/SHAKE alternate per security level, not grouped) — verified against
+ * a real backend-issued certificate whose reported size (4) and embedded
+ * public-key OID (arc 27, shake-128f) are only consistent with this
+ * interleaved ordering. See lib-crypto/cert-parser.test.ts.
  */
 export const SLHDSA_PARAM_SET_INFO: Record<string, { name: string; hash: string; security: string; speed: string }> = {
   '1':  { name: 'SHA2_128s',  hash: 'SHA-2',  security: '128-bit', speed: 'small sig' },
-  '2':  { name: 'SHA2_128f',  hash: 'SHA-2',  security: '128-bit', speed: 'fast sig'  },
-  '3':  { name: 'SHA2_192s',  hash: 'SHA-2',  security: '192-bit', speed: 'small sig' },
-  '4':  { name: 'SHA2_192f',  hash: 'SHA-2',  security: '192-bit', speed: 'fast sig'  },
-  '5':  { name: 'SHA2_256s',  hash: 'SHA-2',  security: '256-bit', speed: 'small sig' },
-  '6': { name: 'SHA2_256f',  hash: 'SHA-2',  security: '256-bit', speed: 'fast sig'  },
-  '7':  { name: 'SHAKE_128s', hash: 'SHAKE',  security: '128-bit', speed: 'small sig' },
-  '8':  { name: 'SHAKE_128f', hash: 'SHAKE',  security: '128-bit', speed: 'fast sig'  },
-  '9':  { name: 'SHAKE_192s', hash: 'SHAKE',  security: '192-bit', speed: 'small sig' },
-  '10':  { name: 'SHAKE_192f', hash: 'SHAKE',  security: '192-bit', speed: 'fast sig'  },
-  '11': { name: 'SHAKE_256s', hash: 'SHAKE',  security: '256-bit', speed: 'small sig' },
+  '2':  { name: 'SHAKE_128s', hash: 'SHAKE',  security: '128-bit', speed: 'small sig' },
+  '3':  { name: 'SHA2_128f',  hash: 'SHA-2',  security: '128-bit', speed: 'fast sig'  },
+  '4':  { name: 'SHAKE_128f', hash: 'SHAKE',  security: '128-bit', speed: 'fast sig'  },
+  '5':  { name: 'SHA2_192s',  hash: 'SHA-2',  security: '192-bit', speed: 'small sig' },
+  '6':  { name: 'SHAKE_192s', hash: 'SHAKE',  security: '192-bit', speed: 'small sig' },
+  '7':  { name: 'SHA2_192f',  hash: 'SHA-2',  security: '192-bit', speed: 'fast sig'  },
+  '8':  { name: 'SHAKE_192f', hash: 'SHAKE',  security: '192-bit', speed: 'fast sig'  },
+  '9':  { name: 'SHA2_256s',  hash: 'SHA-2',  security: '256-bit', speed: 'small sig' },
+  '10': { name: 'SHAKE_256s', hash: 'SHAKE',  security: '256-bit', speed: 'small sig' },
+  '11': { name: 'SHA2_256f',  hash: 'SHA-2',  security: '256-bit', speed: 'fast sig'  },
   '12': { name: 'SHAKE_256f', hash: 'SHAKE',  security: '256-bit', speed: 'fast sig'  },
 };
 
@@ -69,8 +75,8 @@ export const KEY_SPEC_OPTIONS: Record<string, { value: string, label: string }[]
 };
 
 /**
- * Human-readable display name for the `Composite-ML-DSA-RSA` key/algorithm
- * type. Kept as a single constant so every UI surface (key type dropdowns,
+ * Human-readable display name for composite (ML-DSA + traditional) key/algorithm
+ * types. Kept as a single constant so every UI surface (key type dropdowns,
  * key detail badges, signature algorithm labels) renders the same wording.
  */
 export const COMPOSITE_MLDSA_RSA_DISPLAY_NAME = 'Composite-Signature';
@@ -95,6 +101,48 @@ export const COMPOSITE_MLDSA_RSA_PARAM_SET_OPTIONS = Object.entries(COMPOSITE_ML
   label: `${id} - ${info.name}`,
 }));
 
+/**
+ * Full composite ML-DSA parameter set metadata across all three families
+ * (RSA, ECDSA, Ed25519) reported by the KMS API. Superset of
+ * `COMPOSITE_MLDSA_RSA_PARAM_SET_INFO` — use this one for anything that needs
+ * to resolve a parameter-set ID regardless of family.
+ */
+export const COMPOSITE_MLDSA_PARAM_SET_INFO: Record<string, { name: string }> = {
+  ...COMPOSITE_MLDSA_RSA_PARAM_SET_INFO,
+  '9': { name: 'MLDSA44-ECDSA-P256-SHA256' },
+  '10': { name: 'MLDSA65-ECDSA-P256-SHA512' },
+  '11': { name: 'MLDSA65-ECDSA-P384-SHA512' },
+  '12': { name: 'MLDSA87-ECDSA-P384-SHA512' },
+  '13': { name: 'MLDSA87-ECDSA-P521-SHA512' },
+  '14': { name: 'MLDSA44-Ed25519-SHA512' },
+  '15': { name: 'MLDSA65-Ed25519-SHA512' },
+};
+
+/** Algorithm families supported by KMS crypto engines, grouped for display. */
+const ALGORITHM_TYPE_GROUPS: { label: string; types: string[] }[] = [
+  { label: 'T (Traditional)', types: ['RSA', 'ECDSA', 'ED25519'] },
+  { label: 'PQ (Pure PQC)', types: ['ML-DSA', 'SLH-DSA'] },
+  { label: 'PQ/T (Hybrid)', types: ['COMPOSITE-SIGNATURE', 'COMPOSITE-ML-DSA-RSA', 'COMPOSITE-ML-DSA-ECDSA', 'COMPOSITE-ML-DSA-ED25519'] },
+];
+
+/**
+ * Groups a crypto engine's supported key types into the standard
+ * Traditional / Pure PQC / Hybrid families, keeping only the types that are
+ * actually supported and preserving the engine's reported casing.
+ */
+export function groupSupportedAlgorithms<T extends { type: string }>(
+  supportedKeyTypes: T[]
+): { label: string; options: T[] }[] {
+  return ALGORITHM_TYPE_GROUPS
+    .map((group) => ({
+      label: group.label,
+      options: group.types.flatMap((type) => {
+        const keyType = supportedKeyTypes.find(({ type: supportedType }) => supportedType.toUpperCase() === type);
+        return keyType ? [keyType] : [];
+      }),
+    }))
+    .filter((group) => group.options.length > 0);
+}
 
 // --- Key Usages ---
 export const KEY_USAGE_OPTIONS = keyUsageOptions.map((id) => ({

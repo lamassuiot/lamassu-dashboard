@@ -16,9 +16,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey, parseBoundResources, BOUND_RESOURCES_METADATA_KEY } from '@/lib/kms-data';
-import { formatKeyTypeDisplay } from '@/lib/crypto-key-fields';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { formatKmsKeyTypeDisplay, isPqcAlgorithm } from '@/lib/pqc';
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,8 +28,6 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { format } from 'date-fns';
-import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
-import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKey {
   id: string;
@@ -225,7 +224,7 @@ export default function KmsKeysPage() {
         return {
           id: apiKey.pkcs11_uri,
           name: apiKey.name,
-          keyTypeDisplay: formatKeyTypeDisplay(apiKey.algorithm, String(apiKey.size)),
+          keyTypeDisplay: formatKmsKeyTypeDisplay(apiKey.algorithm, apiKey.size),
           hasPrivateKey: apiKey.has_private_key,
           cryptoEngineId: apiKey.engine_id,
           algorithm: apiKey.algorithm,
@@ -466,10 +465,10 @@ export default function KmsKeysPage() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1.5">
                           {isPqcKey && <QuantumAlgorithmIcon />}
-                          <span>{key.keyTypeDisplay}</span>
-                        </div>
+                          {key.keyTypeDisplay}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <KeyStrengthIndicator algorithm={key.algorithm} size={key.size} />

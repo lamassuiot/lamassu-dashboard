@@ -6,9 +6,7 @@ import {
   SIGNATURE_OID_MAP,
   ECDSA_RAW_SIGNATURE_LENGTHS,
   PSS_ALGO_PARAMS,
-  MLDSA_ALGORITHMS,
-  SLHDSA_ALGORITHMS,
-  COMPOSITE_MLDSA_RSA_ALGORITHMS,
+  OPAQUE_SIGNATURE_ALGORITHMS,
 } from "./constants";
 import { ipToBuffer, arrayBufferToBase64, formatAsPem } from "./buffer-utils";
 import { getKeyImportParams } from "./key-utils";
@@ -183,9 +181,10 @@ export async function buildSignedCsr(
     (c) => c.codePointAt(0) ?? 0,
   ).buffer;
 
-  if (MLDSA_ALGORITHMS.has(signAlgorithm) || SLHDSA_ALGORITHMS.has(signAlgorithm) || COMPOSITE_MLDSA_RSA_ALGORITHMS.has(signAlgorithm)) {
-    // WebCrypto does not support ML-DSA, SLH-DSA, or composite post-quantum algorithms yet.
-    // Parse the SPKI DER directly via ASN.1 and embed it into the CSR without going through importKey.
+  if (OPAQUE_SIGNATURE_ALGORITHMS.has(signAlgorithm)) {
+    // WebCrypto does not support these post-quantum (or Ed25519) algorithms
+    // reliably. Parse the SPKI DER directly and embed it without going
+    // through importKey.
     const asn1Result = asn1js.fromBER(publicKeyDer);
     if (asn1Result.offset === -1) {
       throw new Error("Invalid post-quantum public key DER.");
@@ -253,10 +252,10 @@ export async function buildSignedCsr(
   );
 
   // --- Attach the signature value ---
-  if (MLDSA_ALGORITHMS.has(signAlgorithm) || SLHDSA_ALGORITHMS.has(signAlgorithm) || COMPOSITE_MLDSA_RSA_ALGORITHMS.has(signAlgorithm)) {
-    // ML-DSA, SLH-DSA, and composite signatures are opaque byte strings — no DER r||s structure.
-    // Client-side verification is not possible without WebCrypto post-quantum
-    // support, so we trust the KMS and skip it.
+  if (OPAQUE_SIGNATURE_ALGORITHMS.has(signAlgorithm)) {
+    // These signatures are opaque byte strings — no DER r||s structure.
+    // Client-side verification is not possible without WebCrypto support
+    // for the algorithm, so we trust the KMS and skip it.
     pkcs10.signatureValue = new asn1js.BitString({ valueHex: rawSignature.buffer });
     console.log("CSR signed with post-quantum algorithm (", signAlgorithm, ") — client-side verification skipped (WebCrypto not supported).");
   } else if (!signAlgorithm.startsWith("RSA")) {
