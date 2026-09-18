@@ -27,10 +27,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
-import { isPqcAlgorithm } from '@/lib/pqc';
 import { parseISO, differenceInDays, isPast } from 'date-fns';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { Progress } from '@/components/ui/progress';
+import { ALGORITHM_FAMILY_LABELS, getAlgorithmFamily } from '@/lib/pqc';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -488,16 +489,32 @@ export default function CertificateDetailsClient() { // Renamed component
               >
                 {copiedSn ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
               </Button>
-              {certificateDetails.publicKeyAlgorithm && (
-                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2 text-xs text-muted-foreground">
-                  {isPqcAlgorithm(certificateDetails.publicKeyAlgorithm) ? (
-                    <QuantumAlgorithmIcon className="h-3 w-3 shrink-0" />
-                  ) : (
-                    <KeyRound className="h-3 w-3 shrink-0" />
-                  )}
-                  {certificateDetails.publicKeyAlgorithm}
-                </span>
-              )}
+              {certificateDetails.publicKeyAlgorithm && (() => {
+                const family = certificateDetails.algorithmFamily ?? getAlgorithmFamily(certificateDetails.publicKeyAlgorithm);
+                const keyMetadata = certificateDetails.rawApiData?.key_metadata;
+                return (
+                  <>
+                    <span className="inline-flex h-auto min-h-6 flex-wrap items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      <KeyRound className="h-3 w-3 shrink-0" />
+                      {certificateDetails.publicKeyAlgorithm}
+                      {keyMetadata && (
+                        <KeyStrengthIndicator
+                          algorithm={keyMetadata.type}
+                          size={keyMetadata.bits ?? keyMetadata.curve_name}
+                          variant="selector"
+                        />
+                      )}
+                    </span>
+                    <span
+                      className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2 text-xs text-muted-foreground"
+                      title={ALGORITHM_FAMILY_LABELS[family]}
+                    >
+                      {family !== 'T' && <QuantumAlgorithmIcon />}
+                      {family}
+                    </span>
+                  </>
+                );
+              })()}
             </div>
           </div>
 

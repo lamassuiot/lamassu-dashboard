@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatISO } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { CardSelector } from '@/components/shared/CardSelector';
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,7 +23,7 @@ import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { KmsKeySelector } from '@/components/shared/KmsKeySelector';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { Stepper } from '@/components/shared/Stepper';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { COMPOSITE_MLDSA_PARAM_SET_INFO, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { CLIENT_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile, type CreateCertificateIssuanceProfile, type CreateCertificateKeySpec, type CreateCertificatePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
@@ -35,6 +35,7 @@ import type { ApiKmsKey } from '@/lib/kms-data';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:58.999Z";
 
@@ -44,6 +45,11 @@ const ECDSA_CURVE_BITS: Record<string, number> = {
     'P-384': 384,
     'P-521': 521,
 };
+
+const DEFAULT_KEY_TYPES = [
+    { type: 'RSA', sizes: RSA_KEY_SIZE_OPTIONS.map(({ value }) => value) },
+    { type: 'ECDSA', sizes: ECDSA_CURVE_OPTIONS.map(({ value }) => value) },
+];
 
 function formatValidityForApi(config: ExpirationConfig): { type: "Duration" | "Date"; duration?: string; time?: string } {
     if (config.type === "Duration") return { type: "Duration", duration: config.durationValue };
@@ -79,6 +85,7 @@ export default function CreateCertificateClient() {
     const [keyType, setKeyType] = useState('RSA');
     const [rsaKeySize, setRsaKeySize] = useState('2048');
     const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
+    const [otherKeySpec, setOtherKeySpec] = useState('');
     const [engineId, setEngineId] = useState<string | undefined>(undefined);
     const [kmsKeyIdentifier, setKmsKeyIdentifier] = useState('');
 
@@ -100,8 +107,102 @@ export default function CreateCertificateClient() {
     const [allProfiles, setAllProfiles] = useState<ApiSigningProfile[]>([]);
     const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
+    const selectedEngine = useMemo(
+        () => allCryptoEngines.find(engine => engine.id === engineId),
+        [allCryptoEngines, engineId],
+    );
+    const supportedKeyTypes = useMemo(
+        () => selectedEngine?.supported_key_types ?? DEFAULT_KEY_TYPES,
+        [selectedEngine],
+    );
+    const keyTypeGroups = useMemo(() => [
+        { label: 'T (Traditional)', types: ['RSA', 'ECDSA', 'ED25519'] },
+        { label: 'PQ (Pure PQC)', types: ['ML-DSA', 'SLH-DSA'] },
+        {
+            label: 'PQ/T (Hybrid)',
+            types: ['COMPOSITE-SIGNATURE', 'COMPOSITE-ML-DSA-RSA', 'COMPOSITE-ML-DSA-ECDSA', 'COMPOSITE-ML-DSA-ED25519'],
+        },
+    ].map(group => ({
+        ...group,
+        options: group.types.flatMap(type => {
+            const supportedKeyType = supportedKeyTypes.find(({ type: supportedType }) => supportedType.toUpperCase() === type);
+            return supportedKeyType ? [{ value: supportedKeyType.type, label: supportedKeyType.type }] : [];
+        }),
+    })).filter(group => group.options.length > 0), [supportedKeyTypes]);
+
+    const currentKeySpecOptions = useMemo(() => {
+        const keyTypeDetail = supportedKeyTypes.find(({ type }) => type.toUpperCase() === keyType.toUpperCase());
+        if (!keyTypeDetail) return [];
+
+        return keyTypeDetail.sizes.map(size => {
+            const value = String(size);
+            if (keyType.toUpperCase() === 'ECDSA') {
+                const curve = ECDSA_CURVE_OPTIONS.find(option => option.value === value);
+                return curve ?? { value, label: `Unknown Curve ${value}` };
+            }
+            const compositeInfo = keyType.toUpperCase().startsWith('COMPOSITE')
+                ? COMPOSITE_MLDSA_PARAM_SET_INFO[value]
+                : undefined;
+            return { value, label: compositeInfo ? `${value} - ${compositeInfo.name}` : value };
+        });
+    }, [keyType, supportedKeyTypes]);
+
+    const keySpecLabel = useMemo(() => {
+        if (keyType.toUpperCase() === 'RSA') return 'RSA Key Size';
+        if (keyType.toUpperCase() === 'ECDSA') return 'ECDSA Curve';
+        if (keyType.toUpperCase().startsWith('COMPOSITE')) return 'Composite Parameter Set';
+        return 'Key Specification';
+    }, [keyType]);
+
+    const currentKeySpecValue = keyType.toUpperCase() === 'RSA'
+        ? rsaKeySize
+        : keyType.toUpperCase() === 'ECDSA'
+            ? ecdsaCurve
+            : otherKeySpec;
+
+    const setCurrentKeySpecValue = (value: string) => {
+        if (keyType.toUpperCase() === 'RSA') setRsaKeySize(value);
+        else if (keyType.toUpperCase() === 'ECDSA') setEcdsaCurve(value);
+        else setOtherKeySpec(value);
+    };
+
+    const selectKeyType = (value: string) => {
+        setKeyType(value);
+        const keyTypeDetail = supportedKeyTypes.find(({ type }) => type === value);
+        const firstSize = keyTypeDetail?.sizes[0];
+        if (firstSize === undefined) return;
+        if (value.toUpperCase() === 'RSA') setRsaKeySize(String(firstSize));
+        else if (value.toUpperCase() === 'ECDSA') setEcdsaCurve(String(firstSize));
+        else setOtherKeySpec(String(firstSize));
+    };
+
+    const selectCryptoEngine = (value: string | undefined) => {
+        setEngineId(value);
+        if (!value) {
+            setKeyType('RSA');
+            setRsaKeySize('2048');
+            return;
+        }
+        const engine = allCryptoEngines.find(candidate => candidate.id === value);
+        if (!engine?.supported_key_types.length) return;
+        const matchingKeyType = engine.supported_key_types.find(({ type }) => type.toUpperCase() === keyType.toUpperCase());
+        const nextKeyType = matchingKeyType ?? engine.supported_key_types[0];
+        const keyTypeChanged = nextKeyType.type !== keyType;
+        const keySpecSupported = nextKeyType.sizes.some(size => String(size) === currentKeySpecValue);
+        if (keyTypeChanged) setKeyType(nextKeyType.type);
+        if (keyTypeChanged || !keySpecSupported) {
+            const firstSize = nextKeyType.sizes[0];
+            if (firstSize !== undefined) {
+                if (nextKeyType.type.toUpperCase() === 'RSA') setRsaKeySize(String(firstSize));
+                else if (nextKeyType.type.toUpperCase() === 'ECDSA') setEcdsaCurve(String(firstSize));
+                else setOtherKeySpec(String(firstSize));
+            }
+        }
+    };
+
     const validationErrors = [
         ...(!selectedCa ? ['Signing CA: Certification Authority is required.'] : []),
+        ...(keyMode === 'generate' && !currentKeySpecValue ? ['Key Configuration: Key specification is required.'] : []),
         ...(keyMode === 'reuse' && !kmsKeyIdentifier.trim() ? ['Key Configuration: KMS Key Identifier is required.'] : []),
         ...(!commonName.trim() ? ['Subject: Common Name is required.'] : []),
         ...(profileMode === 'reuse' && !profileId.trim() ? ['Issuance Profile: select a signing profile.'] : []),
@@ -162,6 +263,7 @@ export default function CreateCertificateClient() {
     const validate = (): string | null => {
         if (!selectedCa) return "Please select a Signing CA.";
         if (!commonName.trim()) return "Common Name is required.";
+        if (keyMode === 'generate' && !currentKeySpecValue) return "Please select a key specification.";
         if (keyMode === 'reuse' && !kmsKeyIdentifier.trim()) return "Please provide a KMS Key Identifier.";
         if (profileMode === 'reuse' && !profileId.trim()) return "Please select a signing profile.";
         return null;
@@ -177,7 +279,9 @@ export default function CreateCertificateClient() {
         const keySpec: CreateCertificateKeySpec = keyMode === 'generate'
             ? {
                 type: keyType,
-                bits: keyType === 'RSA' ? parseInt(rsaKeySize, 10) : ECDSA_CURVE_BITS[ecdsaCurve],
+                bits: keyType.toUpperCase() === 'ECDSA'
+                    ? ECDSA_CURVE_BITS[currentKeySpecValue] ?? parseInt(currentKeySpecValue.replace('P-', ''), 10)
+                    : parseInt(currentKeySpecValue, 10),
                 ...(engineId ? { engine_id: engineId } : {}),
             }
             : { key_identifier: kmsKeyIdentifier.trim() };
@@ -321,52 +425,50 @@ export default function CreateCertificateClient() {
 
                             {keyMode === 'generate' && (
                                 <div className="space-y-4 pt-2">
+                                    <div className="space-y-1.5">
+                                        <Label>
+                                            Crypto Engine{' '}
+                                            <span className="text-muted-foreground font-normal">(optional, defaults to the service default)</span>
+                                        </Label>
+                                        <CryptoEngineSelector value={engineId} onValueChange={selectCryptoEngine} />
+                                        <p className="text-xs text-muted-foreground">Choose an engine to see its supported PQC and hybrid algorithms.</p>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
                                             <Label htmlFor="cc-keyType">Key Type</Label>
-                                            <Select value={keyType} onValueChange={setKeyType}>
+                                            <Select value={keyType} onValueChange={selectKeyType}>
                                                 <SelectTrigger id="cc-keyType"><SelectValue /></SelectTrigger>
                                                 <SelectContent>
-                                                    {KEY_TYPE_OPTIONS.map(opt => (
-                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                    {keyTypeGroups.map((group, index) => (
+                                                        <React.Fragment key={group.label}>
+                                                            {index > 0 && <SelectSeparator />}
+                                                            <SelectGroup>
+                                                                <SelectLabel>{group.label}</SelectLabel>
+                                                                {group.options.map(option => (
+                                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                                ))}
+                                                            </SelectGroup>
+                                                        </React.Fragment>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>
                                         <div className="space-y-1.5">
-                                            {keyType === 'RSA' ? (
-                                                <>
-                                                    <Label htmlFor="cc-rsaKeySize">Key Size</Label>
-                                                    <Select value={rsaKeySize} onValueChange={setRsaKeySize}>
-                                                        <SelectTrigger id="cc-rsaKeySize"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {RSA_KEY_SIZE_OPTIONS.map(opt => (
-                                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Label htmlFor="cc-ecdsaCurve">Curve</Label>
-                                                    <Select value={ecdsaCurve} onValueChange={setEcdsaCurve}>
-                                                        <SelectTrigger id="cc-ecdsaCurve"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {ECDSA_CURVE_OPTIONS.map(opt => (
-                                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </>
-                                            )}
+                                            <Label htmlFor="cc-keySpec">{keySpecLabel}</Label>
+                                            <Select value={currentKeySpecValue} onValueChange={setCurrentKeySpecValue}>
+                                                <SelectTrigger id="cc-keySpec"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    {currentKeySpecOptions.map(option => (
+                                                        <SelectItem key={option.value} value={option.value} textValue={option.label}>
+                                                            <div className="flex w-full items-center justify-between gap-3">
+                                                                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                                                                <KeyStrengthIndicator algorithm={keyType} size={option.value} variant="selector" />
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>
-                                            Crypto Engine{' '}
-                                            <span className="text-muted-foreground font-normal">(optional — defaults to service default)</span>
-                                        </Label>
-                                        <CryptoEngineSelector value={engineId} onValueChange={setEngineId} />
                                     </div>
                                 </div>
                             )}

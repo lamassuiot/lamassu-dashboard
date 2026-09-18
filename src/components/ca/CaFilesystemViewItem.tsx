@@ -48,7 +48,9 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
   const hierarchyIndent = isTopLevel
     ? hierarchyIndentClasses[Math.min(level, hierarchyIndentClasses.length - 1)]
     : '';
-  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm);
+  const keyAlgorithm = ca.rawApiData?.certificate?.key_metadata?.type ?? ca.keyAlgorithm;
+  const isPqcKey = isPqcAlgorithm(keyAlgorithm);
+  const pqcCategory = keyAlgorithm?.trim().toUpperCase().startsWith('COMPOSITE') ? 'PQ/T' : 'PQ';
 
   const expiryDate = parseISO(ca.expires);
   const isExpired = isPast(expiryDate);
@@ -120,10 +122,10 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-medium truncate">{ca.name}</span>
-            {isPqcCertificate && (
-              <Badge className="shrink-0 text-xs gap-1">
+            {isPqcKey && (
+              <Badge className="shrink-0 text-xs gap-1" title="Post-quantum cryptography key">
                 <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
-                PQC
+                {pqcCategory}
               </Badge>
             )}
             {ca.caType === 'IMPORTED' && (

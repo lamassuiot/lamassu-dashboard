@@ -21,11 +21,11 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { TagInput } from '@/components/shared/TagInput';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import {
+  getAllKeyTypeOptions,
   getKeySpecLabel,
   getKeySpecOptions,
   getKeyTypeDetails,
   getPreferredKeySpecValue,
-  getSupportedKeyTypeOptions,
   getSupportedKeyTypeValues,
   parseKeySpecToApiSize,
 } from '@/lib/crypto-key-fields';
@@ -101,7 +101,7 @@ export default function CreateKmsKeyPage() {
   }, [cryptoEngineId]);
 
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
-  const keyTypeOptions = getSupportedKeyTypeOptions(selectedEngine);
+  const keyTypeOptions = getAllKeyTypeOptions(selectedEngine);
   const supportedKeyTypes = getSupportedKeyTypeValues(selectedEngine);
 
   const handleKeyTypeChange = (value: string) => {

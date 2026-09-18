@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getKeyImportParams, MLDSA_ALGORITHMS } from '@/lib-crypto'
+import { getKeyImportParams, MLDSA_ALGORITHMS, COMPOSITE_MLDSA_ALGORITHMS } from '@/lib-crypto'
 
 describe('key-utils', () => {
   it('should return correct params for known algorithms', () => {
@@ -21,5 +21,10 @@ describe('key-utils', () => {
     const [mldsa] = Array.from(MLDSA_ALGORITHMS)
     expect(mldsa).toBeDefined()
     expect(() => getKeyImportParams(mldsa)).toThrow(/ML-DSA/)
+  })
+
+  it('should throw for composite ML-DSA algorithms', () => {
+    const [composite] = Array.from(COMPOSITE_MLDSA_ALGORITHMS)
+    expect(() => getKeyImportParams(composite)).toThrow(/Composite ML-DSA/)
   })
 })

@@ -1280,6 +1280,32 @@ XQGdcNTVHA==
       ],
     }
 
+    it('does not mislabel a composite parameter-set ID as a bit count in keyAlgorithm', async () => {
+      // `bits` is a parameter-set ID for composite keys, not a literal bit
+      // count — it must not be rendered as "(9 bit)".
+      const compositeCaResponse = {
+        next: null,
+        list: [{
+          ...mockApiResponse.list[0],
+          certificate: {
+            ...mockApiResponse.list[0].certificate,
+            key_metadata: { type: 'Composite-ML-DSA-ECDSA', bits: 9 },
+          },
+        }],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json(compositeCaResponse)
+        })
+      )
+
+      const result = await fetchAndProcessCAs()
+
+      expect(result[0].keyAlgorithm).not.toContain('bit')
+      expect(result[0].keyAlgorithm).toBe('Composite-Signature MLDSA44-ECDSA-P256-SHA256')
+    })
+
     it('should fetch and build CA hierarchy', async () => {
       server.use(
         http.get(`${CA_API_BASE}/cas`, () => {

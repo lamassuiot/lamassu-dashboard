@@ -488,6 +488,83 @@ describe('issued-certificate-data', () => {
   })
 
   describe('transformApiIssuedCertificateToLocal', () => {
+    it('classifies the algorithm family from the PEM-parsed OID when key_metadata.type is unrecognized ("0")', async () => {
+      // Backend can report key_metadata.type "0" (unknown) for composite keys
+      // even though the certificate itself is a valid composite ML-DSA cert.
+      // The parsed PEM (mocked here, as in every other test in this file) is
+      // the authoritative source and should win.
+      vi.spyOn(caData, 'parseCertificatePemDetails').mockResolvedValueOnce({
+        subject: 'CN=example.com',
+        issuer: 'CN=Example CA',
+        serialNumber: '65:58:92:D2',
+        validFrom: '2024-12-01T00:00:00.000Z',
+        validTo: '2025-12-01T23:59:59.000Z',
+        publicKeyAlgorithm: 'Composite-Signature MLDSA65-ECDSA-P256-SHA512',
+        signatureAlgorithm: 'Composite-Signature MLDSA65-ECDSA-P256-SHA512',
+        crlDistributionPoints: [],
+        ocspUrls: [],
+        caIssuersUrls: [],
+        isCa: false,
+        pathLenConstraint: undefined,
+        sans: [],
+        keyUsage: [],
+        extendedKeyUsage: [],
+        subjectKeyId: undefined,
+        authorityKeyId: undefined,
+        fingerprintSha256: undefined,
+      })
+
+      const unknownTypeCert: ApiIssuedCertificateItem = {
+        ...mockCertificate,
+        key_metadata: { type: '0', bits: 0 },
+      }
+
+      const response: ApiIssuedCertificateListResponse = {
+        next: null,
+        list: [unknownTypeCert],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/certificates`, () => {
+          return HttpResponse.json(response)
+        })
+      )
+
+      const result = await fetchIssuedCertificates({
+        accessToken: MOCK_TOKEN,
+      })
+
+      expect(result.certificates[0].publicKeyAlgorithm).toBe('0')
+      expect(result.certificates[0].algorithmFamily).toBe('PQ/T')
+    })
+
+    it('does not mislabel a composite parameter-set ID as a bit count', async () => {
+      // `bits` is a parameter-set ID for composite keys, not a literal bit
+      // count — it must not be rendered as "(9 bit)".
+      const compositeCert: ApiIssuedCertificateItem = {
+        ...mockCertificate,
+        key_metadata: { type: 'Composite-ML-DSA-ECDSA', bits: 9 },
+      }
+
+      const response: ApiIssuedCertificateListResponse = {
+        next: null,
+        list: [compositeCert],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/certificates`, () => {
+          return HttpResponse.json(response)
+        })
+      )
+
+      const result = await fetchIssuedCertificates({
+        accessToken: MOCK_TOKEN,
+      })
+
+      expect(result.certificates[0].publicKeyAlgorithm).not.toContain('bit')
+      expect(result.certificates[0].publicKeyAlgorithm).toBe('Composite-Signature MLDSA44-ECDSA-P256-SHA256')
+    })
+
     it('should handle certificate with curve_name instead of bits', async () => {
       const eccCert: ApiIssuedCertificateItem = {
         ...mockCertificate,

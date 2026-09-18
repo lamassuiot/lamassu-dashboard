@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 interface Option {
   value: string;
   label: string;
+  group?: string;
+  icon?: React.ReactNode | React.ElementType;
 }
 
 interface MultiSelectDropdownProps {
@@ -28,6 +30,7 @@ interface MultiSelectDropdownProps {
   onChange: (selected: string[]) => void;
   buttonText?: string;
   className?: string;
+  contentClassName?: string;
 }
 
 export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
@@ -38,7 +41,18 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
   onChange,
   buttonText = "Select options...",
   className,
+  contentClassName,
 }) => {
+  const renderOptionIcon = (icon: Option['icon']) => {
+    if (!icon) return null;
+    if (React.isValidElement(icon)) return icon;
+    if (typeof icon === 'function' || typeof icon === 'object') {
+      const Icon = icon as React.ElementType;
+      return <Icon className="h-3.5 w-3.5 shrink-0" />;
+    }
+    return icon;
+  };
+
   const handleSelect = (value: string) => {
     const newSelected = selectedValues.includes(value)
       ? selectedValues.filter((v) => v !== value)
@@ -82,23 +96,36 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
           <ChevronsUpDown className="h-4 w-4 ml-2 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end">
+      <DropdownMenuContent className={cn('w-56', contentClassName)} align="end">
         <DropdownMenuLabel>Select options</DropdownMenuLabel>
         <div className="flex justify-between px-2 py-1">
             <Button variant="link" className="p-0 h-auto text-xs" onClick={handleSelectAll}>Select All</Button>
             <Button variant="link" className="p-0 h-auto text-xs" onClick={handleClear}>Clear</Button>
         </div>
         <DropdownMenuSeparator />
-        {options.map((option) => (
-          <DropdownMenuCheckboxItem
-            key={option.value}
-            checked={selectedValues.includes(option.value)}
-            onCheckedChange={() => handleSelect(option.value)}
-            onSelect={(e) => e.preventDefault()} // Prevent menu from closing on item click
-          >
-            {option.label}
-          </DropdownMenuCheckboxItem>
-        ))}
+        {options.map((option, index) => {
+          const previousGroup = options[index - 1]?.group;
+          const shouldRenderGroup = option.group && option.group !== previousGroup;
+
+          return (
+            <React.Fragment key={option.value}>
+              {shouldRenderGroup && (
+                <>
+                  {index > 0 && <DropdownMenuSeparator />}
+                  <DropdownMenuLabel>{option.group}</DropdownMenuLabel>
+                </>
+              )}
+              <DropdownMenuCheckboxItem
+                checked={selectedValues.includes(option.value)}
+                onCheckedChange={() => handleSelect(option.value)}
+                onSelect={(e) => e.preventDefault()} // Prevent menu from closing on item click
+              >
+                {renderOptionIcon(option.icon)}
+                {option.label}
+              </DropdownMenuCheckboxItem>
+            </React.Fragment>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

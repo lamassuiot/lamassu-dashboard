@@ -25,18 +25,23 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, parseBoundResources, BOUND_RESOURCES_METADATA_KEY, type PatchOperation } from '@/lib/kms-data';
-import { formatKeyTypeDisplay, getSignatureAlgorithmLabel } from '@/lib/crypto-key-fields';
 import {
   SIGNATURE_ALGORITHMS,
   MLDSA_ALGORITHMS,
-  SLHDSA_ALGORITHMS,
+  COMPOSITE_MLDSA_ALGORITHMS,
   COMPOSITE_MLDSA_RSA_ALGORITHMS,
+  COMPOSITE_MLDSA_ECDSA_ALGORITHMS,
+  COMPOSITE_MLDSA_ED25519_ALGORITHMS,
+  COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET,
+  SLHDSA_ALGORITHMS,
+  SLHDSA_ALGORITHM_BY_PARAMETER_SET,
   arrayBufferToBase64,
   buildSignedCsr,
   type CsrSan,
 } from '@/lib-crypto';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -45,14 +50,13 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
-import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
-import { isPqcAlgorithm } from '@/lib/pqc';
+import { formatKmsKeyTypeDisplay, formatSignatureAlgorithm, isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKeyDetailed {
   id: string;
   alias: string;
   keyTypeDisplay: string;
-  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'SLHDSA' | 'COMPOSITE_MLDSA_RSA' | 'Ed25519' | 'Unknown';
+  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'COMPOSITE_MLDSA' | 'SLHDSA' | 'ED25519' | 'Unknown';
   keySize?: string | number;
   hasPrivateKey: boolean;
   publicKeyPem?: string;
@@ -63,6 +67,15 @@ interface KmsKeyDetailed {
 }
 
 const signatureAlgorithms = [...SIGNATURE_ALGORITHMS];
+
+function getKmsSignatureAlgorithm(algorithm: string): string {
+  if (COMPOSITE_MLDSA_RSA_ALGORITHMS.has(algorithm)) return 'COMPOSITE_MLDSA_RSA_PURE';
+  if (COMPOSITE_MLDSA_ECDSA_ALGORITHMS.has(algorithm)) return 'COMPOSITE_MLDSA_ECDSA_PURE';
+  if (COMPOSITE_MLDSA_ED25519_ALGORITHMS.has(algorithm)) return 'COMPOSITE_MLDSA_ED25519_PURE';
+  if (SLHDSA_ALGORITHMS.has(algorithm)) return 'SLHDSA_PURE';
+  if (algorithm === 'ED25519') return 'Ed25519_PURE';
+  return MLDSA_ALGORITHMS.has(algorithm) ? `${algorithm}_PURE` : algorithm;
+}
 
 export default function KmsKeyDetailsClient() {
   const searchParams = useSearchParams();
@@ -380,16 +393,16 @@ export default function KmsKeyDetailsClient() {
 
         // Normalise the algorithm string from the API.
         // The API may return "MLDSA", "MLDSA_65", "ML-DSA-65", "SLHDSA", "SLH-DSA-3",
-        // "Composite-ML-DSA-RSA", "Composite-ML-DSA-RSA-3", etc.
+        // or a Composite-ML-DSA (RSA/ECDSA/Ed25519) variant.
         // We normalise dashes → underscores first, then classify.
         const algoUpper = apiKey.algorithm.toUpperCase().replaceAll('-', '_');
         let normalizedAlgorithm: KmsKeyDetailed['algorithm'];
         if (algoUpper === 'RSA') normalizedAlgorithm = 'RSA';
         else if (algoUpper === 'ECDSA') normalizedAlgorithm = 'ECDSA';
         else if (algoUpper.startsWith('MLDSA') || algoUpper.startsWith('ML_DSA')) normalizedAlgorithm = 'MLDSA';
-        else if (algoUpper.startsWith('SLHDSA') || algoUpper.startsWith('SLH_DSA')) normalizedAlgorithm = 'SLHDSA';
-        else if (algoUpper.startsWith('COMPOSITE')) normalizedAlgorithm = 'COMPOSITE_MLDSA_RSA';
-        else if (algoUpper === 'ED25519') normalizedAlgorithm = 'Ed25519';
+        else if (algoUpper.startsWith('COMPOSITE')) normalizedAlgorithm = 'COMPOSITE_MLDSA';
+        else if (algoUpper.startsWith('SLH_DSA') || algoUpper.startsWith('SLHDSA')) normalizedAlgorithm = 'SLHDSA';
+        else if (algoUpper === 'ED25519') normalizedAlgorithm = 'ED25519';
         else normalizedAlgorithm = 'Unknown';
 
         // For MLDSA, ensure keySize is the parameter-set number (44 / 65 / 87).
@@ -405,6 +418,15 @@ export default function KmsKeyDetailsClient() {
             }
           }
         }
+        if (normalizedAlgorithm === 'COMPOSITE_MLDSA') {
+          const sizeStr = String(apiKey.size);
+          if (!Object.hasOwn(COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET, sizeStr)) {
+            const variantMatch = algoUpper.match(/(?:COMPOSITE[_\w]*?)[_](\d+)$/);
+            if (variantMatch && Object.hasOwn(COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET, variantMatch[1])) {
+              resolvedKeySize = Number.parseInt(variantMatch[1], 10);
+            }
+          }
+        }
         // For SLHDSA, ensure keySize is the parameter-set ID (1–12).
         if (normalizedAlgorithm === 'SLHDSA') {
           const validIds = ['1','2','3','4','5','6','7','8','9','10','11','12'];
@@ -416,28 +438,11 @@ export default function KmsKeyDetailsClient() {
             }
           }
         }
-        // For COMPOSITE_MLDSA_RSA, ensure keySize is the parameter-set ID (1–8).
-        if (normalizedAlgorithm === 'COMPOSITE_MLDSA_RSA') {
-          const validIds = ['1','2','3','4','5','6','7','8'];
-          const sizeStr = String(apiKey.size);
-          if (!validIds.includes(sizeStr)) {
-            const variantMatch = algoUpper.match(/COMPOSITE[_\w]*?(\d+)$/);
-            if (variantMatch && validIds.includes(variantMatch[1])) {
-              resolvedKeySize = Number.parseInt(variantMatch[1], 10);
-            }
-          }
-        }
-        const canonicalAlgo: Partial<Record<string, string>> = {
-          MLDSA: 'ML-DSA',
-          SLHDSA: 'SLH-DSA',
-          COMPOSITE_MLDSA_RSA: 'Composite-ML-DSA-RSA',
-        };
-        const algoForDisplay = canonicalAlgo[normalizedAlgorithm] ?? apiKey.algorithm;
 
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.pkcs11_uri,
           alias: apiKey.name || apiKey.key_id,
-          keyTypeDisplay: formatKeyTypeDisplay(algoForDisplay, String(resolvedKeySize)),
+          keyTypeDisplay: formatKmsKeyTypeDisplay(apiKey.algorithm, resolvedKeySize),
           algorithm: normalizedAlgorithm,
           keySize: resolvedKeySize,
           hasPrivateKey: apiKey.has_private_key,
@@ -480,30 +485,26 @@ export default function KmsKeyDetailsClient() {
           setSignAlgorithm(defaultMldsaAlgo);
           setVerifyAlgorithm(defaultMldsaAlgo);
           setCsrSignAlgorithm(defaultMldsaAlgo);
+        } else if (detailedKey.algorithm === 'COMPOSITE_MLDSA') {
+          const defaultCompositeAlgorithm = COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET[
+            String(detailedKey.keySize ?? '')
+          ] ?? 'COMPOSITE_MLDSA_RSA_1';
+
+          setSignAlgorithm(defaultCompositeAlgorithm);
+          setVerifyAlgorithm(defaultCompositeAlgorithm);
+          setCsrSignAlgorithm(defaultCompositeAlgorithm);
         } else if (detailedKey.algorithm === 'SLHDSA') {
-          // Default to the parameter set matching the key size (1–12).
-          // Fall back to SLHDSA_1 when the size is unrecognised.
-          const validIds = ['1','2','3','4','5','6','7','8','9','10','11','12'];
-          const sizeStr = String(detailedKey.keySize ?? '');
-          const defaultSlhdsaAlgo = validIds.includes(sizeStr) ? `SLHDSA_${sizeStr}` : 'SLHDSA_1';
+          const defaultSlhDsaAlgorithm = SLHDSA_ALGORITHM_BY_PARAMETER_SET[
+            String(detailedKey.keySize ?? '')
+          ] ?? 'SLHDSA_1';
 
-          setSignAlgorithm(defaultSlhdsaAlgo);
-          setVerifyAlgorithm(defaultSlhdsaAlgo);
-          setCsrSignAlgorithm(defaultSlhdsaAlgo);
-        } else if (detailedKey.algorithm === 'COMPOSITE_MLDSA_RSA') {
-          // Default to the parameter set matching the key size (1–8).
-          // Fall back to COMPOSITE_MLDSA_RSA_1 when the size is unrecognised.
-          const validIds = ['1','2','3','4','5','6','7','8'];
-          const sizeStr = String(detailedKey.keySize ?? '');
-          const defaultCompositeAlgo = validIds.includes(sizeStr) ? `COMPOSITE_MLDSA_RSA_${sizeStr}` : 'COMPOSITE_MLDSA_RSA_1';
-
-          setSignAlgorithm(defaultCompositeAlgo);
-          setVerifyAlgorithm(defaultCompositeAlgo);
-          setCsrSignAlgorithm(defaultCompositeAlgo);
-        } else if (detailedKey.algorithm === 'Ed25519') {
-          setSignAlgorithm('Ed25519_PURE');
-          setVerifyAlgorithm('Ed25519_PURE');
-          setCsrSignAlgorithm('Ed25519_PURE');
+          setSignAlgorithm(defaultSlhDsaAlgorithm);
+          setVerifyAlgorithm(defaultSlhDsaAlgorithm);
+          setCsrSignAlgorithm(defaultSlhDsaAlgorithm);
+        } else if (detailedKey.algorithm === 'ED25519') {
+          setSignAlgorithm('ED25519');
+          setVerifyAlgorithm('ED25519');
+          setCsrSignAlgorithm('ED25519');
         }
 
       } else {
@@ -586,7 +587,7 @@ export default function KmsKeyDetailsClient() {
       }
 
       const payload = {
-        algorithm: SLHDSA_ALGORITHMS.has(signAlgorithm) ? 'SLHDSA_PURE' : COMPOSITE_MLDSA_RSA_ALGORITHMS.has(signAlgorithm) ? 'COMPOSITE_MLDSA_RSA_PURE' : MLDSA_ALGORITHMS.has(signAlgorithm) ? `${signAlgorithm}_PURE` : signAlgorithm,
+        algorithm: getKmsSignatureAlgorithm(signAlgorithm),
         message: encodedPayload,
         message_type: signMessageType.toLowerCase(),
       };
@@ -636,7 +637,7 @@ export default function KmsKeyDetailsClient() {
       }
 
       const payload = {
-        algorithm: SLHDSA_ALGORITHMS.has(verifyAlgorithm) ? 'SLHDSA_PURE' : COMPOSITE_MLDSA_RSA_ALGORITHMS.has(verifyAlgorithm) ? 'COMPOSITE_MLDSA_RSA_PURE' : MLDSA_ALGORITHMS.has(verifyAlgorithm) ? `${verifyAlgorithm}_PURE` : verifyAlgorithm,
+        algorithm: getKmsSignatureAlgorithm(verifyAlgorithm),
         message: encodedUnsignedPayload,
         message_type: verifyMessageType.toLowerCase(),
         signature: signatureToVerify,
@@ -682,7 +683,7 @@ export default function KmsKeyDetailsClient() {
         signFn: async (tbsBase64) => {
           const result = await signWithKmsKey(
             keyDetails.id,
-            { algorithm: SLHDSA_ALGORITHMS.has(csrSignAlgorithm) ? 'SLHDSA_PURE' : COMPOSITE_MLDSA_RSA_ALGORITHMS.has(csrSignAlgorithm) ? 'COMPOSITE_MLDSA_RSA_PURE' : MLDSA_ALGORITHMS.has(csrSignAlgorithm) ? `${csrSignAlgorithm}_PURE` : csrSignAlgorithm, message: tbsBase64, message_type: 'raw' },
+            { algorithm: getKmsSignatureAlgorithm(csrSignAlgorithm), message: tbsBase64, message_type: 'raw' },
           );
           return result.signature;
         },
@@ -723,20 +724,19 @@ export default function KmsKeyDetailsClient() {
       const sizeStr = String(keyDetails.keySize ?? '');
       return algo !== `MLDSA_${sizeStr}`;
     }
+    if (keyDetails.algorithm === 'COMPOSITE_MLDSA') {
+      const expectedAlgorithm = COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET[
+        String(keyDetails.keySize ?? '')
+      ];
+      return !expectedAlgorithm || algo !== expectedAlgorithm || !COMPOSITE_MLDSA_ALGORITHMS.has(algo);
+    }
     if (keyDetails.algorithm === 'SLHDSA') {
-      if (!algo.startsWith('SLHDSA')) return true;
-      // Restrict to the exact parameter set of this key (1–12).
-      const sizeStr = String(keyDetails.keySize ?? '');
-      return algo !== `SLHDSA_${sizeStr}`;
+      // Restrict to the exact parameter set of this key (1-12).
+      const expectedAlgorithm = SLHDSA_ALGORITHM_BY_PARAMETER_SET[String(keyDetails.keySize ?? '')];
+      return !expectedAlgorithm || algo !== expectedAlgorithm;
     }
-    if (keyDetails.algorithm === 'COMPOSITE_MLDSA_RSA') {
-      if (!algo.startsWith('COMPOSITE_MLDSA_RSA')) return true;
-      // Restrict to the exact parameter set of this key (1–8).
-      const sizeStr = String(keyDetails.keySize ?? '');
-      return algo !== `COMPOSITE_MLDSA_RSA_${sizeStr}`;
-    }
-    if (keyDetails.algorithm === 'Ed25519') {
-      return algo !== 'Ed25519_PURE';
+    if (keyDetails.algorithm === 'ED25519') {
+      return algo !== 'ED25519';
     }
 
     return true; // Disable for unknown key types
@@ -871,14 +871,10 @@ export default function KmsKeyDetailsClient() {
           <div className="py-3 lg:pr-6">
             <p className="text-xs font-medium text-muted-foreground">Cryptographic profile</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
-                {keyDetails.algorithm}
+              <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                {isPqcAlgorithm(keyDetails.algorithm) && <QuantumAlgorithmIcon />}
+                {keyDetails.keyTypeDisplay}
               </span>
-              {keyDetails.keySize && (
-                <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs text-muted-foreground">
-                  {keyDetails.keySize} bits
-                </span>
-              )}
               <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
             </div>
           </div>
@@ -1066,7 +1062,7 @@ export default function KmsKeyDetailsClient() {
                       </div>
                       <span className={cn('inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium', algorithmBadgeClass)}>
                         {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
-                        {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : keyDetails.algorithm === 'Ed25519' ? 'Edwards Curve' : 'Other'}
+                        {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : keyDetails.algorithm === 'ED25519' ? 'Edwards Curve' : 'Other'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3 py-3">
@@ -1167,7 +1163,12 @@ export default function KmsKeyDetailsClient() {
                         <SelectTrigger id="signAlgorithm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {signatureAlgorithms.map(algo => (
-                            <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{getSignatureAlgorithmLabel(algo)}</SelectItem>
+                            <SelectItem key={algo} value={algo} textValue={formatSignatureAlgorithm(algo)} disabled={isAlgorithmDisabled(algo)}>
+                              <span className="inline-flex items-center gap-1.5">
+                                {isPqcAlgorithm(algo) && <QuantumAlgorithmIcon />}
+                                {formatSignatureAlgorithm(algo)}
+                              </span>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1228,7 +1229,12 @@ export default function KmsKeyDetailsClient() {
                         <SelectTrigger id="verifyAlgorithm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {signatureAlgorithms.map(algo => (
-                            <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
+                            <SelectItem key={algo} value={algo} textValue={formatSignatureAlgorithm(algo)} disabled={isAlgorithmDisabled(algo)}>
+                              <span className="inline-flex items-center gap-1.5">
+                                {isPqcAlgorithm(algo) && <QuantumAlgorithmIcon />}
+                                {formatSignatureAlgorithm(algo)}
+                              </span>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1318,7 +1324,12 @@ export default function KmsKeyDetailsClient() {
                       <SelectTrigger id="csrSignAlgorithm" aria-invalid={!!csrAlgorithmError} aria-describedby={csrAlgorithmError ? 'csr-sign-algorithm-error' : undefined}><SelectValue placeholder="Select algorithm" /></SelectTrigger>
                       <SelectContent>
                         {signatureAlgorithms.map(algo => (
-                          <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
+                          <SelectItem key={algo} value={algo} textValue={formatSignatureAlgorithm(algo)} disabled={isAlgorithmDisabled(algo)}>
+                            <span className="inline-flex items-center gap-1.5">
+                              {isPqcAlgorithm(algo) && <QuantumAlgorithmIcon />}
+                              {formatSignatureAlgorithm(algo)}
+                            </span>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

@@ -1,14 +1,19 @@
-import { PSS_ALGO_PARAMS, MLDSA_ALGORITHMS, SLHDSA_ALGORITHMS, COMPOSITE_MLDSA_RSA_ALGORITHMS } from "./constants";
+import {
+  PSS_ALGO_PARAMS,
+  MLDSA_ALGORITHMS,
+  COMPOSITE_MLDSA_ALGORITHMS,
+  SLHDSA_ALGORITHMS,
+} from "./constants";
 
 /**
  * Returns the WebCrypto key import params for a given Lamassu signature
  * algorithm identifier. Used when importing a public key via
  * `crypto.subtle.importKey("spki", ...)`.
  *
- * **ML-DSA note**: WebCrypto does not yet support post-quantum algorithms.
- * Calling this function with an MLDSA identifier will throw. Use
- * `MLDSA_ALGORITHMS` to guard call sites when the algorithm is not known
- * at compile time.
+ * **Opaque-signature note**: WebCrypto does not reliably support ML-DSA,
+ * SLH-DSA, or composite keys. Calling this function with one of those
+ * identifiers will throw. Use `OPAQUE_SIGNATURE_ALGORITHMS` to guard call
+ * sites when the algorithm is not known at compile time.
  *
  * Throws if the algorithm is unknown or unsupported via WebCrypto.
  */
@@ -49,6 +54,7 @@ export function getKeyImportParams(
       };
 
     case "Ed25519_PURE":
+    case "ED25519":
       return { name: "Ed25519" };
 
     default:
@@ -58,16 +64,16 @@ export function getKeyImportParams(
             `Handle MLDSA separately using the MLDSA_ALGORITHMS guard.`,
         );
       }
+      if (COMPOSITE_MLDSA_ALGORITHMS.has(algorithm)) {
+        throw new Error(
+          `Composite ML-DSA (${algorithm}) keys cannot be imported via WebCrypto. ` +
+            "Handle composite algorithms separately using the COMPOSITE_MLDSA_ALGORITHMS guard.",
+        );
+      }
       if (SLHDSA_ALGORITHMS.has(algorithm)) {
         throw new Error(
           `SLH-DSA (${algorithm}) keys cannot be imported via WebCrypto. ` +
-            `Handle SLHDSA separately using the SLHDSA_ALGORITHMS guard.`,
-        );
-      }
-      if (COMPOSITE_MLDSA_RSA_ALGORITHMS.has(algorithm)) {
-        throw new Error(
-          `Composite-ML-DSA-RSA (${algorithm}) keys cannot be imported via WebCrypto. ` +
-            `Handle composite algorithms separately using the COMPOSITE_MLDSA_RSA_ALGORITHMS guard.`,
+            "Handle SLH-DSA separately using the SLHDSA_ALGORITHMS guard.",
         );
       }
       throw new Error(`Unknown signature algorithm: ${algorithm}`);

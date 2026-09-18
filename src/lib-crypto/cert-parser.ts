@@ -5,14 +5,45 @@ import {
   BasicConstraints,
   ExtKeyUsage,
   AuthorityKeyIdentifier,
+  RelativeDistinguishedNames,
+  PublicKeyInfo,
 } from "pkijs";
-import { formatDistinguishedName, formatPublicKeyInfo, resolveSignatureAlgorithmLabel } from "./oid-labels";
-
-export { formatDistinguishedName as formatSubject, formatPublicKeyInfo } from "./oid-labels";
+import { formatSignatureAlgorithm } from "@/lib/pqc";
+import { SIGNATURE_OID_MAP, OPAQUE_SIGNATURE_ALGORITHMS } from "./constants";
 
 // ---------------------------------------------------------------------------
 // OID lookup tables
 // ---------------------------------------------------------------------------
+
+const OID_MAP: Record<string, string> = {
+  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST",
+  "2.5.4.10": "O", "2.5.4.11": "OU",
+  "1.2.840.113549.1.1.1": "RSA", "1.2.840.10045.2.1": "EC",
+  "1.2.840.10045.3.1.7": "P-256", "1.3.132.0.34": "P-384", "1.3.132.0.35": "P-521",
+};
+
+const SIG_OID_MAP: Record<string, string> = {
+  "1.2.840.113549.1.1.11": "sha256WithRSAEncryption",
+  "1.2.840.113549.1.1.12": "sha384WithRSAEncryption",
+  "1.2.840.113549.1.1.13": "sha512WithRSAEncryption",
+  "1.2.840.113549.1.1.14": "sha224WithRSAEncryption",
+  "1.2.840.10045.4.3.2": "ecdsa-with-SHA256",
+  "1.2.840.10045.4.3.3": "ecdsa-with-SHA384",
+  "1.2.840.10045.4.3.4": "ecdsa-with-SHA512",
+};
+
+/**
+ * ML-DSA, SLH-DSA, composite ML-DSA, and Ed25519 use the same algorithm
+ * identifier (and OID) for both the public key and the signature — unlike
+ * RSA/ECDSA, which use a generic public-key OID plus a hash-specific
+ * signature OID. Reverse `SIGNATURE_OID_MAP` for just those algorithms so
+ * both `formatPublicKeyInfo` and the signature algorithm parser below can
+ * resolve their OIDs to a readable name.
+ */
+const PQC_OID_TO_ALGORITHM: Record<string, string> = Object.fromEntries(
+  Object.entries(SIGNATURE_OID_MAP).filter(([algorithmId]) => OPAQUE_SIGNATURE_ALGORITHMS.has(algorithmId))
+    .map(([algorithmId, oid]) => [oid, algorithmId]),
+);
 
 const EKU_OID_MAP: Record<string, string> = {
   "1.3.6.1.5.5.7.3.1": "ServerAuth",
@@ -52,6 +83,38 @@ export function abToHex(
     arr = arr.slice(1);
   }
   return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join(separator);
+}
+
+/**
+ * Formats a pkijs `RelativeDistinguishedNames` object into a human-readable
+ * DN string, e.g. `CN=example.com, O=ACME, C=US`.
+ */
+export function formatSubject(subject: RelativeDistinguishedNames): string {
+  return subject.typesAndValues
+    .map(tv => `${OID_MAP[tv.type] ?? tv.type}=${(tv.value as any).valueBlock.value}`)
+    .join(", ");
+}
+
+/**
+ * Formats a pkijs `PublicKeyInfo` into a readable algorithm description,
+ * e.g. `EC (Curve: P-256)` or `RSA (2048 bits)`.
+ */
+export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
+  const algoOid = publicKeyInfo.algorithm.algorithmId;
+  const pqcAlgorithmId = PQC_OID_TO_ALGORITHM[algoOid];
+  if (pqcAlgorithmId) return formatSignatureAlgorithm(pqcAlgorithmId);
+
+  const algoName = OID_MAP[algoOid] ?? algoOid;
+  let details = "";
+  if (algoName === "EC" && (publicKeyInfo.algorithm as any).parameters && (publicKeyInfo.algorithm as any).parameters.valueBlock) {
+    const curveOid = (publicKeyInfo.algorithm as any).parameters.valueBlock.value as string;
+    details = `(Curve: ${OID_MAP[curveOid] ?? curveOid})`;
+  } else if (algoName === "RSA" && publicKeyInfo.parsedKey && (publicKeyInfo.parsedKey as any).modulus) {
+    const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
+    const leadingZero = new Uint8Array((publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex)[0] === 0 ? 1 : 0;
+    details = `(${(modulusBytes - leadingZero) * 8} bits)`;
+  }
+  return `${algoName} ${details}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,15 +211,19 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
       }
     }
 
-    result.subject = formatDistinguishedName(cert.subject);
-    result.issuer = formatDistinguishedName(cert.issuer);
+    result.subject = formatSubject(cert.subject);
+    result.issuer = formatSubject(cert.issuer);
     result.serialNumber = abToHex(cert.serialNumber.valueBlock.valueHex, ":");
     result.validFrom = cert.notBefore.value.toISOString();
     result.validTo = cert.notAfter.value.toISOString();
     result.publicKeyAlgorithm = formatPublicKeyInfo(cert.subjectPublicKeyInfo);
 
     try {
-      result.signatureAlgorithm = resolveSignatureAlgorithmLabel(cert.signatureAlgorithm.algorithmId);
+      const sigOid = cert.signatureAlgorithm.algorithmId;
+      const pqcAlgorithmId = PQC_OID_TO_ALGORITHM[sigOid];
+      result.signatureAlgorithm = pqcAlgorithmId
+        ? formatSignatureAlgorithm(pqcAlgorithmId)
+        : SIG_OID_MAP[sigOid] ?? sigOid;
     } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Signature Algorithm:", e); }
 
     try {

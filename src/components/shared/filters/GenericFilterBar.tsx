@@ -61,6 +61,7 @@ export interface GenericFilterField<TValues extends GenericFilterValues> {
   id?: string;
   className?: string;
   inputClassName?: string;
+  dropdownContentClassName?: string;
   changeTiming?: 'immediate' | 'timed';
   debounceMs?: number;
   disabled?: boolean;
@@ -642,6 +643,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
               onChange={(nextValue) => context.onValueChange(nextValue)}
               buttonText={field.buttonText || field.placeholder || field.label}
               className={cn('h-8 min-h-8', field.inputClassName)}
+              contentClassName={field.dropdownContentClassName}
             />
           </div>
         );

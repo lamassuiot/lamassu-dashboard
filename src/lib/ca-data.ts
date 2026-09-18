@@ -4,6 +4,7 @@
 import { parseCertificatePemDetails, type ParsedPemDetails, abToHex } from "@/lib-crypto";
 import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 import { apiFetch } from "./api-client";
+import { formatKmsKeyTypeDisplay } from "./pqc";
 
 // API Response Structures
 interface ApiKeyMetadata {
@@ -91,6 +92,13 @@ export interface CA {
   defaultIssuanceLifetime?: string;
   defaultProfileId?: string;
   // Optional fields that will be parsed on demand
+  publicKeyAlgorithm?: string;
+  /**
+   * T (traditional) / PQ (pure post-quantum) / PQ/T (hybrid), derived from the
+   * certificate's actual public key OID rather than the backend's
+   * `key_metadata.type`, which can report "0" (unknown) for composite keys.
+   */
+  algorithmFamily?: 'T' | 'PQ' | 'PQ/T';
   signatureAlgorithm?: string;
   crlDistributionPoints?: string[];
   ocspUrls?: string[];
@@ -124,11 +132,16 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
     status = 'expired';
   }
 
-  let keyAlgorithm = apiCa.certificate.key_metadata.type;
+  // `bits` doubles as a parameter-set ID for composite/SLH-DSA keys — never a
+  // literal bit count — so it must go through formatKmsKeyTypeDisplay rather
+  // than being appended as "(N bit)".
+  let keyAlgorithm: string;
   if (apiCa.certificate.key_metadata.bits) {
-    keyAlgorithm += ` (${apiCa.certificate.key_metadata.bits} bit)`;
+    keyAlgorithm = formatKmsKeyTypeDisplay(apiCa.certificate.key_metadata.type, apiCa.certificate.key_metadata.bits);
   } else if (apiCa.certificate.key_metadata.curve_name) {
-    keyAlgorithm += ` (${apiCa.certificate.key_metadata.curve_name})`;
+    keyAlgorithm = `${apiCa.certificate.key_metadata.type} (${apiCa.certificate.key_metadata.curve_name})`;
+  } else {
+    keyAlgorithm = apiCa.certificate.key_metadata.type;
   }
 
   const pemData = typeof window !== 'undefined' ? window.atob(apiCa.certificate.certificate) : ''; // Decode base64 PEM

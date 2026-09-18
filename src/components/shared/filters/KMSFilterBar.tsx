@@ -12,6 +12,7 @@ import {
   type GenericFilterField,
 } from './GenericFilterBar';
 import { createMetadataField, createSearchTextField } from './filter-field-helpers';
+import { groupSupportedAlgorithms } from '@/lib/form-options';
 
 export type KmsPrivateKeyFilterValue = 'ALL' | 'true' | 'false';
 
@@ -48,11 +49,6 @@ interface KMSFilterValues {
   tagsFilter: string;
   creationDateFilter: GenericDateFilterValue;
 }
-
-const algorithmOptions = [
-  { value: 'RSA', label: 'RSA' },
-  { value: 'ECDSA', label: 'ECDSA' },
-];
 
 const privateKeyFilterOptions = [
   { label: 'All Keys', value: 'ALL' },
@@ -91,6 +87,21 @@ export function KMSFilterBar({
   advancedFieldsClassName,
   defaultAdvancedOpen,
 }: KMSFilterBarProps) {
+  const algorithmOptions = useMemo(() => {
+    // Union of supported key types across all engines, deduped case-insensitively
+    // (different engines may report the same algorithm with different casing).
+    const supportedKeyTypes = new Map<string, { type: string }>();
+    for (const engine of cryptoEngines) {
+      for (const { type } of engine.supported_key_types) {
+        supportedKeyTypes.set(type.toUpperCase(), { type });
+      }
+    }
+
+    return groupSupportedAlgorithms(Array.from(supportedKeyTypes.values())).flatMap((group) =>
+      group.options.map(({ type }) => ({ value: type, label: type, group: group.label }))
+    );
+  }, [cryptoEngines]);
+
   const values = useMemo<KMSFilterValues>(() => ({
     searchTerm,
     metadataFilters,
@@ -159,6 +170,7 @@ export function KMSFilterBar({
           options: algorithmOptions,
           allOptionValues: algorithmOptions.map((option) => option.value),
           buttonText: 'All Algorithms',
+          dropdownContentClassName: 'w-96',
         } satisfies GenericFilterField<KMSFilterValues>]
       : []),
     ...(onPrivateKeyFilterChange
@@ -202,6 +214,7 @@ export function KMSFilterBar({
   ], [
     cryptoEngines,
     disabled,
+    algorithmOptions,
     metadataFilters,
     onAlgorithmFiltersChange,
     onCreationDateFilterChange,

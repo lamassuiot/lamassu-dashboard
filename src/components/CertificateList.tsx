@@ -26,6 +26,8 @@ import type { CertSortConfig, SortableCertColumn } from '@/app/certificates/page
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { updateCertificateStatus } from '@/lib/issued-certificate-data';
+import { ALGORITHM_FAMILY_LABELS, getAlgorithmFamily } from '@/lib/pqc';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 
 interface CertificateListProps {
   certificates: CertificateData[];
@@ -36,7 +38,7 @@ interface CertificateListProps {
   requestSort: (column: SortableCertColumn) => void;
   isLoading?: boolean;
   showIssuerColumn?: boolean;
-  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
+  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'algorithmFamily' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
   onColumnToggle?: (columnId: string) => void;
 }
 
@@ -45,6 +47,7 @@ const DEFAULT_COLUMN_VISIBILITY = {
   certificateAuthority: true,
   serialNumber: true,
   issuer: true,
+  algorithmFamily: true,
   validFrom: true,
   expires: true,
   status: true,
@@ -218,6 +221,7 @@ export function CertificateList({
               {columnVisibility.certificateAuthority && <TableHead className="text-center">CA</TableHead>}
               {columnVisibility.serialNumber && <SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />}
               {showIssuerColumn && columnVisibility.issuer && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}
+              {columnVisibility.algorithmFamily && <TableHead className="text-center">Algorithm</TableHead>}
               {columnVisibility.validFrom && <SortableHeader column="validFrom" title="Valid From" center dateColumn className="hidden sm:table-cell" />}
               {columnVisibility.expires && <SortableHeader column="expires" title="Expires" center dateColumn />}
               {columnVisibility.status && <SortableHeader column="status" title="Status" center />}
@@ -275,6 +279,17 @@ export function CertificateList({
                       )}
                     </TableCell>
                   )}
+                  {columnVisibility.algorithmFamily && (() => {
+                    const family = cert.algorithmFamily ?? getAlgorithmFamily(cert.publicKeyAlgorithm);
+                    return (
+                      <TableCell className="text-center" title={ALGORITHM_FAMILY_LABELS[family]}>
+                        <span className="inline-flex items-center justify-center gap-1 text-xs font-medium">
+                          {family !== 'T' && <QuantumAlgorithmIcon />}
+                          {family}
+                        </span>
+                      </TableCell>
+                    );
+                  })()}
                   {columnVisibility.validFrom && (
                     <TableCell className="hidden sm:table-cell"><DateDisplay date={cert.validFrom} className='items-center' /></TableCell>
                   )}

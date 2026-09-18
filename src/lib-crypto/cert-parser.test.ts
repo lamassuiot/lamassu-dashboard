@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseCertificatePemDetails, abToHex } from '@/lib-crypto'
-import { VALID_RSA_CERT_PEM, VALID_ECDSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
+import { VALID_RSA_CERT_PEM, VALID_ECDSA_CERT_PEM, VALID_SLHDSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('cert-parser', () => {
   it('should parse a valid certificate and populate fields', async () => {
@@ -11,6 +11,13 @@ describe('cert-parser', () => {
     expect(parsed.publicKeyAlgorithm).toContain('RSA')
     expect(parsed.signatureAlgorithm.toLowerCase()).toContain('sha')
     expect(parsed.fingerprintSha256).toBeDefined()
+  })
+
+  it('should resolve a post-quantum public key/signature OID to a readable name instead of the raw OID', async () => {
+    const parsed = await parseCertificatePemDetails(VALID_SLHDSA_CERT_PEM)
+
+    expect(parsed.publicKeyAlgorithm).toBe('SLH-DSA-SHAKE-128f')
+    expect(parsed.signatureAlgorithm).toBe('SLH-DSA-SHAKE-128f')
   })
 
   it('should return sane defaults for empty or invalid PEM', async () => {
