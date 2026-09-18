@@ -37,7 +37,8 @@ import Link from '@/components/shared/RouterLink';
 import { parseDistinguishedName } from '@/lib-crypto';
 import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
-import { isPqcAlgorithm } from '@/lib/pqc';
+import { ALGORITHM_FAMILY_LABELS, getAlgorithmFamily } from '@/lib/pqc';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 
 interface CaStats {
@@ -184,8 +185,15 @@ export default function CertificateAuthorityDetailsClient() {
       if (foundCa) {
           if (foundCa.pemData) {
               const parsedDetails = await parseCertificatePemDetails(foundCa.pemData);
+              // Prefer the algorithm family derived from the certificate's actual
+              // public key OID: `key_metadata.type` can report "0" (unknown) for
+              // composite keys due to a backend gap, while the OID parsed
+              // straight from the PEM is always authoritative.
+              const algorithmFamily = parsedDetails.publicKeyAlgorithm && parsedDetails.publicKeyAlgorithm !== 'N/A'
+                ? getAlgorithmFamily(parsedDetails.publicKeyAlgorithm)
+                : getAlgorithmFamily(foundCa.keyAlgorithm);
               // The parsed `issuer` is the DN string; keep the CA's own `issuer` (parent CA ID or 'Self-signed').
-              const completeCa = { ...foundCa, ...parsedDetails, issuer: foundCa.issuer };
+              const completeCa = { ...foundCa, ...parsedDetails, issuer: foundCa.issuer, algorithmFamily };
               setCaDetails(completeCa);
           } else {
               setCaDetails(foundCa);
@@ -389,7 +397,6 @@ export default function CertificateAuthorityDetailsClient() {
   }
 
 
-  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm);
 
   const issuerCa = caDetails.issuer !== 'Self-signed'
     ? findCaById(caDetails.issuer, allCertificateAuthoritiesData)
@@ -448,20 +455,23 @@ export default function CertificateAuthorityDetailsClient() {
                 {cryptoEngine.name || cryptoEngine.type}
               </Badge>
             )}
-            {isPqcCertificate && (
-              <Badge variant="info">
-                <QuantumAlgorithmIcon className="h-3 w-3" />
-                PQC
-              </Badge>
-            )}
-            {caDetails.rawApiData?.certificate?.key_metadata && (
-              <Badge variant="secondary" className="font-mono">
-                <KeyRound />
-                {caDetails.rawApiData.certificate.key_metadata.type}
-                {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
-                {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-              </Badge>
-            )}
+            {caDetails.rawApiData?.certificate?.key_metadata && (() => {
+              const keyMetadata = caDetails.rawApiData.certificate.key_metadata;
+              const family = caDetails.algorithmFamily ?? getAlgorithmFamily(keyMetadata.type);
+              return (
+                <>
+                  <Badge variant="secondary" className="font-mono">
+                    <KeyRound />
+                    {caDetails.keyAlgorithm}
+                    <KeyStrengthIndicator algorithm={keyMetadata.type} size={keyMetadata.bits ?? keyMetadata.curve_name} variant="selector" />
+                  </Badge>
+                  <Badge variant="secondary" title={ALGORITHM_FAMILY_LABELS[family]}>
+                    {family !== 'T' && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                    {family}
+                  </Badge>
+                </>
+              );
+            })()}
           </>
         }
         actions={

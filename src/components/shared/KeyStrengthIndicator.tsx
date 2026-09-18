@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import { COMPOSITE_MLDSA_RSA_PARAM_SET_INFO, SLHDSA_PARAM_SET_INFO } from '@/lib/form-options';
+import { COMPOSITE_MLDSA_PARAM_SET_INFO, SLHDSA_PARAM_SET_INFO } from '@/lib/form-options';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -13,9 +13,9 @@ interface KeyStrengthIndicatorProps {
 }
 
 type StrengthLevel = {
+  level: number;
   color: string;
   label: string;
-  level: number;
   securityStrength: number;
 };
 
@@ -25,12 +25,10 @@ type CompositeStrengthDetails = {
   type: 'composite';
 };
 
-type SingleStrengthDetails = StrengthLevel & {
-  type: 'single';
-};
-
+type SingleStrengthDetails = StrengthLevel & { type: 'single' };
 type StrengthDetails = CompositeStrengthDetails | SingleStrengthDetails;
 
+// NIST Security Strength Levels based on SP 800-57 Part 1
 const STRENGTH_LEVELS = {
   LEGACY: { level: 1, color: 'bg-red-500', label: 'Legacy (80-bit)', securityStrength: 80 },
   DEPRECATED: { level: 2, color: 'bg-orange-500', label: 'Deprecated (112-bit)', securityStrength: 112 },
@@ -40,10 +38,7 @@ const STRENGTH_LEVELS = {
   UNKNOWN: { level: 0, color: 'bg-gray-500', label: 'Unknown', securityStrength: 0 },
 } satisfies Record<string, StrengthLevel>;
 
-const SINGLE_UNKNOWN: SingleStrengthDetails = {
-  ...STRENGTH_LEVELS.UNKNOWN,
-  type: 'single',
-};
+const SINGLE_UNKNOWN: SingleStrengthDetails = { ...STRENGTH_LEVELS.UNKNOWN, type: 'single' };
 
 function getRsaStrength(keySize: number): StrengthLevel {
   if (keySize >= 15360) return STRENGTH_LEVELS.EXCELLENT;
@@ -54,12 +49,12 @@ function getRsaStrength(keySize: number): StrengthLevel {
   return STRENGTH_LEVELS.UNKNOWN;
 }
 
-function getEcStrength(keySize: number, rawSize?: string): StrengthLevel {
-  if (keySize >= 512 || rawSize?.includes('521')) return STRENGTH_LEVELS.EXCELLENT;
-  if (keySize >= 384 || rawSize?.includes('384')) return STRENGTH_LEVELS.GOOD;
-  if (keySize >= 256 || rawSize?.includes('256')) return STRENGTH_LEVELS.ACCEPTABLE;
-  if (keySize >= 224 || rawSize?.includes('224')) return STRENGTH_LEVELS.DEPRECATED;
-  if (keySize >= 160 || rawSize?.includes('160')) return STRENGTH_LEVELS.LEGACY;
+function getEcStrength(keySize: number, rawSize: string): StrengthLevel {
+  if (keySize >= 512 || rawSize.includes('521')) return STRENGTH_LEVELS.EXCELLENT;
+  if (keySize >= 384 || rawSize.includes('384')) return STRENGTH_LEVELS.GOOD;
+  if (keySize >= 256 || rawSize.includes('256')) return STRENGTH_LEVELS.ACCEPTABLE;
+  if (keySize >= 224 || rawSize.includes('224')) return STRENGTH_LEVELS.DEPRECATED;
+  if (keySize >= 160 || rawSize.includes('160')) return STRENGTH_LEVELS.LEGACY;
   return STRENGTH_LEVELS.UNKNOWN;
 }
 
@@ -70,24 +65,38 @@ function getMlDsaStrength(sizeValue: string, keySize: number): StrengthLevel {
   return STRENGTH_LEVELS.UNKNOWN;
 }
 
-function getCompositeStrengthDetails(sizeValue: string): CompositeStrengthDetails | null {
-  const info = COMPOSITE_MLDSA_RSA_PARAM_SET_INFO[sizeValue];
-  if (!info) {
-    return null;
-  }
+function getSlhDsaStrength(sizeValue: string): StrengthLevel {
+  const info = SLHDSA_PARAM_SET_INFO[sizeValue];
+  if (info?.security === '256-bit') return STRENGTH_LEVELS.EXCELLENT;
+  if (info?.security === '192-bit') return STRENGTH_LEVELS.GOOD;
+  if (info?.security === '128-bit') return STRENGTH_LEVELS.ACCEPTABLE;
+  return STRENGTH_LEVELS.UNKNOWN;
+}
 
-  const mlDsaMatch = info.name.match(/MLDSA(\d+)/i);
-  const rsaMatch = info.name.match(/RSA(\d+)/i);
-  const classical = rsaMatch ? getRsaStrength(Number.parseInt(rsaMatch[1], 10)) : STRENGTH_LEVELS.UNKNOWN;
+/**
+ * Covers all three composite families (RSA, ECDSA, Ed25519) via
+ * `COMPOSITE_MLDSA_PARAM_SET_INFO`, which spans parameter sets 1-15.
+ */
+function getCompositeStrengthDetails(sizeValue: string): CompositeStrengthDetails | null {
+  const name = COMPOSITE_MLDSA_PARAM_SET_INFO[sizeValue]?.name;
+  if (!name) return null;
+
+  const mlDsaMatch = name.match(/MLDSA(\d+)/i);
   const pq = mlDsaMatch
     ? getMlDsaStrength(mlDsaMatch[1], Number.parseInt(mlDsaMatch[1], 10))
     : STRENGTH_LEVELS.UNKNOWN;
 
-  return {
-    classical,
-    pq,
-    type: 'composite',
-  };
+  const rsaMatch = name.match(/RSA(\d+)/i);
+  const ecMatch = name.match(/ECDSA-P(\d+)/i);
+  const classical = rsaMatch
+    ? getRsaStrength(Number.parseInt(rsaMatch[1], 10))
+    : ecMatch
+      ? getEcStrength(Number.parseInt(ecMatch[1], 10), ecMatch[1])
+      : name.includes('Ed25519')
+        ? STRENGTH_LEVELS.ACCEPTABLE
+        : STRENGTH_LEVELS.UNKNOWN;
+
+  return { classical, pq, type: 'composite' };
 }
 
 function getStrengthDetails(algorithm?: string, size?: string | number): StrengthDetails {
@@ -116,11 +125,7 @@ function getStrengthDetails(algorithm?: string, size?: string | number): Strengt
   }
 
   if (algo === 'SLH-DSA' || algo === 'SLHDSA' || algo === 'SLH_DSA') {
-    const info = SLHDSA_PARAM_SET_INFO[sizeValue];
-    if (info?.security === '256-bit') return { ...STRENGTH_LEVELS.EXCELLENT, type: 'single' };
-    if (info?.security === '192-bit') return { ...STRENGTH_LEVELS.GOOD, type: 'single' };
-    if (info?.security === '128-bit') return { ...STRENGTH_LEVELS.ACCEPTABLE, type: 'single' };
-    return SINGLE_UNKNOWN;
+    return { ...getSlhDsaStrength(sizeValue), type: 'single' };
   }
 
   if (algo === 'AES' || algo?.includes('AES')) {

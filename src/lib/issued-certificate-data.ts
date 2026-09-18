@@ -4,6 +4,7 @@ import { get_CA_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 import { parseCertificatePemDetails } from './ca-data';
 import { base64ToPem } from '@/lib-crypto';
+import { formatKmsKeyTypeDisplay, getAlgorithmFamily } from './pqc';
 
 
 // API Response Structures for Issued Certificates
@@ -57,11 +58,16 @@ export interface ApiIssuedCertificateListResponse {
 }
 
 async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificateItem): Promise<CertificateData> {
-  let publicKeyAlgorithm = apiCert.key_metadata.type;
+  // `bits` doubles as a parameter-set ID for composite/SLH-DSA keys — never a
+  // literal bit count — so it must go through formatKmsKeyTypeDisplay rather
+  // than being appended as "(N bit)".
+  let publicKeyAlgorithm: string;
   if (apiCert.key_metadata.bits) {
-    publicKeyAlgorithm += ` (${apiCert.key_metadata.bits} bit)`;
+    publicKeyAlgorithm = formatKmsKeyTypeDisplay(apiCert.key_metadata.type, apiCert.key_metadata.bits);
   } else if (apiCert.key_metadata.curve_name) {
-    publicKeyAlgorithm += ` (${apiCert.key_metadata.curve_name})`;
+    publicKeyAlgorithm = `${apiCert.key_metadata.type} (${apiCert.key_metadata.curve_name})`;
+  } else {
+    publicKeyAlgorithm = apiCert.key_metadata.type;
   }
 
   const subjectDisplay = apiCert.subject.common_name || `SN:${apiCert.serial_number}`;
@@ -95,6 +101,14 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
   // Parse the PEM to extract additional details like OCSP URLs
   const parsedDetails = await parseCertificatePemDetails(pemData);
 
+  // Prefer the algorithm family derived from the certificate's actual public
+  // key OID: `key_metadata.type` can report "0" (unknown) for composite
+  // keys due to a backend gap, while the OID parsed straight from the PEM
+  // is always authoritative.
+  const algorithmFamily = parsedDetails.publicKeyAlgorithm && parsedDetails.publicKeyAlgorithm !== 'N/A'
+    ? getAlgorithmFamily(parsedDetails.publicKeyAlgorithm)
+    : getAlgorithmFamily(publicKeyAlgorithm);
+
   return {
     id: apiCert.serial_number,
     fileName: `${subjectDisplay.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'certificate'}.pem`,
@@ -109,6 +123,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     revocationTimestamp: apiCert.revocation_timestamp,
     hasPrivateKey: apiCert.has_private_key,
     publicKeyAlgorithm,
+    algorithmFamily,
     fingerprintSha256: parsedDetails.fingerprintSha256,
     issuerCaId: apiCert.issuer_metadata.id,
     rawApiData: apiCert,

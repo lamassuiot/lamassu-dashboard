@@ -33,7 +33,8 @@ import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroSta
 import { parseDistinguishedName } from '@/lib-crypto';
 import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
-import { isPqcAlgorithm } from '@/lib/pqc';
+import { ALGORITHM_FAMILY_LABELS, getAlgorithmFamily } from '@/lib/pqc';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -412,12 +413,29 @@ export default function CertificateDetailsClient() { // Renamed component
         idLabel="Serial number"
         id={formattedSerialNumber}
         copyValue={cleanSerialNumber}
-        meta={certificateDetails.publicKeyAlgorithm && (
-          <Badge variant="secondary">
-            {isPqcAlgorithm(certificateDetails.publicKeyAlgorithm) ? <QuantumAlgorithmIcon className="h-3 w-3" /> : <KeyRound />}
-            {certificateDetails.publicKeyAlgorithm}
-          </Badge>
-        )}
+        meta={certificateDetails.publicKeyAlgorithm && (() => {
+          const family = certificateDetails.algorithmFamily ?? getAlgorithmFamily(certificateDetails.publicKeyAlgorithm);
+          const keyMetadata = certificateDetails.rawApiData?.key_metadata;
+          return (
+            <>
+              <Badge variant="secondary">
+                <KeyRound />
+                {certificateDetails.publicKeyAlgorithm}
+                {keyMetadata && (
+                  <KeyStrengthIndicator
+                    algorithm={keyMetadata.type}
+                    size={keyMetadata.bits ?? keyMetadata.curve_name}
+                    variant="selector"
+                  />
+                )}
+              </Badge>
+              <Badge variant="secondary" title={ALGORITHM_FAMILY_LABELS[family]}>
+                {family !== 'T' && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                {family}
+              </Badge>
+            </>
+          );
+        })()}
         actions={(isOnHold || statusText !== 'REVOKED' || canDelete) && (
           <>
             {isOnHold ? (

@@ -1,9 +1,24 @@
 'use client';
 
+import React from 'react';
 import { Label } from '@/components/ui/label';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { CryptoSelectOption } from '@/lib/crypto-key-fields';
+
+/** Groups options by their `group` field, preserving first-seen order. Options without a group are left ungrouped. */
+function groupOptions(options: CryptoSelectOption[]): { group?: string; options: CryptoSelectOption[] }[] {
+  const groups: { group?: string; options: CryptoSelectOption[] }[] = [];
+  for (const option of options) {
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.group === option.group) {
+      lastGroup.options.push(option);
+    } else {
+      groups.push({ group: option.group, options: [option] });
+    }
+  }
+  return groups;
+}
 
 interface CryptoKeyTypeSpecFieldsProps {
   idPrefix: string;
@@ -41,11 +56,25 @@ export function CryptoKeyTypeSpecFields({
             <SelectValue placeholder="Select key type" />
           </SelectTrigger>
           <SelectContent>
-            {keyTypeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
+            {groupOptions(keyTypeOptions).map((section, index) => {
+              const items = section.options.map((option) => (
+                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                  {option.label}
+                </SelectItem>
+              ));
+
+              if (!section.group) return items;
+
+              return (
+                <React.Fragment key={section.group}>
+                  {index > 0 && <SelectSeparator />}
+                  <SelectGroup>
+                    <SelectLabel>{section.group}</SelectLabel>
+                    {items}
+                  </SelectGroup>
+                </React.Fragment>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
