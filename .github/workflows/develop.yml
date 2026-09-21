@@ -60,7 +60,7 @@ jobs:
       # Enable ARM64 emulation so Buildx can execute ARM64 build stages
       # on the AMD64 GitHub-hosted runner.
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
         with:
           platforms: arm64
 
