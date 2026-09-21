@@ -25,17 +25,22 @@ jobs:
           
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Build Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
+        platforms: linux/amd64,linux/arm64
         build-args: |
           SHA1VER=${{ env.SHA1VER }}
           VERSION=${{ github.event.inputs.release_version }}
         tags: |
             ghcr.io/lamassuiot/lamassu-ui:${{ github.event.inputs.release_version }}
             ghcr.io/lamassuiot/lamassu-ui:latest
+            ghcr.io/lamassuiot/lamassu-ui:dev-v4
         push: true
       
     - name: Create tag
