@@ -46,7 +46,6 @@ jobs:
         tags: |
           ghcr.io/lamassuiot/lamassu-ui:${{ github.event.inputs.release_version }}
           ghcr.io/lamassuiot/lamassu-ui:latest
-          ghcr.io/lamassuiot/lamassu-ui:dev-v4
         push: true
       
     - name: Create tag
