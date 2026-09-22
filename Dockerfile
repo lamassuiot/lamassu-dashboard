@@ -35,25 +35,29 @@ ENV UI_FOOTER_ENABLED=false
 #ENV OIDC_CLIENT_ID
 
 
-# Remove default Nginx server configuration
-RUN rm /etc/nginx/conf.d/default.conf
-
-# Copy custom Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the main Nginx configuration with /tmp runtime paths and an
+# unprivileged listen port so nginx can run as 65532:65532.
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy the static assets from the builder stage
 # The 'out' directory contains the result of `next export`
-COPY --from=builder /app/out /var/www/html
+COPY --from=builder --chown=65532:65532 /app/out /var/www/html
 
 WORKDIR /var/www/html
+
 COPY ./config.js.tmpl /tmpl/config.js.tmpl
 
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
+
 RUN chmod +x /docker-entrypoint.sh && \
     apk add --no-cache bash
 
-# Expose port 80
-EXPOSE 80
+# Run as the chart-wide numeric non-root identity. The entrypoint only writes
+# to paths owned by this UID, so no ownership-changing capabilities are needed.
+USER 65532:65532
+
+# Expose the unprivileged port the chart expects
+EXPOSE 8085
 
 # Start Nginx
 ENTRYPOINT ["bash", "/docker-entrypoint.sh"]
