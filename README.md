@@ -150,7 +150,7 @@ docker build -t lamassu-ui:latest .
 2. Run the container (example)
 ```bash
 docker run -d \
-  -p 9002:80 \
+  -p 9002:8085 \
   -e LAMASSU_API="https://api.example.com" \
   -e OIDC_ENABLED=true \
   -e OIDC_AUTHORITY="https://auth.example.com/realms/your-realm" \
@@ -166,7 +166,7 @@ Notes:
 - The entrypoint runs envsubst against `/tmpl/config.js.tmpl` and writes `/var/www/html/config.js`. Provide any runtime config via environment variables listed above.
 - To enable a custom footer, mount `footer.html` into the container and set `UI_FOOTER_ENABLED=true`:
 ```bash
-docker run -d -p 9002:80 \
+docker run -d -p 9002:8085 \
   -v /local/path/footer.html:/var/www/html/footer.html:ro \
   -e UI_FOOTER_ENABLED=true \
   lamassu-ui:latest
@@ -185,7 +185,7 @@ Activation mechanism
 
 To enable a theme at container runtime, mount theme files and activation file into the container
 ```bash
-docker run -d -p 9002:80 \
+docker run -d -p 9002:8085 \
   -v /local/path/theme/mytheme:/var/www/html/themes/mytheme:ro \
   -v /local/path/custom-theme.css:/var/www/html/custom-theme.css:ro \
   -e LAMASSU_API="https://api.example.com" \
