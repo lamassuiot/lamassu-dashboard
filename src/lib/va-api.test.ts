@@ -604,14 +604,18 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
         ok: true,
         arrayBuffer: async () => new ArrayBuffer(10) // Invalid OCSP response
       })
-      global.fetch = mockFetch
+      vi.stubGlobal('fetch', mockFetch)
 
-      const result = await import('./va-api').then(m => 
-        m.checkOcspStatus(mockTargetCertPem, mockIssuerCertPem, 'http://ocsp.example.com')
-      )
+      try {
+        const result = await import('./va-api').then(m =>
+          m.checkOcspStatus(mockTargetCertPem, mockIssuerCertPem, 'http://ocsp.example.com')
+        )
 
-      expect(result.status).toBe('error')
-      expect(result.statusText).toBe('Request Failed')
+        expect(result.status).toBe('error')
+        expect(result.statusText).toBe('Request Failed')
+      } finally {
+        vi.unstubAllGlobals()
+      }
     })
 
     it('should set crypto engine when window is defined', async () => {
