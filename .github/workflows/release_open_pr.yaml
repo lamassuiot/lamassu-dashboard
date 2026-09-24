@@ -1,0 +1,135 @@
+name: Release Workflow - Open Pull Request with release notes
+
+permissions: {}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        type: string
+        description: 'Stable semantic version to prepare (example: 4.4.0)'
+        required: true
+
+run-name: >-
+  ${{ format('Open PR for release {0}', inputs.release_version) }}
+
+jobs:
+  open_pr:
+    name: Open PR with release notes and changelog
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_VERSION: ${{ inputs.release_version }}
+    steps:
+      - name: Create release bot token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: release-bot-token
+        with:
+          client-id: ${{ vars.LAMASSU_RELEASE_BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.LAMASSU_RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout main with full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          token: ${{ steps.release-bot-token.outputs.token }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Validate release version
+        id: validate-version
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release version must be stable semantic version X.Y.Z without a v prefix"
+            exit 1
+          fi
+
+          if git tag --list "$RELEASE_VERSION" | grep -Fxq "$RELEASE_VERSION"; then
+            echo "::error::Release tag $RELEASE_VERSION already exists"
+            exit 1
+          fi
+
+          latest_tag=$(git tag --merged "$GITHUB_SHA" --sort=-version:refname | grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | head -n1 || true)
+          if [[ -n "$latest_tag" ]]; then
+            newest_version=$(printf '%s\n' "$latest_tag" "$RELEASE_VERSION" | sort -V | tail -n1)
+            if [[ "$RELEASE_VERSION" == "$latest_tag" || "$newest_version" != "$RELEASE_VERSION" ]]; then
+              echo "::error::Release version $RELEASE_VERSION must be greater than latest stable tag $latest_tag"
+              exit 1
+            fi
+          fi
+
+          echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2 # v4.9.0
+        with:
+          version: v2.14.1
+          config: cliff.toml
+          args: --tag ${{ steps.validate-version.outputs.release_version }}
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Generate release notes for review
+        id: release-notes
+        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2 # v4.9.0
+        with:
+          version: v2.14.1
+          config: cliff.toml
+          args: >-
+            --unreleased --tag ${{ steps.validate-version.outputs.release_version }} --strip header
+        env:
+          OUTPUT: RELEASE-NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Update package and lockfile versions
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build project
+        run: npm run build
+
+      - name: Open or update release pull request
+        id: release-pr
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          token: ${{ steps.release-bot-token.outputs.token }}
+          add-paths: |
+            CHANGELOG.md
+            RELEASE-NOTES.md
+            package.json
+            package-lock.json
+          base: main
+          branch: release-${{ steps.validate-version.outputs.release_version }}
+          commit-message: 'chore: release: prepare release ${{ steps.validate-version.outputs.release_version }}'
+          signoff: true
+          sign-commits: true
+          title: 'chore: release: prepare release ${{ steps.validate-version.outputs.release_version }}'
+          body: |
+            # Release ${{ steps.validate-version.outputs.release_version }}
+
+            ## Release Notes
+
+            This PR updates the package version and generated git-cliff changelog. These reviewed notes are published after merge.
+
+            ${{ steps.release-notes.outputs.content }}
+
+      - name: Report release pull request
+        if: steps.release-pr.outputs.pull-request-url != ''
+        env:
+          RELEASE_PR_URL: ${{ steps.release-pr.outputs.pull-request-url }}
+        run: |
+          echo "Release pull request: $RELEASE_PR_URL"
