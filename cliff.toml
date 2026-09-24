@@ -28,7 +28,7 @@ render_always = true
 conventional_commits = true
 filter_unconventional = false
 commit_preprocessors = [
-    { pattern = '\\(#([0-9]+)\\)', replace = "([#${1}](https://github.com/lamassuiot/lamassu-dashboard/pull/${1}))" },
+    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/lamassuiot/lamassu-dashboard/pull/${1}))" },
 ]
 commit_parsers = [
     { message = "^feat", group = "Features" },
