@@ -21,36 +21,20 @@ interface CaFilterOptions {
 export function filterCaList(caList: CA[], options: CaFilterOptions): CA[] {
   const { filterText = '', selectedStatuses = [], selectedTypes = [] } = options;
 
-  return caList
-    .map(ca => {
-      // Recursively filter children first.
-      const filteredChildren = ca.children ? filterCaList(ca.children, options) : [];
-      
-      const newCa = { ...ca, children: filteredChildren };
+  const filteredCaList: CA[] = [];
 
-      // Determine if the current CA node itself matches the filters.
-      const matchesStatus = selectedStatuses.length > 0 ? selectedStatuses.includes(ca.status) : true;
-      
-      const matchesType = selectedTypes.length > 0 
-        ? selectedTypes.some(type => {
-            if (type === 'EXTERNAL') {
-              // The "External" filter should ONLY catch public-only CAs.
-              return ca.caType === 'EXTERNAL_PUBLIC';
-            }
-            return ca.caType === type;
-          })
-        : true;
+  for (const ca of caList) {
+    const filteredChildren = ca.children ? filterCaList(ca.children, options) : [];
+    const matchesStatus = selectedStatuses.length > 0 ? selectedStatuses.includes(ca.status) : true;
+    const matchesType = selectedTypes.length > 0
+      ? selectedTypes.some(type => type === 'EXTERNAL' ? ca.caType === 'EXTERNAL_PUBLIC' : ca.caType === type)
+      : true;
+    const matchesText = filterText ? ca.name.toLowerCase().includes(filterText.toLowerCase()) : true;
 
-      const matchesText = filterText ? ca.name.toLowerCase().includes(filterText.toLowerCase()) : true;
-      
-      const selfMatches = matchesStatus && matchesType && matchesText;
+    if ((matchesStatus && matchesType && matchesText) || filteredChildren.length > 0) {
+      filteredCaList.push({ ...ca, children: filteredChildren });
+    }
+  }
 
-      // Keep the node if it matches directly OR if it has children that matched.
-      if (selfMatches || filteredChildren.length > 0) {
-        return newCa;
-      }
-
-      return null;
-    })
-    .filter((ca): ca is CA => ca !== null);
+  return filteredCaList;
 }

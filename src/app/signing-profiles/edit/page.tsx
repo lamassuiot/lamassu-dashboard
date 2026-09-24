@@ -136,7 +136,7 @@ export default function EditSigningProfilePage() {
 
     setIsSubmitting(true);
 
-    let validityPayload: { type: string; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
+    let validityPayload: CreateSigningProfilePayload['validity'] = { type: 'Duration', duration: '1y' };
     if (data.validity.type === 'Duration' && data.validity.durationValue) {
         validityPayload = { type: 'Duration', duration: data.validity.durationValue };
     } else if (data.validity.type === 'Date' && data.validity.dateValue) {

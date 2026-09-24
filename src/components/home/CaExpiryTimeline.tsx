@@ -149,10 +149,10 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         const contentElement = hiddenItemsRef.current.get(ca.id);
         if (!contentElement) return null;
         
-        return { id: ca.id, content: contentElement, start: expiryDate, className };
-      }).filter(Boolean);
+        return { id: ca.id, content: contentElement.outerHTML, start: expiryDate, className };
+      }).filter((item): item is NonNullable<typeof item> => item !== null);
 
-      timelineInstance.current.setItems(new DataSet(itemsData as any));
+      timelineInstance.current.setItems(itemsData);
       timelineInstance.current.fit();
     }
   }, [isReadyForTimeline, cas, allCryptoEngines, router]);

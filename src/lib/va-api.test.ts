@@ -38,7 +38,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await fetchVaConfig(testSki, MOCK_TOKEN)
+      const result = await fetchVaConfig(testSki)
 
       expect(result).toBeDefined()
       expect(result?.crl_options.refresh_interval).toBe('24h')
@@ -52,7 +52,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await fetchVaConfig(testSki, MOCK_TOKEN)
+      const result = await fetchVaConfig(testSki)
 
       expect(result).toBeNull()
     })
@@ -69,7 +69,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await fetchVaConfig(testSki, MOCK_TOKEN)
+      const result = await fetchVaConfig(testSki)
 
       expect(result).toBeDefined()
       expect(result?.latest_crl).toBeNull()
@@ -90,7 +90,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await fetchVaConfig(testSki, MOCK_TOKEN)
+      const result = await fetchVaConfig(testSki)
 
       expect(result?.crl_options.subject_key_id_signer).toBe('custom-signer-ski')
     })
@@ -105,7 +105,7 @@ describe('va-api', () => {
         })
       )
 
-      await fetchVaConfig(testSki, MOCK_TOKEN)
+      await fetchVaConfig(testSki)
 
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
     })
@@ -120,7 +120,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(fetchVaConfig(testSki, MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchVaConfig(testSki)).rejects.toThrow(
         'Failed to fetch VA config'
       )
     })
@@ -138,7 +138,7 @@ describe('va-api', () => {
           })
         )
 
-        await fetchVaConfig(ski, MOCK_TOKEN)
+        await fetchVaConfig(ski)
         expect(capturedUrl?.pathname).toContain(`/roles/${ski}`)
       }
     })
@@ -160,7 +160,7 @@ describe('va-api', () => {
       )
 
       await expect(
-        updateVaConfig(testSki, updatePayload, MOCK_TOKEN)
+        updateVaConfig(testSki, updatePayload)
       ).resolves.toBeUndefined()
     })
 
@@ -174,7 +174,7 @@ describe('va-api', () => {
         })
       )
 
-      await updateVaConfig(testSki, updatePayload, MOCK_TOKEN)
+      await updateVaConfig(testSki, updatePayload)
 
       expect(capturedBody).toEqual(updatePayload)
     })
@@ -189,7 +189,7 @@ describe('va-api', () => {
         })
       )
 
-      await updateVaConfig(testSki, updatePayload, MOCK_TOKEN)
+      await updateVaConfig(testSki, updatePayload)
 
       expect(capturedHeaders?.get('Content-Type')).toBe('application/json')
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
@@ -206,7 +206,7 @@ describe('va-api', () => {
       )
 
       await expect(
-        updateVaConfig(testSki, updatePayload, MOCK_TOKEN)
+        updateVaConfig(testSki, updatePayload)
       ).rejects.toThrow('Failed to update VA config')
     })
 
@@ -224,7 +224,7 @@ describe('va-api', () => {
           })
         )
 
-        await updateVaConfig(testSki, { ...updatePayload, refresh_interval: interval }, MOCK_TOKEN)
+        await updateVaConfig(testSki, { ...updatePayload, refresh_interval: interval })
         expect(capturedInterval).toBe(interval)
       }
     })
@@ -244,7 +244,7 @@ describe('va-api', () => {
         })
       )
 
-      await updateVaConfig(testSki, customPayload, MOCK_TOKEN)
+      await updateVaConfig(testSki, customPayload)
 
       expect(capturedBody.subject_key_id_signer).toBe('custom-signer-123')
     })
@@ -261,7 +261,7 @@ describe('va-api', () => {
           })
         )
 
-        await updateVaConfig(testSki, { ...updatePayload, regenerate_on_revoke: regenerate }, MOCK_TOKEN)
+        await updateVaConfig(testSki, { ...updatePayload, regenerate_on_revoke: regenerate })
         expect(capturedFlag).toBe(regenerate)
       }
     })
@@ -279,7 +279,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await downloadCrl(testSki, MOCK_TOKEN)
+      const result = await downloadCrl(testSki)
 
       expect(result).toBeInstanceOf(ArrayBuffer)
       expect(result.byteLength).toBe(512)
@@ -295,7 +295,7 @@ describe('va-api', () => {
         })
       )
 
-      await downloadCrl(testSki, MOCK_TOKEN)
+      await downloadCrl(testSki)
 
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
       expect(capturedHeaders?.get('Accept')).toBe('application/pkix-crl')
@@ -311,7 +311,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow(
+      await expect(downloadCrl(testSki)).rejects.toThrow(
         'CRL not found'
       )
     })
@@ -326,7 +326,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow(
+      await expect(downloadCrl(testSki)).rejects.toThrow(
         'CRL generation failed'
       )
     })
@@ -338,7 +338,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow(
+      await expect(downloadCrl(testSki)).rejects.toThrow(
         'Server responded with status 503'
       )
     })
@@ -353,7 +353,7 @@ describe('va-api', () => {
           })
         )
 
-        const result = await downloadCrl(testSki, MOCK_TOKEN)
+        const result = await downloadCrl(testSki)
         expect(result.byteLength).toBe(size)
       }
     })
@@ -365,7 +365,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow()
+      await expect(downloadCrl(testSki)).rejects.toThrow()
     })
   })
 
@@ -387,7 +387,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await fetchVaConfig(testSki, MOCK_TOKEN)
+      const result = await fetchVaConfig(testSki)
 
       expect(result?.crl_options.refresh_interval).toBe('24h')
       expect(result?.crl_options.validity).toBe('168h')
@@ -408,7 +408,7 @@ describe('va-api', () => {
         })
       )
 
-      const result = await fetchVaConfig(testSki, MOCK_TOKEN)
+      const result = await fetchVaConfig(testSki)
 
       expect(result?.crl_options.regenerate_on_revoke).toBe(false)
     })
@@ -425,7 +425,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow('CRL download failed')
+      await expect(downloadCrl(testSki)).rejects.toThrow('CRL download failed')
     })
 
     it('should handle CRL download failure with non-JSON response', async () => {
@@ -435,7 +435,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow('Failed to download CRL')
+      await expect(downloadCrl(testSki)).rejects.toThrow('Failed to download CRL')
     })
 
     it('should include status code in error message', async () => {
@@ -445,7 +445,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow('403')
+      await expect(downloadCrl(testSki)).rejects.toThrow('403')
     })
   })
 
@@ -468,7 +468,7 @@ describe('va-api', () => {
       )
 
       await expect(
-        updateVaConfig(testSki, payload, MOCK_TOKEN)
+        updateVaConfig(testSki, payload)
       ).rejects.toThrow()
     })
 
@@ -480,7 +480,7 @@ describe('va-api', () => {
       )
 
       await expect(
-        updateVaConfig(testSki, payload, MOCK_TOKEN)
+        updateVaConfig(testSki, payload)
       ).rejects.toThrow()
     })
   })
@@ -496,7 +496,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(fetchVaConfig(testSki, MOCK_TOKEN)).rejects.toThrow()
+      await expect(fetchVaConfig(testSki)).rejects.toThrow()
     })
 
     it('should handle unauthorized error', async () => {
@@ -506,7 +506,7 @@ describe('va-api', () => {
         })
       )
 
-      await expect(fetchVaConfig(testSki, MOCK_TOKEN)).rejects.toThrow()
+      await expect(fetchVaConfig(testSki)).rejects.toThrow()
     })
   })
 

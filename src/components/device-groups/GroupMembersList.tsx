@@ -136,7 +136,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
       setError(null);
 
       // Apply sorting
-      let apiSortColumn = sortConfig.column;
+      let apiSortColumn: string = sortConfig.column;
       if (apiSortColumn === 'createdAt') {
         apiSortColumn = 'creation_timestamp';
       }

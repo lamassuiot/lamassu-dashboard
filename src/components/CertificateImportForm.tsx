@@ -92,8 +92,6 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
         validTo: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000) * (Math.random() + 0.5)).toISOString(),
         sans,
         pemData: fileContent,
-        verificationStatus: 'unverified',
-        verificationDetails: 'Certificate has not been verified yet.',
         publicKeyAlgorithm: 'RSA (2048 bits)',
         signatureAlgorithm: 'SHA256withRSA',
         fingerprintSha256: fingerprintSha256,

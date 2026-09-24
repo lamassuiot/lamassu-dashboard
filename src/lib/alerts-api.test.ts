@@ -41,7 +41,7 @@ describe('alerts-api', () => {
         })
       )
 
-      const result = await fetchLatestAlerts(MOCK_TOKEN)
+      const result = await fetchLatestAlerts()
 
       expect(result).toEqual(mockAlerts)
       expect(result).toHaveLength(1)
@@ -58,7 +58,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await expect(fetchLatestAlerts(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchLatestAlerts()).rejects.toThrow(
         'Failed to fetch alerts'
       )
     })
@@ -70,7 +70,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await expect(fetchLatestAlerts(MOCK_TOKEN)).rejects.toThrow()
+      await expect(fetchLatestAlerts()).rejects.toThrow()
     })
 
     it('should include authorization header', async () => {
@@ -83,7 +83,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await fetchLatestAlerts(MOCK_TOKEN)
+      await fetchLatestAlerts()
 
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
     })
@@ -112,7 +112,7 @@ describe('alerts-api', () => {
         })
       )
 
-      const result = await fetchSystemSubscriptions(MOCK_TOKEN)
+      const result = await fetchSystemSubscriptions()
 
       expect(result).toEqual(mockSubscriptions)
       expect(result).toHaveLength(1)
@@ -126,7 +126,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await expect(fetchSystemSubscriptions(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchSystemSubscriptions()).rejects.toThrow(
         'Failed to fetch subscriptions'
       )
     })
@@ -153,7 +153,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        subscribeToAlert(mockPayload, MOCK_TOKEN)
+        subscribeToAlert(mockPayload)
       ).resolves.toBeUndefined()
     })
 
@@ -167,7 +167,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await subscribeToAlert(mockPayload, MOCK_TOKEN)
+      await subscribeToAlert(mockPayload)
 
       expect(capturedBody).toEqual(mockPayload)
     })
@@ -183,7 +183,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        subscribeToAlert(mockPayload, MOCK_TOKEN)
+        subscribeToAlert(mockPayload)
       ).rejects.toThrow('Subscription failed')
     })
   })
@@ -208,7 +208,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        updateSubscription(subscriptionId, mockPayload, MOCK_TOKEN)
+        updateSubscription(subscriptionId, mockPayload)
       ).resolves.toBeUndefined()
     })
 
@@ -220,7 +220,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        updateSubscription(subscriptionId, mockPayload, MOCK_TOKEN)
+        updateSubscription(subscriptionId, mockPayload)
       ).rejects.toThrow('Failed to update subscription')
     })
   })
@@ -236,7 +236,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        unsubscribeFromAlert(subscriptionId, MOCK_TOKEN)
+        unsubscribeFromAlert(subscriptionId)
       ).resolves.toBeUndefined()
     })
 
@@ -248,7 +248,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        unsubscribeFromAlert(subscriptionId, MOCK_TOKEN)
+        unsubscribeFromAlert(subscriptionId)
       ).rejects.toThrow('Failed to unsubscribe')
     })
   })

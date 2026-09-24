@@ -17,6 +17,7 @@ import {
   revokeCa,
   deleteCa,
   createSigningProfile,
+    type CreateSigningProfilePayload,
   deleteSigningProfile,
   fetchSigningProfiles,
   signCertificate,
@@ -195,10 +196,10 @@ export const InitializationWizard: React.FC = () => {
                 addLog(`2a. Verifying dummy CA certificate...`, 'info');
                 try {
                     const createdCaList = await fetchAndProcessCAs(`filter=id[equal]${testCaId}`);
-                    if (createdCaList.length > 0 && createdCaList[0].pemData) {
-                        const caCert = createdCaList[0];
+                    const caCert = createdCaList[0];
+                    if (caCert?.pemData) {
                         testCaCertSerialNumber = caCert.serialNumber; // Store the CA's own certificate serial
-                        addLog("Found CA cert with serial number.", 'info', testCaCertSerialNumber);
+                        addLog("Found CA cert with serial number.", 'info', testCaCertSerialNumber ?? '');
                         const parsedDetails = await parseCertificatePemDetails(caCert.pemData);
                         addLog("OCSP URLs found:", 'success', parsedDetails.ocspUrls?.join(', ') || 'None');
                         addLog("CRL URLs found:", 'success', parsedDetails.crlDistributionPoints?.join(', ') || 'None');
@@ -237,7 +238,8 @@ export const InitializationWizard: React.FC = () => {
                         apiQueryString: `filter=serial_number[equal_ignorecase]${issuedCertSerialNumber}&page_size=1`
                     });
                     const issuedCertDetails = certificates[0];
-                    if (!issuedCertDetails?.pemData || createdCaList.length === 0 || !createdCaList[0].pemData) {
+                    const issuerPemData = createdCaList[0]?.pemData;
+                    if (!issuedCertDetails?.pemData || !issuerPemData) {
                         throw new Error("Could not retrieve PEM for issued or issuer certificate.");
                     }
                     
@@ -279,7 +281,7 @@ export const InitializationWizard: React.FC = () => {
 
                             const ocspResult = await checkOcspStatus(
                                 issuedCertDetails.pemData,
-                                createdCaList[0].pemData,
+                                issuerPemData,
                                 ocspUrl
                             );
 
@@ -454,7 +456,7 @@ export const InitializationWizard: React.FC = () => {
         setIsCreatingProfile(true);
         try {
             const templateData: Partial<SigningProfileFormValues> = templateDefaults['device-auth'] || {};
-            const payload = {
+            const payload: CreateSigningProfilePayload = {
                 name: 'Default Profile',
                 description: 'Default profile for general device authentication.',
                 validity: { type: "Duration", duration: "5y" },

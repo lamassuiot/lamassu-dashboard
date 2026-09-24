@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap } from 'lucide-react';
-import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
+import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/components/devices/DeviceDisplay';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -271,7 +271,7 @@ export default function DeviceDetailsClient() {
                 };
             });
 
-            const historyEntries = (await Promise.all(certPromises)).filter((e): e is CertificateHistoryEntry => e !== null);
+            const historyEntries = (await Promise.all(certPromises)).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
             setCertificateHistory(historyEntries);
 
         } catch (err: any) {
@@ -965,8 +965,6 @@ export default function DeviceDetailsClient() {
         device={device}
         ra={raForIntegration}
         availableIntegrations={availableIntegrations}
-        activeIntegration={activeIntegration}
-        setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
       />
     </div>

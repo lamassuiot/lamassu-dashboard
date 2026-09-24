@@ -360,10 +360,10 @@ export default function IssueCertificateFormClient() {
     }
   };
 
-  const handleKeyUsageChange = (usage: string, checked: boolean) => {
+  const handleKeyUsageChange = (usage: KeyUsageOption, checked: boolean) => {
     setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
   };
-  const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
+  const handleExtendedKeyUsageChange = (usage: ExtendedKeyUsageOption, checked: boolean) => {
     setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
   };
 
