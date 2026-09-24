@@ -78,7 +78,7 @@ jobs:
 
       - name: Install dependencies and build static site
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
           if [[ ! -d out ]]; then
             echo "::error::Build did not produce the expected out directory"
