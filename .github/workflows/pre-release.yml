@@ -55,7 +55,10 @@ jobs:
         GITHUB_REPO: ${{ github.repository }}
 
     - name: Build project
-      run: npm ci --ignore-scripts && npm run build
+      run: |
+        npm ci --ignore-scripts
+        npm run build
+        npm sbom --sbom-format=spdx > lamassu-ui-sbom.spdx.json
 
     - name: Zip out folder
       run: |
@@ -86,6 +89,8 @@ jobs:
         body: ${{ steps.changelog.outputs.content }}
         draft: false
         prerelease: true
-        files: release.zip
+        files: |
+          release.zip
+          lamassu-ui-sbom.spdx.json
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
