@@ -1,0 +1,60 @@
+name: Conventional Commits
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  validate-conventional-commits:
+    name: Validate PR title and commits
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      PATTERN: '^(feat|fix|style|revert|remove|security|test|chore|refactor|docs|build|ci)(\([[:alnum:]][[:alnum:]._,-]*\))?!?: [^[:space:]].*'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Check title format
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ "$PR_TITLE" =~ $PATTERN ]]; then
+            echo "ok: $PR_TITLE"
+          else
+            echo "::error::PR title does not follow Conventional Commits: $PR_TITLE"
+            echo "Expected: <type>[optional scope][!]: <description>"
+            exit 1
+          fi
+
+      - name: Check commit message format
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ! commit_subjects=$(git log --no-merges --format=%s "$BASE_SHA..$HEAD_SHA"); then
+            echo "::error::Could not read commits in the pull request range"
+            exit 1
+          fi
+
+          if [[ -z "$commit_subjects" ]]; then
+            echo "::error::No non-merge commits found in the pull request range"
+            exit 1
+          fi
+
+          failed=0
+          while IFS= read -r subject; do
+            if [[ "$subject" =~ $PATTERN ]]; then
+              echo "ok: $subject"
+            else
+              echo "::error::Commit subject does not follow Conventional Commits: $subject"
+              failed=1
+            fi
+          done <<< "$commit_subjects"
+
+          exit "$failed"
