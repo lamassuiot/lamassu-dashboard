@@ -7,7 +7,6 @@ import {
   downloadCrl,
   type VaApiResponse,
   type VaUpdatePayload,
-  type LatestCrlInfo,
 } from './va-api'
 
 const MOCK_TOKEN = 'test-access-token'
