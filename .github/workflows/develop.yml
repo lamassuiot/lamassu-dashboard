@@ -80,6 +80,7 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=ghcr.io/lamassuiot/lamassu-ui,push-by-digest=true,name-canonical=true,push=true
+          sbom: true
 
       - name: Export digest
         env:
