@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseCertificatePemDetails, abToHex } from '@/lib-crypto'
-import { VALID_RSA_CERT_PEM, VALID_ECDSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
+import { VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('cert-parser', () => {
   it('should parse a valid certificate and populate fields', async () => {

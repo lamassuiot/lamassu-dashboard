@@ -10,9 +10,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // This is needed to allow the Next.js dev server to accept requests from the Firebase Studio preview environment.
+  allowedDevOrigins: ["*.cluster-c3a7z3wnwzapkx3rfr5kz62dac.cloudworkstations.dev"],
   experimental: {
-    // This is needed to allow the Next.js dev server to accept requests from the Firebase Studio preview environment.
-    allowedDevOrigins: ["*.cluster-c3a7z3wnwzapkx3rfr5kz62dac.cloudworkstations.dev"],
   },
   images: {
     // When using `output: 'export'`, the default `next/image` loader is not supported.

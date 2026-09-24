@@ -1,0 +1,29 @@
+name: Scheduled Container Image Scan
+
+permissions: {}
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  scan-image:
+    name: Scan ${{ matrix.image-tag }} image
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image-tag: dev
+            category: trivy-image-dev
+          - image-tag: latest
+            category: trivy-image-release
+    uses: ./.github/workflows/trivy-image-scan.yml
+    with:
+      image-ref: ghcr.io/lamassuiot/lamassu-ui:${{ matrix.image-tag }}
+      category: ${{ matrix.category }}
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write

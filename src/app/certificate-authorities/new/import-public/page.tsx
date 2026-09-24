@@ -80,9 +80,12 @@ export default function CreateCaImportPublicPage() {
 
     const payload: ImportCaPayload = {
         id: crypto.randomUUID(),
+      engine_id: '',
+      private_key: window.btoa(''),
         ca: window.btoa(importedCaCertPem),
         ca_chain: [],
-        ca_type: "EXTERNAL_PUBLIC"
+      ca_type: "EXTERNAL_PUBLIC",
+      parent_id: '',
     };
     
     try {

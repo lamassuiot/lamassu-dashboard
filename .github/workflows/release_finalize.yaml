@@ -1,0 +1,172 @@
+name: Finalize Release
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - CHANGELOG.md
+      - RELEASE-NOTES.md
+
+jobs:
+  detect-release:
+    name: Verify release preparation merge
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      should_release: ${{ steps.detect.outputs.should_release }}
+      release_version: ${{ steps.detect.outputs.release_version }}
+    steps:
+      - name: Checkout main with full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect prepared release
+        id: detect
+        run: |
+          current_version=$(node -p 'require("./package.json").version')
+          previous_version=$(git show "$GITHUB_SHA^:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+
+          if [[ "$current_version" == "$previous_version" ]]; then
+            echo "No package version change; skipping release finalization."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ ! "$current_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release package version must be stable semantic version X.Y.Z"
+            exit 1
+          fi
+
+          if ! grep -Fq "## [$current_version]" CHANGELOG.md || ! grep -Fq "## [$current_version]" RELEASE-NOTES.md; then
+            echo "::error::Generated changelog and release notes must both contain version $current_version"
+            exit 1
+          fi
+
+          if git tag --list "$current_version" | grep -Fxq "$current_version"; then
+            echo "::error::Release tag $current_version already exists"
+            exit 1
+          fi
+
+          echo "release_version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+  publish-release:
+    name: Build and publish release artifacts
+    needs: detect-release
+    if: needs.detect-release.outputs.should_release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    outputs:
+      image-digest: ${{ steps.build-image.outputs.digest }}
+    steps:
+      - name: Checkout approved release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Install dependencies and build static site
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npm sbom --sbom-format=spdx > lamassu-ui-sbom.spdx.json
+          if [[ ! -d out ]]; then
+            echo "::error::Build did not produce the expected out directory"
+            exit 1
+          fi
+          zip -r release.zip out
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Docker image
+        id: build-image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          build-args: |
+            SHA1VER=${{ github.sha }}
+            VERSION=${{ needs.detect-release.outputs.release_version }}
+          tags: |
+            ghcr.io/lamassuiot/lamassu-ui:${{ needs.detect-release.outputs.release_version }}
+            ghcr.io/lamassuiot/lamassu-ui:latest
+          push: true
+          sbom: true
+
+      - name: Create release tag
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          RELEASE_VERSION: ${{ needs.detect-release.outputs.release_version }}
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${process.env.RELEASE_VERSION}`,
+              sha: context.sha
+            })
+
+      - name: Load reviewed release notes
+        id: release-notes
+        run: |
+          delimiter="$(openssl rand -hex 16)"
+          {
+            echo "body<<$delimiter"
+            cat RELEASE-NOTES.md
+            echo
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1.1.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.detect-release.outputs.release_version }}
+          release_name: Release v${{ needs.detect-release.outputs.release_version }}
+          body: ${{ steps.release-notes.outputs.body }}
+          draft: false
+          prerelease: false
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v0.1.15
+        with:
+          tag_name: ${{ needs.detect-release.outputs.release_version }}
+          files: |
+            release.zip
+            lamassu-ui-sbom.spdx.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  scan-image:
+    name: Scan release image
+    needs: publish-release
+    uses: ./.github/workflows/trivy-image-scan.yml
+    with:
+      image-ref: ghcr.io/lamassuiot/lamassu-ui@${{ needs.publish-release.outputs.image-digest }}
+      category: trivy-image-release
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write

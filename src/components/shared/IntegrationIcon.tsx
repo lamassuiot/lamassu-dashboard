@@ -1,0 +1,14 @@
+'use client';
+
+import Image from 'next/image';
+import { Blocks } from 'lucide-react';
+import type { DiscoveredIntegration } from '@/lib/integrations-api';
+import AwsIcon from '@/app/aws.svg';
+
+export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> = ({ type }) => {
+  if (type === 'AWS_IOT_CORE') {
+    return <Image src={AwsIcon} alt="AWS IoT Core Icon" className="h-6 w-6" width={24} height={24} />;
+  }
+
+  return <Blocks className="h-6 w-6 text-primary" />;
+};

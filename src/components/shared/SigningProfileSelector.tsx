@@ -25,6 +25,7 @@ import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { Alert } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
+import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 
 
 export type ProfileMode = 'reuse' | 'inline' | 'create';
@@ -42,10 +43,10 @@ interface SigningProfileSelectorProps {
   validity?: ExpirationConfig;
   onValidityChange?: (config: ExpirationConfig) => void;
   validityWarning?: string | null;
-  keyUsages?: string[];
-  onKeyUsageChange?: (usage: string, checked: boolean) => void;
-  extendedKeyUsages?: string[];
-  onExtendedKeyUsageChange?: (usage: string, checked: boolean) => void;
+  keyUsages?: KeyUsageOption[];
+  onKeyUsageChange?: (usage: KeyUsageOption, checked: boolean) => void;
+  extendedKeyUsages?: ExtendedKeyUsageOption[];
+  onExtendedKeyUsageChange?: (usage: ExtendedKeyUsageOption, checked: boolean) => void;
   honorSubject?: boolean;
   onHonorSubjectChange?: (checked: boolean) => void;
   
