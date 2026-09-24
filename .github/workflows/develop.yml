@@ -138,3 +138,17 @@ jobs:
           IMAGE: ghcr.io/lamassuiot/lamassu-ui
           TAG: ${{ needs.validate_tag.outputs.tag }}
         run: docker buildx imagetools inspect "${IMAGE}:${TAG}"
+
+
+  scan-image:
+    name: Scan DEV image
+    needs: [validate_tag, dev_image]
+    uses: ./.github/workflows/trivy-image-scan.yml
+    with:
+      image-ref: ghcr.io/lamassuiot/lamassu-ui:${{ needs.validate_tag.outputs.tag }}-${{ github.sha }}
+      category: trivy-image-dev
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
