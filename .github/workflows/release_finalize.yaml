@@ -64,6 +64,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+    outputs:
+      image-digest: ${{ steps.build-image.outputs.digest }}
     steps:
       - name: Checkout approved release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -98,6 +100,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and publish Docker image
+        id: build-image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
@@ -154,3 +157,16 @@ jobs:
             lamassu-ui-sbom.spdx.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  scan-image:
+    name: Scan release image
+    needs: publish-release
+    uses: ./.github/workflows/trivy-image-scan.yml
+    with:
+      image-ref: ghcr.io/lamassuiot/lamassu-ui@${{ needs.publish-release.outputs.image-digest }}
+      category: trivy-image-release
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
