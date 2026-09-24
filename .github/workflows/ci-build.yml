@@ -27,6 +27,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Run lint
         run: npm run lint
+      - name: Run pretypecheck
+        run: npm run pretypecheck
       - name: Run typecheck
         run: npm run typecheck
       - name: Run tests
