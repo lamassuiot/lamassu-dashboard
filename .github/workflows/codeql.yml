@@ -14,7 +14,7 @@ on:
 
 jobs:
   analyze:
-    name: Analyze JavaScript and TypeScript
+    name: Analyze JavaScript, TypeScript, and GitHub Actions
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -29,8 +29,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@f0489abddd4e5e9dff53ed28a45b1d6f88978a1b # v4
         with:
-          languages: javascript-typescript
-          build-mode: none
+          languages: javascript-typescript, actions
 
       - name: Analyze source
         uses: github/codeql-action/analyze@f0489abddd4e5e9dff53ed28a45b1d6f88978a1b # v4
