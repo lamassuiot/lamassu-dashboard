@@ -17,14 +17,19 @@ const MLDSA_SIGN_ALGORITHMS: Record<string, string> = {
   "ML-DSA-87": "MLDSA_87",
 };
 
-function u8buf(arr: Uint8Array): ArrayBuffer {
+export function u8buf(arr: Uint8Array): ArrayBuffer {
   if (arr.byteOffset === 0 && arr.byteLength === arr.buffer.byteLength) {
     return arr.buffer as ArrayBuffer;
   }
   return arr.slice().buffer;
 }
 
-function encodeSpki(
+/**
+ * Wraps a raw public key under a bare `AlgorithmIdentifier{algorithmOid}`
+ * (no parameters) SubjectPublicKeyInfo — the SPKI shape used by ML-DSA,
+ * SLH-DSA, and composite ML-DSA keys alike.
+ */
+export function encodeSpki(
   algorithmOid: string,
   rawPublicKey: Uint8Array,
 ): ArrayBuffer {
@@ -39,7 +44,12 @@ function encodeSpki(
   return spki.toBER(false);
 }
 
-function encodePkcs8(
+/**
+ * Wraps a raw private key under a bare `AlgorithmIdentifier{algorithmOid}`
+ * (no parameters) PKCS#8 PrivateKeyInfo — the PKCS#8 shape used by ML-DSA,
+ * SLH-DSA, and composite ML-DSA keys alike.
+ */
+export function encodePkcs8(
   algorithmOid: string,
   rawSecretKey: Uint8Array,
 ): ArrayBuffer {
