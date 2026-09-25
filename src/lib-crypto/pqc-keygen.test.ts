@@ -103,10 +103,9 @@ async function validatePqcKeyGenResult(
   const signFnOutput = await pqcKeyGenResult.signFn(Buffer.from(msg).toString('base64'));
     
   // Get the private key and sign the message
-  const privateKeyBer = parsePEM(pqcKeyGenResult.privateKeyPem, 'PRIVATE KEY');
-  const pkcs8 = asn1js.fromBER(privateKeyBer).result as asn1js.Sequence;
-  const privateKeyBitString = pkcs8.valueBlock.value[2] as asn1js.OctetString;
-  const privateKey = new Uint8Array((privateKeyBitString.valueBlock.value[0] as asn1js.OctetString).valueBlock.valueHexView);
+  const privateKey = algo.info?.type === 'ml-dsa'
+    ? parseMlDsaPrivateKey(pqcKeyGenResult.privateKeyPem, algo)
+    : parseGenericPqPrivateKey(pqcKeyGenResult.privateKeyPem);
   const sig = algo.sign(msg, privateKey);
 
   // Get the public key
@@ -118,6 +117,19 @@ async function validatePqcKeyGenResult(
   // Expect both signed messages to be valid
   expect(algo.verify(sig, msg, publicKey)).toBeTruthy();
   expect(algo.verify(base64ToBytes(signFnOutput), msg, publicKey)).toBeTruthy();
+}
+
+function parseGenericPqPrivateKey(privateKeyPem: string): Uint8Array {
+  const privateKeyBer = parsePEM(privateKeyPem, 'PRIVATE KEY');
+  const pkcs8 = asn1js.fromBER(privateKeyBer).result as asn1js.Sequence;
+  const privateKeyOctetString = pkcs8.valueBlock.value[2] as asn1js.OctetString;
+  return new Uint8Array((privateKeyOctetString.valueBlock.value[0] as asn1js.OctetString).valueBlock.valueHexView);
+}
+
+function parseMlDsaPrivateKey(privateKeyPem: string, algo: typeof ml_dsa44): Uint8Array {
+  // ML-DSA private keys are exported in seed format; derive the expanded secret key from the seed.
+  const seed = parseGenericPqPrivateKey(privateKeyPem);
+  return algo.keygen(seed).secretKey;
 }
 
 //---------------------------------------------------------------------------------------
