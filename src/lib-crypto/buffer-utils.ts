@@ -61,3 +61,60 @@ export function formatAsPem(
   const body = base64String.match(/.{1,64}/g)?.join("\n") ?? "";
   return `${header}\n${body}\n${footer}`;
 }
+
+/**
+ * Strips a PEM header/footer for `type` and decodes the remaining base64
+ * body to raw DER bytes. The inverse of `formatAsPem`.
+ */
+export function pemToArrayBuffer(
+  pem: string,
+  type: "PUBLIC KEY" | "CERTIFICATE REQUEST" | "PRIVATE KEY" | "CERTIFICATE",
+): ArrayBuffer {
+  const base64 = pem
+    .replaceAll(new RegExp(`-----(BEGIN|END) ${type}-----`, "g"), "")
+    .replaceAll(/\s+/g, "");
+  return Uint8Array.from(window.atob(base64), (c) => c.codePointAt(0) ?? 0)
+    .buffer;
+}
+
+/** Concatenates any number of byte arrays into a single fresh `Uint8Array`. */
+export function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+/** Encodes bytes as unpadded base64url (RFC 4648 §5), as used by JWK fields. */
+export function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCodePoint(bytes[i]);
+  }
+  return window
+    .btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll(/=+$/g, "");
+}
+
+/** Decodes unpadded base64url (RFC 4648 §5), as used by JWK fields. */
+export function base64UrlDecode(value: string): Uint8Array {
+  const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+  const padding = base64.length % 4 === 0 ? "" : "=".repeat(4 - (base64.length % 4));
+  const binary = window.atob(base64 + padding);
+  return Uint8Array.from(binary, (c) => c.codePointAt(0) ?? 0);
+}
+
+/** Left-pads (or right-truncates from the left) `bytes` to exactly `size` bytes. */
+export function padLeft(bytes: Uint8Array, size: number): Uint8Array {
+  if (bytes.length === size) return bytes;
+  if (bytes.length > size) return bytes.slice(bytes.length - size);
+  const out = new Uint8Array(size);
+  out.set(bytes, size - bytes.length);
+  return out;
+}

@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { cn } from '@/lib/utils';
-import { buildSelfSignedCsr, buildSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, generateMlDsaKeyPair, generateSlhDsaKeyPair, type CsrSan } from "@/lib-crypto";
+import { buildSelfSignedCsr, buildSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, generateMlDsaKeyPair, generateSlhDsaKeyPair, generateCompositeKeyPair, COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET, type CsrSan } from "@/lib-crypto";
 import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
 import { KEY_SPEC_OPTIONS, KEY_TYPE_OPTIONS_POST_QUANTUM } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
@@ -486,10 +486,12 @@ export default function IssueCertificateFormClient() {
       let privateKeyPem: string;
       let signedCsrPem: string;
 
-      if (keyType === 'ML-DSA' || keyType === 'SLH-DSA') {
+      if (keyType === 'ML-DSA' || keyType === 'SLH-DSA' || keyType === 'Composite-ML-DSA') {
         const pqcResult = keyType === 'ML-DSA'
           ? await generateMlDsaKeyPair(keySpec)
-          : await generateSlhDsaKeyPair(keySpec);
+          : keyType === 'SLH-DSA'
+          ? await generateSlhDsaKeyPair(keySpec)
+          : await generateCompositeKeyPair(COMPOSITE_MLDSA_ALGORITHM_BY_PARAMETER_SET[keySpec]);
 
         privateKeyPem = pqcResult.privateKeyPem;
         signedCsrPem = await buildSignedCsr({
