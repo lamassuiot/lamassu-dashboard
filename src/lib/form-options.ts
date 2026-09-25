@@ -13,6 +13,7 @@ export const KEY_TYPE_OPTIONS_POST_QUANTUM = [
   ...KEY_TYPE_OPTIONS,
   { value: 'ML-DSA', label: 'ML-DSA (Post-Quantum)' },
   { value: 'SLH-DSA', label: 'SLH-DSA (Post-Quantum)' },
+  { value: 'Composite-ML-DSA', label: 'Composite ML-DSA (Post-Quantum Hybrid)' },
 ];
 
 export const RSA_KEY_SIZE_OPTIONS = [
@@ -64,16 +65,6 @@ export const SLHDSA_PARAM_SET_OPTIONS = Object.entries(SLHDSA_PARAM_SET_INFO).ma
   label: `${id} - ${info.name} (${info.hash}, ${info.security}, ${info.speed})`,
 }));
 
-// --- Key Specs ---
-// Created for easy of reuse and convenience
-export const KEY_SPEC_OPTIONS: Record<string, { value: string, label: string }[]> = {
-    'RSA': RSA_KEY_SIZE_OPTIONS,
-    'ECDSA': ECDSA_CURVE_OPTIONS,
-    'Ed25519': [],
-    'ML-DSA': MLDSA_SECURITY_LEVEL_OPTIONS,
-    'SLH-DSA': SLHDSA_PARAM_SET_OPTIONS,
-};
-
 /**
  * Human-readable display name for composite (ML-DSA + traditional) key/algorithm
  * types. Kept as a single constant so every UI surface (key type dropdowns,
@@ -116,6 +107,23 @@ export const COMPOSITE_MLDSA_PARAM_SET_INFO: Record<string, { name: string }> = 
   '13': { name: 'MLDSA87-ECDSA-P521-SHA512' },
   '14': { name: 'MLDSA44-Ed25519-SHA512' },
   '15': { name: 'MLDSA65-Ed25519-SHA512' },
+};
+
+/** All 15 composite parameter sets, spanning the RSA, ECDSA, and Ed25519 families. */
+export const COMPOSITE_MLDSA_PARAM_SET_OPTIONS = Object.entries(COMPOSITE_MLDSA_PARAM_SET_INFO).map(([id, info]) => ({
+  value: id,
+  label: `${id} - ${info.name}`,
+}));
+
+// --- Key Specs ---
+// Created for easy of reuse and convenience
+export const KEY_SPEC_OPTIONS: Record<string, { value: string, label: string }[]> = {
+    'RSA': RSA_KEY_SIZE_OPTIONS,
+    'ECDSA': ECDSA_CURVE_OPTIONS,
+    'Ed25519': [],
+    'ML-DSA': MLDSA_SECURITY_LEVEL_OPTIONS,
+    'SLH-DSA': SLHDSA_PARAM_SET_OPTIONS,
+    'Composite-ML-DSA': COMPOSITE_MLDSA_PARAM_SET_OPTIONS,
 };
 
 /** Algorithm families supported by KMS crypto engines, grouped for display. */

@@ -18,3 +18,5 @@ export * from "./ocsp";
 export * from "./crl-parser";
 export * from "./uuid";
 export * from "./pqc-keygen";
+export * from "./composite-key";
+export * from "./composite-algorithm";

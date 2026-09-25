@@ -11,6 +11,11 @@ importers:
         version: 12.15.0
 
 packages:
+  '@noble/curves@1.9.7':
+    resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
+    engines: {node: ^14.21.3 || >=16}
+
+
   '@noble/post-quantum@0.6.1':
     resolution: {integrity: sha512-+pormrDZwjRw05U8ADK4JpHejo87+gBd+muRBB/ozztH5yhDLMDF4jHQWN3NQQAsu1zBNPWTG0ZwVI0CR29H0A==}
     engines: {node: '>= 20.19.0'}
@@ -115,6 +120,11 @@ packages:
     hasBin: true
 
 snapshots:
+  '@noble/curves@1.9.7':
+    dependencies:
+      '@noble/hashes': 1.8.0
+
+
   '@noble/post-quantum@0.6.1':
     dependencies:
       '@noble/ciphers': 2.2.0
@@ -232,6 +242,9 @@ importers:
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@noble/curves':
+        specifier: ^1.9.7
+        version: 1.9.7
       '@noble/post-quantum':
         specifier: ^0.6.1
         version: 0.6.1
