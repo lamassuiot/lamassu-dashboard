@@ -103,10 +103,12 @@ async function validatePqcKeyGenResult(
   const signFnOutput = await pqcKeyGenResult.signFn(msg.toBase64());
     
   // Get the private key and sign the message
-  const privateKeyBer = parsePEM(pqcKeyGenResult.privateKeyPem, 'PRIVATE KEY');
-  const pkcs8 = asn1js.fromBER(privateKeyBer).result as asn1js.Sequence;
-  const privateKeyBitString = pkcs8.valueBlock.value[2] as asn1js.OctetString;
-  const privateKey = new Uint8Array(privateKeyBitString.valueBlock.value[0].valueBlock.valueHexView);
+  var privateKey;
+  if(algo.info.type == 'ml-dsa') {
+    privateKey = await parseMLDSAPrivateKey(pqcKeyGenResult.privateKeyPem, algo);
+  } else {
+    privateKey = await parseGenericPQPrivateKey(pqcKeyGenResult.privateKeyPem, algo);
+  }
   const sig = algo.sign(msg, privateKey);
 
   // Get the public key
@@ -118,6 +120,31 @@ async function validatePqcKeyGenResult(
   // Expect both signed messages to be valid
   expect(algo.verify(sig, msg, publicKey)).toBeTruthy();
   expect(algo.verify(Uint8Array.fromBase64(signFnOutput), msg, publicKey)).toBeTruthy();
+}
+
+async function parseGenericPQPrivateKey(
+  privateKeyPem: string,
+  algo: typeof ml_dsa44
+) {
+  const privateKeyBer = parsePEM(privateKeyPem, 'PRIVATE KEY');
+  const pkcs8 = asn1js.fromBER(privateKeyBer).result as asn1js.Sequence;
+  const privateKeyBitString = pkcs8.valueBlock.value[2] as asn1js.OctetString;
+  return new Uint8Array(privateKeyBitString.valueBlock.value[0].valueBlock.valueHexView);
+}
+
+async function parseMLDSAPrivateKey(
+  privateKeyPem: string,
+  algo: typeof ml_dsa44
+) {
+  // Get the private key and sign the message
+  const privateKeyBer = parsePEM(privateKeyPem, 'PRIVATE KEY');
+  const pkcs8 = asn1js.fromBER(privateKeyBer).result as asn1js.Sequence;
+  const seedBitString = pkcs8.valueBlock.value[2] as asn1js.OctetString;
+  const seed = new Uint8Array(seedBitString.valueBlock.value[0].valueBlock.valueHexView);
+  
+  // Retrieve the private key from the seed
+  const { secretKey } = algo.keygen(seed);
+  return secretKey;
 }
 
 //---------------------------------------------------------------------------------------

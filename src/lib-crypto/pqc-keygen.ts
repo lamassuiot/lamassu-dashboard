@@ -1,6 +1,8 @@
 import * as asn1js from "asn1js";
 import { SIGNATURE_OID_MAP } from "./constants";
 import { arrayBufferToBase64, formatAsPem } from "./buffer-utils";
+import { ml_dsa44, ml_dsa65, ml_dsa87 } from "@noble/post-quantum/ml-dsa.js";
+import { randomBytes } from "@noble/post-quantum/utils.js";
 
 export interface PqcKeyGenResult {
   publicKeyPem: string;
@@ -61,25 +63,28 @@ export async function generateMlDsaKeyPair(
   if (!signAlgorithm)
     throw new Error(`Unknown ML-DSA security level: ${securityLevel}`);
 
-  const { ml_dsa44, ml_dsa65, ml_dsa87 } = await import(
-    "@noble/post-quantum/ml-dsa.js"
-  );
   const algoMap: Record<string, typeof ml_dsa44> = {
     "ML-DSA-44": ml_dsa44,
     "ML-DSA-65": ml_dsa65,
     "ML-DSA-87": ml_dsa87,
   };
   const algo = algoMap[securityLevel];
-  const { secretKey, publicKey } = algo.keygen();
+
+  // Generate seed
+  const seed = randomBytes(32);
+  
+  // Use seed to generate key
+  const { secretKey, publicKey } = algo.keygen(seed);
   const oid = SIGNATURE_OID_MAP[signAlgorithm];
 
+  // For ML-DSA private key generation, use seed format
   return {
     publicKeyPem: formatAsPem(
       arrayBufferToBase64(encodeSpki(oid, publicKey)),
       "PUBLIC KEY",
     ),
     privateKeyPem: formatAsPem(
-      arrayBufferToBase64(encodePkcs8(oid, secretKey)),
+      arrayBufferToBase64(encodePkcs8(oid, seed)),
       "PRIVATE KEY",
     ),
     signAlgorithm,
