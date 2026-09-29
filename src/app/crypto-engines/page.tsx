@@ -156,7 +156,7 @@ export default function CryptoEnginesPage() {
             <Cpu className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-headline font-semibold">Crypto Engines</h1>
+            <h1 className="text-3xl font-headline font-semibold">Crypto Engines</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Configured engines for key management, signing operations, and PKI workflows.
             </p>
