@@ -361,7 +361,7 @@ export default function KmsKeysPage() {
 
 
   return (
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label: 'Home', href: '/'}, {label: 'KMS', href: '/kms'}, {label: 'Keys'} ]}>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label: 'Home', href: '/'}, {label: 'KMS'}, {label: 'Keys'} ]}>
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">

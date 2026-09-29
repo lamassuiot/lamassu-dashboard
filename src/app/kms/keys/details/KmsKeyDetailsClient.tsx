@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, Copy, Check, ChevronDown, Lock, Edit, Delete } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, Lock, Edit, Delete } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Separator } from '@/components/ui/separator';
@@ -36,9 +36,10 @@ import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
@@ -58,6 +59,12 @@ interface KmsKeyDetailed {
 }
 
 const signatureAlgorithms = [...SIGNATURE_ALGORITHMS];
+
+const KMS_KEY_CRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'KMS' },
+  { label: 'Keys', href: '/kms/keys' },
+];
 
 export default function KmsKeyDetailsClient() {
   const searchParams = useSearchParams();
@@ -157,7 +164,6 @@ export default function KmsKeyDetailsClient() {
   const [originalTags, setOriginalTags] = useState<string[]>([]); // Track original state
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isSavingTags, setIsSavingTags] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
 
   const cryptoEngine = useMemo(() => {
     if (!keyDetails?.cryptoEngineId) return undefined;
@@ -669,37 +675,38 @@ export default function KmsKeyDetailsClient() {
 
   if (isLoading) {
     return (
-      <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-        <Loader2 className="h-12 w-12 text-primary animate-spin" />
-        <p className="text-muted-foreground">Loading KMS Key details...</p>
-      </div>
+      <BreadcrumbPage items={KMS_KEY_CRUMBS}>
+        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
+          <Loader2 className="h-12 w-12 text-primary animate-spin" />
+          <p className="text-muted-foreground">Loading KMS Key details...</p>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
   if (error) {
     return (
-      <div className="w-full space-y-4 p-4">
-        <Button variant="secondary" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
+      <BreadcrumbPage items={KMS_KEY_CRUMBS}>
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Key</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   if (!keyDetails) {
     return (
-      <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-        <KeyRound className="h-12 w-12 text-muted-foreground" />
-        <p className="text-muted-foreground">KMS Key with ID "{keyId || 'Unknown'}" not found.</p>
-        <Button variant="secondary" onClick={() => router.push('/kms/keys')} className="mt-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
-        </Button>
-      </div>
+      <BreadcrumbPage items={KMS_KEY_CRUMBS}>
+        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
+          <KeyRound className="h-12 w-12 text-muted-foreground" />
+          <p className="text-muted-foreground">KMS Key with ID "{keyId || 'Unknown'}" not found.</p>
+          <Button variant="secondary" onClick={() => router.push('/kms/keys')} className="mt-4">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
+          </Button>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
@@ -708,9 +715,7 @@ export default function KmsKeyDetailsClient() {
     <BreadcrumbPage
       className="space-y-5"
       items={[
-        { label: 'Home', href: '/' },
-        { label: 'KMS', href: '/kms' },
-        { label: 'Keys', href: '/kms/keys' },
+        ...KMS_KEY_CRUMBS,
         {
           label: (
             <Badge>{keyDetails.alias}</Badge>
@@ -719,92 +724,53 @@ export default function KmsKeyDetailsClient() {
       ]}
     >
 
-      {/* ── Hero ── */}
-      <section className="border-b">
-        <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight" title={keyDetails.alias}>
-                {keyDetails.alias}
-              </h1>
-              <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'warning'} dot>
-                {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
-              </Badge>
-            </div>
-
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Key ID</span>
-              <code className="max-w-full truncate rounded-sm border bg-muted px-2 py-0.5 font-mono text-xs">
-                {keyDetails.id}
-              </code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                aria-label="Copy key ID"
-                onClick={() => {
-                  navigator.clipboard.writeText(keyDetails.id);
-                  setCopiedId(true);
-                  setTimeout(() => setCopiedId(false), 2000);
-                }}
-              >
-                {copiedId ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-              </Button>
-              {cryptoEngine && (
-                <Badge variant="secondary">
-                  <CryptoEngineViewer engine={cryptoEngine} iconOnly />
-                  {cryptoEngine.name || cryptoEngine.type}
+      <DetailHero
+        title={keyDetails.alias}
+        badges={
+          <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'warning'} dot>
+            {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
+          </Badge>
+        }
+        idLabel="Key ID"
+        id={keyDetails.id}
+        meta={cryptoEngine && (
+          <Badge variant="secondary">
+            <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+            {cryptoEngine.name || cryptoEngine.type}
+          </Badge>
+        )}
+        actions={
+          <DetailHeroActionsMenu ariaLabel="Key actions" contentClassName="w-48">
+            <DropdownMenuItem disabled>
+              <Delete className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DetailHeroActionsMenu>
+        }
+        statsClassName="lg:grid-cols-[minmax(300px,1.2fr)_minmax(320px,1.4fr)_minmax(260px,1fr)]"
+        stats={
+          <>
+            <DetailHeroStat label="Cryptographic profile">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="font-mono">
+                  {keyDetails.algorithm}
                 </Badge>
-              )}
-            </div>
-          </div>
+                {keyDetails.keySize && (
+                  <Badge variant="secondary">
+                    {keyDetails.keySize} bits
+                  </Badge>
+                )}
+                <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
+              </div>
+            </DetailHeroStat>
 
-          <div className="flex shrink-0 items-center gap-2 sm:self-center sm:justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" aria-label="Key actions">
-                  Actions
-                  <ChevronDown data-icon="inline-end" className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem disabled>
-                  <Delete className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        <div className="divide-y border-t lg:grid lg:grid-cols-[minmax(300px,1.2fr)_minmax(320px,1.4fr)_minmax(260px,1fr)] lg:divide-x lg:divide-y-0">
-          <div className="py-3 lg:pr-6">
-            <p className="text-xs font-medium text-muted-foreground">Cryptographic profile</p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <Badge variant="secondary" className="font-mono">
-                {keyDetails.algorithm}
-              </Badge>
-              {keyDetails.keySize && (
-                <Badge variant="secondary">
-                  {keyDetails.keySize} bits
-                </Badge>
-              )}
-              <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
-            </div>
-          </div>
-
-          <div className="py-3 lg:px-6">
-            <p className="text-xs font-medium text-muted-foreground">Created</p>
-            <p className="mt-1">
+            <DetailHeroStat label="Created">
               {keyDetails.createdAt
                 ? <DateDisplay date={keyDetails.createdAt} className="text-sm" />
-                : <span className="text-sm text-muted-foreground">Unknown</span>}
-            </p>
-          </div>
+                : <span className="text-muted-foreground">Unknown</span>}
+            </DetailHeroStat>
 
-          <div className="py-3 lg:pl-6 lg:pr-1">
-            <p className="text-xs font-medium text-muted-foreground">Inventory</p>
-            <div className="mt-1">
+            <DetailHeroStat label="Inventory">
               {boundCertificateResources.length === 0 ? (
                 <span className="text-xs text-muted-foreground">No linked certs</span>
               ) : (
@@ -814,7 +780,7 @@ export default function KmsKeyDetailsClient() {
                   const remainingCount = boundCertificateResources.length - maxVisible;
                   return (
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold tabular-nums">{boundCertificateResources.length}</p>
+                      <p className="font-semibold tabular-nums">{boundCertificateResources.length}</p>
                       <AvatarGroup>
                         {visibleResources.map((resource, idx) => {
                           const label = resource.resource_type.charAt(0).toUpperCase();
@@ -834,10 +800,10 @@ export default function KmsKeyDetailsClient() {
                   );
                 })()
               )}
-            </div>
-          </div>
-        </div>
-      </section>
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">

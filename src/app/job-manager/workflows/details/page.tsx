@@ -14,6 +14,8 @@ import { fetchWorkflow, type WfxWorkflow } from '@/lib/wfx-api';
 import { WorkflowGraph } from '@/components/shared/WorkflowGraph';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
+import { WfxGroupBadge } from '@/components/shared/WfxJobBadges';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
@@ -23,6 +25,12 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
         </div>
     ),
 });
+
+const WORKFLOW_CRUMBS = [
+    { label: 'Home', href: '/' },
+    { label: 'Job Manager' },
+    { label: 'Workflows', href: '/job-manager/workflows' },
+];
 
 export default function WorkflowDetailsPage() {
     const searchParams = useSearchParams();
@@ -52,21 +60,19 @@ export default function WorkflowDetailsPage() {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center flex-1 p-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading workflow...</p>
-            </div>
+            <BreadcrumbPage items={WORKFLOW_CRUMBS}>
+                <div className="flex flex-col items-center justify-center flex-1 p-8">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="text-lg text-muted-foreground">Loading workflow...</p>
+                </div>
+            </BreadcrumbPage>
         );
     }
 
     if (error || !workflow) {
         return (
             <BreadcrumbPage
-                items={[
-                    { label: 'Home', href: '/' },
-                    { label: 'Job Manager', href: '/job-manager/jobs' },
-                    { label: 'Workflows', href: '/job-manager/workflows' },
-                ]}
+                items={WORKFLOW_CRUMBS}
             >
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -81,9 +87,7 @@ export default function WorkflowDetailsPage() {
         <BreadcrumbPage
             className="space-y-5"
             items={[
-                { label: 'Home', href: '/' },
-                { label: 'Job Manager', href: '/job-manager/jobs' },
-                { label: 'Workflows', href: '/job-manager/workflows' },
+                ...WORKFLOW_CRUMBS,
                 {
                     label: (
                         <Badge className="max-w-[220px] truncate">
@@ -93,20 +97,33 @@ export default function WorkflowDetailsPage() {
                 },
             ]}
         >
-            {/* Hero */}
-            <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary">
-                    <Workflow className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 space-y-1">
-                    <h1 className="break-all text-2xl font-semibold tracking-tight font-mono">
-                        {workflow.name}
-                    </h1>
-                    {workflow.description && (
-                        <p className="text-sm text-muted-foreground">{workflow.description}</p>
-                    )}
-                </div>
-            </div>
+            <DetailHero
+                icon={Workflow}
+                title={workflow.name}
+                titleClassName="font-mono"
+                description={workflow.description}
+                stats={
+                    <>
+                        <DetailHeroStat label="States">
+                            <span className="tabular-nums">{workflow.states?.length ?? 0}</span>
+                        </DetailHeroStat>
+                        <DetailHeroStat label="Transitions">
+                            <span className="tabular-nums">{workflow.transitions?.length ?? 0}</span>
+                        </DetailHeroStat>
+                        <DetailHeroStat label="Groups">
+                            {(workflow.groups?.length ?? 0) > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                    {workflow.groups!.map(group => (
+                                        <WfxGroupBadge key={group.name} group={group.name} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <span className="text-muted-foreground">None</span>
+                            )}
+                        </DetailHeroStat>
+                    </>
+                }
+            />
 
             <Tabs defaultValue="overview" className="w-full">
                 <div className="border-b overflow-x-auto overflow-y-hidden">

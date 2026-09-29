@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -17,21 +18,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { sileo } from '@/lib/toast';
-import { cn } from '@/lib/utils';
 import {
   AlertCircle,
   Edit,
   Trash2,
   FolderTree,
-  ArrowLeft,
   Loader2,
   Monitor,
   RefreshCw,
   Info,
   Users,
-  Copy,
-  Check,
-  Tag,
 } from 'lucide-react';
 import { getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
@@ -39,9 +35,16 @@ import { FilterCriteriaDisplay } from '@/components/device-groups/FilterCriteria
 import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-
 import { Badge } from '@/components/ui/badge';
+
+const DEVICE_GROUP_CRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'Device Groups', href: '/device-groups' },
+];
+
 export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -53,7 +56,6 @@ export default function DeviceGroupDetailsClient() {
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
   const tabFromQuery = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<string>(tabFromQuery || 'members');
 
@@ -104,132 +106,111 @@ export default function DeviceGroupDetailsClient() {
 
   if (isLoading) {
     return (
-      <div className="w-full flex flex-col items-center justify-center py-20 space-y-4">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading device group details...</p>
-      </div>
+      <BreadcrumbPage items={DEVICE_GROUP_CRUMBS}>
+        <div className="w-full flex flex-col items-center justify-center py-20 space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading device group details...</p>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
   if (error || !groupId) {
     return (
-      <div className="w-full space-y-4">
-        <Button variant="secondary" onClick={() => router.push('/device-groups')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
-        </Button>
+      <BreadcrumbPage className="space-y-4" items={DEVICE_GROUP_CRUMBS}>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Loading Device Group</AlertTitle>
           <AlertDescription>{error || 'Missing group ID'}</AlertDescription>
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   if (!group) {
     return (
-      <div className="w-full space-y-4">
-        <Button variant="secondary" onClick={() => router.push('/device-groups')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
-        </Button>
+      <BreadcrumbPage className="space-y-4" items={DEVICE_GROUP_CRUMBS}>
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>Device Group Not Found</AlertTitle>
           <AlertDescription>The device group with ID &quot;{groupId}&quot; could not be found.</AlertDescription>
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   const filterCount = group.criteria?.length ?? 0;
+  const inheritedCount = group.inherited_criteria?.length ?? 0;
 
   return (
     <BreadcrumbPage
-      className="space-y-2"
+      className="space-y-5"
       items={[
-          { label: 'Home', href: '/' },
-          { label: 'Device Groups', href: '/device-groups' },
-          { label: 'Details' },
-        ]}
-      actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={fetchGroupData} disabled={isLoading}>
-              <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} /> Refresh
-            </Button>
+        ...DEVICE_GROUP_CRUMBS,
+        ...(parentGroup ? [{ label: parentGroup.name, href: `/device-groups/details?groupId=${parentGroup.id}` }] : []),
+        { label: <Badge className="max-w-[320px] truncate">{group.name}</Badge> },
+      ]}
+    >
+      <DetailHero
+        icon={Users}
+        title={group.name}
+        idLabel="Group ID"
+        id={group.id}
+        meta={
+          <Badge variant="secondary">
+            {filterCount > 0 ? 'Dynamic Group' : 'Catch-All Group'}
+          </Badge>
+        }
+        description={group.description || undefined}
+        actions={
+          <>
             <Button variant="secondary" onClick={() => router.push(`/device-groups/edit?groupId=${group.id}`)}>
               <Edit className="mr-2 h-4 w-4" /> Edit
             </Button>
-            <Button
-              variant="secondary"
-
-              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-              onClick={() => setDeleteDialogOpen(true)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Delete
-            </Button>
-          </div>
+            <DetailHeroActionsMenu ariaLabel="Device group actions">
+              <DropdownMenuItem onClick={fetchGroupData} disabled={isLoading}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Group
+              </DropdownMenuItem>
+            </DetailHeroActionsMenu>
+          </>
         }
-    >
-
-      {/* Hero */}
-      <div className="pb-0.5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5">
-            <Users className="h-6 w-6 text-primary" />
-          </div>
-
-          <div className="min-w-0 space-y-1">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{group.name}</h1>
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">ID</span>
-                <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
-                  {group.id}
-                </code>
-                <Button
-                  variant="ghost"
-                 
-                  className="h-6 w-6 p-0 shrink-0"
-                  onClick={() => {
-                    navigator.clipboard.writeText(group.id);
-                    setCopiedId(true);
-                    setTimeout(() => setCopiedId(false), 2000);
-                  }}
-                >
-                  {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="secondary">
-                {filterCount > 0 ? 'Dynamic Group' : 'Catch-All Group'}
-              </Badge>
+        stats={
+          <>
+            <DetailHeroStat label="Parent group">
               {parentGroup ? (
-                <Badge variant="secondary" asChild>
-                  <button
-                    className="cursor-pointer hover:bg-muted/70"
-                    onClick={() => router.push(`/device-groups/details?groupId=${parentGroup.id}`)}
-                  >
-                    <FolderTree />
-                    {parentGroup.name}
-                  </button>
-                </Badge>
+                <Link
+                  href={`/device-groups/details?groupId=${parentGroup.id}`}
+                  className="flex min-w-0 items-center gap-1 text-primary hover:underline"
+                >
+                  <FolderTree className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{parentGroup.name}</span>
+                </Link>
               ) : (
-                <Badge variant="secondary">
-                  Root Level
-                </Badge>
+                <span className="text-muted-foreground">None (root level)</span>
               )}
-              {group.description && (
-                <Badge variant="secondary">
-                  <Tag />
-                  {group.description}
-                </Badge>
+            </DetailHeroStat>
+            <DetailHeroStat label="Filter rules">
+              {filterCount === 0 ? 'None (catch-all)' : `${filterCount} rule${filterCount !== 1 ? 's' : ''}`}
+              {inheritedCount > 0 && (
+                <span className="text-muted-foreground"> + {inheritedCount} inherited</span>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
+            </DetailHeroStat>
+            <DetailHeroStat label="Created">
+              <DateDisplay date={group.created_at} className="text-sm" />
+            </DetailHeroStat>
+            <DetailHeroStat label="Last updated">
+              <DateDisplay date={group.updated_at} className="text-sm" />
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -340,7 +321,7 @@ export default function DeviceGroupDetailsClient() {
             </div>
 
             {/* Filter Criteria */}
-            {(group.criteria?.length > 0 || group.inherited_criteria?.length > 0) && (
+            {(filterCount > 0 || inheritedCount > 0) && (
               <>
                 <Separator />
                 <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">

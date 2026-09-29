@@ -74,7 +74,7 @@ export default function WorkflowsPage() {
     }
 
     return (
-        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Job Manager', href: '/job-manager' }, { label: 'Workflows' }]}>
+        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Job Manager' }, { label: 'Workflows' }]}>
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
                 <div className="flex items-start gap-3">

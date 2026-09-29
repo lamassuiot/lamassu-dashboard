@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
-import { FileText, Ban, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, ChevronDown, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
+import { FileText, Ban, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, KeyRound, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { sileo } from '@/lib/toast';
@@ -23,27 +23,18 @@ import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTab
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { getApiStatusBadgeVariant } from '@/components/shared/ApiStatusBadge';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { DateDisplay } from '@/components/shared/DateDisplay';
-import { parseISO, differenceInDays, isPast } from 'date-fns';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import { Progress } from '@/components/ui/progress';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
+import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
+import { parseDistinguishedName } from '@/lib/cert-utils';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
   const cnMatch = subject.match(/CN=([^,]+)/);
   return cnMatch ? cnMatch[1] : subject;
-};
-
-const parseDistinguishedName = (distinguishedName: string) => {
-  return Array.from(
-    distinguishedName.matchAll(/(?:^|,\s*)(C|ST|L|O|OU|CN)=((?:\\.|[^,])*)/gi)
-  ).map((match) => ({
-    label: match[1].toUpperCase(),
-    value: match[2].replaceAll('\\,', ',').trim(),
-  }));
 };
 
 const buildCertificateChainPem = (
@@ -73,6 +64,11 @@ const buildCertificateChainPem = (
 };
 
 
+const CERTIFICATE_CRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'Certificates', href: '/certificates' },
+];
+
 export default function CertificateDetailsClient() { // Renamed component
   const searchParams = useSearchParams(); // Changed from useParams
   const routerHook = useRouter();
@@ -81,7 +77,6 @@ export default function CertificateDetailsClient() { // Renamed component
 
   const [certificateDetails, setCertificateDetails] = useState<CertificateData | null>(null);
   const [allCAs, setAllCAs] = useState<CA[]>([]);
-  const [copiedSn, setCopiedSn] = useState(false);
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   
   const [isLoadingCert, setIsLoadingCert] = useState(true);
@@ -109,21 +104,6 @@ export default function CertificateDetailsClient() { // Renamed component
     }
     return '';
   }, [certificateDetails, allCAs]);
-
-  const validityInfo = useMemo(() => {
-    if (!certificateDetails?.validFrom || !certificateDetails?.validTo) return null;
-    try {
-      const from = parseISO(certificateDetails.validFrom).getTime();
-      const to = parseISO(certificateDetails.validTo).getTime();
-      const now = Date.now();
-      const total = to - from;
-      const elapsed = now - from;
-      const percent = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
-      const daysLeft = differenceInDays(to, now);
-      const expired = isPast(parseISO(certificateDetails.validTo));
-      return { percent, daysLeft, expired };
-    } catch { return null; }
-  }, [certificateDetails?.validFrom, certificateDetails?.validTo]);
 
   const certificateChainForVisualizer: CA[] = useMemo(() => {
     if (!certificateDetails || allCAs.length === 0) return [];
@@ -353,41 +333,41 @@ export default function CertificateDetailsClient() { // Renamed component
 
   if (isLoadingCert || isLoadingDependencies) {
     return (
-      <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-        <Loader2 className="h-12 w-12 text-primary animate-spin" />
-        <p className="text-muted-foreground">
-          {isLoadingCert ? "Loading certificate details..." : 
-           "Loading CA data..."}
-        </p>
-      </div>
+      <BreadcrumbPage items={CERTIFICATE_CRUMBS}>
+        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
+          <Loader2 className="h-12 w-12 text-primary animate-spin" />
+          <p className="text-muted-foreground">
+            {isLoadingCert ? "Loading certificate details..." : "Loading CA data..."}
+          </p>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
   if (errorCert || errorDependencies) {
     return (
-      <div className="w-full space-y-4 p-4">
-         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
+      <BreadcrumbPage items={CERTIFICATE_CRUMBS}>
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Data</AlertTitle>
           {errorCert && <AlertDescription>Certificate Error: {errorCert}</AlertDescription>}
           {errorDependencies && <AlertDescription>Dependencies Error: {errorDependencies}</AlertDescription>}
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   if (!certificateDetails) {
     return (
-      <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-        <FileText className="h-12 w-12 text-muted-foreground" />
-        <p className="text-muted-foreground">Certificate with Serial Number "{certificateId || 'Unknown'}" not found or data is unavailable.</p>
-        <Button variant="secondary" onClick={() => routerHook.push('/certificates')} className="mt-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates List
-        </Button>
-      </div>
+      <BreadcrumbPage items={CERTIFICATE_CRUMBS}>
+        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
+          <FileText className="h-12 w-12 text-muted-foreground" />
+          <p className="text-muted-foreground">Certificate with Serial Number "{certificateId || 'Unknown'}" not found or data is unavailable.</p>
+          <Button variant="secondary" onClick={() => routerHook.push('/certificates')} className="mt-4">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates List
+          </Button>
+        </div>
+      </BreadcrumbPage>
     );
   }
   
@@ -406,63 +386,41 @@ export default function CertificateDetailsClient() { // Renamed component
     : cleanSerialNumber;
 
   return (
-    <div className="space-y-5">
-
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Certificates', href: '/certificates' },
-          {
-            label: (
-              <Badge className="max-w-[320px] truncate">
-                {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
-              </Badge>
-            ),
-          },
-        ]}
-      />
-
-      <section className="border-b">
-        <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight" title={certificateDetails.subject}>
-                {getCertSubjectCommonName(certificateDetails.subject) || 'Certificate'}
-              </h1>
-              <Badge variant={statusVariant} dot>{statusText}</Badge>
-              {statusText === 'REVOKED' && certificateDetails.revocationReason && (
-                <Badge variant="secondary">{certificateDetails.revocationReason}</Badge>
-              )}
-            </div>
-
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Serial number</span>
-              <code className="max-w-full truncate rounded-sm border bg-muted px-2 py-0.5 font-mono text-xs">
-                {formattedSerialNumber}
-              </code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                aria-label="Copy serial number"
-                onClick={() => {
-                  navigator.clipboard.writeText(cleanSerialNumber);
-                  setCopiedSn(true);
-                  setTimeout(() => setCopiedSn(false), 2000);
-                }}
-              >
-                {copiedSn ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-              </Button>
-              {certificateDetails.publicKeyAlgorithm && (
-                <Badge variant="secondary">
-                  <KeyRound />
-                  {certificateDetails.publicKeyAlgorithm}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2 sm:self-center sm:justify-end">
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        ...CERTIFICATE_CRUMBS,
+        {
+          label: (
+            <Badge className="max-w-[320px] truncate">
+              {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+            </Badge>
+          ),
+        },
+      ]}
+    >
+      <DetailHero
+        title={getCertSubjectCommonName(certificateDetails.subject) || 'Certificate'}
+        titleTooltip={certificateDetails.subject}
+        badges={
+          <>
+            <Badge variant={statusVariant} dot>{statusText}</Badge>
+            {statusText === 'REVOKED' && certificateDetails.revocationReason && (
+              <Badge variant="secondary">{certificateDetails.revocationReason}</Badge>
+            )}
+          </>
+        }
+        idLabel="Serial number"
+        id={formattedSerialNumber}
+        copyValue={cleanSerialNumber}
+        meta={certificateDetails.publicKeyAlgorithm && (
+          <Badge variant="secondary">
+            <KeyRound />
+            {certificateDetails.publicKeyAlgorithm}
+          </Badge>
+        )}
+        actions={(isOnHold || statusText !== 'REVOKED' || canDelete) && (
+          <>
             {isOnHold ? (
               <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
                 <ShieldCheck className="h-4 w-4" /> Re-activate
@@ -479,104 +437,35 @@ export default function CertificateDetailsClient() { // Renamed component
               </Button>
             ) : null}
             {canDelete && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" aria-label="Certificate actions">
-                    Actions
-                    <ChevronDown data-icon="inline-end" className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    disabled={isDeleting}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete Certificate
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-
-        <div className="divide-y border-t lg:grid lg:grid-cols-[minmax(300px,1.2fr)_minmax(360px,1.5fr)_auto] lg:divide-x lg:divide-y-0">
-          <div className="py-3 lg:pr-6">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-muted-foreground">Issuer</p>
-              {certificateDetails.issuerCaId && (
-                <button
-                  className="text-xs font-medium text-primary hover:underline"
-                  onClick={() => routerHook.push(`/certificate-authorities/details?caId=${certificateDetails.issuerCaId}`)}
+              <DetailHeroActionsMenu ariaLabel="Certificate actions" contentClassName="w-auto">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  disabled={isDeleting}
                 >
-                  View CA
-                </button>
-              )}
-            </div>
-            {issuerDistinguishedNameParts.length > 0 ? (
-              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {issuerDistinguishedNameParts.map(({ label, value }) => (
-                  <div key={label} className="flex min-w-0 items-baseline gap-2">
-                    <dt className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm bg-primary px-1 font-mono text-[10px] font-semibold text-primary-foreground">{label}</dt>
-                    <dd className="truncate text-sm text-foreground" title={value}>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : certificateDetails.issuerCaId ? (
-              <button
-                className="mt-1 text-left text-sm text-primary hover:underline"
-                onClick={() => routerHook.push(`/certificate-authorities/details?caId=${certificateDetails.issuerCaId}`)}
-              >
-                {issuerDisplayName || 'Unknown'}
-              </button>
-            ) : (
-              <p className="mt-1 text-sm text-foreground">{issuerDisplayName || 'Unknown'}</p>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Certificate
+                </DropdownMenuItem>
+              </DetailHeroActionsMenu>
             )}
-          </div>
-
-          {validityInfo && (
-            <div className="space-y-2 py-3 lg:px-6">
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-xs font-medium text-muted-foreground">Validity period</p>
-                <span className={cn(
-                  'text-xs font-medium tabular-nums',
-                  validityInfo.expired || validityInfo.daysLeft <= 30
-                    ? 'text-destructive'
-                    : 'text-muted-foreground'
-                )}>
-                  {validityInfo.expired
-                    ? 'Expired'
-                    : validityInfo.daysLeft === 0
-                    ? 'Expires today'
-                    : `${validityInfo.daysLeft}d remaining`}
-                </span>
-              </div>
-              <Progress
-                value={validityInfo.percent}
-                className={cn('h-1.5 rounded-sm', validityInfo.expired && '[&_[data-slot=progress-indicator]]:bg-destructive')}
-                aria-label={`${validityInfo.percent}% of the certificate validity period elapsed`}
-              />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Issued</p>
-                  <DateDisplay date={certificateDetails.validFrom} className="text-xs" />
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Expires</p>
-                  <DateDisplay date={certificateDetails.validTo} highlightExpired className="items-end text-xs" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="py-3 lg:pl-6 lg:pr-1">
-            <p className="text-xs font-medium text-muted-foreground">Chain</p>
-            <p className="mt-1 whitespace-nowrap text-sm text-foreground">
-              {certificateChainForVisualizer.length + 1} certificate{certificateChainForVisualizer.length + 1 !== 1 ? 's' : ''}
-            </p>
-          </div>
-        </div>
-      </section>
+          </>
+        )}
+        statsClassName="lg:grid-cols-[minmax(300px,1.2fr)_minmax(360px,1.5fr)_auto]"
+        stats={
+          <>
+            <IssuerStat
+              parts={issuerDistinguishedNameParts}
+              displayName={issuerDisplayName || 'Unknown'}
+              href={certificateDetails.issuerCaId ? `/certificate-authorities/details?caId=${certificateDetails.issuerCaId}` : undefined}
+            />
+            <ValidityStat validFrom={certificateDetails.validFrom} validTo={certificateDetails.validTo} />
+            <DetailHeroStat label="Chain">
+              <span className="whitespace-nowrap">
+                {certificateChainForVisualizer.length + 1} certificate{certificateChainForVisualizer.length + 1 !== 1 ? 's' : ''}
+              </span>
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       <Tabs defaultValue="information" className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
@@ -682,6 +571,6 @@ export default function CertificateDetailsClient() { // Renamed component
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

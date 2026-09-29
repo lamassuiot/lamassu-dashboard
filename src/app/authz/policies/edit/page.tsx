@@ -106,6 +106,7 @@ function EditPolicyContent() {
 
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
+    { label: 'Authorization' },
     { label: 'Policies', href: '/authz/policies' },
     ...(policy_id
       ? [{ label: formData.name || 'Details', href: `/authz/policies/details?policy_id=${policy_id}` }]

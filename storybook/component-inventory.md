@@ -28,7 +28,9 @@ This is the curated list of UI building blocks that should be preferred before c
 
 | Purpose | Path | Use instead of |
 | --- | --- | --- |
-| Breadcrumb row with actions | `src/components/shared/DetailBreadcrumbRow.tsx` | Ad hoc breadcrumb and button wrappers |
+| Page scaffold with breadcrumb | `src/components/shared/BreadcrumbPage.tsx` | Ad hoc breadcrumb wrappers; wrap every page (including loading/error states) so the breadcrumb bar is always at the top |
+| Detail hero | `src/components/shared/DetailHero.tsx` | Hand-built detail headers. `DetailHero` (title + status badges, copyable ID row with meta badges, actions, optional borderless tinted `icon`/custom `leading`), `DetailHeroStat` cells for the divided summary strip, `DetailHeroActionsMenu` for the outline "Actions" dropdown |
+| Certificate hero stats | `src/components/shared/CertificateHeroStats.tsx` | `IssuerStat` (DN chips + View CA link) and `ValidityStat` (progress, remaining days, issued/expires) for certificate and CA heroes |
 | Main area plus side panel | `src/components/shared/SplitPanelLayout.tsx` | Hand-rolled desktop/sidebar/mobile drawer layouts |
 | Detail section card | `src/components/shared/DetailSectionCard.tsx` | Repeating KMS-style section card shells |
 | Detail info rows | `src/components/shared/DetailInfoRows.tsx` | Repeating label/value row groups inside detail cards |

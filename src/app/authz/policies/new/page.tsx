@@ -53,6 +53,7 @@ export default function NewPolicyPage() {
 
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
+    { label: 'Authorization' },
     { label: 'Policies', href: '/authz/policies' },
     { label: 'New' },
   ];

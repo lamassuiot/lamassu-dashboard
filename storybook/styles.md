@@ -162,14 +162,16 @@ Observed on:
 - KMS key details
 - device details
 
-Expected ingredients:
+Use `src/components/shared/DetailHero.tsx` — do not hand-build hero markup.
 
-- single top summary surface
-- entity icon or resource icon
-- prominent title
-- supporting badges
-- right-aligned action cluster
-- optional accent rule at the top
+Ingredients (reference: CA details, KMS key details):
+
+- prominent title with status badge(s) inline
+- copyable identifier row (`idLabel` + code + copy) followed by secondary meta badges
+- optional description line
+- right-aligned action cluster: one contextual button + outline "Actions ▾" dropdown (`DetailHeroActionsMenu`)
+- divided summary strip of `DetailHeroStat` cells under a top rule
+- optional leading icon: borderless tinted box (`rounded-md bg-primary/10 p-1.5`, `h-8 w-8 text-primary` icon) — the same treatment as list-page headers. Never add a border around it.
 
 Do not create a different hero grammar for every resource type.
 
@@ -278,7 +280,8 @@ Use these before building a new one-off component:
 - `src/components/shared/FormComponents.tsx`
   - `SectionHeader`
   - `SwitchFormField`
-- `src/components/shared/DetailBreadcrumbRow.tsx`
+- `src/components/shared/BreadcrumbPage.tsx`
+- `src/components/shared/DetailHero.tsx`
 - `src/components/shared/SplitPanelLayout.tsx`
 - `src/components/shared/ApiStatusBadge.tsx`
 - `src/components/shared/CryptoEngineViewer.tsx`
@@ -340,7 +343,8 @@ Do not build new breadcrumb-and-actions wrappers in every details page.
 
 Use:
 
-- `src/components/shared/DetailBreadcrumbRow.tsx`
+- `src/components/shared/BreadcrumbPage.tsx` for the page scaffold (every page, including loading/error states)
+- `src/components/shared/DetailHero.tsx` for the hero
 
 ### Split side panel behavior
 
@@ -375,8 +379,8 @@ Use or extend:
 
 ### Details page recipe
 
-1. optional breadcrumb row via `DetailBreadcrumbRow`
-2. hero summary card
+1. `BreadcrumbPage` scaffold (breadcrumb bar always at the top)
+2. `DetailHero` with a `DetailHeroStat` summary strip
 3. underline tab navigation
 4. each tab composed of section cards
 5. tables and code viewers kept inside surfaced sections
@@ -402,7 +406,6 @@ Use or extend:
 These patterns still deserve attention because they recur in multiple places:
 
 - chooser rows are implemented more than once
-- detail hero composition is repeated across resources
 
 If you need one of these, prefer copying the existing pattern exactly or extracting a shared component instead of making a third variant.
 
@@ -414,8 +417,6 @@ These would reduce future drift:
    - one shared visual treatment for underline-style detail navigation
 2. `CreationMethodChooser`
    - one shared row-based chooser used by KMS and CA flows
-3. `DetailHero`
-   - one shared hero shell for resource details pages
 
 ## Definition of done for new UI
 

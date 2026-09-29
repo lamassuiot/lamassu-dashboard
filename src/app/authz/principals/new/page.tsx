@@ -203,6 +203,7 @@ export default function NewPrincipalPage() {
 
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
+    { label: 'Authorization' },
     { label: 'Principals', href: '/authz/principals' },
     { label: 'New' },
   ];

@@ -12,8 +12,6 @@ import {
   Plus,
   Shield,
   Link2,
-  MoreVertical,
-  Copy,
   Check,
   FileJson,
   Info,
@@ -45,13 +43,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Tabs,
   TabsContent,
@@ -65,7 +57,8 @@ import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import { principalHasSubjectAttribute } from '@/lib/principal-subject-attributes';
 import type { DateFilterValue, PolicyFilters, Principal, Policy, PrincipalType } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { PolicyFilterBar, defaultPolicyDateFilterValue } from '@/components/shared/filters/PolicyFilterBar';
@@ -73,6 +66,12 @@ import type { GenericDateFilterValue } from '@/components/shared/filters/Generic
 import dynamic from 'next/dynamic';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
+
+const PRINCIPAL_CRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'Authorization' },
+  { label: 'Principals', href: '/authz/principals' },
+];
 
 const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
   oidc: 'OIDC',
@@ -124,7 +123,6 @@ function PrincipalDetailsContent() {
   const [assigningPolicyId, setAssigningPolicyId] = useState<string | null>(null);
   const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
   const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
@@ -276,24 +274,20 @@ function PrincipalDetailsContent() {
   const selectedPolicy = policyResults.find((p) => p.id === selectedPolicyId) ?? null;
   const selectedPolicyNeedsClientId = isWfxSbiPolicy(selectedPolicy) && !principalHasSubjectAttribute(principal?.auth_config, 'client_id');
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 2000);
-  };
-
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading Principal...</p>
-      </div>
+      <BreadcrumbPage items={PRINCIPAL_CRUMBS}>
+        <div className="flex flex-col items-center justify-center flex-1 p-8">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg text-muted-foreground">Loading Principal...</p>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
   if (error || !principal) {
     return (
-      <div className="space-y-4">
+      <BreadcrumbPage className="space-y-4" items={PRINCIPAL_CRUMBS}>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error || 'Principal not found'}</AlertDescription>
@@ -301,13 +295,9 @@ function PrincipalDetailsContent() {
         <Button variant="secondary" onClick={() => router.push('/authz/principals')}>
           Back to Principals
         </Button>
-      </div>
+      </BreadcrumbPage>
     );
   }
-
-  const iconBoxClass = principal.type === 'oidc'
-    ? 'bg-violet-50 border-violet-200 text-violet-600 dark:bg-violet-900/20 dark:border-violet-800 dark:text-violet-400'
-    : 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400';
 
   const renderAuthConfig = () => {
     const { auth_config, type } = principal;
@@ -476,64 +466,29 @@ function PrincipalDetailsContent() {
   };
 
   return (
-    <div className="space-y-5">
-
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Principals', href: '/authz/principals' },
-          { label: principal.name },
-        ]}
-      />
-
-      {/* Identity + Actions + Info strip */}
-      <div>
-        <div className="flex items-start justify-between gap-4 min-w-0 pb-4 border-b">
-          <div className="flex items-start gap-4 min-w-0 flex-1">
-            <div className={cn(
-              'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2',
-              iconBoxClass
-            )}>
-              {principal.type === 'oidc'
-                ? <Link2 className="h-6 w-6" />
-                : <Shield className="h-6 w-6" />
-              }
-            </div>
-
-            <div className="min-w-0 flex-1 space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight truncate">{principal.name}</h1>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary">
-                  {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
-                </Badge>
-                {principal.active ? (
-                  <Badge dot>
-                    Active
-                  </Badge>
-                ) : (
-                  <Badge variant="muted" dot>
-                    Inactive
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono text-muted-foreground">
-                  {principal.id}
-                </code>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(principal.id)}>
-                  {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                </Button>
-              </div>
-
-              {principal.description && (
-                <p className="text-sm text-muted-foreground max-w-2xl">{principal.description}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        ...PRINCIPAL_CRUMBS,
+        { label: <Badge className="max-w-[320px] truncate">{principal.name}</Badge> },
+      ]}
+    >
+      <DetailHero
+        icon={principal.type === 'oidc' ? Link2 : Shield}
+        title={principal.name}
+        badges={principal.active
+          ? <Badge dot>Active</Badge>
+          : <Badge variant="muted" dot>Inactive</Badge>}
+        idLabel="Principal ID"
+        id={principal.id}
+        meta={
+          <Badge variant="secondary">
+            {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
+          </Badge>
+        }
+        description={principal.description}
+        actions={
+          <>
             <Button
               variant="secondary"
               onClick={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
@@ -541,46 +496,30 @@ function PrincipalDetailsContent() {
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" /> Edit Principal
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete Principal
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Info strip */}
-        <div className="flex divide-x pt-3 pb-3 border-b">
-          <div className="pr-6">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</p>
-            <DateDisplay date={principal.created_at} className="text-sm mt-0.5" highlightExpired={false} />
-          </div>
-          <div className="px-6">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Updated</p>
-            <DateDisplay date={principal.updated_at} className="text-sm mt-0.5" highlightExpired={false} />
-          </div>
-          <div className="pl-6">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assigned Policies</p>
-            <p className="text-sm mt-0.5">{policies.length} {policies.length === 1 ? 'policy' : 'policies'}</p>
-          </div>
-        </div>
-      </div>
+            <DetailHeroActionsMenu ariaLabel="Principal actions">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Principal
+              </DropdownMenuItem>
+            </DetailHeroActionsMenu>
+          </>
+        }
+        stats={
+          <>
+            <DetailHeroStat label="Assigned policies">
+              {policies.length} {policies.length === 1 ? 'policy' : 'policies'}
+            </DetailHeroStat>
+            <DetailHeroStat label="Created">
+              <DateDisplay date={principal.created_at} className="text-sm" highlightExpired={false} />
+            </DetailHeroStat>
+            <DetailHeroStat label="Last updated">
+              <DateDisplay date={principal.updated_at} className="text-sm" highlightExpired={false} />
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <Tabs defaultValue="authentication" className="w-full">
@@ -895,7 +834,7 @@ function PrincipalDetailsContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }
 

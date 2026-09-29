@@ -1,19 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ArrowLeft, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertCircle } from 'lucide-react';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { getDeviceGroupByID } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupForm } from '@/components/device-groups/DeviceGroupForm';
 
 export default function EditDeviceGroupClient() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const groupId = searchParams.get('groupId');
 
   const [group, setGroup] = useState<DeviceGroup | null>(null);
@@ -44,91 +42,60 @@ export default function EditDeviceGroupClient() {
     fetchGroup();
   }, [groupId]);
 
+  const header = (subtitle: React.ReactNode) => (
+    <div className="pb-8 border-b">
+      <h1 className="text-2xl font-bold">Edit Device Group</h1>
+      <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">{subtitle}</p>
+    </div>
+  );
+
+  const crumbs = [
+    { label: 'Home', href: '/' },
+    { label: 'Device Groups', href: '/device-groups' },
+    ...(group ? [{ label: group.name, href: `/device-groups/details?groupId=${group.id}` }] : []),
+    { label: 'Edit' },
+  ];
+
   if (isLoading) {
     return (
-      <div className="w-full space-y-6 mb-8">
-        <Skeleton className="h-9 w-40" />
-        <div className="flex items-center space-x-3">
-          <Skeleton className="h-8 w-8 rounded" />
-          <div className="space-y-1">
-            <Skeleton className="h-7 w-64" />
+      <BreadcrumbPage items={crumbs} className="space-y-5 pb-8">
+        <div className="w-[80%] mx-auto mb-8 space-y-8">
+          <div className="pb-8 border-b space-y-2">
+            <Skeleton className="h-8 w-64" />
             <Skeleton className="h-4 w-96" />
           </div>
-        </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-96" />
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <div className="space-y-4">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-10 w-full" />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
-  if (error || !groupId) {
+  if (error || !groupId || !group) {
     return (
-      <div className="w-full space-y-6 mb-8">
-        <Button variant="secondary" onClick={() => router.push('/device-groups')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
-        </Button>
-        <div className="flex items-center space-x-3">
-          <Users className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Edit Device Group</h1>
-            <p className="text-sm text-muted-foreground mt-1">Unable to load device group</p>
-          </div>
+      <BreadcrumbPage items={crumbs} className="space-y-5 pb-8">
+        <div className="w-[80%] mx-auto mb-8">
+          {header(error || !groupId ? 'Unable to load device group' : 'Group not found')}
+          <Alert variant="destructive" className="mt-8">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error || (!groupId ? 'Missing group ID' : 'Device group not found')}</AlertDescription>
+          </Alert>
         </div>
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || 'Missing group ID'}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (!group) {
-    return (
-      <div className="w-full space-y-6 mb-8">
-        <Button variant="secondary" onClick={() => router.push('/device-groups')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
-        </Button>
-        <div className="flex items-center space-x-3">
-          <Users className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Edit Device Group</h1>
-            <p className="text-sm text-muted-foreground mt-1">Group not found</p>
-          </div>
-        </div>
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Device group not found</AlertDescription>
-        </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="secondary" onClick={() => router.push(`/device-groups/details?groupId=${group.id}`)}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Group Details
-      </Button>
-
-      <div className="flex items-center space-x-3">
-        <Users className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-headline font-semibold">Edit Device Group</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Modify the configuration for &quot;{group.name}&quot;
-          </p>
+    <BreadcrumbPage items={crumbs} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto mb-8">
+        {header(<>Modify the configuration for &quot;{group.name}&quot;</>)}
+        <div className="pt-8">
+          <DeviceGroupForm mode="edit" existingGroup={group} />
         </div>
       </div>
-
-      <DeviceGroupForm mode="edit" existingGroup={group} />
-    </div>
+    </BreadcrumbPage>
   );
 }

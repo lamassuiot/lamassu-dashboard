@@ -5,9 +5,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Ban, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronDown, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
+import { ArrowLeft, FileText, Ban, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ShieldCheck, RefreshCw, Shield } from "lucide-react";
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -22,15 +22,16 @@ import { ReissueCaModal } from '@/components/shared/ReissueCaModal';
 import { InformationTabContent } from '@/components/shared/details-tabs/InformationTabContent';
 import { PemTabContent } from '@/components/shared/details-tabs/PemTabContent';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
-import { differenceInDays, parseISO, isPast } from 'date-fns';
+import { parseISO, isPast } from 'date-fns';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
 import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { DateDisplay } from '@/components/shared/DateDisplay';
-import { Progress } from '@/components/ui/progress';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
+import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
+import { parseDistinguishedName } from '@/lib/cert-utils';
 
 
 interface CaStats {
@@ -59,14 +60,10 @@ const buildCaPathToRoot = (targetCaId: string | undefined, allCAs: CA[]): CA[] =
   return path;
 };
 
-const parseDistinguishedName = (distinguishedName: string) => {
-  return Array.from(
-    distinguishedName.matchAll(/(?:^|,\s*)(C|ST|L|O|OU|CN)=((?:\\.|[^,])*)/gi)
-  ).map((match) => ({
-    label: match[1].toUpperCase(),
-    value: match[2].replaceAll('\\,', ',').trim(),
-  }));
-};
+const CA_CRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'Certificate Authorities', href: '/certificate-authorities' },
+];
 
 export default function CertificateAuthorityDetailsClient() {
   const searchParams = useSearchParams();
@@ -105,7 +102,6 @@ export default function CertificateAuthorityDetailsClient() {
   const [caStats, setCaStats] = useState<CaStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [errorStats, setErrorStats] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState(false);
 
   const cryptoEngine = useMemo(() => {
     if (caDetails?.kmsKeyId && allCryptoEngines.length > 0) {
@@ -324,38 +320,39 @@ export default function CertificateAuthorityDetailsClient() {
 
   if (isLoadingCAs || isLoadingEngines) {
     return (
-      <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-        <Loader2 className="h-12 w-12 text-primary animate-spin" />
-        <p className="text-muted-foreground">Loading CA details...</p>
-      </div>
+      <BreadcrumbPage items={CA_CRUMBS}>
+        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
+          <Loader2 className="h-12 w-12 text-primary animate-spin" />
+          <p className="text-muted-foreground">Loading CA details...</p>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
   if ((errorCAs || errorEngines) && !caDetails) {
     return (
-      <div className="w-full space-y-4 p-4">
-         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
+      <BreadcrumbPage items={CA_CRUMBS}>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Loading Data</AlertTitle>
           {errorCAs && <AlertDescription>CA Error: {errorCAs}</AlertDescription>}
           {errorEngines && <AlertDescription>Engine Error: {errorEngines}</AlertDescription>}
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   if (!caDetails) {
     return (
-      <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-        <FileText className="h-12 w-12 text-muted-foreground" />
-        <p className="text-muted-foreground">Certification Authority with ID "{caIdFromUrl || 'Unknown'}" not found or data is unavailable.</p>
-        <Button variant="secondary" onClick={() => routerHook.push('/certificate-authorities')} className="mt-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authorities
-        </Button>
-      </div>
+      <BreadcrumbPage items={CA_CRUMBS}>
+        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
+          <FileText className="h-12 w-12 text-muted-foreground" />
+          <p className="text-muted-foreground">Certification Authority with ID "{caIdFromUrl || 'Unknown'}" not found or data is unavailable.</p>
+          <Button variant="secondary" onClick={() => routerHook.push('/certificate-authorities')} className="mt-4">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authorities
+          </Button>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
@@ -392,30 +389,12 @@ export default function CertificateAuthorityDetailsClient() {
     ? structuredIssuerDistinguishedNameParts
     : parseDistinguishedName(caDetails.issuer || '');
   const validFrom = caDetails.rawApiData?.certificate.valid_from;
-  const validityInfo = (() => {
-    if (!validFrom || !caDetails.expires) return null;
-    try {
-      const from = parseISO(validFrom).getTime();
-      const to = parseISO(caDetails.expires).getTime();
-      const total = to - from;
-      const elapsed = Date.now() - from;
-      const percent = total > 0 ? Math.min(100, Math.max(0, Math.round((elapsed / total) * 100))) : 0;
-      return {
-        percent,
-        daysLeft: differenceInDays(to, Date.now()),
-        expired: isPast(parseISO(caDetails.expires)),
-      };
-    } catch {
-      return null;
-    }
-  })();
 
   return (
     <BreadcrumbPage
       className="space-y-5"
       items={[
-        { label: 'Home', href: '/' },
-        { label: 'Certificate Authorities', href: '/certificate-authorities' },
+        ...CA_CRUMBS,
         ...caPathToRoot.slice(0, -1).map((ca) => ({
           label: ca.name,
           href: `/certificate-authorities/details?caId=${ca.id}`,
@@ -429,58 +408,41 @@ export default function CertificateAuthorityDetailsClient() {
       >
 
       <div className="flex flex-col">
-      <section className="border-b">
-        <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight" title={caDetails.name}>
-                {caDetails.name}
-              </h1>
-              <Badge variant={statusVariant} dot>{caDetails.status.toUpperCase()}</Badge>
-              {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                <Badge variant="secondary">{caDetails.rawApiData.certificate.revocation_reason}</Badge>
-              )}
-            </div>
-
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">CA ID</span>
-              <code className="max-w-full truncate rounded-sm border bg-muted px-2 py-0.5 font-mono text-xs">
-                {caDetails.id}
-              </code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                aria-label="Copy certificate authority ID"
-                onClick={() => {
-                  navigator.clipboard.writeText(caDetails.id);
-                  setCopiedId(true);
-                  setTimeout(() => setCopiedId(false), 2000);
-                }}
-              >
-                {copiedId ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-              </Button>
-              {caDetails.caType && (
-                <Badge variant="secondary">{caDetails.caType.replaceAll('_', ' ').toUpperCase()}</Badge>
-              )}
-              {cryptoEngine && (
-                <Badge variant="secondary">
-                  <CryptoEngineViewer engine={cryptoEngine} iconOnly />
-                  {cryptoEngine.name || cryptoEngine.type}
-                </Badge>
-              )}
-              {caDetails.rawApiData?.certificate?.key_metadata && (
-                <Badge variant="secondary" className="font-mono">
-                  <KeyRound />
-                  {caDetails.rawApiData.certificate.key_metadata.type}
-                  {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
-                  {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2 sm:self-center sm:justify-end">
+      <DetailHero
+        title={caDetails.name}
+        badges={
+          <>
+            <Badge variant={statusVariant} dot>{caDetails.status.toUpperCase()}</Badge>
+            {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
+              <Badge variant="secondary">{caDetails.rawApiData.certificate.revocation_reason}</Badge>
+            )}
+          </>
+        }
+        idLabel="CA ID"
+        id={caDetails.id}
+        meta={
+          <>
+            {caDetails.caType && (
+              <Badge variant="secondary">{caDetails.caType.replaceAll('_', ' ').toUpperCase()}</Badge>
+            )}
+            {cryptoEngine && (
+              <Badge variant="secondary">
+                <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                {cryptoEngine.name || cryptoEngine.type}
+              </Badge>
+            )}
+            {caDetails.rawApiData?.certificate?.key_metadata && (
+              <Badge variant="secondary" className="font-mono">
+                <KeyRound />
+                {caDetails.rawApiData.certificate.key_metadata.type}
+                {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
+                {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+              </Badge>
+            )}
+          </>
+        }
+        actions={
+          <>
             {isCaOnHold ? (
               <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
                 <ShieldCheck className="h-4 w-4" /> Re-activate
@@ -506,115 +468,41 @@ export default function CertificateAuthorityDetailsClient() {
                 {isDeleting ? 'Deleting…' : 'Delete'}
               </Button>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" aria-label="Certificate authority actions">
-                  Actions
-                  <ChevronDown data-icon="inline-end" className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
-                  <Shield className="mr-2 h-4 w-4" /> Validation Authority
+            <DetailHeroActionsMenu ariaLabel="Certificate authority actions">
+              <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
+                <Shield className="mr-2 h-4 w-4" /> Validation Authority
+              </DropdownMenuItem>
+              {caDetails.status !== 'revoked' && (
+                <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Reissue CA
                 </DropdownMenuItem>
-                {caDetails.status !== 'revoked' && (
-                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Reissue CA
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
-                  disabled={!caIsActive}
-                >
-                  <FileText className="mr-2 h-4 w-4" /> Issue Certificate
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        <div className="divide-y border-t lg:grid lg:grid-cols-[minmax(300px,1.2fr)_minmax(360px,1.2fr)_minmax(320px,1fr)] lg:divide-x lg:divide-y-0">
-          <div className="py-3 lg:pr-6">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-muted-foreground">Issuer</p>
-              {issuerCa && (
-                <button
-                  className="text-xs font-medium text-primary hover:underline"
-                  onClick={() => routerHook.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
-                >
-                  View CA
-                </button>
               )}
-            </div>
-            {issuerDistinguishedNameParts.length > 0 ? (
-              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {issuerDistinguishedNameParts.map(({ label, value }) => (
-                  <div key={label} className="flex min-w-0 items-baseline gap-2">
-                    <dt className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm bg-primary px-1 font-mono text-[10px] font-semibold text-primary-foreground">{label}</dt>
-                    <dd className="truncate text-sm text-foreground" title={value}>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : issuerCa ? (
-              <button
-                className="mt-1 text-left text-sm text-primary hover:underline"
-                onClick={() => routerHook.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
+              <DropdownMenuItem
+                onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                disabled={!caIsActive}
               >
-                {issuerDisplayName}
-              </button>
-            ) : (
-              <p className="mt-1 text-sm text-foreground">{issuerDisplayName}</p>
-            )}
-          </div>
-
-          <div className="py-3 lg:px-6">
-            {validityInfo && validFrom ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-xs font-medium text-muted-foreground">Validity period</p>
-                  <span className={cn(
-                    'text-xs font-medium tabular-nums',
-                    validityInfo.expired || validityInfo.daysLeft <= 30
-                      ? 'text-destructive'
-                      : 'text-muted-foreground'
-                  )}>
-                    {validityInfo.expired
-                      ? 'Expired'
-                      : validityInfo.daysLeft === 0
-                      ? 'Expires today'
-                      : `${validityInfo.daysLeft}d remaining`}
-                  </span>
-                </div>
-                <Progress
-                  value={validityInfo.percent}
-                  className={cn('h-1.5 rounded-sm', validityInfo.expired && '[&_[data-slot=progress-indicator]]:bg-destructive')}
-                  aria-label={`${validityInfo.percent}% of the certificate authority validity period elapsed`}
-                />
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Issued</p>
-                    <DateDisplay date={validFrom} className="text-xs" />
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Expires</p>
-                    <DateDisplay date={caDetails.expires} highlightExpired className="items-end text-xs" />
-                  </div>
-                </div>
+                <FileText className="mr-2 h-4 w-4" /> Issue Certificate
+              </DropdownMenuItem>
+            </DetailHeroActionsMenu>
+          </>
+        }
+        statsClassName="lg:grid-cols-[minmax(300px,1.2fr)_minmax(360px,1.2fr)_minmax(320px,1fr)]"
+        stats={
+          <>
+            <IssuerStat
+              parts={issuerDistinguishedNameParts}
+              displayName={issuerDisplayName}
+              href={issuerCa ? `/certificate-authorities/details?caId=${issuerCa.id}` : undefined}
+            />
+            <ValidityStat validFrom={validFrom} validTo={caDetails.expires} subject="certificate authority" />
+            <DetailHeroStat label="Issued certificates">
+              <div className="pt-2">
+                <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
               </div>
-            ) : (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Validity period</p>
-                <p className="mt-2 text-sm text-muted-foreground">Unavailable</p>
-              </div>
-            )}
-          </div>
-
-          <div className="py-3 lg:pl-6 lg:pr-1">
-            <p className="mb-3 text-xs font-medium text-muted-foreground">Issued certificates</p>
-            <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
-          </div>
-        </div>
-      </section>
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">

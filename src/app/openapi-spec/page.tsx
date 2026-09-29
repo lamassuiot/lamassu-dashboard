@@ -5,6 +5,7 @@ import '@scalar/api-reference-react/style.css'
 import { useTheme } from '@/contexts/ThemeContext'
 import { get_KMS_API_PUBLIC_URL, get_CA_API_PUBLIC_URL, get_VA_CORE_API_PUBLIC_URL, get_DMS_MANAGER_API_PUBLIC_URL, get_DEV_MANAGER_API_PUBLIC_URL, get_ALERTS_API_PUBLIC_URL, get_AUTHZ_API_PUBLIC_URL } from '@/lib/api-domains';
 import { useAuth } from '@/contexts/AuthContext';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
 
 
@@ -22,42 +23,48 @@ function App() {
   ];
 
   return (
-    <div className={`scalar-app -mx-4 -mt-4 -mb-8 md:-mx-6 md:-mt-6 md:-mb-12 ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
-      <ApiReferenceReact
-        configuration={{
-          sources: servicesToCheck,
-          layout: 'classic',
-          // We keep this synced, but it won't trigger a full mount
-          darkMode: isDarkMode,
-          hideDarkModeToggle: true,
-          theme: "kepler",
-          onBeforeRequest: ({ request }) => {
-            if (user?.access_token) {
-              request.headers.set('Authorization', `Bearer ${user.access_token}`);
-            }
-          },
-          fetch: (input, init) => {
-            const headers = new Headers((init as RequestInit | undefined)?.headers);
-            if (user?.access_token) {
-              headers.set('Authorization', `Bearer ${user.access_token}`);
-            }
-            return fetch(input, { ...init, headers });
-          },
-          defaultOpenAllTags: true,
-          showSidebar: false,
-          hideModels: true,
-        }}
+    <div className="-mx-4 -mt-4 -mb-8 md:-mx-6 md:-mt-6 md:-mb-12">
+      <Breadcrumbs
+        items={[{ label: 'Home', href: '/' }, { label: 'OpenAPI Spec' }]}
+        className="mb-0 px-4 md:px-6"
       />
+      <div className={`scalar-app ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
+        <ApiReferenceReact
+          configuration={{
+            sources: servicesToCheck,
+            layout: 'classic',
+            // We keep this synced, but it won't trigger a full mount
+            darkMode: isDarkMode,
+            hideDarkModeToggle: true,
+            theme: "kepler",
+            onBeforeRequest: ({ request }) => {
+              if (user?.access_token) {
+                request.headers.set('Authorization', `Bearer ${user.access_token}`);
+              }
+            },
+            fetch: (input, init) => {
+              const headers = new Headers((init as RequestInit | undefined)?.headers);
+              if (user?.access_token) {
+                headers.set('Authorization', `Bearer ${user.access_token}`);
+              }
+              return fetch(input, { ...init, headers });
+            },
+            defaultOpenAllTags: true,
+            showSidebar: false,
+            hideModels: true,
+          }}
+        />
 
-      {/* Force Scalar to respect the container's theme. 
-          Sometimes Scalar injects styles into the head; this CSS ensures 
-          the container always wins.
-      */}
-      <style jsx global>{`
-        .scalar-app {
-          --scalar-color-scheme: ${isDarkMode ? 'dark' : 'light'};
-        }
-      `}</style>
+        {/* Force Scalar to respect the container's theme. 
+            Sometimes Scalar injects styles into the head; this CSS ensures 
+            the container always wins.
+        */}
+        <style jsx global>{`
+          .scalar-app {
+            --scalar-color-scheme: ${isDarkMode ? 'dark' : 'light'};
+          }
+        `}</style>
+      </div>
     </div>
   )
 }
