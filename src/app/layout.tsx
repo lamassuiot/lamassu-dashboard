@@ -38,6 +38,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PrincipalBadge } from '@/components/authz/PrincipalBadge';
 import { jwtDecode } from 'jwt-decode';
 import Image from 'next/image'
 import LogoFullWhite from './lamassu_full_white.svg'
@@ -779,9 +780,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {matchedPrincipals.map(p => (
-                    <Badge key={p.id} variant="secondary" title={p.id} className={cn(!p.name && 'font-mono')}>
-                      {p.name || p.id}
-                    </Badge>
+                    <PrincipalBadge key={p.id} id={p.id} name={p.name} />
                   ))}
                 </div>
               )}

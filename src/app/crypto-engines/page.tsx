@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -13,7 +14,6 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import {
-  CheckSquare,
   Cpu,
   Loader2,
   RefreshCw,
@@ -71,9 +71,28 @@ const KeyTypeChips: React.FC<{ chips: string[] }> = ({ chips }) => {
         </Badge>
       ))}
       {hidden.length > 0 && (
-        <Badge variant="secondary" className="cursor-default" title={hidden.join(', ')}>
-          +{hidden.length}
-        </Badge>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Badge variant="secondary" asChild>
+              <button
+                type="button"
+                className="cursor-pointer hover:bg-muted/70"
+                aria-label={`Show ${hidden.length} more key types`}
+              >
+                +{hidden.length}
+              </button>
+            </Badge>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto max-w-xs p-2">
+            <div className="flex flex-wrap gap-1">
+              {hidden.map(chip => (
+                <Badge key={chip} variant="secondary" className="font-mono">
+                  {chip}
+                </Badge>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );
@@ -178,6 +197,7 @@ export default function CryptoEnginesPage() {
                     onSort={requestSort}
                     align="left"
                   />
+                  <TableHead className="text-center">Default</TableHead>
                   <SortableTableHead
                     column="type"
                     title="Type"
@@ -216,19 +236,19 @@ export default function CryptoEnginesPage() {
                         <div className="flex items-center gap-3">
                           <CryptoEngineViewer engine={engine} iconOnly className="h-8 w-8 shrink-0" />
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="truncate font-medium">{engine.name}</span>
-                              {engine.default && (
-                                <Badge>
-                                  <CheckSquare />DEFAULT
-                                </Badge>
-                              )}
-                            </div>
+                            <span className="block truncate font-medium">{engine.name}</span>
                             <code className="block max-w-[280px] truncate font-mono text-xs text-muted-foreground" title={engine.id}>
                               {engine.id}
                             </code>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {engine.default ? (
+                          <Badge>Default</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">

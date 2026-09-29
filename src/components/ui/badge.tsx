@@ -53,8 +53,12 @@ function Badge({
       className={cn(badgeVariants({ variant }), className)}
       {...props}
     >
-      {dot && !asChild && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />}
-      {children}
+      {asChild ? children : (
+        <>
+          {dot && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />}
+          {children}
+        </>
+      )}
     </Comp>
   )
 }

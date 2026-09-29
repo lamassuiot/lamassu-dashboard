@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export function getStateVariant(state: string): BadgeVariant {
     const s = state.toUpperCase();
@@ -24,6 +25,7 @@ export function WfxGroupBadge({ group }: { group: string | undefined }) {
     if (!group) return <span className="text-muted-foreground text-xs">—</span>;
     return (
         <Badge variant="secondary" className="uppercase">
+            <span className={cn('size-1.5 shrink-0 rounded-full', group === 'TERMINAL' ? 'bg-emerald-500' : 'bg-blue-500')} />
             {group}
         </Badge>
     );
