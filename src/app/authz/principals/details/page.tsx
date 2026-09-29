@@ -801,12 +801,12 @@ function PrincipalDetailsContent() {
                           onClick={() => setSelectedPolicyId(isSelected ? '' : policy.id)}
                         >
                           <TableCell className="font-medium">
-                            <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <div className={cn('truncate', isSelected && 'text-primary')}>{policy.name}</div>
                                 <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{policy.id}</p>
                               </div>
-                              {isSelected && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+                              {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
                             </div>
                           </TableCell>
                           <TableCell>

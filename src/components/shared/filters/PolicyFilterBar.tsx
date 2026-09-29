@@ -142,7 +142,7 @@ export function PolicyFilterBar({
         onUpdatedAtFilterChange(defaultDateFilterValue);
       }}
       idPrefix="policy-filter"
-      basicFieldsClassName="grid-cols-1"
+      basicFieldsClassName="grid-cols-1 md:grid-cols-1 xl:grid-cols-1"
       advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
     />
   );

@@ -32,25 +32,27 @@ export interface HTTPSchemaRoute {
   name: string;
   methods: string[];
   path: string;
-  match_type: 'exact' | 'regex';
+  match_type: 'exact' | 'prefix' | 'regex';
   action: string;
-  constraint?: HTTPRouteConstraint;
   constraints?: HTTPRouteConstraint[];
-  route_constraints?: HTTPRouteConstraint[];
-  request_constraints?: HTTPRouteConstraint[];
+  /** Allowed for any authenticated subject; policies cannot grant or deny it. */
+  skip_authz?: boolean;
 }
 
+export type HTTPRequestValueSource = 'path_regex_group' | 'query' | 'header' | 'json_body';
+
+/** Where a route constraint reads its value from in the incoming request. */
+export interface HTTPRequestValueRef {
+  source: HTTPRequestValueSource;
+  name?: string; // query/header name
+  index?: number; // regex capture group index
+  path?: string; // JSON path, e.g. $.device_id
+}
+
+/** Requires a request value to equal one of the calling subject's attributes. */
 export interface HTTPRouteConstraint {
-  location?: string;
-  source?: string;
-  path?: string;
-  name?: string;
-  operator?: string;
-  equals?: string;
-  value?: string;
-  subject_attribute?: string;
-  subject?: string;
-  description?: string;
+  request: HTTPRequestValueRef;
+  equals_subject_attribute: string;
 }
 
 export interface HTTPSchemaGroup {
