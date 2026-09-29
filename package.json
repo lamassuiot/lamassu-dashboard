@@ -2,6 +2,7 @@
   "name": "lamassu-dashboard",
   "version": "4.2.0",
   "private": true,
+  "cpu": ["x64", "arm64"],
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
     "prebuild": "node scripts/generate-version.js",
@@ -15,7 +16,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "postinstall": "patch-package",
-    "version:generate": "node scripts/generate-version.js"
+    "version:generate": "node scripts/generate-version.js",
+    "verify:lockfile-platforms": "node scripts/verify-lockfile-platforms.js"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.3",

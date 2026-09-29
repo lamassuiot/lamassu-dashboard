@@ -19,6 +19,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Verify lockfile platform coverage
+        run: npm run verify:lockfile-platforms
       - name: Install dependencies
         run: npm ci
       - name: Run tests
