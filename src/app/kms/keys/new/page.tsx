@@ -346,7 +346,7 @@ export default function CreateKmsKeyPage() {
                       {String(i + 1).padStart(2, '0')}
                     </span>
                     {isDisabled ? (
-                      <Badge variant="secondary" className="text-[10px] font-medium py-0 px-1.5 h-[18px] rounded-sm">
+                      <Badge variant="secondary">
                         {mode.badge}
                       </Badge>
                     ) : (
@@ -394,7 +394,7 @@ export default function CreateKmsKeyPage() {
                         {mode.title}
                       </p>
                       {i === 0 && (
-                        <Badge className="text-[10px] font-medium py-0 px-1.5 h-[18px] rounded-sm">
+                        <Badge>
                           Recommended
                         </Badge>
                       )}

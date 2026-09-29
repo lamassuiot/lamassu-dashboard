@@ -399,7 +399,7 @@ export default function CreateCaImportPublicPage() {
                       <Label>Subject Alternative Names (SANs)</Label>
                       <div className="flex flex-wrap gap-1.5">
                         {decodedImportedCertInfo.sans!.map(san => (
-                          <Badge key={san} variant="outline" className="font-mono text-xs">{san}</Badge>
+                          <Badge key={san} variant="secondary" className="font-mono">{san}</Badge>
                         ))}
                       </div>
                     </div>

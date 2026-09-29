@@ -29,8 +29,6 @@ import {
   AlertTriangle,
   Loader2,
   UserCheck,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listPrincipals, deletePrincipal } from '@/lib/authz-api';
@@ -52,11 +50,6 @@ import { AuthzRowActionsMenu } from '@/components/authz/AuthzRowActionsMenu';
 const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
   oidc: 'OIDC',
   x509: 'X.509',
-};
-
-const PRINCIPAL_TYPE_CLASSES: Record<PrincipalType, string> = {
-  oidc: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800',
-  x509: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800',
 };
 
 type SortDirection = 'asc' | 'desc';
@@ -316,18 +309,18 @@ export default function PrincipalsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn('text-xs', PRINCIPAL_TYPE_CLASSES[principal.type])}>
+                      <Badge variant="secondary">
                         {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {principal.active ? (
-                        <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800 text-xs">
-                          <CheckCircle className="h-3 w-3" /> Active
+                        <Badge dot>
+                          Active
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="gap-1 text-xs">
-                          <XCircle className="h-3 w-3" /> Inactive
+                        <Badge variant="muted" dot>
+                          Inactive
                         </Badge>
                       )}
                     </TableCell>

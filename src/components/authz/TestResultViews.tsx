@@ -72,9 +72,8 @@ export function MatchedPrincipals({ ids, principals }: { ids: string[]; principa
           ? ids.map((id) => {
               const principal = principals.find((p) => p.id === id);
               return (
-                <Badge key={id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
-                  <span className="text-xs font-normal leading-tight">{principal?.name || id}</span>
-                  {principal?.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{id}</span>}
+                <Badge key={id} variant="secondary" title={id} className={cn(!principal?.name && 'font-mono')}>
+                  {principal?.name || id}
                 </Badge>
               );
             })

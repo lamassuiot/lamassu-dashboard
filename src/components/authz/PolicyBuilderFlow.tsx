@@ -846,7 +846,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                   {rules.map((rule, index) => (
                     <SelectItem key={index} value={index.toString()}>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">Rule {index + 1}</Badge>
+                        <Badge variant="secondary">Rule {index + 1}</Badge>
                         <span>{getRuleQualifiedEntityType(rule) || 'Untitled'}</span>
                         <span className="text-muted-foreground text-xs">({rule.actions.length} action{rule.actions.length !== 1 ? 's' : ''})</span>
                       </div>
@@ -880,10 +880,10 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
               {isFlowFullscreen ? 'Exit Full Screen' : 'Full Screen'}
             </Button>
           )}
-          <Badge variant="secondary" className="px-3 py-1">
+          <Badge variant="secondary">
             {schemas.length} schema entit{schemas.length !== 1 ? 'ies' : 'y'}
           </Badge>
-          <Badge variant="default" className="px-3 py-1">
+          <Badge>
             {rules.length} rule{rules.length !== 1 ? 's' : ''}
           </Badge>
         </div>
@@ -1036,7 +1036,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                     <p className="text-xs font-medium mb-2">Selected Actions:</p>
                     <div className="flex flex-wrap gap-1">
                       {selectedActions.map((action) => (
-                        <Badge key={action} variant="default" className="bg-green-600">
+                        <Badge key={action}>
                           {action}
                         </Badge>
                       ))}

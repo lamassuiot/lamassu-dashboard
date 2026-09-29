@@ -3,10 +3,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ViewModeToggle, SEGMENTED_GROUP_CLS, SEGMENTED_ITEM_CLS, type ViewModeOption } from '@/components/shared/ViewModeToggle';
 import { ArrowRight, Clock, Activity, CloudOff, Timer, Loader2 } from 'lucide-react';
 import { DeviceEventsTable } from '@/components/devices/DeviceEventsTable';
 import { RevocationModal } from '@/components/shared/RevocationModal';
-import { StatusBadge as DeviceStatusBadge } from '@/app/devices/page';
+import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchDeviceEventsPaginated, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
@@ -32,8 +33,12 @@ const POLLING_INTERVAL_OPTIONS = [
   { label: '60s', value: 60 },
 ];
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
-const TOGGLE_GROUP_CLS = 'h-9 rounded-xl bg-muted/80 p-1';
-const TOGGLE_ITEM_CLS = 'h-7 rounded-lg px-3 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm hover:text-foreground';
+
+const TIMELINE_MODE_OPTIONS: ViewModeOption<TimelineMode>[] = [
+  { value: 'paginated', icon: CloudOff, label: 'Manual', ariaLabel: 'Manual mode' },
+  { value: 'polling', icon: Timer, label: 'Polling', ariaLabel: 'Polling mode' },
+  { value: 'realtime', icon: Activity, label: 'Live', ariaLabel: 'Live mode' },
+];
 
 function getTimelineEventTitle(event: ApiDeviceEventItem): string {
   switch (event.type) {
@@ -270,9 +275,9 @@ export default function TimelinePage() {
           if (m) {
             detailsNode = (
               <div className="mt-2 flex items-center gap-2">
-                <DeviceStatusBadge status={m[1] as any} />
+                <DeviceStatusBadge status={m[1]} />
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <DeviceStatusBadge status={m[2] as any} />
+                <DeviceStatusBadge status={m[2]} />
               </div>
             );
             description = undefined;
@@ -369,34 +374,22 @@ export default function TimelinePage() {
     <>
       <div className="-mt-1 mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b pb-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">Mode</span>
-            <ToggleGroup type="single" value={timelineMode}
-              onValueChange={(v) => { if (v) handleTimelineModeChange(v as TimelineMode); }}
-              variant="default" aria-label="Timeline update mode" className={TOGGLE_GROUP_CLS}>
-              <ToggleGroupItem value="paginated" aria-label="Manual mode" className={cn(TOGGLE_ITEM_CLS, timelineMode === 'paginated' ? 'gap-1.5 px-3' : 'w-9 p-0')}>
-                <CloudOff className="h-4 w-4 shrink-0" />
-                {timelineMode === 'paginated' && <span className="text-xs">Manual</span>}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="polling" aria-label="Polling mode" className={cn(TOGGLE_ITEM_CLS, timelineMode === 'polling' ? 'gap-1.5 px-3' : 'w-9 p-0')}>
-                <Timer className="h-4 w-4 shrink-0" />
-                {timelineMode === 'polling' && <span className="text-xs">Polling</span>}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="realtime" aria-label="Live mode" className={cn(TOGGLE_ITEM_CLS, timelineMode === 'realtime' ? 'gap-1.5 px-3' : 'w-9 p-0')}>
-                <Activity className="h-4 w-4 shrink-0" />
-                {timelineMode === 'realtime' && <span className="text-xs">Live</span>}
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
+          <ViewModeToggle
+            label="Mode"
+            ariaLabel="Timeline update mode"
+            options={TIMELINE_MODE_OPTIONS}
+            value={timelineMode}
+            onChange={handleTimelineModeChange}
+          />
 
           {timelineMode === 'polling' && (
             <div className="flex items-center gap-2">
               <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">Every</span>
               <ToggleGroup type="single" value={String(pollingInterval)}
                 onValueChange={(v) => { if (v) handlePollingIntervalChange(Number(v)); }}
-                variant="default" aria-label="Polling interval" className={TOGGLE_GROUP_CLS}>
+                variant="default" aria-label="Polling interval" className={SEGMENTED_GROUP_CLS}>
                 {POLLING_INTERVAL_OPTIONS.map(opt => (
-                  <ToggleGroupItem key={opt.value} value={String(opt.value)} className={cn(TOGGLE_ITEM_CLS, 'min-w-11')}>
+                  <ToggleGroupItem key={opt.value} value={String(opt.value)} className={cn(SEGMENTED_ITEM_CLS, 'min-w-11')}>
                     {opt.label}
                   </ToggleGroupItem>
                 ))}
@@ -417,9 +410,9 @@ export default function TimelinePage() {
             <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">Per page</span>
             <ToggleGroup type="single" value={String(timelinePageSize)}
               onValueChange={(v) => { if (v) handleTimelinePageSizeChange(Number(v)); }}
-              variant="default" aria-label="Timeline page size" className={TOGGLE_GROUP_CLS}>
+              variant="default" aria-label="Timeline page size" className={SEGMENTED_GROUP_CLS}>
               {PAGE_SIZE_OPTIONS.map(size => (
-                <ToggleGroupItem key={size} value={String(size)} className={cn(TOGGLE_ITEM_CLS, 'min-w-9')}>
+                <ToggleGroupItem key={size} value={String(size)} className={cn(SEGMENTED_ITEM_CLS, 'min-w-9')}>
                   {size}
                 </ToggleGroupItem>
               ))}

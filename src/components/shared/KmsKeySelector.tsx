@@ -103,7 +103,7 @@ export function KmsKeySelector({
             <div className="flex items-center gap-2 min-w-0">
               <KeyRound className="h-4 w-4 shrink-0" />
               <span className="font-medium truncate">{selectedKey.name}</span>
-              <Badge variant="secondary" className="text-xs shrink-0">
+              <Badge variant="secondary">
                 {selectedKey.algorithm} {selectedKey.size}
               </Badge>
             </div>
@@ -178,7 +178,7 @@ export function KmsKeySelector({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="text-xs">{key.algorithm} {key.size}</Badge>
+                          <Badge variant="secondary">{key.algorithm} {key.size}</Badge>
                         </TableCell>
                         <TableCell>
                           <KeyStrengthIndicator algorithm={key.algorithm} size={String(key.size)} />
@@ -187,7 +187,7 @@ export function KmsKeySelector({
                           {engine ? (
                             <CryptoEngineViewer engine={engine} plainIcon />
                           ) : (
-                            <Badge variant="secondary" className="text-xs">{key.engine_id}</Badge>
+                            <Badge variant="secondary">{key.engine_id}</Badge>
                           )}
                         </TableCell>
                       </TableRow>

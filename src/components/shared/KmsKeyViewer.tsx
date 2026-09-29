@@ -29,8 +29,8 @@ export const KmsKeyViewer: React.FC<KmsKeyViewerProps> = ({
   }
 
   return (
-    <Badge variant="secondary" className={cn('flex items-center gap-1.5 text-xs font-normal', className)}>
-      {cryptoEngineIcon || <KeyRound className="h-3.5 w-3.5" />}
+    <Badge variant="secondary" className={className}>
+      {cryptoEngineIcon || <KeyRound />}
       <span className="font-mono">{keyName || keyId.substring(0, 8)}</span>
     </Badge>
   );

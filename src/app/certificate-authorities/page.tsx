@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, UploadCloud, FileText } from "lucide-react";
+import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, UploadCloud } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -16,8 +16,8 @@ import { Label } from '@/components/ui/label';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
 import { filterCaList } from '@/lib/ca-utils';
-import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
 
 
 const CaFilesystemView = dynamic(() => 
@@ -60,6 +60,12 @@ const CaGraphView = dynamic(() =>
 );
 
 type ViewMode = 'list' | 'hierarchy' | 'graph';
+
+const VIEW_MODE_OPTIONS: ViewModeOption<ViewMode>[] = [
+    { value: 'list', icon: List, label: 'List' },
+    { value: 'hierarchy', icon: Network, label: 'Hierarchy' },
+    { value: 'graph', icon: GitFork, label: 'Graph' },
+];
 
 const STATUS_OPTIONS: { value: CaStatusFilter; label: string }[] = [
     { value: 'active', label: 'Active' },
@@ -137,12 +143,6 @@ export default function CertificateAuthoritiesPage() {
     router.push('/certificate-authorities/new');
   };
 
-  const handleViewModeChange = (newMode: string) => {
-    if (newMode && (newMode === 'list' || newMode === 'hierarchy' || newMode === 'graph')) {
-      setViewMode(newMode as ViewMode);
-    }
-  };
-  
   if ((isLoadingCas && cas.length === 0) || (isLoadingCryptoEngines && viewMode === 'list')) {
     let loadingText = "Loading Certification Authorities...";
     if (isLoadingCryptoEngines && viewMode === 'list') loadingText = "Loading Crypto Engines for List View...";
@@ -221,29 +221,7 @@ export default function CertificateAuthoritiesPage() {
                  />
             </div>
             <div className="flex items-end shrink-0 md:justify-end">
-              <div className="flex items-center gap-0.5 rounded-md bg-muted p-1" role="group" aria-label="View mode">
-                {([
-                  { value: 'list', icon: List, label: 'List' },
-                  { value: 'hierarchy', icon: Network, label: 'Hierarchy' },
-                  { value: 'graph', icon: GitFork, label: 'Graph' },
-                ] as const).map(({ value, icon: Icon, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-label={`${label} view`}
-                    aria-pressed={viewMode === value}
-                    onClick={() => handleViewModeChange(value)}
-                    className={cn(
-                      'inline-flex items-center justify-center rounded-sm w-8 h-8 transition-colors',
-                      viewMode === value
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
-                ))}
-              </div>
+              <ViewModeToggle options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
             </div>
           </div>
       <div className="pt-6">

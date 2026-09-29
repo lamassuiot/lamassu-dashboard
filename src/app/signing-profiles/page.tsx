@@ -23,7 +23,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -40,13 +40,20 @@ export interface ProfileSortConfig {
 const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
+type ProfileViewMode = 'grid' | 'list';
+
+const VIEW_MODE_OPTIONS: ViewModeOption<ProfileViewMode>[] = [
+  { value: 'grid', icon: LayoutGrid, label: 'Grid' },
+  { value: 'list', icon: List, label: 'List' },
+];
+
 export default function SigningProfilesPage() {
   const router = useRouter();
   
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<ProfileViewMode>('grid');
   const [isClientMounted, setIsClientMounted] = useState(false);
 
   // Filtering, Sorting, Pagination State
@@ -283,15 +290,7 @@ export default function SigningProfilesPage() {
                 </div>
             </div>
             <div className="flex items-center gap-2">
-                <ToggleGroup
-                    type="single"
-                    value={viewMode}
-                    onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
-                    variant="outline"
-                >
-                    <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
-                    <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
-                </ToggleGroup>
+                <ViewModeToggle options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
                 {viewMode === 'list' && (
                     <ColumnSelector columns={profileColumns} onColumnToggle={handleColumnToggle} align="end" />
                 )}

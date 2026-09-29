@@ -41,6 +41,7 @@ import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 
+import { Badge } from '@/components/ui/badge';
 export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -201,27 +202,29 @@ export default function DeviceGroupDetailsClient() {
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+              <Badge variant="secondary">
                 {filterCount > 0 ? 'Dynamic Group' : 'Catch-All Group'}
-              </span>
+              </Badge>
               {parentGroup ? (
-                <button
-                  className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground hover:bg-muted transition-colors"
-                  onClick={() => router.push(`/device-groups/details?groupId=${parentGroup.id}`)}
-                >
-                  <FolderTree className="h-3 w-3 shrink-0" />
-                  {parentGroup.name}
-                </button>
+                <Badge variant="secondary" asChild>
+                  <button
+                    className="cursor-pointer hover:bg-muted/70"
+                    onClick={() => router.push(`/device-groups/details?groupId=${parentGroup.id}`)}
+                  >
+                    <FolderTree />
+                    {parentGroup.name}
+                  </button>
+                </Badge>
               ) : (
-                <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                <Badge variant="secondary">
                   Root Level
-                </span>
+                </Badge>
               )}
               {group.description && (
-                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                  <Tag className="h-3 w-3 shrink-0" />
+                <Badge variant="secondary">
+                  <Tag />
                   {group.description}
-                </span>
+                </Badge>
               )}
             </div>
           </div>

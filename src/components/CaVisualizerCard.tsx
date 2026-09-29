@@ -7,7 +7,7 @@ import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 
 interface CaVisualizerCardProps {
   ca: CA;
@@ -25,10 +25,10 @@ const getStatus = (ca: CA): { label: string; expiryText: string; variant: Status
   return { label: 'Active', expiryText: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, variant: 'active' };
 };
 
-const statusBadgeClass: Record<StatusVariant, string> = {
-  active:  'border-primary/30 bg-primary/10 text-primary',
-  expired: 'border-orange-400/40 bg-orange-400/10 text-orange-700 dark:text-orange-300',
-  revoked: 'border-destructive/30 bg-destructive/10 text-destructive',
+const statusBadgeVariant: Record<StatusVariant, BadgeVariant> = {
+  active: 'default',
+  expired: 'warning',
+  revoked: 'destructive',
 };
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines }) => {
@@ -65,7 +65,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="truncate text-sm font-semibold leading-snug text-foreground">{ca.name}</p>
-          <Badge className={cn('shrink-0 rounded-sm border px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide', statusBadgeClass[variant])}>
+          <Badge variant={statusBadgeVariant[variant]} dot>
             {label}
           </Badge>
         </div>

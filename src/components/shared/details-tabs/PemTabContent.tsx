@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Copy, Check, Download, ChevronRight, FileCode, Link2, ShieldCheck } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import type { CA } from '@/lib/ca-data';
@@ -18,8 +18,7 @@ interface PemTabContentProps {
   certificateChain?: CA[];
   currentCertificate?: {
     subject: string;
-    statusBadgeVariant: "default" | "secondary" | "destructive" | "outline";
-    statusBadgeClass?: string;
+    statusBadgeVariant: BadgeVariant;
     statusText: string;
   };
 }
@@ -151,22 +150,13 @@ function ChainStrip({
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-1">Chain of Trust</span>
         {nodes.map((node, i) => (
           <React.Fragment key={i}>
-            <span
-              className={cn(
-                'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
-                node.isCurrent
-                  ? 'border-primary/30 bg-primary/10 text-primary'
-                  : 'border-border bg-background text-muted-foreground'
-              )}
-            >
-              {node.label}
-            </span>
+            <Badge variant={node.isCurrent ? 'default' : 'secondary'}>{node.label}</Badge>
             {i < nodes.length - 1 && (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
             )}
           </React.Fragment>
         ))}
-        <Badge variant="secondary" className="ml-auto text-xs">{nodes.length} cert{nodes.length !== 1 ? 's' : ''}</Badge>
+        <Badge variant="secondary" className="ml-auto">{nodes.length} cert{nodes.length !== 1 ? 's' : ''}</Badge>
       </div>
     </div>
   );
@@ -210,7 +200,7 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
             title="Full Chain"
             subtitle="Leaf-to-root bundle"
             icon={Link2}
-            badge={chainCount > 0 ? <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{chainCount}</Badge> : undefined}
+            badge={chainCount > 0 ? <Badge variant="secondary">{chainCount}</Badge> : undefined}
             pem={fullChainPemData}
             filename={`${base}_chain.pem`}
             itemName={itemName}

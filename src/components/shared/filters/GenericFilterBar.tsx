@@ -796,7 +796,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 {isAdvancedOpen ? <Minus className="mr-1 h-3.5 w-3.5" /> : <Plus className="mr-1 h-3.5 w-3.5" />}
                 {advancedButtonLabel}
                 {activeAdvancedCount > 0 && (
-                  <Badge variant="secondary" className="ml-2 px-1.5 py-0 text-[11px] no-underline">
+                  <Badge variant="secondary" className="ml-2 no-underline">
                     {activeAdvancedCount}
                   </Badge>
                 )}
@@ -820,7 +820,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
             <Badge
               key={badge.key || `filter-badge-${index}`}
               variant="secondary"
-              className={cn('text-xs', badge.className)}
+              className={badge.className}
               title={badge.title}
             >
               {badge.label}

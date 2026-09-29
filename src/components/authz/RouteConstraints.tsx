@@ -6,7 +6,7 @@ import type { HTTPSchemaRoute } from '@/types/authz';
 export function RouteConstraints({ route, emptyLabel = '—' }: { route: HTTPSchemaRoute; emptyLabel?: string }) {
   if (route.skip_authz) {
     return (
-      <Badge variant="secondary" title="Any authenticated subject can call this route; policies do not apply.">
+      <Badge variant="warning" title="Any authenticated subject can call this route; policies do not apply.">
         Always allowed
       </Badge>
     );
@@ -25,7 +25,7 @@ export function RouteConstraints({ route, emptyLabel = '—' }: { route: HTTPSch
             className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs"
             title={`Request ${formatRouteConstraint(constraint)}`}
           >
-            <Badge variant="outline" className="shrink-0 px-1.5 text-[10px]">
+            <Badge variant="secondary">
               {source}
             </Badge>
             <span className="break-all font-mono">{field}</span>

@@ -68,8 +68,8 @@ export const CryptoEngineSummary: React.FC = () => {
                             <div key={engine.id} className="p-2 border rounded-md flex justify-between items-center">
                                 <CryptoEngineViewer engine={engine} />
                                 {engine.default && (
-                                    <Badge variant="default" className="text-xs bg-accent text-accent-foreground">
-                                        <CheckSquare className="mr-1.5 h-3.5 w-3.5" /> Default Engine
+                                    <Badge>
+                                        <CheckSquare /> Default Engine
                                     </Badge>
                                 )}
                             </div>

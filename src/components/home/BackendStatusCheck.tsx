@@ -128,7 +128,7 @@ export const BackendStatusCheck: React.FC = () => {
                                     <p className="text-xs text-muted-foreground font-mono">{service.url}</p>
                                 </TableCell>
                                 <TableCell>
-                                    {service.version ? <Badge variant={service.status === 'ok' ? 'secondary' : 'outline'}>{service.version}</Badge> : null}
+                                    {service.version ? <Badge variant="secondary">{service.version}</Badge> : null}
                                     {service.status === 'error' && !service.version && <Badge variant="destructive">Error</Badge>}
                                 </TableCell>
                             </TableRow>

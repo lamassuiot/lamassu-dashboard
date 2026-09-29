@@ -191,7 +191,7 @@ export function MetadataFilterManager({
         {value.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {value.map((item, index) => (
-              <Badge key={item.filter} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
+              <Badge key={item.filter} variant="secondary" className={cn(!item.name && "font-mono")}>
                 {item.name || item.filter}
                 <Button
                   variant="ghost"

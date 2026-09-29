@@ -132,10 +132,10 @@ export function SchemaFlowView({ schemas, error }: SchemaFlowViewProps) {
 
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
-          <Badge variant="outline">
+          <Badge variant="secondary">
             {nodeCount} entit{nodeCount !== 1 ? 'ies' : 'y'}
           </Badge>
-          <Badge variant="outline">
+          <Badge variant="secondary">
             {edgeCount} relation{edgeCount !== 1 ? 's' : ''}
           </Badge>
         </div>

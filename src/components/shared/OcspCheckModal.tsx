@@ -129,7 +129,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
         return (
             <div className="flex items-center space-x-2">
                 <Icon className={`h-5 w-5 ${colorClass}`} />
-                <Badge variant={details.status === 'good' ? 'default' : 'destructive'} className={details.status === 'good' ? 'bg-green-500' : ''}>
+                <Badge variant={details.status === 'good' ? 'success' : details.status === 'revoked' ? 'destructive' : 'muted'} dot>
                     {details.statusText}
                 </Badge>
             </div>

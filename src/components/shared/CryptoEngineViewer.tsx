@@ -11,6 +11,7 @@ import AWSSMLogo from "./CryptoEngineIcons/AWS-SM.png"
 import PKCS11Logo from "./CryptoEngineIcons/PKCS11.png"
 import VaultLogo from "./CryptoEngineIcons/HASHICORP-VAULT.png"
 
+import { Badge } from '@/components/ui/badge';
 interface CryptoEngineViewerProps {
   engine: ApiCryptoEngine;
   className?: string;
@@ -129,14 +130,14 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({
         {(provider || secLevel) && (
           <div className="flex flex-wrap items-center gap-1">
             {provider && (
-              <span className="inline-flex h-5 items-center rounded-sm bg-muted/70 px-1.5 text-[10px] text-muted-foreground" title={provider}>
+              <Badge variant="secondary" title={provider}>
                 {provider}
-              </span>
+              </Badge>
             )}
             {secLevel && (
-              <span className={cn('inline-flex h-5 items-center rounded-sm bg-muted/70 px-1.5 text-[10px] font-semibold', secLevel.cls)}>
+              <Badge variant="secondary" className={cn('font-medium', secLevel.cls)}>
                 {secLevel.label}
-              </span>
+              </Badge>
             )}
           </div>
         )}

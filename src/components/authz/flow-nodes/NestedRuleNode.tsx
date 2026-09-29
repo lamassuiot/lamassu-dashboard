@@ -81,11 +81,11 @@ export const NestedRuleNode = memo(({ data }: NestedRuleNodeProps) => {
         {/* Relationship info */}
         <div className="text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="secondary">
               {target_entity}
             </Badge>
             <span>→</span>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="secondary">
               {sourceEntity}
             </Badge>
           </div>

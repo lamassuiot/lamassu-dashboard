@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Ban, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronDown, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { sileo } from '@/lib/toast';
@@ -359,41 +359,22 @@ export default function CertificateAuthorityDetailsClient() {
     );
   }
 
-  let statusColorClass = '';
-  let statusVariant: "default" | "secondary" | "destructive" | "outline" = "default";
+  let statusVariant: BadgeVariant = 'muted';
   let caIsActive = false;
   let isCaOnHold = false;
 
   if (caDetails.status === 'active' && !isPast(parseISO(caDetails.expires))) {
-    statusColorClass = 'bg-green-500 hover:bg-green-600';
     statusVariant = 'default';
     caIsActive = true;
   } else if (caDetails.status === 'revoked') {
-    statusColorClass = 'bg-red-500 hover:bg-red-600';
     statusVariant = 'destructive';
     if(caDetails.rawApiData?.certificate.revocation_reason === 'CertificateHold') {
         isCaOnHold = true;
     }
   } else if (isPast(parseISO(caDetails.expires))) { 
-    statusColorClass = 'bg-orange-500 hover:bg-orange-600';
-    statusVariant = 'destructive';
-  } else { 
-    statusColorClass = 'bg-yellow-500 hover:bg-yellow-600'; 
-    statusVariant = 'outline'; 
+    statusVariant = 'warning';
   }
 
-
-  // Status visual helpers
-  const statusDotClass = caIsActive
-    ? 'bg-primary'
-    : caDetails.status === 'revoked'
-    ? 'bg-destructive'
-    : 'bg-muted-foreground';
-  const statusPillClass = caIsActive
-    ? 'border border-primary/20 bg-primary/10 text-primary'
-    : caDetails.status === 'revoked'
-    ? 'border border-destructive/20 bg-destructive/10 text-destructive'
-    : 'border border-border bg-muted text-muted-foreground';
 
   const issuerCa = caDetails.issuer !== 'Self-signed'
     ? findCaById(caDetails.issuer, allCertificateAuthoritiesData)
@@ -441,9 +422,7 @@ export default function CertificateAuthorityDetailsClient() {
         })),
         {
           label: (
-            <Badge variant="default" className="text-xs">
-              {caDetails.name}
-            </Badge>
+            <Badge>{caDetails.name}</Badge>
           ),
         },
       ]}
@@ -457,17 +436,9 @@ export default function CertificateAuthorityDetailsClient() {
               <h1 className="truncate text-2xl font-semibold tracking-tight" title={caDetails.name}>
                 {caDetails.name}
               </h1>
-              <span className={cn(
-                'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                statusPillClass
-              )}>
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotClass)} />
-                {caDetails.status.toUpperCase()}
-              </span>
+              <Badge variant={statusVariant} dot>{caDetails.status.toUpperCase()}</Badge>
               {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                <span className="inline-flex h-6 items-center rounded-md bg-destructive/10 px-2 text-xs text-destructive">
-                  {caDetails.rawApiData.certificate.revocation_reason}
-                </span>
+                <Badge variant="secondary">{caDetails.rawApiData.certificate.revocation_reason}</Badge>
               )}
             </div>
 
@@ -490,23 +461,21 @@ export default function CertificateAuthorityDetailsClient() {
                 {copiedId ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
               </Button>
               {caDetails.caType && (
-                <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs text-muted-foreground">
-                  {caDetails.caType.replaceAll('_', ' ').toUpperCase()}
-                </span>
+                <Badge variant="secondary">{caDetails.caType.replaceAll('_', ' ').toUpperCase()}</Badge>
               )}
               {cryptoEngine && (
-                <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                <Badge variant="secondary">
                   <CryptoEngineViewer engine={cryptoEngine} iconOnly />
                   {cryptoEngine.name || cryptoEngine.type}
-                </span>
+                </Badge>
               )}
               {caDetails.rawApiData?.certificate?.key_metadata && (
-                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
-                  <KeyRound className="h-3 w-3 shrink-0" />
+                <Badge variant="secondary" className="font-mono">
+                  <KeyRound />
                   {caDetails.rawApiData.certificate.key_metadata.type}
                   {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
                   {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                </span>
+                </Badge>
               )}
             </div>
           </div>
@@ -699,7 +668,6 @@ export default function CertificateAuthorityDetailsClient() {
               currentCertificate={{
                 subject: caDetails.name,
                 statusBadgeVariant: statusVariant,
-                statusBadgeClass: statusColorClass,
                 statusText: caDetails.status.toUpperCase(),
               }}
             />

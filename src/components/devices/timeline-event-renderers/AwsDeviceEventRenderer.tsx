@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import {
   ChevronRight,
   FileKey2,
@@ -62,16 +62,14 @@ const getAwsActionMeta = (action: string) => {
   }
 };
 
-const getAwsActionStateClassName = (state?: string) => {
+const getAwsActionStateVariant = (state?: string): BadgeVariant => {
   switch (state) {
     case 'added':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300';
+      return 'success';
     case 'updated':
-      return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300';
-    case 'retained':
-      return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300';
+      return 'info';
     default:
-      return 'border-border bg-muted/40 text-muted-foreground';
+      return 'muted';
   }
 };
 
@@ -222,9 +220,6 @@ const AwsConnectionEventRenderer: React.FC<TimelineEventRendererProps> = ({
     ? 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-300'
     : 'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/60 dark:text-rose-300';
 
-  const badgeClassName = isConnected
-    ? 'border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-200'
-    : 'border-rose-200 bg-rose-100 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/60 dark:text-rose-200';
 
   return (
     <>
@@ -250,7 +245,7 @@ const AwsConnectionEventRenderer: React.FC<TimelineEventRendererProps> = ({
             </div>
           </div>
 
-          <Badge variant="outline" className={badgeClassName}>
+          <Badge variant={isConnected ? 'success' : 'destructive'} dot>
             {isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
         </div>
@@ -342,10 +337,7 @@ const AwsShadowUpdatedEventRenderer: React.FC<TimelineEventRendererProps> = ({
                     </div>
                   </div>
 
-                  <Badge
-                    variant="outline"
-                    className={getAwsActionStateClassName(state)}
-                  >
+                  <Badge variant={getAwsActionStateVariant(state)}>
                     {state ? state.charAt(0).toUpperCase() + state.slice(1) : 'Listed'}
                   </Badge>
                 </div>
@@ -427,11 +419,7 @@ export const AwsDeviceEventRenderer: React.FC<TimelineEventRendererProps> = ({
         {actions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {actions.map((action) => (
-              <Badge
-                key={action}
-                variant="outline"
-                className="border-sky-300/80 bg-background/70 text-sky-800 dark:border-sky-800 dark:text-sky-200"
-              >
+              <Badge key={action} variant="secondary">
                 {formatAwsAction(action)}
               </Badge>
             ))}

@@ -52,7 +52,7 @@ export const RelationNode = memo(({ data: rawData }: NodeProps) => {
           <div className="flex flex-wrap gap-1">
             {data.actions && data.actions.length > 0 ? (
               data.actions.map((action) => (
-                <Badge key={action} variant="secondary" className="text-xs">
+                <Badge key={action} variant="secondary">
                   {action}
                 </Badge>
               ))

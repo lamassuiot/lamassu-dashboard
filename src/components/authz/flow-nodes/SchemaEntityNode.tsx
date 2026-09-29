@@ -108,11 +108,11 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
           </div>
           <div className="flex items-center gap-1">
             {isStartingEntity && (
-              <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+              <Badge variant="success">
                 START
               </Badge>
             )}
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary">
               {isInRuleTree ? 'In Rule' : 'Schema'}
             </Badge>
           </div>
@@ -182,11 +182,11 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               {ids.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {ids.map((id) => (
-                    <Badge key={id} variant="outline" className="text-xs pr-1">
+                    <Badge key={id} variant="secondary" className="pr-1">
                       {id}
                       <button
                         onClick={() => removeId(id)}
-                        className="ml-1 hover:text-destructive"
+                        className="hover:text-destructive"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -209,7 +209,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                   className="text-xs bg-muted/50 px-2 py-1 rounded flex items-center justify-between"
                 >
                   <span className="font-medium">{relation.name}</span>
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="secondary">
                     → {relation.target_entity}
                   </Badge>
                 </div>
@@ -226,12 +226,12 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                 <div className="text-xs font-semibold mb-1">Atomic Actions:</div>
                 <div className="flex flex-wrap gap-1">
                   {schema.atomic_actions!.slice(0, 3).map((action: string, idx: number) => (
-                    <Badge key={idx} variant="secondary" className="text-xs">
+                    <Badge key={idx} variant="secondary">
                       {action}
                     </Badge>
                   ))}
                   {schema.atomic_actions!.length > 3 && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary">
                       +{schema.atomic_actions!.length - 3}
                     </Badge>
                   )}
@@ -243,12 +243,12 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                 <div className="text-xs font-semibold mb-1">Global Actions:</div>
                 <div className="flex flex-wrap gap-1">
                   {schema.global_actions!.slice(0, 3).map((action: string, idx: number) => (
-                    <Badge key={idx} variant="outline" className="text-xs">
+                    <Badge key={idx} variant="secondary">
                       {action}
                     </Badge>
                   ))}
                   {schema.global_actions!.length > 3 && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="secondary">
                       +{schema.global_actions!.length - 3}
                     </Badge>
                   )}

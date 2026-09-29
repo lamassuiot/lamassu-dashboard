@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
 import { Users, AlertCircle, Pencil, Check, ChevronRight, ExternalLink } from "lucide-react";
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -50,8 +50,7 @@ interface InformationTabContentProps {
   };
   certificateSpecific?: {
     certificateChainForVisualizer: CA[];
-    statusBadgeVariant: "default" | "secondary" | "destructive" | "outline";
-    statusBadgeClass?: string;
+    statusBadgeVariant: BadgeVariant;
     apiStatusText: string;
   };
   routerHook: AppRouterInstance;
@@ -173,7 +172,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <AlertDescription className="mt-2 space-y-1.5 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Reason:</span>
-                <Badge variant="secondary" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
+                <Badge variant="destructive">
                   {getRevocationReasonLabel(caDetails.rawApiData.certificate.revocation_reason)}
                 </Badge>
               </div>
@@ -274,7 +273,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 value={
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">CA:</span>
-                    <Badge variant={caDetails.isCa ? 'default' : 'secondary'} className="text-xs">
+                    <Badge variant={caDetails.isCa ? 'default' : 'secondary'}>
                       {caDetails.isCa ? 'TRUE' : 'FALSE'}
                     </Badge>
                   </div>
@@ -286,8 +285,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 value={
                   (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
                     <div className="flex flex-wrap gap-1">
-                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
-                      {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
+                      {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
                     </div>
                   ) : 'Not Specified'
                 }
@@ -437,7 +436,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <AlertDescription className="mt-2 space-y-1.5 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Reason:</span>
-                <Badge variant="secondary" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
+                <Badge variant="destructive">
                   {getRevocationReasonLabel(certDetails.revocationReason)}
                 </Badge>
               </div>
@@ -540,7 +539,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   value={
                     certDetails.sans && certDetails.sans.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {certDetails.sans.map((san, i) => <Badge key={i} variant="secondary" className="text-xs">{san}</Badge>)}
+                        {certDetails.sans.map((san, i) => <Badge key={i} variant="secondary">{san}</Badge>)}
                       </div>
                     ) : 'Not Specified'
                   }
@@ -551,8 +550,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   value={
                     (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
                       <div className="flex flex-wrap gap-1">
-                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
-                        {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
+                        {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
                       </div>
                     ) : 'Not Specified'
                   }
@@ -594,7 +593,6 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   currentCertificate={{
                     subject: certDetails.subject,
                     statusBadgeVariant: certificateSpecific.statusBadgeVariant,
-                    statusBadgeClass: certificateSpecific.statusBadgeClass,
                     statusText: certificateSpecific.apiStatusText,
                   }}
                 />

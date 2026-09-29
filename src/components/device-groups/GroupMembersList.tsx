@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -56,35 +57,6 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
-  let badgeClass = "";
-  switch (status) {
-    case 'ACTIVE':
-      badgeClass = "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700";
-      break;
-    case 'RENEWAL_PENDING':
-        badgeClass = "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700";
-        break;
-    case 'EXPIRING_SOON':
-        badgeClass = "bg-orange-100 text-orange-700 dark:bg-orange-700/30 dark:text-orange-300 border-orange-300 dark:border-orange-700";
-        break;
-    case 'EXPIRED':
-        badgeClass = "bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300 border-purple-300 dark:border-purple-700";
-        break;
-    case 'REVOKED':
-        badgeClass = "bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700";
-        break;
-    case 'NO_IDENTITY':
-      badgeClass = "bg-sky-100 text-sky-700 dark:bg-sky-700/30 dark:text-sky-300 border-sky-300 dark:border-sky-700";
-      break;
-    case 'DECOMMISSIONED':
-      badgeClass = "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-400 dark:border-gray-600";
-      break;
-    default:
-      badgeClass = "bg-muted text-muted-foreground border-border";
-  }
-  return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
-};
 
 const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
   const IconComponent = getLucideIconByName(type);
@@ -367,7 +339,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
                         </TableCell>
                       )}
                       {columnVisibility.status && (
-                        <TableCell><StatusBadge status={device.status as DeviceStatus} /></TableCell>
+                        <TableCell><DeviceStatusBadge status={device.status} /></TableCell>
                       )}
                       {columnVisibility.createdAt && (
                         <TableCell>
@@ -383,7 +355,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {device.tags && device.tags.length > 0 ? (
-                              device.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)
+                              device.tags.map((tag: string) => <Badge key={tag} variant="secondary">{tag}</Badge>)
                             ) : (
                               <span className="text-muted-foreground text-xs">No tags</span>
                             )}

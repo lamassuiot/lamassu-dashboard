@@ -34,7 +34,7 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
           {normalizedCriteria.map((filter, index) => (
             <div key={`direct-${index}`} className="flex items-start gap-3">
               {index > 0 && (
-                <Badge variant="secondary" className="text-xs shrink-0 mt-2.5">AND</Badge>
+                <Badge variant="secondary" className="mt-2">AND</Badge>
               )}
               <div className={cn('flex-1 rounded-lg border bg-muted/50 px-3 py-2.5 space-y-1', index > 0 && 'ml-0')}>
                 <p className="text-sm font-medium">
@@ -56,7 +56,7 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
           {hasDirectCriteria && (
             <div className="flex items-center gap-2 py-1">
               <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
-              <Badge variant="secondary" className="text-xs">AND</Badge>
+              <Badge variant="secondary">AND</Badge>
               <span className="text-xs text-muted-foreground">Inherited from parent groups</span>
             </div>
           )}
@@ -64,7 +64,7 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
           {normalizedInheritedCriteria.map((filter, index) => (
             <div key={`inherited-${index}`} className="flex items-start gap-3">
               {index > 0 && (
-                <Badge variant="secondary" className="text-xs shrink-0 mt-2.5">AND</Badge>
+                <Badge variant="secondary" className="mt-2">AND</Badge>
               )}
               <div className="flex-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">

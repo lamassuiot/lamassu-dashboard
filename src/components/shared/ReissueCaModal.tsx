@@ -356,8 +356,8 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Label>Certificate Type</Label>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/30">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                  <Badge>
+                    <CheckCircle2 />
                     Sign as CA
                   </Badge>
                 </div>

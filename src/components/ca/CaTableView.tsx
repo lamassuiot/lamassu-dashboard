@@ -6,7 +6,7 @@ import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { FileSearch, FilePlus2, HardDrive, UploadCloud, FileText, ShieldAlert, GitFork } from 'lucide-react';
@@ -30,11 +30,11 @@ function flattenCAs(cas: CA[], depth = 0): (CA & { _depth: number })[] {
   return result;
 }
 
-const STATUS_STYLES: Record<CA['status'], string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800',
-  expired: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-  revoked: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800',
-  unknown: 'bg-muted text-muted-foreground border-border',
+const STATUS_VARIANTS: Record<CA['status'], BadgeVariant> = {
+  active: 'default',
+  expired: 'warning',
+  revoked: 'destructive',
+  unknown: 'muted',
 };
 
 const CA_TYPE_LABELS: Record<string, string> = {
@@ -106,7 +106,7 @@ export const CaTableView: React.FC<CaTableViewProps> = ({ cas, router, allCrypto
 
                 {/* Status */}
                 <TableCell>
-                  <Badge variant="secondary" className={cn('text-xs capitalize', STATUS_STYLES[ca.status])}>
+                  <Badge variant={STATUS_VARIANTS[ca.status]} dot className="capitalize">
                     {ca.status}
                   </Badge>
                 </TableCell>

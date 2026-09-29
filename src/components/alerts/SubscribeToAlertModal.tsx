@@ -637,7 +637,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                     </Button>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge variant="secondary" className="font-normal">{eventType ?? 'Unknown event'}</Badge>
+                    <Badge variant="secondary">{eventType ?? 'Unknown event'}</Badge>
                 </div>
             </div>
 

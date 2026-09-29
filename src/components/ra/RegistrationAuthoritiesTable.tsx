@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, Settings2 } from "lucide-react";
@@ -160,11 +160,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                     const isRevoked = ca.status === 'revoked';
                     const isExpired = !isRevoked && isPast(expiryDate);
                     const statusLabel = isRevoked ? 'Revoked' : isExpired ? 'Expired' : 'Active';
-                    const statusClass = isRevoked
-                      ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
-                      : isExpired
-                      ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20'
-                      : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+                    const statusVariant: BadgeVariant = isRevoked ? 'destructive' : isExpired ? 'warning' : 'default';
                     const expiryText = isRevoked ? null : isExpired
                       ? `Expired ${formatDistanceToNowStrict(expiryDate)} ago`
                       : `Expires in ${formatDistanceToNowStrict(expiryDate)}`;
@@ -177,7 +173,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         >
                           {ca.name}
                         </button>
-                        <Badge variant="secondary" className={`shrink-0 text-xs ${statusClass}`}>{statusLabel}</Badge>
+                        <Badge variant={statusVariant} dot>{statusLabel}</Badge>
                         {expiryText && <span className="text-xs text-muted-foreground shrink-0">{expiryText}</span>}
                       </div>
                     );

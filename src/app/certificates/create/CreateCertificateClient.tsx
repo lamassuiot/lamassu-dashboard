@@ -549,7 +549,7 @@ export default function CreateCertificateClient() {
                             </p>
                         </div>
                         {issuedSerialNumber && (
-                            <Badge variant="secondary" className="font-mono text-xs">
+                            <Badge variant="secondary" className="font-mono">
                                 Serial: {issuedSerialNumber}
                             </Badge>
                         )}

@@ -469,11 +469,11 @@ export default function KmsKeysPage() {
                       </TableCell>
                       <TableCell>
                         {key.hasPrivateKey ? (
-                          <Badge variant="default" className="text-xs">
+                          <Badge dot>
                             Private
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="muted" dot>
                             Public
                           </Badge>
                         )}
@@ -482,7 +482,7 @@ export default function KmsKeysPage() {
                         {engine ? (
                           <CryptoEngineViewer engine={engine} plainIcon />
                         ) : (
-                          <Badge variant="secondary" className="text-xs font-normal bg-muted/40 border-muted-foreground/30">
+                          <Badge variant="secondary">
                             {key.cryptoEngineId || 'N/A'}
                           </Badge>
                         )}
@@ -491,7 +491,7 @@ export default function KmsKeysPage() {
                         {key.aliases && key.aliases.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {key.aliases.map((alias, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
+                              <Badge key={idx} variant="secondary">
                                 {alias}
                               </Badge>
                             ))}
@@ -504,7 +504,7 @@ export default function KmsKeysPage() {
                         {key.tags && key.tags.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {key.tags.map((tag, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
+                              <Badge key={idx} variant="secondary">
                                 {tag}
                               </Badge>
                             ))}
