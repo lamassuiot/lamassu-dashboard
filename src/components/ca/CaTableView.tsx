@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { format, formatDistanceStrict, isPast, parseISO } from 'date-fns';
-import { AlertTriangle, Ban, Check, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, MoreVertical, ShieldAlert, UploadCloud } from 'lucide-react';
+import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, MoreVertical, ShieldAlert, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Button } from '@/components/ui/button';
@@ -91,19 +91,22 @@ function buildParentMap(cas: readonly CA[]): Map<string, CA> {
   return parents;
 }
 
-type DisplayStatus = 'REVOKED' | 'EXPIRED' | 'ACTIVE';
+type DisplayStatus = 'REVOKED' | 'EXPIRED' | 'UNKNOWN' | 'ACTIVE';
 
 const caDetailsHref = (ca: CA) => `/certificate-authorities/details?caId=${ca.id}`;
 
 function getDisplayStatus(ca: CA): DisplayStatus {
   if (ca.status === 'revoked') return 'REVOKED';
   if (ca.status === 'expired' || isPast(parseISO(ca.expires))) return 'EXPIRED';
+  // Never present a CA whose status the backend didn't report as active.
+  if (ca.status === 'unknown') return 'UNKNOWN';
   return 'ACTIVE';
 }
 
 function CaIcon({ status, engine }: Readonly<{ status: DisplayStatus; engine?: ApiCryptoEngine }>) {
   if (status === 'REVOKED') return <Ban className="h-4 w-4 shrink-0 text-destructive" />;
   if (status === 'EXPIRED') return <ShieldAlert className="h-4 w-4 shrink-0 text-destructive" />;
+  if (status === 'UNKNOWN') return <CircleHelp className="h-4 w-4 shrink-0 text-muted-foreground" />;
   if (engine) return <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 shrink-0" />;
   return <HardDrive className="h-4 w-4 shrink-0 text-primary" />;
 }
