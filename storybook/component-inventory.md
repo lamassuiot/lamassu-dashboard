@@ -61,6 +61,7 @@ This is the curated list of UI building blocks that should be preferred before c
 | Purpose | Path | Notes |
 | --- | --- | --- |
 | Card option selector | `src/components/shared/CardSelector.tsx` | Single-select from 2–4 labelled options; used for CA type, profile mode. Props: `value`, `onChange`, `options[]` (value/label/description/icon), `label?`, `columns?`, `disabled?` |
+| View mode toggle | `src/components/shared/ViewModeToggle.tsx` | Segmented icon toggle for switching between view modes (e.g. table/grid, list/timeline); active option expands to show its label. Used on CA list, signing profiles, and device timeline. Props: `value`, `onChange`, `options[]` (value/label/icon), `label?`, `ariaLabel?`, `className?` |
 
 ## Shared selectors and domain-specific builders
 

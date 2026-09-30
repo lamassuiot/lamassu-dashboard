@@ -41,7 +41,7 @@ export const EntityNode = memo(({ data: rawData }: NodeProps) => {
           <div className="flex flex-wrap gap-1">
             {data.actions && data.actions.length > 0 ? (
               data.actions.map((action) => (
-                <Badge key={action} variant="secondary" className="text-xs">
+                <Badge key={action} variant="secondary">
                   {action}
                 </Badge>
               ))
@@ -56,7 +56,7 @@ export const EntityNode = memo(({ data: rawData }: NodeProps) => {
             <div className="text-xs text-muted-foreground mb-1">Direct Grants:</div>
             <div className="flex flex-wrap gap-1">
               {data.direct_grants.map((grant) => (
-                <Badge key={grant} variant="outline" className="text-xs">
+                <Badge key={grant} variant="secondary">
                   {grant}
                 </Badge>
               ))}

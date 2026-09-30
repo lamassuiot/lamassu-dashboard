@@ -164,7 +164,7 @@ export default function ConfigureIntegrationPage() {
                         <p className="mt-0.5 text-xs text-muted-foreground">{pageDescription}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">{configKey}</code>
-                            {connectorInstance && <Badge variant="secondary" className="text-xs">{connectorInstance}</Badge>}
+                            {connectorInstance && <Badge variant="secondary">{connectorInstance}</Badge>}
                             <span className="text-[11px] text-muted-foreground">
                                 RA: <span className="font-medium text-foreground">{raData.name}</span>
                             </span>

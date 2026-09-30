@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AlertTriangle, ClipboardList, FileText, Info, LayoutList, Loader2, Workflow } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { WfxStatusBadge, WfxGroupBadge } from '@/components/shared/WfxJobBadges';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
@@ -185,7 +186,7 @@ export default function JobDetailsPage() {
                 { label: 'Jobs', href: '/job-manager/jobs' },
                 {
                     label: (
-                        <Badge variant="default" className="text-xs font-mono">
+                        <Badge className="font-mono">
                             {job.id}
                         </Badge>
                     ),
@@ -208,9 +209,9 @@ export default function JobDetailsPage() {
                             </h1>
                             {job.workflow?.name && (
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
+                                    <Badge variant="secondary" className="font-mono">
                                         {job.workflow.name}
-                                    </span>
+                                    </Badge>
                                 </div>
                             )}
                         </div>
@@ -260,7 +261,7 @@ export default function JobDetailsPage() {
                                         label="Current State"
                                         value={
                                             job.status?.state
-                                                ? <Badge variant="secondary" className="text-xs font-mono">{job.status.state}</Badge>
+                                                ? <WfxStatusBadge state={job.status.state} />
                                                 : <span className="text-xs text-muted-foreground">N/A</span>
                                         }
                                     />
@@ -268,7 +269,7 @@ export default function JobDetailsPage() {
                                         label="Group"
                                         value={
                                             group
-                                                ? <Badge variant="secondary" className="text-xs font-mono">{group}</Badge>
+                                                ? <WfxGroupBadge group={group} />
                                                 : <span className="text-xs text-muted-foreground">N/A</span>
                                         }
                                     />
@@ -278,7 +279,7 @@ export default function JobDetailsPage() {
                                         label="Tags"
                                         value={
                                             job.tags?.length
-                                                ? <div className="flex flex-wrap gap-1">{job.tags.map(t => <Badge key={t} variant="secondary" className="text-xs font-mono">{t}</Badge>)}</div>
+                                                ? <div className="flex flex-wrap gap-1">{job.tags.map(t => <Badge key={t} variant="secondary" className="font-mono">{t}</Badge>)}</div>
                                                 : <span className="text-xs text-muted-foreground">—</span>
                                         }
                                     />

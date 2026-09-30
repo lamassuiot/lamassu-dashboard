@@ -69,12 +69,9 @@ const SourceTag: React.FC<{ honors: boolean }> = ({ honors }) => (
 );
 
 const Token: React.FC<React.PropsWithChildren<{ mono?: boolean }>> = ({ children, mono }) => (
-  <span className={cn(
-    "inline-flex h-5 items-center rounded-sm border border-border bg-muted/50 px-1.5 text-[11px] leading-none text-foreground/80",
-    mono && "font-mono"
-  )}>
+  <Badge variant="secondary" className={cn(mono && "font-mono")}>
     {children}
-  </span>
+  </Badge>
 );
 
 /** Wrapping token list that collapses the tail into a "+N" chip with a tooltip. */
@@ -93,9 +90,9 @@ const TokenList: React.FC<{ items: string[]; max?: number; mono?: boolean; empty
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex h-5 cursor-default items-center rounded-sm border border-dashed border-border px-1.5 text-[11px] leading-none text-muted-foreground">
+              <Badge variant="secondary" className="cursor-default">
                 +{overflow.length}
-              </span>
+              </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-56">
               {overflow.join(', ')}
@@ -169,10 +166,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <Badge
-                variant="outline"
-                className="h-5 rounded-sm bg-card px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
-              >
+              <Badge variant={profile.sign_as_ca ? 'default' : 'muted'}>
                 {profile.sign_as_ca ? 'CA' : 'End entity'}
               </Badge>
               {hasActions && (
@@ -239,9 +233,9 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
           <SpecRow
             label="Key policy"
             aside={cryptoTokens ? (
-              <span className="inline-flex items-center gap-1 rounded-sm border border-primary/25 bg-primary/5 px-1.5 py-px text-[10px] font-medium uppercase tracking-wider text-primary">
-                <ShieldCheck className="h-3 w-3" /> Enforced
-              </span>
+              <Badge>
+                <ShieldCheck /> Enforced
+              </Badge>
             ) : undefined}
           >
             {cryptoTokens

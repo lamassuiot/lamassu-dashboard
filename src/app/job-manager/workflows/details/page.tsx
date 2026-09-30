@@ -86,7 +86,7 @@ export default function WorkflowDetailsPage() {
                 { label: 'Workflows', href: '/job-manager/workflows' },
                 {
                     label: (
-                        <Badge variant="default" className="max-w-[220px] truncate text-xs">
+                        <Badge className="max-w-[220px] truncate">
                             {workflow.name}
                         </Badge>
                     ),
@@ -153,7 +153,7 @@ export default function WorkflowDetailsPage() {
                                                     value={
                                                         <div className="flex flex-wrap gap-1">
                                                             {group.states?.map(s => (
-                                                                <Badge key={s} variant="secondary" className="text-xs font-mono">
+                                                                <Badge key={s} variant="secondary" className="font-mono">
                                                                     {s}
                                                                 </Badge>
                                                             ))}

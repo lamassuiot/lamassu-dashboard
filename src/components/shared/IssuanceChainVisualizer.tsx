@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { CA } from '@/lib/ca-data';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { FileText, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
@@ -11,8 +11,7 @@ interface IssuanceChainVisualizerProps {
   certificateChain: CA[];
   currentCertificate: {
     subject: string;
-    statusBadgeVariant: "default" | "secondary" | "destructive" | "outline";
-    statusBadgeClass?: string;
+    statusBadgeVariant: BadgeVariant;
     statusText: string;
   };
   className?: string;
@@ -49,10 +48,7 @@ export const IssuanceChainVisualizer: React.FC<IssuanceChainVisualizerProps> = (
                 </p>
                 <p className={cn("text-xs text-muted-foreground truncate")}>This Certificate</p>
               </div>
-              <Badge 
-                variant={currentCertificate.statusBadgeVariant} 
-                className={cn(currentCertificate.statusBadgeVariant !== 'outline' ? currentCertificate.statusBadgeClass : '')}
-              >
+              <Badge variant={currentCertificate.statusBadgeVariant} dot>
                 {currentCertificate.statusText}
               </Badge>
             </div>
@@ -105,10 +101,7 @@ export const IssuanceChainVisualizer: React.FC<IssuanceChainVisualizerProps> = (
                 </p>
                 <p className={cn("text-xs text-muted-foreground truncate")}>This Certificate</p>
               </div>
-              <Badge 
-                variant={currentCertificate.statusBadgeVariant} 
-                className={cn(currentCertificate.statusBadgeVariant !== 'outline' ? currentCertificate.statusBadgeClass : '')}
-              >
+              <Badge variant={currentCertificate.statusBadgeVariant} dot>
                 {currentCertificate.statusText}
               </Badge>
             </div>

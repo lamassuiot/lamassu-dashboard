@@ -123,7 +123,7 @@ export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInf
           <SheetDescription>User identity details extracted from this audit event.</SheetDescription>
           {event && (
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="secondary" className="font-normal">{event.type}</Badge>
+              <Badge variant="secondary">{event.type}</Badge>
             </div>
           )}
         </SheetHeader>

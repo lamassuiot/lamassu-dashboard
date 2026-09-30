@@ -38,6 +38,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PrincipalBadge } from '@/components/authz/PrincipalBadge';
 import { jwtDecode } from 'jwt-decode';
 import Image from 'next/image'
 import LogoFullWhite from './lamassu_full_white.svg'
@@ -718,7 +719,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                   </span>
                   <Badge
                     variant={sessionValid ? 'default' : 'destructive'}
-                    className="text-[10px] px-1.5 py-0 h-4 shrink-0"
+                    dot
                   >
                     {sessionValid ? 'Active' : 'Expired'}
                   </Badge>
@@ -779,10 +780,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {matchedPrincipals.map(p => (
-                    <Badge key={p.id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
-                      <span className="text-xs font-normal leading-tight">{p.name || p.id}</span>
-                      {p.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{p.id}</span>}
-                    </Badge>
+                    <PrincipalBadge key={p.id} id={p.id} name={p.name} />
                   ))}
                 </div>
               )}

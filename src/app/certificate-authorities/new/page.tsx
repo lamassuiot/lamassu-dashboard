@@ -174,7 +174,7 @@ export default function CreateCaHubPage() {
                       {option.title}
                     </p>
                     {i === 0 && (
-                      <Badge className="text-[10px] font-medium py-0 px-1.5 h-[18px] rounded-sm">
+                      <Badge>
                         Recommended
                       </Badge>
                     )}

@@ -571,7 +571,7 @@ export default function AuthorizationTestPage() {
                             <td className="py-2.5 pr-6 align-top text-xs font-mono text-muted-foreground w-2/5">{key}</td>
                             <td className="py-2.5">
                               <div className="flex flex-wrap gap-1">
-                                {actions.map((a) => <Badge key={a} variant="secondary" className="font-mono text-xs">{a}</Badge>)}
+                                {actions.map((a) => <Badge key={a} variant="secondary" className="font-mono">{a}</Badge>)}
                               </div>
                             </td>
                           </tr>
@@ -671,7 +671,7 @@ export default function AuthorizationTestPage() {
                         label: 'Actions',
                         value: (
                           <div className="flex flex-wrap gap-1">
-                            {r.actions.map((a) => <Badge key={a} variant="secondary" className="font-mono text-xs">{a}</Badge>)}
+                            {r.actions.map((a) => <Badge key={a} variant="secondary" className="font-mono">{a}</Badge>)}
                           </div>
                         ),
                       }] : []),

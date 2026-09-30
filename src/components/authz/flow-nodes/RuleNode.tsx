@@ -80,8 +80,7 @@ export const RuleNode = memo(({ data }: RuleNodeProps) => {
               {data.actions.map((action: string) => (
                 <Badge
                   key={action}
-                  variant="default"
-                  className="text-xs flex items-center gap-1"
+                  className="pr-1"
                 >
                   {action}
                   <button
@@ -116,8 +115,8 @@ export const RuleNode = memo(({ data }: RuleNodeProps) => {
               {data.direct_grants.map((grant: string) => (
                 <Badge
                   key={grant}
-                  variant="outline"
-                  className="text-xs flex items-center gap-1"
+                  variant="secondary"
+                  className="pr-1"
                 >
                   {grant}
                   <button

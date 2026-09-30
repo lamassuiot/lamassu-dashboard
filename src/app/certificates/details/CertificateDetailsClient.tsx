@@ -24,6 +24,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { getApiStatusBadgeVariant } from '@/components/shared/ApiStatusBadge';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { parseISO, differenceInDays, isPast } from 'date-fns';
@@ -391,39 +392,13 @@ export default function CertificateDetailsClient() { // Renamed component
   }
   
   const statusText = certificateDetails.apiStatus?.toUpperCase() || 'UNKNOWN';
-  let statusColorClass = '';
-  let statusVariant: "default" | "secondary" | "destructive" | "outline" = "outline";
-
-  if (statusText.includes('ACTIVE')) {
-    statusColorClass = 'bg-green-500 hover:bg-green-600';
-    statusVariant = 'default';
-  } else if (statusText.includes('REVOKED')) {
-    statusColorClass = 'bg-red-500 hover:bg-red-600';
-    statusVariant = 'destructive';
-  } else if (statusText.includes('EXPIRED')) {
-    statusColorClass = 'bg-orange-500 hover:bg-orange-600';
-    statusVariant = 'destructive';
-  } else {
-    statusColorClass = 'bg-yellow-500 hover:bg-yellow-600'; 
-  }
+  const statusVariant = getApiStatusBadgeVariant(statusText);
 
   const isOnHold = certificateDetails.apiStatus?.toUpperCase() === 'REVOKED' && certificateDetails.revocationReason === 'CertificateHold';
   const issuerDisplayName = certificateDetails.issuerCaId
     ? findCaById(certificateDetails.issuerCaId, allCAs)?.name || certificateDetails.issuer
     : certificateDetails.issuer;
   const issuerDistinguishedNameParts = parseDistinguishedName(certificateDetails.issuer || '');
-
-  const statusDotClass = statusText.includes('ACTIVE')
-    ? 'bg-primary'
-    : statusText.includes('REVOKED')
-    ? 'bg-destructive'
-    : 'bg-muted-foreground';
-
-  const statusPillClass = statusText.includes('ACTIVE')
-    ? 'border border-primary/20 bg-primary/10 text-primary'
-    : statusText.includes('REVOKED')
-    ? 'border border-destructive/20 bg-destructive/10 text-destructive'
-    : 'border border-border bg-muted text-muted-foreground';
 
   const cleanSerialNumber = certificateDetails.serialNumber.replaceAll(/[\s:-]/g, '');
   const formattedSerialNumber = identifierMode === 'with-separators'
@@ -439,7 +414,7 @@ export default function CertificateDetailsClient() { // Renamed component
           { label: 'Certificates', href: '/certificates' },
           {
             label: (
-              <Badge variant="default" className="max-w-[320px] truncate text-xs">
+              <Badge className="max-w-[320px] truncate">
                 {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
               </Badge>
             ),
@@ -454,17 +429,9 @@ export default function CertificateDetailsClient() { // Renamed component
               <h1 className="truncate text-2xl font-semibold tracking-tight" title={certificateDetails.subject}>
                 {getCertSubjectCommonName(certificateDetails.subject) || 'Certificate'}
               </h1>
-              <span className={cn(
-                'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                statusPillClass
-              )}>
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotClass)} />
-                {statusText}
-              </span>
+              <Badge variant={statusVariant} dot>{statusText}</Badge>
               {statusText === 'REVOKED' && certificateDetails.revocationReason && (
-                <span className="inline-flex h-6 items-center rounded-md bg-destructive/10 px-2 text-xs text-destructive">
-                  {certificateDetails.revocationReason}
-                </span>
+                <Badge variant="secondary">{certificateDetails.revocationReason}</Badge>
               )}
             </div>
 
@@ -487,10 +454,10 @@ export default function CertificateDetailsClient() { // Renamed component
                 {copiedSn ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
               </Button>
               {certificateDetails.publicKeyAlgorithm && (
-                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2 text-xs text-muted-foreground">
-                  <KeyRound className="h-3 w-3 shrink-0" />
+                <Badge variant="secondary">
+                  <KeyRound />
                   {certificateDetails.publicKeyAlgorithm}
-                </span>
+                </Badge>
               )}
             </div>
           </div>
@@ -639,8 +606,7 @@ export default function CertificateDetailsClient() { // Renamed component
                 certificateSpecific={{
                   certificateChainForVisualizer: certificateChainForVisualizer,
                   statusBadgeVariant: statusVariant,
-                  statusBadgeClass: statusColorClass,
-                  apiStatusText: statusText,
+                                    apiStatusText: statusText,
                 }}
                 routerHook={routerHook}
                 onAkiClick={handleAkiClick}
@@ -657,8 +623,7 @@ export default function CertificateDetailsClient() { // Renamed component
                   currentCertificate={{
                     subject: certificateDetails.subject,
                     statusBadgeVariant: statusVariant,
-                    statusBadgeClass: statusColorClass,
-                    statusText: statusText,
+                                        statusText: statusText,
                   }}
               />
           </TabsContent>

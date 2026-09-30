@@ -9,8 +9,6 @@ import {
   AlertCircle,
   Pencil,
   Trash2,
-  CheckCircle,
-  XCircle,
   Plus,
   Shield,
   Link2,
@@ -79,11 +77,6 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false 
 const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
   oidc: 'OIDC',
   x509: 'X.509',
-};
-
-const PRINCIPAL_TYPE_CLASSES: Record<PrincipalType, string> = {
-  oidc: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800',
-  x509: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800',
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -421,7 +414,7 @@ function PrincipalDetailsContent() {
                   {x509Config.ca_trust.identity_type && (
                     <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
                       <p className="text-xs font-medium text-muted-foreground">Identity Type</p>
-                      <Badge variant="secondary" className="font-mono text-xs">
+                      <Badge variant="secondary" className="font-mono">
                         {String(x509Config.ca_trust.identity_type).replace(/_/g, ' ')}
                       </Badge>
                     </div>
@@ -449,7 +442,7 @@ function PrincipalDetailsContent() {
                   {x509Config.match_mode && (
                     <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
                       <p className="text-xs font-medium text-muted-foreground">Match Mode</p>
-                      <Badge variant="secondary" className="font-mono text-xs">
+                      <Badge variant="secondary" className="font-mono">
                         {String(x509Config.match_mode).replace(/_/g, ' ')}
                       </Badge>
                     </div>
@@ -511,16 +504,16 @@ function PrincipalDetailsContent() {
               <h1 className="text-2xl font-semibold tracking-tight truncate">{principal.name}</h1>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className={cn('text-xs', PRINCIPAL_TYPE_CLASSES[principal.type])}>
+                <Badge variant="secondary">
                   {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
                 </Badge>
                 {principal.active ? (
-                  <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800 text-xs">
-                    <CheckCircle className="h-3 w-3" /> Active
+                  <Badge dot>
+                    Active
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <XCircle className="h-3 w-3" /> Inactive
+                  <Badge variant="muted" dot>
+                    Inactive
                   </Badge>
                 )}
               </div>
@@ -601,7 +594,7 @@ function PrincipalDetailsContent() {
               <Info className="h-4 w-4" />
               Policies
               {policies.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{policies.length}</Badge>
+                <Badge variant="secondary" className="ml-1">{policies.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="raw" className={pageTabsTriggerClass}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronRight, ShieldCheck, ShieldX, TestTube2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { PrincipalBadge } from '@/components/authz/PrincipalBadge';
 import { cn } from '@/lib/utils';
 import type { Principal } from '@/types/authz';
 
@@ -72,10 +72,7 @@ export function MatchedPrincipals({ ids, principals }: { ids: string[]; principa
           ? ids.map((id) => {
               const principal = principals.find((p) => p.id === id);
               return (
-                <Badge key={id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
-                  <span className="text-xs font-normal leading-tight">{principal?.name || id}</span>
-                  {principal?.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{id}</span>}
-                </Badge>
+                <PrincipalBadge key={id} id={id} name={principal?.name} />
               );
             })
           : <span className="text-xs text-muted-foreground italic">No principals matched</span>}

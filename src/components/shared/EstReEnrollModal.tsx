@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { Switch } from '@/components/ui/switch';
 import { ApiDevice, fetchDevices } from '@/lib/devices-api';
-import { Badge } from '@/components/ui/badge';
+import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { getLucideIconByName } from './DeviceIconSelectorModal';
 import { Stepper } from './Stepper';
 
@@ -35,31 +35,6 @@ interface EstReEnrollModalProps {
     className?: string;
 }
 
-// Local component copied from app/devices/page.tsx
-const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  let badgeClass = "";
-  const upperStatus = status.toUpperCase();
-  switch (upperStatus) {
-    case 'ACTIVE':
-      badgeClass = "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700";
-      break;
-    case 'NO_IDENTITY':
-      badgeClass = "bg-sky-100 text-sky-700 dark:bg-sky-700/30 dark:text-sky-300 border-sky-300 dark:border-sky-700";
-      break;
-    case 'INACTIVE':
-      badgeClass = "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700";
-      break;
-    case 'PENDING_ACTIVATION':
-      badgeClass = "bg-orange-100 text-orange-700 dark:bg-orange-700/30 dark:text-orange-300 border-orange-300 dark:border-orange-700";
-      break;
-    case 'DECOMMISSIONED':
-      badgeClass = "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-400 dark:border-gray-600";
-      break;
-    default:
-      badgeClass = "bg-muted text-muted-foreground border-border";
-  }
-  return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
-};
 
 const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
   const IconComponent = getLucideIconByName(type);
@@ -212,7 +187,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
                                         <DeviceIcon type={foundDevice.icon} iconColor={foundDevice.icon_color.split('-')[0]} bgColor={foundDevice.icon_color.split('-')[1]} />
                                         <div>
                                             <p className="font-mono">{foundDevice.id}</p>
-                                            <StatusBadge status={foundDevice.status as any} />
+                                            <DeviceStatusBadge status={foundDevice.status} />
                                         </div>
                                     </div>
                                 </div>

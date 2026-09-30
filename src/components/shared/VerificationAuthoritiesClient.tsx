@@ -270,7 +270,7 @@ export function VerificationAuthoritiesClient() {
           { label: 'Verification Authorities', href: '/verification-authorities' },
           selectedCaForConfig ? {
             label: (
-              <Badge variant="default" className="text-xs">
+              <Badge>
                 {selectedCaForConfig.name}
               </Badge>
             ),
@@ -299,8 +299,8 @@ export function VerificationAuthoritiesClient() {
                     <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">
                       {selectedCaForConfig.id}
                     </code>
-                    <Badge variant="secondary" className="text-xs">VA Configuration</Badge>
-                    {latestCrl ? <Badge variant="secondary" className="text-xs">CRL Available</Badge> : <Badge variant="secondary" className="text-xs">No CRL Yet</Badge>}
+                    <Badge variant="secondary">VA Configuration</Badge>
+                    {latestCrl ? <Badge variant="success" dot>CRL Available</Badge> : <Badge variant="muted" dot>No CRL Yet</Badge>}
                   </div>
                 </div>
               </div>

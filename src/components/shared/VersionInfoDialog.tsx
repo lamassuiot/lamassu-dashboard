@@ -74,21 +74,14 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
           subtitle="System Information"
           action={
             <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="font-mono text-sm border-header-foreground/20 text-header-foreground bg-header-foreground/5 px-2.5"
-              >
+              <Badge className="border-header-foreground/20 bg-header-foreground/5 font-mono text-header-foreground">
                 v{versionInfo.version}
               </Badge>
               <Badge
-                variant="outline"
-                className={
-                  versionInfo.isDirty
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs'
-                }
+                variant={versionInfo.isDirty ? 'warning' : 'success'}
+                dot
+                className={versionInfo.isDirty ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}
               >
-                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${versionInfo.isDirty ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                 {versionInfo.isDirty ? 'Dirty' : 'Clean'}
               </Badge>
             </div>

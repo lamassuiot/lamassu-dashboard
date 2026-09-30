@@ -19,6 +19,7 @@ import {
 } from './timeline-event-renderers';
 import type { CertificateHistoryEntry } from './timeline-event-renderers';
 
+import { Badge } from '@/components/ui/badge';
 interface TimelineEventItemProps {
   event: TimelineEventDisplayData;
   isLastItem: boolean;
@@ -154,9 +155,9 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
           (event.secondaryRelativeTime ? (
             <div className="mt-1 flex flex-1 flex-col items-center">
               <div className={cn('w-0.5 flex-1', visuals.lineClass)} />
-              <div className="my-1.5 rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium leading-none text-muted-foreground shadow-sm">
+              <Badge variant="secondary" className="my-1.5">
                 {event.secondaryRelativeTime}
-              </div>
+              </Badge>
               <div className={cn('w-0.5 flex-1', visuals.lineClass)} />
             </div>
           ) : (
@@ -168,14 +169,9 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
       <div className={cn('min-w-0 flex-1 pt-0.5', !isLastItem && 'pb-6')}>
         {/* Header: badge + timestamp */}
         <div className="flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
-              badgeClass,
-            )}
-          >
+          <Badge variant="muted" className={cn('border-current/20', badgeClass)}>
             {visuals.display}
-          </span>
+          </Badge>
           <span className="shrink-0 text-[11px] text-muted-foreground">
             {absoluteTimestamp}
           </span>

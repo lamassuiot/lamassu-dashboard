@@ -578,22 +578,22 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 {heroBadges.filter(Boolean).map((badge) => (
-                  <span key={badge} className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">{badge}</span>
+                  <Badge key={badge} variant="secondary">{badge}</Badge>
                 ))}
                 {enableKeyGeneration && (
-                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    <Server className="h-3 w-3 shrink-0" /> Server Keygen
-                  </span>
+                  <Badge variant="secondary">
+                    <Server /> Server Keygen
+                  </Badge>
                 )}
                 {enrollmentCa && (
-                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    <ShieldCheck className="h-3 w-3 shrink-0" /> {enrollmentCa.name}
-                  </span>
+                  <Badge variant="secondary">
+                    <ShieldCheck /> {enrollmentCa.name}
+                  </Badge>
                 )}
                 {enrollmentValidationCaCount > 0 && (
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary">
                     {enrollmentValidationCaCount} validation {enrollmentValidationCaCount === 1 ? 'CA' : 'CAs'}
-                  </span>
+                  </Badge>
                 )}
               </div>
             </div>
@@ -1068,7 +1068,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         items={[
           { label: 'Home', href: '/' },
           { label: 'Registration Authorities', href: '/registration-authorities' },
-          { label: <Badge variant="default" className="text-xs">{raName || raId || 'Edit'}</Badge> },
+          { label: <Badge>{raName || raId || 'Edit'}</Badge> },
         ]}
         actions={
           <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">

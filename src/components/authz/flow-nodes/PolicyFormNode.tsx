@@ -78,7 +78,7 @@ export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
             <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
             <CardTitle className="text-base font-bold">Policy Configuration</CardTitle>
           </div>
-          <Badge variant="default" className="text-xs bg-green-600">
+          <Badge>
             {schema.entity_type}
           </Badge>
         </div>
@@ -184,7 +184,7 @@ export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
                         className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2 cursor-pointer"
                       >
                         <span>{relation.name}</span>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="secondary">
                           → {relation.target_entity}
                         </Badge>
                       </label>

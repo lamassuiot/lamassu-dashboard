@@ -21,6 +21,7 @@ import {
 } from './timeline-event-renderers';
 import type { CertificateHistoryEntry } from './timeline-event-renderers';
 
+import { Badge } from '@/components/ui/badge';
 interface DeviceEventsTableProps {
   events: TimelineEventDisplayData[];
   onRevoke: (certInfo: CertificateHistoryEntry) => void;
@@ -114,15 +115,10 @@ export const DeviceEventsTable: React.FC<DeviceEventsTableProps> = ({
 
                   {/* Type badge */}
                   <TableCell className="align-top py-2.5">
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                        badge.className,
-                      )}
-                    >
-                      {renderer.Icon && <renderer.Icon className="h-4 w-4" />}
+                    <Badge variant="muted" className={cn('border-current/20', badge.className)}>
+                      {renderer.Icon && <renderer.Icon />}
                       {badge.label}
-                    </span>
+                    </Badge>
                   </TableCell>
 
                   {/* Event title + source */}

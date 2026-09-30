@@ -168,16 +168,14 @@ export function GroupStatsCard({ groupId, className }: GroupStatsCardProps) {
           {statusEntries.slice(0, 5).map(([status, count]) => {
             const statusKey = status as keyof DeviceGroupStats['status_distribution'];
             return (
-              <Badge key={status} variant="secondary" className="text-xs">
-                <div
-                  className={`w-2 h-2 rounded-full mr-1 ${STATUS_COLORS[statusKey]}`}
-                />
+              <Badge key={status} variant="secondary">
+                <span className={`size-1.5 shrink-0 rounded-full ${STATUS_COLORS[statusKey]}`} />
                 {STATUS_LABELS[statusKey]}: {count}
               </Badge>
             );
           })}
           {statusEntries.length > 5 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary">
               +{statusEntries.length - 5} more
             </Badge>
           )}

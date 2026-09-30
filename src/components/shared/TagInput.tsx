@@ -71,7 +71,6 @@ export const TagInput: React.FC<TagInputProps> = ({
           <Badge
             key={index}
             variant="secondary"
-            className="flex items-center gap-1 text-xs py-0.5 px-2"
           >
             {tag}
             <Button

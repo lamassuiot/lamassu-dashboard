@@ -29,6 +29,7 @@ interface DeviceFilterBarProps {
   onCreatedAtFilterChange: (value: GenericDateFilterValue) => void;
   disabled?: boolean;
   actions?: React.ReactNode;
+  inlineActions?: boolean;
 }
 
 interface DeviceFilterValues {
@@ -74,6 +75,7 @@ export function DeviceFilterBar({
   onCreatedAtFilterChange,
   disabled = false,
   actions,
+  inlineActions = false,
 }: DeviceFilterBarProps) {
   const values = useMemo<DeviceFilterValues>(() => ({
     searchTerm,
@@ -161,6 +163,7 @@ export function DeviceFilterBar({
         }
       }}
       actions={actions}
+      inlineActions={inlineActions}
       disabled={disabled}
       onClearAll={() => {
         onSearchTermChange('');
@@ -170,7 +173,9 @@ export function DeviceFilterBar({
         onCreatedAtFilterChange(defaultDateFilterValue);
       }}
       idPrefix="device-filter"
-      basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_180px]"
+      basicFieldsClassName={inlineActions
+        ? 'grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_auto]'
+        : 'grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_180px]'}
       advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
     />
   );

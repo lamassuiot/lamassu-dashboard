@@ -703,12 +703,6 @@ export default function KmsKeyDetailsClient() {
     );
   }
 
-  const accessDotClass = keyDetails.hasPrivateKey ? 'bg-emerald-500' : 'bg-amber-500';
-  const algorithmBadgeClass = keyDetails.algorithm === 'ECDSA'
-    ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'
-    : keyDetails.algorithm === 'RSA'
-      ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
-      : 'border-border bg-muted text-muted-foreground';
 
   return (
     <BreadcrumbPage
@@ -719,9 +713,7 @@ export default function KmsKeyDetailsClient() {
         { label: 'Keys', href: '/kms/keys' },
         {
           label: (
-            <Badge variant="default" className="text-xs">
-              {keyDetails.alias}
-            </Badge>
+            <Badge>{keyDetails.alias}</Badge>
           ),
         },
       ]}
@@ -735,15 +727,9 @@ export default function KmsKeyDetailsClient() {
               <h1 className="truncate text-2xl font-semibold tracking-tight" title={keyDetails.alias}>
                 {keyDetails.alias}
               </h1>
-              <span className={cn(
-                'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                keyDetails.hasPrivateKey
-                  ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                  : 'border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-              )}>
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', accessDotClass)} />
+              <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'warning'} dot>
                 {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
-              </span>
+              </Badge>
             </div>
 
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -765,10 +751,10 @@ export default function KmsKeyDetailsClient() {
                 {copiedId ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
               </Button>
               {cryptoEngine && (
-                <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                <Badge variant="secondary">
                   <CryptoEngineViewer engine={cryptoEngine} iconOnly />
                   {cryptoEngine.name || cryptoEngine.type}
-                </span>
+                </Badge>
               )}
             </div>
           </div>
@@ -795,13 +781,13 @@ export default function KmsKeyDetailsClient() {
           <div className="py-3 lg:pr-6">
             <p className="text-xs font-medium text-muted-foreground">Cryptographic profile</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
+              <Badge variant="secondary" className="font-mono">
                 {keyDetails.algorithm}
-              </span>
+              </Badge>
               {keyDetails.keySize && (
-                <span className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs text-muted-foreground">
+                <Badge variant="secondary">
                   {keyDetails.keySize} bits
-                </span>
+                </Badge>
               )}
               <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
             </div>
@@ -988,9 +974,9 @@ export default function KmsKeyDetailsClient() {
                         <p className="text-xs font-medium text-muted-foreground">Algorithm</p>
                         <p className="mt-1 text-sm font-medium">{keyDetails.algorithm}</p>
                       </div>
-                      <span className={cn('inline-flex h-6 items-center rounded-md px-2 text-xs font-medium', algorithmBadgeClass)}>
+                      <Badge variant="secondary">
                         {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : 'Other'}
-                      </span>
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between gap-3 py-3">
                       <div>
@@ -1004,14 +990,9 @@ export default function KmsKeyDetailsClient() {
                         <p className="text-xs font-medium text-muted-foreground">Key Access</p>
                         <p className="mt-1 text-sm font-medium">{keyDetails.hasPrivateKey ? 'Private key available' : 'Public key only'}</p>
                       </div>
-                      <span className={cn(
-                        'inline-flex h-6 items-center rounded-md px-2 text-xs font-medium',
-                        keyDetails.hasPrivateKey
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                          : 'bg-muted/80 text-muted-foreground'
-                      )}>
+                      <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'muted'}>
                         {keyDetails.hasPrivateKey ? 'Present' : 'Read Only'}
-                      </span>
+                      </Badge>
                     </div>
                     {(cryptoEngine || keyDetails.cryptoEngineId) && (
                       <div className="py-3 last:pb-0">

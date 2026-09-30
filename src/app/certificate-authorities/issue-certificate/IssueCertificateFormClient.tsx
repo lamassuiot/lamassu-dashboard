@@ -791,14 +791,14 @@ export default function IssueCertificateFormClient() {
                           <div className="mt-3 p-3 border rounded-md bg-muted/30">
                             <div className="flex flex-wrap gap-2">
                               {sans.map((san, index) => (
-                                <Badge key={index} variant="secondary" className="pl-2 pr-1 py-1 text-sm">
-                                  <span className="font-semibold mr-1.5">{san.type}:</span>
-                                  <span className="font-normal">{san.value}</span>
+                                <Badge key={index} variant="secondary" className="pr-1">
+                                  <span className="font-medium">{san.type}:</span>
+                                  <span>{san.value}</span>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="icon"
-                                    className="h-5 w-5 ml-1.5 opacity-60 hover:opacity-100 hover:bg-transparent p-0"
+                                    className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-transparent p-0"
                                     onClick={() => handleRemoveSan(index)}
                                     aria-label={`Remove SAN ${san.value}`}
                                   >

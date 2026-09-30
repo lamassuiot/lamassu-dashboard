@@ -80,7 +80,7 @@ function AppliesTo({ rule, schema }: { rule: Rule; schema?: SchemaDefinition }) 
         <p className="text-sm">Specific instance IDs</p>
         <div className="flex flex-wrap gap-1">
           {rule.direct_grants!.map((id) => (
-            <Badge key={id} variant="outline" className="font-mono">
+            <Badge key={id} variant="secondary" className="font-mono">
               {id}
             </Badge>
           ))}
@@ -95,7 +95,7 @@ function AppliesTo({ rule, schema }: { rule: Rule; schema?: SchemaDefinition }) 
         <p className="text-sm">Instances matching every condition</p>
         <div className="flex flex-wrap gap-1">
           {rule.column_filters!.map((filter, i) => (
-            <Badge key={i} variant="outline" className="gap-1.5 font-mono">
+            <Badge key={i} variant="secondary" className="font-mono">
               {filter.column}
               <span className="text-muted-foreground">{OPERATOR_SYMBOL[filter.operator] ?? filter.operator}</span>
               {formatFilterValue(filter.value)}

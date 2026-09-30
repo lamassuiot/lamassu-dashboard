@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Binary, AlertTriangle, Loader2, CheckCircle, XCircle, Info, ShieldCheck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { initPkijsEngine } from '@/lib-crypto';
 import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
@@ -98,35 +98,35 @@ const renderUrlList = (urls: string[] | undefined, listTitle: string) => {
 const ResultStatusBadge: React.FC<{ status: ZlintResult['status'] }> = ({ status }) => {
   let Icon: React.ElementType = AlertTriangle;
   let text = 'Info';
-  let className = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-400/50';
+  let variant: BadgeVariant = 'info';
 
   switch (status) {
     case 'pass':
       Icon = CheckCircle;
       text = 'Pass';
-      className = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-400/50';
+      variant = 'success';
       break;
     case 'error':
       Icon = XCircle;
       text = 'Error';
-      className = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-400/50';
+      variant = 'destructive';
       break;
     case 'fatal':
       Icon = XCircle;
       text = 'Fatal';
-      className = 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200 border-red-500/50';
+      variant = 'destructive';
       break;
     case 'warn':
       Icon = AlertTriangle;
       text = 'Warn';
-      className = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-400/50';
+      variant = 'warning';
       break;
   }
 
   return (
-    <Badge variant="secondary" className={cn('capitalize', className)}>
-      <Icon className="h-4 w-4 mr-1.5" />
-      <span>{text}</span>
+    <Badge variant={variant}>
+      <Icon />
+      {text}
     </Badge>
   );
 };
@@ -506,7 +506,7 @@ export default function CertificateViewerPage() {
                                             </div>
 
                                             {isLoading ? (
-                                                <div className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground">
+                                                <div className="inline-flex h-6 items-center gap-1.5 px-2 text-xs text-muted-foreground">
                                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                     Parsing...
                                                 </div>
