@@ -20,6 +20,13 @@ jobs:
     env:
       RELEASE_VERSION: ${{ inputs.release_version }}
     steps:
+      - name: Ensure workflow runs from main
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Release preparation must be dispatched from main (got $GITHUB_REF)"
+            exit 1
+          fi
+
       - name: Create release bot token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: release-bot-token
