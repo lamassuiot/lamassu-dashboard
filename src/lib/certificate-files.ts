@@ -47,11 +47,13 @@ export async function loadCertificateFilesAsPem(
 
   const pems: string[] = [];
   const convertedFileNames: string[] = [];
+  const truncatedFileNames: string[] = [];
   for (const file of files) {
     try {
-      const { pem, convertedFromDer } = await readCertificateFile(file);
+      const { pem, convertedFromDer, ignoredTrailingData } = await readCertificateFile(file);
       pems.push(pem);
       if (convertedFromDer) convertedFileNames.push(file.name);
+      if (ignoredTrailingData) truncatedFileNames.push(file.name);
     } catch (error) {
       sileo.error({
         title: 'File Read Error',
@@ -67,6 +69,14 @@ export async function loadCertificateFilesAsPem(
       description: convertedFileNames.length === 1
         ? `"${convertedFileNames[0]}" was DER-encoded and has been converted to PEM.`
         : `${convertedFileNames.length} DER-encoded files have been converted to PEM.`,
+    });
+  }
+
+  if (truncatedFileNames.length > 0) {
+    sileo.warning({
+      title: 'Only First Certificate Used',
+      description: `${truncatedFileNames.map(name => `"${name}"`).join(', ')} contained data after the first certificate `
+        + '(e.g. a concatenated DER chain), which was ignored. Provide each chain certificate as a separate DER file or as PEM.',
     });
   }
 
