@@ -76,7 +76,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies and build static site
         run: |
@@ -110,50 +110,20 @@ jobs:
           push: true
           sbom: true
 
-      - name: Create release tag
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        env:
-          RELEASE_VERSION: ${{ needs.detect-release.outputs.release_version }}
-        with:
-          script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: `refs/tags/${process.env.RELEASE_VERSION}`,
-              sha: context.sha
-            })
-
-      - name: Load reviewed release notes
-        id: release-notes
-        run: |
-          delimiter="$(openssl rand -hex 16)"
-          {
-            echo "body<<$delimiter"
-            cat RELEASE-NOTES.md
-            echo
-            echo "$delimiter"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub release
-        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1.1.4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub release with tag and assets
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.detect-release.outputs.release_version }}
-          release_name: Release v${{ needs.detect-release.outputs.release_version }}
-          body: ${{ steps.release-notes.outputs.body }}
+          target_commitish: ${{ github.sha }}
+          name: Release v${{ needs.detect-release.outputs.release_version }}
+          body_path: RELEASE-NOTES.md
           draft: false
           prerelease: false
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v0.1.15
-        with:
-          tag_name: ${{ needs.detect-release.outputs.release_version }}
+          make_latest: true
+          fail_on_unmatched_files: true
           files: |
             release.zip
             lamassu-ui-sbom.spdx.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   scan-image:
     name: Scan release image
