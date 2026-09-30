@@ -34,6 +34,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
+import { getEffectiveCaStatus } from '@/lib/ca-utils';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -78,7 +79,7 @@ const calculateExpirationDate = (durationStr: string): Date => {
 };
 
 /** Parents must be able to sign: active and not an external public CA. */
-const canBeParentCa = (ca: CA) => ca.rawApiData?.certificate.type !== 'EXTERNAL_PUBLIC' && ca.status === 'active';
+const canBeParentCa = (ca: CA) => ca.rawApiData?.certificate.type !== 'EXTERNAL_PUBLIC' && getEffectiveCaStatus(ca) === 'active';
 
 const showInvalidParentError = (ca: CA) => sileo.error({
   title: "Invalid Parent Certification Authority",

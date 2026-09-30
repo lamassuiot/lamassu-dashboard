@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { format, formatDistanceStrict, isPast, parseISO } from 'date-fns';
+import { format, formatDistanceStrict, parseISO } from 'date-fns';
 import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, MoreVertical, ShieldAlert, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -22,7 +22,7 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
-import { caMatchesFilters, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
+import { caMatchesFilters, getEffectiveCaStatus, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
 import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
 import { useSortState } from '@/hooks/useSortState';
@@ -95,12 +95,9 @@ type DisplayStatus = 'REVOKED' | 'EXPIRED' | 'UNKNOWN' | 'ACTIVE';
 
 const caDetailsHref = (ca: CA) => `/certificate-authorities/details?caId=${ca.id}`;
 
+// Same effective status the filters use, so a row never shows one status and filters as another.
 function getDisplayStatus(ca: CA): DisplayStatus {
-  if (ca.status === 'revoked') return 'REVOKED';
-  if (ca.status === 'expired' || isPast(parseISO(ca.expires))) return 'EXPIRED';
-  // Never present a CA whose status the backend didn't report as active.
-  if (ca.status === 'unknown') return 'UNKNOWN';
-  return 'ACTIVE';
+  return getEffectiveCaStatus(ca).toUpperCase() as DisplayStatus;
 }
 
 function CaIcon({ status, engine }: Readonly<{ status: DisplayStatus; engine?: ApiCryptoEngine }>) {
@@ -180,7 +177,7 @@ function KeyCell({ keyAlgorithm, engine }: Readonly<{ keyAlgorithm?: string; eng
 function CaActionsMenu({ ca, status }: Readonly<{ ca: CA; status: DisplayStatus }>) {
   const canIssue = status !== 'REVOKED' && ca.caType !== 'EXTERNAL_PUBLIC';
   // Mirrors the parent checks on the create CA page.
-  const canCreateSubCa = status === 'ACTIVE' && ca.status === 'active' && ca.caType !== 'EXTERNAL_PUBLIC';
+  const canCreateSubCa = status === 'ACTIVE' && ca.caType !== 'EXTERNAL_PUBLIC';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
