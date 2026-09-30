@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { sileo } from '@/lib/toast';
+import { generateUUID } from '@/lib-crypto';
 import { Save, Loader2, Monitor, PlusCircle } from 'lucide-react';
 import { createDeviceGroup, updateDeviceGroup, fetchAllDeviceGroups } from '@/lib/device-groups-api';
 import { validateFilterCriteria, normalizeFilterCriteria, getAncestorChain } from '@/lib/device-groups-utils';
@@ -22,15 +23,6 @@ import { FormFieldError, FormValidationSummary } from '@/components/shared/FormV
 
 const NAME_MAX_LENGTH = 100;
 const DESCRIPTION_MAX_LENGTH = 500;
-
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replaceAll(/[xy]/g, (c) => {
-    const r = Math.trunc(Math.random() * 16);
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 interface DeviceGroupFormProps {
   mode: 'create' | 'edit';

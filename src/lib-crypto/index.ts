@@ -16,3 +16,4 @@ export * from "./cert-file";
 export * from "./csr-parser";
 export * from "./ocsp";
 export * from "./crl-parser";
+export * from "./uuid";
