@@ -66,13 +66,14 @@ export function X509ConfigEditor({
         <Label className="text-sm">
           Certification Authority <span className="text-destructive">*</span>
         </Label>
+        {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
         <button
           type="button"
           onClick={onOpenCaSelector}
           disabled={disabled}
-          data-invalid={caMissing || undefined}
+          aria-invalid={caMissing}
           aria-describedby={caMissing ? 'principal-x509-ca-error' : undefined}
-          className="flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 data-invalid:border-destructive data-invalid:ring-3 data-invalid:ring-destructive/20 dark:data-invalid:border-destructive/50 dark:data-invalid:ring-destructive/40"
+          className="flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
         >
           <span className={selectedCa ? 'text-foreground' : 'text-muted-foreground'}>
             {caButtonLabel}
