@@ -973,7 +973,7 @@ export const CmpEnrollModal: React.FC<CmpEnrollModalProps> = ({
         if (!serial) return;
         let isCancelled = false;
         fetchIssuedCertificate(serial)
-            .then((cert) => { if (!isCancelled) setProtectionCertIssuerCaId(cert.issuerCaId ?? null); })
+            .then((cert) => { if (!isCancelled) setProtectionCertIssuerCaId(cert?.issuerCaId ?? null); })
             .catch(() => { if (!isCancelled) setProtectionCertIssuerCaId(null); });
         return () => { isCancelled = true; };
     }, [isOpen, ra]);

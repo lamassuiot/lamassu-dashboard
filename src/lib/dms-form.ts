@@ -216,6 +216,10 @@ export function validateEstAuthSettings(
   return null;
 }
 
+export function includesValidationCa(settings: ESTAuthSettings, validationCaId: string): boolean {
+  return settings.client_certificate_settings?.validation_cas.includes(validationCaId) ?? false;
+}
+
 export function withDefaultValidationCa(
   settings: ESTAuthSettings,
   validationCaId: string,
@@ -224,7 +228,7 @@ export function withDefaultValidationCa(
     || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const clientSettings = settings.client_certificate_settings;
 
-  if (!includesClientCertificate || !clientSettings || clientSettings.validation_cas.length > 0) {
+  if (!includesClientCertificate || !clientSettings || includesValidationCa(settings, validationCaId)) {
     return settings;
   }
 
@@ -232,7 +236,7 @@ export function withDefaultValidationCa(
     ...settings,
     client_certificate_settings: {
       ...clientSettings,
-      validation_cas: [validationCaId],
+      validation_cas: [...clientSettings.validation_cas, validationCaId],
     },
   };
 }

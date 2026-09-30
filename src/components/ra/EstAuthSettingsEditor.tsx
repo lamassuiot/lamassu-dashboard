@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 
 type EstAuthSettingsEditorProps = {
   idPrefix: string;
@@ -356,13 +357,13 @@ export function EstAuthSettingsEditor({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor={`${idPrefix}-mtls-cert`}>Client Certificate</Label>
-                <Textarea
+                <CertificatePemTextarea
                   id={`${idPrefix}-mtls-cert`}
                   value={webhookConfig.mtls?.cert || ''}
-                  onChange={(event) => updateWebhookConfig({
-                    mtls: { cert: event.target.value, key: webhookConfig.mtls?.key || '' },
+                  onValueChange={(cert) => updateWebhookConfig({
+                    mtls: { cert, key: webhookConfig.mtls?.key || '' },
                   })}
-                  placeholder="PEM certificate or backend-accessible path"
+                  placeholder="PEM certificate (paste or drop a PEM/DER file) or backend-accessible path"
                   className="min-h-32 font-mono text-xs"
                 />
               </div>
@@ -387,7 +388,6 @@ export function EstAuthSettingsEditor({
       <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}
-        useSheet
         title="Add Validation CA"
         description="Select a CA trusted for client certificate authentication."
         availableCAs={availableCAs}

@@ -4,11 +4,12 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-// Two badge styles, matching the certificate details header:
+// Badge styles, matching the certificate details header:
 // - Primary (default, destructive, success, warning, info, muted): the
 //   relevant value (status, entity identity, outcome). Bordered, medium weight.
 // - Secondary: supporting attributes (algorithms, tags, usages, counts).
 //   Borderless muted pill.
+// - Outline: neutral bordered badge for legacy screens.
 // Geometry (h-6, rounded-md, px-2, text-xs, size-3 icons) is shared and must not
 // be overridden at call sites.
 const primaryBadge = "gap-1.5 border font-medium"
@@ -25,6 +26,7 @@ const badgeVariants = cva(
         info: cn(primaryBadge, "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-400 [a]:hover:bg-sky-500/15"),
         muted: cn(primaryBadge, "border-border bg-muted text-muted-foreground [a]:hover:bg-muted/70"),
         secondary: "gap-1 bg-muted text-muted-foreground [a]:hover:bg-muted/70",
+        outline: "gap-1.5 border border-border bg-background text-foreground [a]:hover:bg-muted",
       },
     },
     defaultVariants: {
