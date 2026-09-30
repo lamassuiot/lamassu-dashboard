@@ -19,8 +19,6 @@ COPY . .
 # Build the application
 # This will output to the 'out' directory due to `output: 'export'` in next.config.ts
 # NEXT_TELEMETRY_DISABLED: prevents background HTTP requests triggering TLS/crypto module init crashes.
-# Node 20 (not 22): Node 22's Turboshaft JIT hits an "unreachable code" V8 assertion crash in
-# turboshaft::BuildGraph during page-data collection under Docker/WSL2 virtualization.
 RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # Stage 2: Serve the static files with Nginx
