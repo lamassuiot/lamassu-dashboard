@@ -60,6 +60,8 @@ export class ApiError extends Error {
     }
 }
 
+// T is a caller-facing hint only: the parsed body is untyped (`any`) and null for empty responses.
+// eslint-disable-next-line unused-imports/no-unused-vars
 export const handleApiError = async <T = unknown>(
     response: Response,
     defaultMessage: string

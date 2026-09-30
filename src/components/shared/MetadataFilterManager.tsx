@@ -55,7 +55,6 @@ export function MetadataFilterManager({
   id,
 }: MetadataFilterManagerProps) {
   const [savedFilters, setSavedFilters] = useState<MetadataFilterQuery[]>([]);
-  const [isFocused, setIsFocused] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -110,7 +109,7 @@ export function MetadataFilterManager({
       setNewFilterDescription('');
       setNewFilterJsonPath('');
       setSaveError(null);
-    } catch (error) {
+    } catch {
       setSaveError('Filter: failed to save. Try again.');
     }
   };
@@ -141,7 +140,7 @@ export function MetadataFilterManager({
       setNewFilterDescription('');
       setNewFilterJsonPath('');
       setSaveError(null);
-    } catch (error) {
+    } catch {
       setSaveError('Filter: failed to update. Try again.');
     }
   };
@@ -219,11 +218,9 @@ export function MetadataFilterManager({
             onChange={(e) => setCurrentInput(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              setIsFocused(true);
               onFocusChange?.(true);
             }}
             onBlur={() => {
-              setIsFocused(false);
               onFocusChange?.(false);
             }}
             className="w-full pl-10 pr-32"

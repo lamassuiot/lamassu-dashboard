@@ -42,7 +42,7 @@ const getStatusVisuals = (ca: CA, isCurrentCa: boolean): { icon: React.ElementTy
   return { icon, colorClass, text: statusText };
 };
 
-export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, isCurrentCa, hasNext, isFirst, isDimmed, allCryptoEngines, invertSeparator = false }) => {
+export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, isCurrentCa, hasNext, isDimmed, allCryptoEngines, invertSeparator = false }) => {
   const router = useRouter();
   const { icon: StatusIcon, colorClass: statusColorClass, text: statusText } = getStatusVisuals(ca, isCurrentCa);
 

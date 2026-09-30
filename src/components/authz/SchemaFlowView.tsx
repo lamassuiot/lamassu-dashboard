@@ -57,7 +57,7 @@ export function SchemaFlowView({ schemas, error }: SchemaFlowViewProps) {
     if (schemas.length === 0) return;
 
     // Create nodes for each schema
-    const newNodes: Node[] = schemas.map((schema, index) => ({
+    const newNodes: Node[] = schemas.map((schema) => ({
       id: schema.entity_type,
       type: 'schema',
       position: { x: 0, y: 0 }, // Will be repositioned by layout
@@ -159,9 +159,7 @@ export function SchemaFlowView({ schemas, error }: SchemaFlowViewProps) {
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
           <Controls />
           <MiniMap
-            nodeColor={(node) => {
-              return 'hsl(var(--primary))';
-            }}
+            nodeColor={() => 'hsl(var(--primary))'}
             maskColor="rgba(0, 0, 0, 0.1)"
           />
         </ReactFlow>

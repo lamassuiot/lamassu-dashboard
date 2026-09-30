@@ -6,7 +6,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   ClipboardCheck,
   PlusCircle,

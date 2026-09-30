@@ -36,7 +36,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check, FileCode2, Type, ZoomIn, Minus, Plus } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -92,33 +92,6 @@ const decodeTokenClaims = (token?: string): DecodedClaims => {
   } catch {
     return {};
   }
-};
-
-const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
-  'certificates': "Certificates",
-  'certificate-authorities': "Certification Authorities",
-  'signing-profiles': "Issuance Profiles",
-  'registration-authorities': "Registration Authorities",
-  'verification-authorities': "Verification Authorities",
-  'new': "New",
-  'details': "Details",
-  'issue-certificate': "Issue Certificate",
-  'kms': "KMS",
-  'keys': "Keys",
-  'devices': "Devices",
-  'device-groups': "Device Groups",
-  'integrations': "Platform Integrations",
-  'crypto-engines': "Crypto Engines",
-  'alerts': "Alerts",
-  'tools': "Tools",
-  'certificate-viewer': "Certificate Viewer",
-  'job-manager': "Job Manager",
-  'jobs': "Jobs",
-  'workflows': "Workflows",
-  'authz': "Authorization",
-  'principals': "Principals",
-  'policies': "Policies",
-  'test': "Authorization Test",
 };
 
 interface NavItem {
@@ -462,9 +435,12 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                 <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
                   <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
                   {user?.profile.picture && !avatarError ? (
-                    <img
+                    <Image
                       src={user.profile.picture}
                       alt={user.profile.name || user.profile.email || 'User'}
+                      width={32}
+                      height={32}
+                      unoptimized
                       referrerPolicy="no-referrer"
                       className="h-8 w-8 rounded-full object-cover"
                       onError={() => setAvatarError(true)}
@@ -700,9 +676,12 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
             {/* Identity */}
             <div className="flex items-center gap-3">
               {user?.profile.picture && !avatarError ? (
-                <img
+                <Image
                   src={user.profile.picture}
                   alt={user.profile.name || ''}
+                  width={48}
+                  height={48}
+                  unoptimized
                   referrerPolicy="no-referrer"
                   className="h-12 w-12 rounded-full object-cover ring-2 ring-border shrink-0"
                   onError={() => setAvatarError(true)}
@@ -966,10 +945,9 @@ export default function RootLayout({
         <title>LamassuIoT Certificate Manager</title>
         <meta name="description" content="Manage and verify your X.509 certificates with LamassuIoT." />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-        <link rel="stylesheet" href="/custom-theme.css"></link>
+        {/* Runtime-provided theme override served from /public (not part of the bundle), so it cannot be imported. */}
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
+        <link rel="stylesheet" href="/custom-theme.css" />
       </head>
       <body className="font-body antialiased">
         <ConfigProvider>

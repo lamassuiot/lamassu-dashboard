@@ -17,7 +17,6 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { useAuth } from '@/contexts/AuthContext';
 import { fetchDeviceById, decommissionDevice, deleteDevice, updateDeviceMetadata, type ApiDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
@@ -53,7 +52,6 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
   const deviceId = searchParams.get('deviceId');
 
   const activeTab = SLUG_TO_TAB[pathname.split('/').pop() ?? ''] ?? 'information';

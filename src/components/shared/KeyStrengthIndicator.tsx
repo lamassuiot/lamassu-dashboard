@@ -81,7 +81,6 @@ export const KeyStrengthIndicator: React.FC<KeyStrengthIndicatorProps> = ({ algo
     if (level === 0) return `Key Strength: ${label}`;
     
     let timeframe = '';
-    const currentYear = new Date().getFullYear();
     
     if (securityStrength === 80) {
       timeframe = ' (Legacy - not recommended)';

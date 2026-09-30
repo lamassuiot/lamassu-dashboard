@@ -1,6 +1,5 @@
 import { http, HttpResponse } from 'msw'
 
-const API_BASE = 'https://api.test.lamassu.io'
 const CA_API_BASE = 'https://ca-api.test.lamassu.io'
 const DMS_API_BASE = 'https://dms-api.test.lamassu.io'
 const DEVICES_API_BASE = 'https://devices-api.test.lamassu.io'

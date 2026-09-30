@@ -318,7 +318,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setIncludeDownstreamCA(ca_distribution_settings.include_system_ca);
         setManagedCAs(ca_distribution_settings.managed_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
     }
-  }, [isEditMode, raData, availableCAsForSelection]);
+  }, [isEditMode, raData, availableCAsForSelection, inlineProfileForm]);
   
   // Effect to randomize icon color for new RAs
   useEffect(() => {
@@ -675,6 +675,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="deviceIconButton">Device Icon</Label>
+              {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
               <button
                 id="deviceIconButton"
                 type="button"
@@ -751,6 +752,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               <div className="space-y-4 lg:col-span-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="enrollmentCa">Enrollment CA</Label>
+                  {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
                   <button
                     id="enrollmentCa"
                     type="button"

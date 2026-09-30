@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useId } from 'react';
 import { Loader2, Building2, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,6 +48,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedBy,
 }) => {
+  const listboxId = useId();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [dmsOptions, setDmsOptions] = useState<DmsOption[]>([]);
@@ -142,6 +143,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
           type="button"
           role="combobox"
           aria-expanded={isOpen}
+          aria-controls={listboxId}
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
           disabled={disabled}
@@ -186,7 +188,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
           </div>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="min-w-[300px] p-0 sm:w-[var(--radix-popover-trigger-width)]" align="start">
+      <PopoverContent id={listboxId} className="min-w-[300px] p-0 sm:w-[var(--radix-popover-trigger-width)]" align="start">
         <div className="max-h-[300px] overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-6">

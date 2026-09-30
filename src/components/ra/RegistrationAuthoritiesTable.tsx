@@ -18,7 +18,6 @@ import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { parseISO, isPast, formatDistanceToNowStrict } from 'date-fns';
-import type { ColumnConfig } from '@/components/ui/column-selector';
 
 function getEnrollmentCaStatus(ca: CA): { label: string; variant: BadgeVariant; expiryText: string | null } {
   if (ca.status === 'revoked') return { label: 'Revoked', variant: 'destructive', expiryText: null };
@@ -84,9 +83,7 @@ const SortableTableHeader: React.FC<{
 
 export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTableProps> = ({
   ras,
-  getCaNameById,
   allCAs,
-  allCryptoEngines,
   onEdit,
   onViewDevices,
   onShowMetadata,

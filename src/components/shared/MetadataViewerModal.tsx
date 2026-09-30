@@ -105,7 +105,7 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
       setCopied(true);
       sileo.success({ title: "Copied!", description: "Metadata JSON copied to clipboard." });
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       sileo.error({ title: "Copy Failed" });
     }
   };

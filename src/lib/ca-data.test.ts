@@ -994,7 +994,6 @@ XQGdcNTVHA==
 
     it('should handle error during fingerprint calculation', async () => {
       // Mock crypto.subtle.digest to throw error using vi.spyOn
-      const originalDigest = global.crypto.subtle.digest
       const digestSpy = vi.spyOn(global.crypto.subtle, 'digest')
         .mockRejectedValue(new Error('Digest failed'))
 

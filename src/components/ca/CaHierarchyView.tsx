@@ -72,7 +72,7 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
           centerOnInit
           limitToBounds={false}
         >
-          {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
+          {({ zoomIn, zoomOut, resetTransform }) => (
             <>
               <div className="absolute top-2 left-2 z-10 space-x-1">
                 <Button variant="secondary" size="icon" onClick={() => zoomIn()} title="Zoom In">
