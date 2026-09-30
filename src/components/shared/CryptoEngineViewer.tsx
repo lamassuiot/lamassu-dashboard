@@ -6,10 +6,11 @@ import { ShieldQuestion, FolderKey } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import AWSKMSLogo from "./CryptoEngineIcons/AWS-KMS.png"
-import AWSSMLogo from "./CryptoEngineIcons/AWS-SM.png"
-import PKCS11Logo from "./CryptoEngineIcons/PKCS11.png"
-import VaultLogo from "./CryptoEngineIcons/HASHICORP-VAULT.png"
+import AWSKMSLogo from "./crypto-engine-icons/AWS-KMS.png"
+import AWSSMLogo from "./crypto-engine-icons/AWS-SM.png"
+import PKCS11Logo from "./crypto-engine-icons/PKCS11.png"
+import VaultLogo from "./crypto-engine-icons/HASHICORP-VAULT.png"
+import AzureKeyVaultLogo from "./crypto-engine-icons/AZURE-KEYVAULT.webp"
 
 import { Badge } from '@/components/ui/badge';
 interface CryptoEngineViewerProps {
@@ -26,6 +27,8 @@ const ENGINE_STYLES: Record<string, { border: string; bg: string }> = {
   AWS_SECRETS_MANAGER: { border: 'border-orange-200/60 dark:border-orange-800/40', bg: 'bg-white dark:bg-gray-950' },
   AWS_KMS:             { border: 'border-orange-200/60 dark:border-orange-800/40', bg: 'bg-white dark:bg-gray-950' },
   HASHICORP_VAULT:     { border: 'border-amber-200/60 dark:border-amber-800/40',   bg: 'bg-white dark:bg-gray-950' },
+  AZURE_KEY_VAULT:         { border: 'border-border/60', bg: 'bg-card' },
+  AZURE_KEY_VAULT_SECRETS: { border: 'border-border/60', bg: 'bg-card' },
 };
 
 const normalizeEngineType = (type?: string): string => {
@@ -68,6 +71,10 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({
     case 'AWS_SECRETS_MANAGER': imageSrc = AWSSMLogo;   break;
     case 'AWS_KMS':             imageSrc = AWSKMSLogo;  break;
     case 'HASHICORP_VAULT':     imageSrc = VaultLogo;   break;
+    case 'AZURE_KEY_VAULT':
+    case 'AZURE_KEY_VAULT_SECRETS':
+      imageSrc = AzureKeyVaultLogo;
+      break;
     default:
       IconComponent = ShieldQuestion;
       break;
