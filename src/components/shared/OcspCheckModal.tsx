@@ -10,7 +10,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Clock, Download, Copy, Check } from "lucide-react";
 import type { CertificateData } from '@/types/certificate';
 import type { CA } from '@/lib/ca-data';
-import { Badge } from '../ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { sileo } from '@/lib/toast';
@@ -123,13 +123,14 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
     const StatusDisplay: React.FC<{ details: OcspResponseDetails }> = ({ details }) => {
         let Icon = AlertTriangle;
         let colorClass = "text-yellow-600";
-        if (details.status === 'good')    { Icon = CheckCircle; colorClass = "text-green-600"; }
-        if (details.status === 'revoked') { Icon = XCircle;     colorClass = "text-red-600"; }
+        let badgeVariant: BadgeVariant = 'muted';
+        if (details.status === 'good')    { Icon = CheckCircle; colorClass = "text-green-600"; badgeVariant = 'success'; }
+        if (details.status === 'revoked') { Icon = XCircle;     colorClass = "text-red-600";   badgeVariant = 'destructive'; }
         if (details.status === 'unknown') { Icon = Clock;       colorClass = "text-gray-600"; }
         return (
             <div className="flex items-center space-x-2">
                 <Icon className={`h-5 w-5 ${colorClass}`} />
-                <Badge variant={details.status === 'good' ? 'success' : details.status === 'revoked' ? 'destructive' : 'muted'} dot>
+                <Badge variant={badgeVariant} dot>
                     {details.statusText}
                 </Badge>
             </div>

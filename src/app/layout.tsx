@@ -290,6 +290,27 @@ const UnauthenticatedLayoutContent = () => {
   );
 };
 
+const MatchedPrincipalsList = ({ principals }: Readonly<{ principals: Principal[] | null }>) => {
+  if (principals === null) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span>Loading…</span>
+      </div>
+    );
+  }
+  if (principals.length === 0) {
+    return <span className="text-xs text-muted-foreground italic">No principals matched</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {principals.map(p => (
+        <PrincipalBadge key={p.id} id={p.id} name={p.name} />
+      ))}
+    </div>
+  );
+};
+
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
@@ -770,20 +791,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
             {/* Matched Principals */}
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
-              {matchedPrincipals === null ? (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Loading…</span>
-                </div>
-              ) : matchedPrincipals.length === 0 ? (
-                <span className="text-xs text-muted-foreground italic">No principals matched</span>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {matchedPrincipals.map(p => (
-                    <PrincipalBadge key={p.id} id={p.id} name={p.name} />
-                  ))}
-                </div>
-              )}
+              <MatchedPrincipalsList principals={matchedPrincipals} />
             </div>
 
             <Separator />

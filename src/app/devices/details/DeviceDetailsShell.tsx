@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2 } from 'lucide-react';
+import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2 } from 'lucide-react';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { mapApiIconToIconType } from '@/app/devices/page';
@@ -15,7 +15,6 @@ import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -242,7 +241,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
 
   const DeviceGlyph = getLucideIconByName(mapApiIconToIconType(device.icon));
   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
-  const activeCertificateSn = device.identity?.versions[device.identity.active_version];
+  const activeCertificateSn = device.identity?.versions?.[device.identity.active_version];
 
   return (
     <DeviceDetailsContext.Provider value={{

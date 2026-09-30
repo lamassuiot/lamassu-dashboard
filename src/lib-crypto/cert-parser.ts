@@ -292,3 +292,13 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
     return result;
   }
 }
+
+/** Splits an RFC 4514-style DN string into its C/ST/L/O/OU/CN parts, in order. */
+export function parseDistinguishedName(distinguishedName: string): { label: string; value: string }[] {
+  return Array.from(
+    distinguishedName.matchAll(/(?:^|,\s*)(C|ST|L|O|OU|CN)=((?:\\.|[^,])*)/gi)
+  ).map((match) => ({
+    label: match[1].toUpperCase(),
+    value: match[2].replaceAll(String.raw`\,`, ',').trim(),
+  }));
+}

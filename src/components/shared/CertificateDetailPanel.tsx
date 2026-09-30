@@ -57,8 +57,8 @@ export function CertificateDetailPanel({ certificate }: Props) {
         {certificate.sans && certificate.sans.length > 0 && (
           <Row label="Subject Alt. Names">
             <div className="flex flex-wrap gap-1">
-              {certificate.sans.map((san, i) => (
-                <Badge key={i} variant="secondary">{san}</Badge>
+              {certificate.sans.map((san) => (
+                <Badge key={san} variant="secondary">{san}</Badge>
               ))}
             </div>
           </Row>

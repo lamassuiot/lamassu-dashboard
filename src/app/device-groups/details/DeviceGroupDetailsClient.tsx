@@ -45,6 +45,20 @@ const DEVICE_GROUP_CRUMBS = [
   { label: 'Device Groups', href: '/device-groups' },
 ];
 
+async function fetchParentGroup(parentId?: string | null): Promise<DeviceGroup | null> {
+  if (!parentId) return null;
+  try {
+    return await getDeviceGroupByID(parentId);
+  } catch {
+    return null;
+  }
+}
+
+function filterRulesLabel(count: number): string {
+  if (count === 0) return 'None (catch-all)';
+  return `${count} rule${count === 1 ? '' : 's'}`;
+}
+
 export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -70,16 +84,7 @@ export default function DeviceGroupDetailsClient() {
       setError(null);
       const data = await getDeviceGroupByID(groupId);
       setGroup(data);
-      if (data.parent_id) {
-        try {
-          const parent = await getDeviceGroupByID(data.parent_id);
-          setParentGroup(parent);
-        } catch {
-          setParentGroup(null);
-        }
-      } else {
-        setParentGroup(null);
-      }
+      setParentGroup(await fetchParentGroup(data.parent_id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch device group');
     } finally {
@@ -197,7 +202,7 @@ export default function DeviceGroupDetailsClient() {
               )}
             </DetailHeroStat>
             <DetailHeroStat label="Filter rules">
-              {filterCount === 0 ? 'None (catch-all)' : `${filterCount} rule${filterCount !== 1 ? 's' : ''}`}
+              {filterRulesLabel(filterCount)}
               {inheritedCount > 0 && (
                 <span className="text-muted-foreground"> + {inheritedCount} inherited</span>
               )}
@@ -307,7 +312,7 @@ export default function DeviceGroupDetailsClient() {
                   <div className="py-3">
                     <p className="text-xs font-medium text-muted-foreground">Filter Rules</p>
                     <p className="mt-1 text-sm font-medium">
-                      {filterCount === 0 ? 'None (catch-all)' : `${filterCount} rule${filterCount !== 1 ? 's' : ''}`}
+                      {filterRulesLabel(filterCount)}
                     </p>
                   </div>
                   <div className="py-3 last:pb-0">

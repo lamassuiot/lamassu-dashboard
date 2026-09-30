@@ -31,7 +31,7 @@ import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthor
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
-import { parseDistinguishedName } from '@/lib/cert-utils';
+import { parseDistinguishedName } from '@/lib-crypto';
 
 
 interface CaStats {

@@ -490,8 +490,8 @@ export default function KmsKeysPage() {
                       <TableCell>
                         {key.aliases && key.aliases.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {key.aliases.map((alias, idx) => (
-                              <Badge key={idx} variant="secondary">
+                            {key.aliases.map((alias) => (
+                              <Badge key={alias} variant="secondary">
                                 {alias}
                               </Badge>
                             ))}
@@ -503,8 +503,8 @@ export default function KmsKeysPage() {
                       <TableCell>
                         {key.tags && key.tags.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {key.tags.map((tag, idx) => (
-                              <Badge key={idx} variant="secondary">
+                            {key.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">
                                 {tag}
                               </Badge>
                             ))}

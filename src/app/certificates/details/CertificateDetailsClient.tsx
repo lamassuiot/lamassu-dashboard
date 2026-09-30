@@ -29,7 +29,7 @@ import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
-import { parseDistinguishedName } from '@/lib/cert-utils';
+import { parseDistinguishedName } from '@/lib-crypto';
 
 
 const getCertSubjectCommonName = (subject: string): string => {

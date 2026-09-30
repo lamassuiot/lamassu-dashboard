@@ -18,7 +18,11 @@ interface IssuerStatProps {
 }
 
 /** Hero strip cell showing the issuer DN as labelled chips, with a link to the issuing CA. */
-export function IssuerStat({ parts, displayName, href }: IssuerStatProps) {
+export function IssuerStat({ parts, displayName, href }: Readonly<IssuerStatProps>) {
+  const fallback = href
+    ? <Link href={href} className="text-primary hover:underline">{displayName}</Link>
+    : <p>{displayName}</p>;
+
   return (
     <DetailHeroStat
       label="Issuer"
@@ -31,17 +35,13 @@ export function IssuerStat({ parts, displayName, href }: IssuerStatProps) {
       {parts.length > 0 ? (
         <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1.5">
           {parts.map(({ label, value }) => (
-            <div key={label} className="flex min-w-0 items-baseline gap-2">
+            <div key={`${label}=${value}`} className="flex min-w-0 items-baseline gap-2">
               <dt className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm bg-primary px-1 font-mono text-[10px] font-semibold text-primary-foreground">{label}</dt>
               <dd className="truncate" title={value}>{value}</dd>
             </div>
           ))}
         </dl>
-      ) : href ? (
-        <Link href={href} className="text-primary hover:underline">{displayName}</Link>
-      ) : (
-        <p>{displayName}</p>
-      )}
+      ) : fallback}
     </DetailHeroStat>
   );
 }
@@ -51,6 +51,12 @@ interface ValidityStatProps {
   validTo?: string;
   /** Used in the progress bar's accessible label, e.g. "certificate". */
   subject?: string;
+}
+
+function remainingLabel({ expired, daysLeft }: { expired: boolean; daysLeft: number }): string {
+  if (expired) return 'Expired';
+  if (daysLeft === 0) return 'Expires today';
+  return `${daysLeft}d remaining`;
 }
 
 function computeValidity(validFrom?: string, validTo?: string) {
@@ -72,7 +78,7 @@ function computeValidity(validFrom?: string, validTo?: string) {
 }
 
 /** Hero strip cell with a validity progress bar, remaining days and issued/expires dates. */
-export function ValidityStat({ validFrom, validTo, subject = 'certificate' }: ValidityStatProps) {
+export function ValidityStat({ validFrom, validTo, subject = 'certificate' }: Readonly<ValidityStatProps>) {
   const validity = computeValidity(validFrom, validTo);
 
   if (!validity || !validFrom || !validTo) {
@@ -91,11 +97,7 @@ export function ValidityStat({ validFrom, validTo, subject = 'certificate' }: Va
           'text-xs font-medium tabular-nums',
           validity.expired || validity.daysLeft <= 30 ? 'text-destructive' : 'text-muted-foreground'
         )}>
-          {validity.expired
-            ? 'Expired'
-            : validity.daysLeft === 0
-            ? 'Expires today'
-            : `${validity.daysLeft}d remaining`}
+          {remainingLabel(validity)}
         </span>
       }
     >

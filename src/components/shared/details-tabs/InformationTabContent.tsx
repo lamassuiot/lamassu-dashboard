@@ -539,7 +539,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   value={
                     certDetails.sans && certDetails.sans.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {certDetails.sans.map((san, i) => <Badge key={i} variant="secondary">{san}</Badge>)}
+                        {certDetails.sans.map((san) => <Badge key={san} variant="secondary">{san}</Badge>)}
                       </div>
                     ) : 'Not Specified'
                   }

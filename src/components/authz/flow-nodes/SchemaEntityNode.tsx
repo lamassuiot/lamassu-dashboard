@@ -225,8 +225,8 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               <div>
                 <div className="text-xs font-semibold mb-1">Atomic Actions:</div>
                 <div className="flex flex-wrap gap-1">
-                  {schema.atomic_actions!.slice(0, 3).map((action: string, idx: number) => (
-                    <Badge key={idx} variant="secondary">
+                  {schema.atomic_actions!.slice(0, 3).map((action: string) => (
+                    <Badge key={action} variant="secondary">
                       {action}
                     </Badge>
                   ))}
@@ -242,8 +242,8 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               <div>
                 <div className="text-xs font-semibold mb-1">Global Actions:</div>
                 <div className="flex flex-wrap gap-1">
-                  {schema.global_actions!.slice(0, 3).map((action: string, idx: number) => (
-                    <Badge key={idx} variant="secondary">
+                  {schema.global_actions!.slice(0, 3).map((action: string) => (
+                    <Badge key={action} variant="secondary">
                       {action}
                     </Badge>
                   ))}

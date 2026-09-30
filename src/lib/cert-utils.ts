@@ -66,13 +66,3 @@ export function downloadFile(data: ArrayBuffer, filename: string, mimeType: stri
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
-/** Splits an RFC 4514-style DN string into its C/ST/L/O/OU/CN parts, in order. */
-export function parseDistinguishedName(distinguishedName: string): { label: string; value: string }[] {
-  return Array.from(
-    distinguishedName.matchAll(/(?:^|,\s*)(C|ST|L|O|OU|CN)=((?:\\.|[^,])*)/gi)
-  ).map((match) => ({
-    label: match[1].toUpperCase(),
-    value: match[2].replaceAll('\\,', ',').trim(),
-  }));
-}

@@ -106,6 +106,18 @@ function getStatusSnapshots(job: WfxJob): JobStatusSnapshot[] {
     ];
 }
 
+function describeStatusSnapshot(snapshot?: JobStatusSnapshot): string {
+    if (snapshot?.isCurrent) return 'Latest reported context from the job status.';
+    if (snapshot?.status.state) return `Context reported when the job entered ${snapshot.status.state}.`;
+    return 'Reported context for the selected job status.';
+}
+
+function StatDate({ date }: Readonly<{ date?: string | null }>) {
+    return date
+        ? <DateDisplay date={date} className="text-sm" />
+        : <span className="text-muted-foreground">—</span>;
+}
+
 const JOB_CRUMBS = [
     { label: 'Home', href: '/' },
     { label: 'Job Manager' },
@@ -176,11 +188,7 @@ export default function JobDetailsPage() {
     const selectedStatusSnapshot = statusSnapshots.find(snapshot => snapshot.id === selectedStatusSnapshotId)
         ?? statusSnapshots[statusSnapshots.length - 1];
     const selectedStatusContext = selectedStatusSnapshot?.status.context;
-    const selectedStatusDescription = selectedStatusSnapshot?.isCurrent
-        ? 'Latest reported context from the job status.'
-        : selectedStatusSnapshot?.status.state
-        ? `Context reported when the job entered ${selectedStatusSnapshot.status.state}.`
-        : 'Reported context for the selected job status.';
+    const selectedStatusDescription = describeStatusSnapshot(selectedStatusSnapshot);
 
     return (
         <BreadcrumbPage
@@ -222,10 +230,10 @@ export default function JobDetailsPage() {
                                 : <span className="text-muted-foreground">N/A</span>}
                         </DetailHeroStat>
                         <DetailHeroStat label="Created">
-                            {job.stime ? <DateDisplay date={job.stime} className="text-sm" /> : <span className="text-muted-foreground">—</span>}
+                            <StatDate date={job.stime} />
                         </DetailHeroStat>
                         <DetailHeroStat label="Last modified">
-                            {job.mtime ? <DateDisplay date={job.mtime} className="text-sm" /> : <span className="text-muted-foreground">—</span>}
+                            <StatDate date={job.mtime} />
                         </DetailHeroStat>
                     </>
                 }

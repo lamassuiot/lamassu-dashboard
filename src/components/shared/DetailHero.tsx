@@ -52,7 +52,7 @@ export function DetailHero({
   actions,
   stats,
   statsClassName,
-}: DetailHeroProps) {
+}: Readonly<DetailHeroProps>) {
   const leadingVisual = leading ?? (Icon && (
     <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
       <Icon className="h-8 w-8 text-primary" />
@@ -120,7 +120,7 @@ interface DetailHeroStatProps {
   className?: string;
 }
 
-export function DetailHeroStat({ label, aside, children, className }: DetailHeroStatProps) {
+export function DetailHeroStat({ label, aside, children, className }: Readonly<DetailHeroStatProps>) {
   return (
     <div className={cn('min-w-0 py-3 lg:px-6 lg:first:pl-0 lg:last:pr-1', className)}>
       <div className="flex items-center justify-between gap-3">
@@ -137,11 +137,11 @@ export function DetailHeroActionsMenu({
   children,
   ariaLabel = 'Actions',
   contentClassName,
-}: {
+}: Readonly<{
   children: React.ReactNode;
   ariaLabel?: string;
   contentClassName?: string;
-}) {
+}>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -157,7 +157,7 @@ export function DetailHeroActionsMenu({
   );
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
+function CopyButton({ value, label }: Readonly<{ value: string; label: string }>) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -166,9 +166,15 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       className="h-6 w-6 shrink-0"
       aria-label={label}
       onClick={() => {
-        navigator.clipboard.writeText(value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        navigator.clipboard
+          .writeText(value)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          })
+          .catch(() => {
+            // Clipboard unavailable or permission denied: leave the icon unchanged.
+          });
       }}
     >
       {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
