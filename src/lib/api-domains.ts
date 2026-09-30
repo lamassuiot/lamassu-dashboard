@@ -60,10 +60,10 @@ export class ApiError extends Error {
     }
 }
 
-export const handleApiError = async <T = unknown>(
+export const handleApiError = async <T = any>(
     response: Response,
     defaultMessage: string
-) => {
+): Promise<T> => {
     const contentType = response.headers.get("content-type") || "";
     const contentLength = response.headers.get("content-length");
     const hasJson = contentType.toLowerCase().includes("application/json");
@@ -112,13 +112,13 @@ export const handleApiError = async <T = unknown>(
         throw new ApiError(errorMessage, response.status);
     }
 
-    // Success cases
-    if (isNoContent) return null;
+    // Success cases. Empty bodies resolve to null; callers that expect one pass a T that allows it.
+    if (isNoContent) return null as T;
 
     if (hasJson) {
         // If this throws, it's a real mismatch: server claimed JSON but didn't send valid JSON
-        return (await response.json()) ;
+        return (await response.json()) as T;
     }
 
-    return null;
+    return null as T;
 };
