@@ -378,7 +378,6 @@ export function PrincipalForm({
         onCaSelected={handleCaSelected}
         currentSelectedCaId={selectedCa?.id}
         allCryptoEngines={allCryptoEngines}
-        useSheet
       />
     </>
   );

@@ -128,7 +128,7 @@ export function getFieldLabel(field: DeviceFilterableField): string {
   
   const labels: Record<DeviceFilterableField, string> = {
     id: 'Device ID',
-    dms_owner: 'DMS Owner',
+    dms_owner: 'Registration Authority',
     status: 'Status',
     tags: 'Tags',
     creation_timestamp: 'Creation Date',
@@ -196,19 +196,6 @@ export function validateFilterCriteria(criteria: any[]): { valid: boolean; error
 }
 
 /**
- * Build hierarchy breadcrumb from ancestors
- */
-export function buildHierarchyBreadcrumb(
-  currentGroup: DeviceGroup,
-  ancestors: DeviceGroup[]
-): Array<{ id: string; name: string }> {
-  return [
-    ...ancestors.reverse().map(g => ({ id: g.id, name: g.name })),
-    { id: currentGroup.id, name: currentGroup.name },
-  ];
-}
-
-/**
  * Device group with children for hierarchical display
  */
 export interface DeviceGroupNode extends DeviceGroup {
@@ -269,19 +256,64 @@ export function buildDeviceGroupTree(groups: DeviceGroup[]): DeviceGroupNode[] {
 }
 
 /**
- * Flatten hierarchical tree back to list with level information
+ * Ancestors of a group ordered from the root down to its direct parent.
+ * Stops on missing parents or cycles.
  */
-export function flattenDeviceGroupTree(nodes: DeviceGroupNode[]): DeviceGroupNode[] {
-  const result: DeviceGroupNode[] = [];
-  
-  const traverse = (node: DeviceGroupNode) => {
-    result.push(node);
-    if (node.children && node.children.length > 0) {
-      node.children.forEach(child => traverse(child));
-    }
-  };
-  
-  nodes.forEach(node => traverse(node));
-  
-  return result;
+export function getAncestorChain(group: DeviceGroup, groupsById: Map<string, DeviceGroup>): DeviceGroup[] {
+  const chain: DeviceGroup[] = [];
+  const seen = new Set<string>([group.id]);
+  let parentId = group.parent_id;
+  while (parentId && !seen.has(parentId)) {
+    const parent = groupsById.get(parentId);
+    if (!parent) break;
+    chain.unshift(parent);
+    seen.add(parent.id);
+    parentId = parent.parent_id;
+  }
+  return chain;
+}
+
+/**
+ * IDs of every group nested (at any depth) under `groupId`.
+ */
+export function getDescendantIds(groups: DeviceGroup[], groupId: string): Set<string> {
+  const childrenByParent = new Map<string, string[]>();
+  groups.forEach((group) => {
+    if (!group.parent_id) return;
+    const siblings = childrenByParent.get(group.parent_id) ?? [];
+    siblings.push(group.id);
+    childrenByParent.set(group.parent_id, siblings);
+  });
+
+  const descendants = new Set<string>();
+  const stack = [...(childrenByParent.get(groupId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (descendants.has(id) || id === groupId) continue;
+    descendants.add(id);
+    stack.push(...(childrenByParent.get(id) ?? []));
+  }
+  return descendants;
+}
+
+/**
+ * Placeholder and helper text for the value input of a filter rule.
+ */
+export function getFieldValueHint(field: DeviceFilterableField): { placeholder: string; help: string } {
+  switch (field) {
+    case 'id':
+      return { placeholder: 'e.g. plc-', help: 'Matched against the device identifier.' };
+    case 'dms_owner':
+      return { placeholder: 'e.g. factory-ra', help: 'ID of the Registration Authority that owns the device.' };
+    case 'tags':
+      return { placeholder: 'e.g. production', help: 'Matches devices carrying this tag.' };
+    case 'status':
+      return { placeholder: 'Select status', help: 'Current lifecycle status of the device.' };
+    case 'creation_timestamp':
+      return { placeholder: '', help: 'Date the device was registered.' };
+    case 'metadata':
+      return { placeholder: '$.site == "bilbao"', help: 'JSONPath expression evaluated against device metadata.' };
+    default:
+      return { placeholder: 'Enter value', help: '' };
+  }
 }

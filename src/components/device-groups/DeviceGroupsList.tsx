@@ -1,17 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
+import { Edit, Eye, FolderPlus, MoreVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,253 +15,193 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { MoreHorizontal, Eye, Edit, Trash2, Users, ChevronRight, ChevronDown, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import type { DeviceGroupNode } from '@/lib/device-groups-utils';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { SortableTableHead } from '@/components/shared/SortableTableHead';
+import { HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
+import { cn } from '@/lib/utils';
+import { buildDeviceGroupTree, formatFilterCriteria, normalizeFilterCriteria, type DeviceGroupNode } from '@/lib/device-groups-utils';
+import { flattenTree } from '@/lib/tree-table';
+import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
+import { useSortState } from '@/hooks/useSortState';
+import type { DeviceGroup } from '@/types/device-group';
+import { DeviceGroupStatusBar } from './DeviceGroupStatusBar';
+
+type SortableColumn = 'name' | 'updated_at';
 
 interface DeviceGroupsListProps {
-  groups: DeviceGroupNode[];
-  onDelete: (groupId: string) => void;
+  groups: DeviceGroup[];
+  searchQuery: string;
+  /** Group IDs whose children are hidden. */
+  collapsedIds: ReadonlySet<string>;
+  onToggleCollapsed: (groupId: string) => void;
+  onDelete: (group: DeviceGroup) => void;
+  statsRefreshKey: number;
 }
 
-type SortableColumn = 'name' | 'description' | 'created_at';
-type SortDirection = 'asc' | 'desc';
-
-interface SortConfig {
-  column: SortableColumn;
-  direction: SortDirection;
+function matchesQuery(group: DeviceGroup, query: string): boolean {
+  return group.name.toLowerCase().includes(query) || (group.description ?? '').toLowerCase().includes(query);
 }
 
-export function DeviceGroupsList({ groups, onDelete }: DeviceGroupsListProps) {
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<DeviceGroupNode | null>(null);
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'name', direction: 'asc' });
+function RulesCell({ group }: Readonly<{ group: DeviceGroup }>) {
+  const rules = normalizeFilterCriteria(group.criteria ?? []);
+  if (rules.length === 0) {
+    return <span className="text-xs text-muted-foreground">{group.parent_id ? 'Inherits parent rules' : 'All devices'}</span>;
+  }
+  const [first, ...rest] = rules;
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 truncate rounded-sm border bg-muted/50 px-1.5 py-0.5 text-xs" title={formatFilterCriteria(first.field, first.operand, first.value)}>
+        {formatFilterCriteria(first.field, first.operand, first.value)}
+      </span>
+      {rest.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span><Badge variant="secondary" className="cursor-default">+{rest.length}</Badge></span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm">
+            <ul className="space-y-0.5">
+              {rest.map((rule, i) => (
+                <li key={`${rule.field}-${i}`}>AND {formatFilterCriteria(rule.field, rule.operand, rule.value)}</li>
+              ))}
+            </ul>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  );
+}
 
-  const handleDeleteClick = (group: DeviceGroupNode) => {
-    setSelectedGroup(group);
-    setDeleteDialogOpen(true);
-  };
+function DeviceCountCell({ groupId, refreshKey }: Readonly<{ groupId: string; refreshKey: number }>) {
+  const { stats, isLoading, error } = useDeviceGroupStats(groupId, refreshKey);
+  if (isLoading) return <Skeleton className="ml-auto h-8 w-24" />;
+  if (error || !stats) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <div className="ml-auto w-24 space-y-1 text-right">
+      <p className="text-sm font-medium tabular-nums">{stats.total.toLocaleString()}</p>
+      <DeviceGroupStatusBar stats={stats} />
+    </div>
+  );
+}
 
-  const handleConfirmDelete = () => {
-    if (selectedGroup) {
-      onDelete(selectedGroup.id);
-      setDeleteDialogOpen(false);
-      setSelectedGroup(null);
-    }
-  };
+export function DeviceGroupsList({
+  groups,
+  searchQuery,
+  collapsedIds,
+  onToggleCollapsed,
+  onDelete,
+  statsRefreshKey,
+}: Readonly<DeviceGroupsListProps>) {
+  const { sortColumn, sortDirection, requestSort } = useSortState<SortableColumn>('name', ['updated_at']);
+  const query = searchQuery.trim().toLowerCase();
 
-  const toggleNode = (nodeId: string) => {
-    setExpandedNodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
-      } else {
-        newSet.add(nodeId);
-      }
-      return newSet;
+  const rows = useMemo(() => {
+    const factor = sortDirection === 'asc' ? 1 : -1;
+    return flattenTree(buildDeviceGroupTree(groups), {
+      getId: (node) => node.id,
+      getChildren: (node) => node.children,
+      collapsedIds,
+      isMatch: query ? (node: DeviceGroupNode) => matchesQuery(node, query) : undefined,
+      compare: (a, b) =>
+        sortColumn === 'updated_at'
+          ? (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * factor
+          : a.name.localeCompare(b.name) * factor,
     });
-  };
-
-  const requestSort = (column: SortableColumn) => {
-    let direction: SortDirection = 'asc';
-    if (sortConfig.column === column && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ column, direction });
-  };
-
-  // Sort groups while maintaining hierarchy
-  const sortGroups = (nodes: DeviceGroupNode[]): DeviceGroupNode[] => {
-    const sorted = [...nodes].sort((a, b) => {
-      let aValue: string | Date;
-      let bValue: string | Date;
-
-      if (sortConfig.column === 'created_at') {
-        aValue = new Date(a.created_at);
-        bValue = new Date(b.created_at);
-        const comparison = aValue.getTime() - bValue.getTime();
-        return sortConfig.direction === 'asc' ? comparison : -comparison;
-      } else {
-        aValue = a[sortConfig.column]?.toLowerCase() || '';
-        bValue = b[sortConfig.column]?.toLowerCase() || '';
-        const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-        return sortConfig.direction === 'asc' ? comparison : -comparison;
-      }
-    });
-
-    // Recursively sort children
-    return sorted.map(node => ({
-      ...node,
-      children: node.children ? sortGroups(node.children) : [],
-    }));
-  };
-
-  const sortedGroups = sortGroups(groups);
-
-  // Build visible groups based on expanded state
-  const getVisibleGroups = (nodes: DeviceGroupNode[]): DeviceGroupNode[] => {
-    const visible: DeviceGroupNode[] = [];
-    
-    const traverse = (node: DeviceGroupNode) => {
-      visible.push(node);
-      if (expandedNodes.has(node.id) && node.children && node.children.length > 0) {
-        node.children.forEach(child => traverse(child));
-      }
-    };
-    
-    nodes.forEach(node => traverse(node));
-    return visible;
-  };
-
-  const visibleGroups = getVisibleGroups(sortedGroups);
-
-  const SortableTableHeader: React.FC<{ column: SortableColumn; title: string; className?: string }> = ({ column, title, className }) => {
-    const isSorted = sortConfig?.column === column;
-    let Icon = ChevronsUpDown;
-    if (isSorted) {
-      if (column === 'created_at') {
-        Icon = sortConfig?.direction === 'asc' ? ArrowUp01 : ArrowDown10;
-      } else {
-        Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
-      }
-    }
-
-    return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/60", className)} onClick={() => requestSort(column)}>
-        <div className="flex items-center gap-1">
-          {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
-        </div>
-      </TableHead>
-    );
-  };
+  }, [groups, query, collapsedIds, sortColumn, sortDirection]);
 
   return (
-    <>
+    <TooltipProvider>
       <Table>
         <TableHeader>
           <TableRow>
-            <SortableTableHeader column="name" title="Name" />
-            <SortableTableHeader column="description" title="Description" />
-            <SortableTableHeader column="created_at" title="Created" />
-            <TableHead className="text-right">Actions</TableHead>
+            <SortableTableHead column="name" title="Group" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="min-w-[280px]" />
+            <TableHead className="w-[32%]">Membership rules</TableHead>
+            <TableHead className="w-[140px] text-right">Devices</TableHead>
+            <SortableTableHead column="updated_at" title="Last updated" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" isDateColumn className="w-[160px]" />
+            <TableHead className="w-[60px] text-right"><span className="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-            {visibleGroups.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  No groups found
-                </TableCell>
-              </TableRow>
-            ) : (
-              visibleGroups.map((group) => {
-                const hasChildren = group.children && group.children.length > 0;
-                const isExpanded = expandedNodes.has(group.id);
-                
-                return (
-                  <TableRow key={group.id}>
-                    <TableCell className="font-medium">
-                      <div
-                        className="flex items-center gap-2"
-                        style={{ paddingLeft: `${group.level * 24}px` }}
-                      >
-                        {hasChildren ? (
-                          <button
-                            onClick={() => toggleNode(group.id)}
-                            className="p-0.5 hover:bg-accent rounded flex-shrink-0"
-                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        ) : (
-                          <span className="w-5 flex-shrink-0" />
-                        )}
-                        <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <Link
-                          href={`/device-groups/details?groupId=${group.id}`}
-                          className="hover:underline truncate"
-                        >
-                          {group.name}
+          {rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                No groups match &quot;{searchQuery.trim()}&quot;.
+              </TableCell>
+            </TableRow>
+          ) : (
+            rows.map(({ node, level, matches, hasVisibleChildren }) => {
+              const childCount = node.children.length;
+              const isCollapsed = !query && collapsedIds.has(node.id);
+              return (
+                <TableRow key={node.id} className={cn('has-aria-expanded:bg-transparent', !matches && 'opacity-60')}>
+                  <TableCell>
+                    <TreeNodeCell
+                      level={level}
+                      label={node.name}
+                      hasChildren={hasVisibleChildren}
+                      isCollapsed={isCollapsed}
+                      onToggle={() => onToggleCollapsed(node.id)}
+                      toggleDisabled={Boolean(query)}
+                    >
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Link href={`/device-groups/details?groupId=${node.id}`} className="truncate font-medium hover:underline">
+                          <HighlightedText text={node.name} query={query} />
                         </Link>
+                        {childCount > 0 && (
+                          <Badge variant="secondary">{childCount} subgroup{childCount === 1 ? '' : 's'}</Badge>
+                        )}
                       </div>
-                    </TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {group.description || <span className="text-muted-foreground">—</span>}
+                      {node.description && (
+                        <p className="mt-0.5 line-clamp-1 max-w-xl text-xs text-muted-foreground" title={node.description}>
+                          <HighlightedText text={node.description} query={query} />
+                        </p>
+                      )}
+                    </TreeNodeCell>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {formatDistanceToNow(new Date(group.created_at), { addSuffix: true })}
+                  <TableCell className="max-w-0">
+                    <RulesCell group={node} />
+                  </TableCell>
+                  <TableCell>
+                    <DeviceCountCell groupId={node.id} refreshKey={statsRefreshKey} />
+                  </TableCell>
+                  <TableCell>
+                    <DateDisplay date={node.updated_at} className="text-xs" relativeClassName="text-xs" />
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Open menu</span>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${node.name}`}>
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem asChild>
-                          <Link href={`/device-groups/details?groupId=${group.id}`}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
+                          <Link href={`/device-groups/details?groupId=${node.id}`}>
+                            <Eye className="mr-2 h-4 w-4" /> View Details
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/device-groups/edit?groupId=${group.id}`}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
+                          <Link href={`/device-groups/edit?groupId=${node.id}`}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/device-groups/new?parentId=${node.id}`}>
+                            <FolderPlus className="mr-2 h-4 w-4" /> Add Subgroup
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => handleDeleteClick(group)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(node)}>
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Device Group</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{selectedGroup?.name}&quot;? This action cannot be
-              undone. Devices will not be deleted, only the group definition.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </TooltipProvider>
   );
 }

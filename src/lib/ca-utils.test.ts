@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterCaList, type CaStatusFilter, type CaTypeFilter } from './ca-utils'
+import { filterCaList, getEffectiveCaStatus, type CaStatusFilter, type CaTypeFilter } from './ca-utils'
 import type { CA } from './ca-data'
 
 function makeCa(overrides: Partial<CA> = {}): CA {
@@ -7,7 +7,7 @@ function makeCa(overrides: Partial<CA> = {}): CA {
     id: 'ca-default',
     name: 'Default CA',
     status: 'active',
-    expires: '2025-01-01T00:00:00Z',
+    expires: '2099-01-01T00:00:00Z',
     issuer: 'Self-signed',
     serialNumber: '1',
     keyAlgorithm: 'RSA 2048',
@@ -346,6 +346,32 @@ describe('ca-utils', () => {
 
       expect(result).toHaveLength(1)
       expect(result[0].children![0].children![0].children![0].name).toBe('Deep Match')
+    })
+
+    it('filters by effective status: a stored-active CA past its expiry counts as expired', () => {
+      const lapsed = makeCa({ id: 'lapsed', name: 'Lapsed CA', status: 'active', expires: '2020-01-01T00:00:00Z' })
+      const current = makeCa({ id: 'current', name: 'Current CA' })
+
+      expect(filterCaList([lapsed, current], { selectedStatuses: ['expired'] }).map(ca => ca.id)).toEqual(['lapsed'])
+      expect(filterCaList([lapsed, current], { selectedStatuses: ['active'] }).map(ca => ca.id)).toEqual(['current'])
+    })
+  })
+
+  describe('getEffectiveCaStatus', () => {
+    const now = Date.parse('2026-06-01T00:00:00Z')
+
+    it('keeps the stored status while the certificate is valid', () => {
+      expect(getEffectiveCaStatus({ status: 'active', expires: '2027-01-01T00:00:00Z' }, now)).toBe('active')
+      expect(getEffectiveCaStatus({ status: 'unknown', expires: '2027-01-01T00:00:00Z' }, now)).toBe('unknown')
+    })
+
+    it('treats a certificate past its expiry date as expired, whatever the stored status says', () => {
+      expect(getEffectiveCaStatus({ status: 'active', expires: '2026-05-31T23:59:59Z' }, now)).toBe('expired')
+      expect(getEffectiveCaStatus({ status: 'unknown', expires: '2026-05-31T23:59:59Z' }, now)).toBe('expired')
+    })
+
+    it('reports revoked CAs as revoked even after they expire', () => {
+      expect(getEffectiveCaStatus({ status: 'revoked', expires: '2020-01-01T00:00:00Z' }, now)).toBe('revoked')
     })
   })
 })

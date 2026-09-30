@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, UploadCloud } from "lucide-react";
+import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Table2, UploadCloud } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -15,23 +15,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
-import { filterCaList } from '@/lib/ca-utils';
+import { filterCaList, hasActiveCaFilters } from '@/lib/ca-utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
 
-
-const CaFilesystemView = dynamic(() => 
-  import('@/components/ca/CaFilesystemView').then(mod => mod.CaFilesystemView), 
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading List View...</p>
-      </div>
-    )
-  }
-);
 
 const CaHierarchyView = dynamic(() => 
   import('@/components/ca/CaHierarchyView').then(mod => mod.CaHierarchyView), 
@@ -41,6 +28,19 @@ const CaHierarchyView = dynamic(() =>
       <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg">Loading Hierarchy View...</p>
+      </div>
+    )
+  }
+);
+
+const CaTableView = dynamic(() =>
+  import('@/components/ca/CaTableView').then(mod => mod.CaTableView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg">Loading Table View...</p>
       </div>
     )
   }
@@ -59,10 +59,13 @@ const CaGraphView = dynamic(() =>
   }
 );
 
-type ViewMode = 'list' | 'hierarchy' | 'graph';
+type ViewMode = 'table' | 'hierarchy' | 'graph';
+
+// Views that render crypto engine details and so wait for engines to load.
+const ENGINE_VIEWS: ReadonlySet<ViewMode> = new Set(['table']);
 
 const VIEW_MODE_OPTIONS: ViewModeOption<ViewMode>[] = [
-    { value: 'list', icon: List, label: 'List' },
+    { value: 'table', icon: Table2, label: 'Table' },
     { value: 'hierarchy', icon: Network, label: 'Hierarchy' },
     { value: 'graph', icon: GitFork, label: 'Graph' },
 ];
@@ -85,7 +88,7 @@ export default function CertificateAuthoritiesPage() {
   const [cas, setCas] = useState<CA[]>([]);
   const [isLoadingCas, setIsLoadingCas] = useState(true);
   const [errorCas, setErrorCas] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   // Filtering state
   const [filterText, setFilterText] = useState('');
@@ -130,22 +133,20 @@ export default function CertificateAuthoritiesPage() {
     loadData();
   }, [loadData]);
 
-  const filteredCAs = useMemo(() => {
-    return filterCaList(cas, {
-      filterText,
-      selectedStatuses,
-      selectedTypes
-    });
-  }, [cas, filterText, selectedStatuses, selectedTypes]);
+  const filters = useMemo(() => ({ filterText, selectedStatuses, selectedTypes }), [filterText, selectedStatuses, selectedTypes]);
+  const filteredCAs = useMemo(() => filterCaList(cas, filters), [cas, filters]);
+  const isFiltering = hasActiveCaFilters(filters);
+  const needsEngines = ENGINE_VIEWS.has(viewMode);
+  const hasError = Boolean(errorCas || (needsEngines && errorCryptoEngines));
 
 
   const handleCreateNewCAClick = () => {
     router.push('/certificate-authorities/new');
   };
 
-  if ((isLoadingCas && cas.length === 0) || (isLoadingCryptoEngines && viewMode === 'list')) {
+  if ((isLoadingCas && cas.length === 0) || (isLoadingCryptoEngines && needsEngines)) {
     let loadingText = "Loading Certification Authorities...";
-    if (isLoadingCryptoEngines && viewMode === 'list') loadingText = "Loading Crypto Engines for List View...";
+    if (isLoadingCryptoEngines && needsEngines) loadingText = "Loading Crypto Engines...";
     
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
@@ -225,22 +226,22 @@ export default function CertificateAuthoritiesPage() {
             </div>
           </div>
       <div className="pt-6">
-          {(errorCas || (viewMode === 'list' && errorCryptoEngines)) && (
+          {hasError && (
             <Alert variant="destructive">
               <AlertCircleIcon className="h-4 w-4" />
               <AlertTitle>Error Loading Data</AlertTitle>
               {errorCas && <AlertDescription>CAs: {errorCas}</AlertDescription>}
-              {viewMode === 'list' && errorCryptoEngines && <AlertDescription>Crypto Engines: {errorCryptoEngines}</AlertDescription>}
+              {needsEngines && errorCryptoEngines && <AlertDescription>Crypto Engines: {errorCryptoEngines}</AlertDescription>}
               <AlertDescription>
                 <Button variant="link" onClick={loadData} className="p-0 h-auto">Try again?</Button>
               </AlertDescription>
             </Alert>
           )}
           
-          {!(errorCas || (viewMode === 'list' && errorCryptoEngines)) && filteredCAs.length > 0 ? (
+          {!hasError && filteredCAs.length > 0 ? (
             <>
-              {viewMode === 'list' && (
-                <CaFilesystemView cas={filteredCAs} router={router} allCAs={cas} allCryptoEngines={allCryptoEngines} />
+              {viewMode === 'table' && (
+                <CaTableView cas={filteredCAs} allCryptoEngines={allCryptoEngines} filters={filters} />
               )}
               {viewMode === 'hierarchy' && (
                 <CaHierarchyView cas={filteredCAs} router={router} allCAs={cas} allCryptoEngines={allCryptoEngines} />
@@ -250,11 +251,11 @@ export default function CertificateAuthoritiesPage() {
               )}
             </>
           ) : (
-            !errorCas && !(viewMode === 'list' && errorCryptoEngines) && (
+            !hasError && (
               <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-                <h3 className="text-lg font-semibold text-muted-foreground">{filterText || selectedStatuses.length > 0 || selectedTypes.length > 0 ? 'No Matching CAs Found' : 'No Certification Authorities Configured'}</h3>
+                <h3 className="text-lg font-semibold text-muted-foreground">{isFiltering ? 'No Matching CAs Found' : 'No Certification Authorities Configured'}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {filterText || selectedStatuses.length > 0 || selectedTypes.length > 0 ? 'Try adjusting your filters.' : 'There are no CAs in the system yet.'}
+                  {isFiltering ? 'Try adjusting your filters.' : 'There are no CAs in the system yet.'}
                 </p>
               </div>
             )

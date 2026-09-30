@@ -4,6 +4,7 @@
 
 import './globals.css';
 import { ThemedToaster } from '@/components/shared/ThemedToaster';
+import { FullPageLoader } from '@/components/shared/FullPageLoader';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -12,7 +13,9 @@ import Script from 'next/script';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { matchAndGetGlobalCapabilities, getPrincipal } from '@/lib/authz-api';
+import { getPrincipal } from '@/lib/authz-api';
+import { usePlatformAccess } from '@/hooks/usePlatformAccess';
+import { AccessDeniedScreen } from '@/components/shared/AccessDeniedScreen';
 import type { Principal } from '@/types/authz';
 import {
   SidebarProvider,
@@ -188,13 +191,8 @@ const navigationConfig: NavGroup[] = [
 ];
 
 
-const LoadingState = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground w-full p-6 text-center">
-    <Loader2 className="h-16 w-16 animate-spin text-primary" />
-    <p className="mt-6 text-lg text-muted-foreground">
-      Loading application...
-    </p>
-  </div>
+const LoadingState = ({ title = 'Loading Application', message = 'Preparing the dashboard…' }: { title?: string; message?: string }) => (
+  <FullPageLoader title={title} message={message} />
 );
 
 const CustomFooter = () => {
@@ -311,7 +309,15 @@ const MatchedPrincipalsList = ({ principals }: Readonly<{ principals: Principal[
   );
 };
 
-const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
+interface MainLayoutContentProps {
+  children: React.ReactNode;
+  isWizardMode?: boolean;
+  /** Map of "schema.entity_type" → allowed global actions. `null` disables capability-based filtering. */
+  globalCapabilities: Record<string, string[]> | null;
+  matchedPrincipalIds: string[];
+}
+
+const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matchedPrincipalIds }: MainLayoutContentProps) => {
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const {
@@ -330,30 +336,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
-  const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
-  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
-  const [matchedPrincipalIds, setMatchedPrincipalIds] = useState<string[]>([]);
   const [matchedPrincipals, setMatchedPrincipals] = useState<Principal[] | null>(null);
-
-  useEffect(() => {
-    if (!user?.access_token) {
-      setGlobalCapabilities(null);
-      setMatchedPrincipalIds([]);
-      setCapabilitiesLoaded(true);
-      return;
-    }
-
-    matchAndGetGlobalCapabilities({ auth_type: 'oidc', auth_material: user.access_token })
-      .then(res => {
-        setGlobalCapabilities(res.global_actions);
-        setMatchedPrincipalIds(res.matched_principals ?? []);
-      })
-      .catch(() => {
-        setGlobalCapabilities(null);
-        setMatchedPrincipalIds([]);
-      })
-      .finally(() => setCapabilitiesLoaded(true));
-  }, [user?.access_token]);
 
   // Fetch principal details when the profile modal opens
   useEffect(() => {
@@ -440,10 +423,6 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       window.location.reload();
     }
   };
-
-  if (!capabilitiesLoaded) {
-    return <LoadingState />;
-  }
 
   return (
     <TooltipProvider>
@@ -847,12 +826,14 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
 
 const InnerLayout = ({ children }: { children: React.ReactNode }) => {
-  const { isLoading: authIsLoading, isLoggedIn, user } = useAuth();
+  const { isLoading: authIsLoading, isLoggedIn, user, logout } = useAuth();
   const [clientMounted, setClientMounted] = React.useState(false);
   const pathname = usePathname();
   const authenticatedAppKey = isLoggedIn
     ? `${user?.profile.iss ?? 'unknown'}:${user?.profile.sub ?? 'unknown'}`
     : 'anonymous';
+  const access = usePlatformAccess(user?.access_token, authenticatedAppKey, !authIsLoading && isLoggedIn);
+  const isAuthorized = access.status === 'authorized';
 
   // State to determine if the wizard should be shown
   const [isWizardMode, setIsWizardMode] = useState(false);
@@ -908,13 +889,16 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     setClientMounted(true);
     if (!authIsLoading && isLoggedIn) {
-      checkSystemStatus();
+      // The system check (wizard) only runs once the user is allowed into the platform.
+      if (isAuthorized) {
+        checkSystemStatus();
+      }
     } else if (!authIsLoading && !isLoggedIn) {
       // If not authenticated, not in wizard mode and not checking
       setIsWizardMode(false);
       setIsCheckingSystem(false);
     }
-  }, [authenticatedAppKey, authIsLoading, checkSystemStatus, isLoggedIn]);
+  }, [authenticatedAppKey, authIsLoading, checkSystemStatus, isLoggedIn, isAuthorized]);
 
 
   const isCallbackPage =
@@ -930,19 +914,43 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     return <LoadingState />;
   }
 
-  if (authIsLoading || isCheckingSystem) {
-    return <LoadingState />;
+  if (authIsLoading) {
+    return <LoadingState title="Checking Session" message="Verifying your sign-in status…" />;
   }
 
   if (!isLoggedIn) {
     return <UnauthenticatedLayoutContent />;
   }
 
-  if (isWizardMode) {
-    return <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
+  if (access.status === 'loading') {
+    return <LoadingState title="Loading Permissions" message="Checking what you have access to…" />;
   }
 
-  return <MainLayoutContent key={authenticatedAppKey}>{children}</MainLayoutContent>;
+  if (access.status === 'unauthorized' || access.status === 'error') {
+    return (
+      <AccessDeniedScreen
+        reason={access.status}
+        userLabel={user?.profile.email || user?.profile.name}
+        onLogout={logout}
+        onRetry={access.status === 'error' ? access.retry : undefined}
+      />
+    );
+  }
+
+  if (isCheckingSystem) {
+    return <LoadingState title="Checking System Status" message="Contacting Lamassu services…" />;
+  }
+
+  const capabilityProps = {
+    globalCapabilities: access.globalCapabilities,
+    matchedPrincipalIds: access.matchedPrincipalIds,
+  };
+
+  if (isWizardMode) {
+    return <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true} {...capabilityProps}><InitializationWizard /></MainLayoutContent>;
+  }
+
+  return <MainLayoutContent key={authenticatedAppKey} {...capabilityProps}>{children}</MainLayoutContent>;
 };
 
 

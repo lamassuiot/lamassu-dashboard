@@ -91,10 +91,8 @@ export default function EditDeviceGroupClient() {
   return (
     <BreadcrumbPage items={crumbs} className="space-y-5 pb-8">
       <div className="w-[80%] mx-auto mb-8">
-        {header(<>Modify the configuration for &quot;{group.name}&quot;</>)}
-        <div className="pt-8">
-          <DeviceGroupForm mode="edit" existingGroup={group} />
-        </div>
+        {header(<>Update the name, placement and membership rules of &quot;{group.name}&quot;.</>)}
+        <DeviceGroupForm mode="edit" existingGroup={group} />
       </div>
     </BreadcrumbPage>
   );

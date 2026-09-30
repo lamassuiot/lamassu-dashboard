@@ -2,15 +2,15 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
+import { fetchAndProcessCAs, findCaById, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
@@ -34,6 +34,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
+import { getEffectiveCaStatus } from '@/lib/ca-utils';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -77,8 +78,19 @@ const calculateExpirationDate = (durationStr: string): Date => {
   return add(new Date(), duration);
 };
 
+/** Parents must be able to sign: active and not an external public CA. */
+const canBeParentCa = (ca: CA) => ca.rawApiData?.certificate.type !== 'EXTERNAL_PUBLIC' && getEffectiveCaStatus(ca) === 'active';
+
+const showInvalidParentError = (ca: CA) => sileo.error({
+  title: "Invalid Parent Certification Authority",
+  description: `Certification Authority "${ca.name}" cannot be used as a parent as it's external-public or not active.`
+});
+
 export default function CreateCaGeneratePage() {
   const router = useRouter();
+  // Set by "Create Sub-CA" actions to start as an intermediate CA under this parent.
+  const preselectedParentCaId = useSearchParams().get('parentCaId');
+  const hasAppliedPreselectedParent = useRef(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -180,6 +192,24 @@ export default function CreateCaGeneratePage() {
   useEffect(() => {
     loadDependencies();
   }, [loadDependencies]);
+
+  useEffect(() => {
+    if (!preselectedParentCaId || hasAppliedPreselectedParent.current || availableParentCAs.length === 0) return;
+    hasAppliedPreselectedParent.current = true;
+
+    const parent = findCaById(preselectedParentCaId, availableParentCAs);
+    if (!parent) {
+      sileo.error({ title: "Parent Certification Authority Not Found", description: `No Certification Authority with ID "${preselectedParentCaId}" exists.` });
+      return;
+    }
+    if (!canBeParentCa(parent)) {
+      showInvalidParentError(parent);
+      return;
+    }
+    setCaType('intermediate');
+    setCaExpiration({ type: 'Duration', durationValue: '5y' });
+    setSelectedParentCa(parent);
+  }, [preselectedParentCaId, availableParentCAs]);
 
   // Validate CA profile when selected in reuse mode
   useEffect(() => {
@@ -298,11 +328,8 @@ export default function CreateCaGeneratePage() {
   };
 
   const handleParentCaSelectFromModal = (ca: CA) => {
-    if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
-      sileo.error({
-        title: "Invalid Parent Certification Authority",
-        description: `Certification Authority "${ca.name}" cannot be used as a parent as it's external-public or not active.`
-      });
+    if (!canBeParentCa(ca)) {
+      showInvalidParentError(ca);
       return;
     }
     setSelectedParentCa(ca);

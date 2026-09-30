@@ -1,80 +1,62 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useMemo } from 'react';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, FolderTree } from 'lucide-react';
-import { getDeviceGroups } from '@/lib/device-groups-api';
+import { AlertCircle, FolderTree, Layers } from 'lucide-react';
+import { buildDeviceGroupTree, getDescendantIds, type DeviceGroupNode } from '@/lib/device-groups-utils';
 import type { DeviceGroup } from '@/types/device-group';
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
+
+const NO_PARENT = '__none__';
 
 interface ParentGroupSelectorProps {
   value: string | null;
   onChange: (value: string | null) => void;
-  excludeGroupId?: string; // Exclude this group to prevent self-selection
+  groups: DeviceGroup[];
+  isLoading: boolean;
+  loadError: string | null;
+  /** Group being edited: it and its descendants cannot become its parent. */
+  excludeGroupId?: string;
   error?: string;
 }
 
 export function ParentGroupSelector({
   value,
   onChange,
+  groups,
+  isLoading,
+  loadError,
   excludeGroupId,
   error,
-}: ParentGroupSelectorProps) {
-  const [groups, setGroups] = useState<DeviceGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchGroups = async () => {
-      
-      try {
-        setIsLoading(true);
-        setLoadError(null);
-        const response = await getDeviceGroups({
-          pageSize: 100,
-          sortBy: 'name',
-          sortMode: 'asc',
-        });
-
-        // Filter out the current group to prevent self-selection
-        const availableGroups = excludeGroupId
-          ? response.list.filter((g) => g.id !== excludeGroupId)
-          : response.list;
-
-        setGroups(availableGroups);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch groups';
-        setLoadError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
+}: Readonly<ParentGroupSelectorProps>) {
+  const options = useMemo(() => {
+    const excluded = excludeGroupId ? new Set([excludeGroupId, ...getDescendantIds(groups, excludeGroupId)]) : new Set<string>();
+    const flat: DeviceGroupNode[] = [];
+    const walk = (node: DeviceGroupNode) => {
+      if (excluded.has(node.id)) return;
+      flat.push(node);
+      node.children.forEach(walk);
     };
-
-    fetchGroups();
-  }, [excludeGroupId]);
+    buildDeviceGroupTree(groups).forEach(walk);
+    return flat;
+  }, [groups, excludeGroupId]);
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        <Label>Parent Group (Optional)</Label>
-        <Skeleton className="h-10 w-full" />
+      <div className="space-y-1.5">
+        <Label>Parent group</Label>
+        <Skeleton className="h-9 w-full" />
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div className="space-y-2">
-        <Label>Parent Group (Optional)</Label>
+      <div className="space-y-1.5">
+        <Label>Parent group</Label>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{loadError}</AlertDescription>
@@ -84,48 +66,29 @@ export function ParentGroupSelector({
   }
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor="parent-group">Parent Group (Optional)</Label>
-      <Select
-        value={value || 'none'}
-        onValueChange={(val) => onChange(val === 'none' ? null : val)}
-      >
-        <SelectTrigger id="parent-group" aria-invalid={!!error} aria-describedby={error ? 'parent-group-error' : undefined}>
-          <SelectValue placeholder="Select parent group or leave as root" />
+    <div className="space-y-1.5">
+      <Label htmlFor="parent-group">Parent group</Label>
+      <Select value={value || NO_PARENT} onValueChange={(val) => onChange(val === NO_PARENT ? null : val)}>
+        <SelectTrigger id="parent-group" className="w-full" aria-invalid={!!error} aria-describedby={error ? 'parent-group-error' : 'parent-group-help'}>
+          <SelectValue />
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">
-            <div className="flex items-center gap-2">
-              <FolderTree className="h-4 w-4 text-muted-foreground" />
-              <span>No Parent (Root Level)</span>
-            </div>
+        <SelectContent className="max-h-80">
+          <SelectItem value={NO_PARENT}>
+            <Layers className="text-muted-foreground" />
+            <span>None (top-level group)</span>
           </SelectItem>
-          {groups.length > 0 && (
-            <>
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                Available Groups
-              </div>
-              {groups.map((group) => (
-                <SelectItem key={group.id} value={group.id}>
-                  <div className="flex items-center gap-2">
-                    <FolderTree className="h-4 w-4 text-muted-foreground" />
-                    <span>{group.name}</span>
-                    {group.description && (
-                      <span className="text-xs text-muted-foreground truncate max-w-xs">
-                        - {group.description}
-                      </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-            </>
-          )}
+          {options.length > 0 && <SelectSeparator />}
+          {options.map((group) => (
+            <SelectItem key={group.id} value={group.id} style={{ paddingLeft: `${8 + group.level * 16}px` }}>
+              <FolderTree className="text-muted-foreground" />
+              <span className="truncate">{group.name}</span>
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       {error && <FormFieldError id="parent-group-error" title={`${error}.`} />}
-      <p className="text-sm text-muted-foreground">
-        Select a parent group to create a hierarchical structure, or leave empty for a root-level
-        group.
+      <p id="parent-group-help" className="text-xs text-muted-foreground">
+        A subgroup contains only devices that also match every rule of its parent groups.
       </p>
     </div>
   );

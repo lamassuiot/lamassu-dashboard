@@ -260,7 +260,6 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
         onCaSelected={handleCaSelectedForIssue}
         currentSelectedCaId={enrollmentCaId}
         allCryptoEngines={allCryptoEngines}
-        useSheet
       />
     </>
   );

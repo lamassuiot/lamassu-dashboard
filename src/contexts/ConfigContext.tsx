@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import { FullPageLoader } from '@/components/shared/FullPageLoader';
 
 interface LamassuConfig {
   LAMASSU_AUTH_ENABLED?: boolean;
@@ -27,15 +27,7 @@ interface ConfigContextType {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 const ConfigLoadingScreen = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
-    <div className="flex flex-col items-center space-y-4 text-center">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      <h2 className="text-xl font-semibold">Loading Configuration</h2>
-      <p className="text-muted-foreground max-w-md">
-        Please wait while we load the application configuration. This may take a few moments.
-      </p>
-    </div>
-  </div>
+  <FullPageLoader title="Loading Configuration" message="Reading the application configuration…" />
 );
 
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
