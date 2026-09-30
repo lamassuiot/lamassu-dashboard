@@ -11,12 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
+import { Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
-import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
+import { DeviceIcon, mapApiIconToIconType } from '@/components/shared/DeviceIcon';
 import { fetchDevices } from '@/lib/devices-api';
 import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
@@ -56,24 +56,6 @@ const defaultDateFilterValue: GenericDateFilterValue = {
   includeTime: false,
 };
 
-
-export const mapApiIconToIconType = (apiIcon: string): string => {
-  return apiIcon || 'HelpCircle'; // Pass through name, or default.
-};
-
-export const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
-  const IconComponent = getLucideIconByName(type);
-
-  return (
-    <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: bgColor || '#F0F8FF' }}>
-      {IconComponent ? (
-        <IconComponent className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      ) : (
-        <HelpCircle className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      )}
-    </div>
-  );
-};
 
 type SortableColumn = 'id' | 'status' | 'deviceGroup' | 'createdAt';
 type SortDirection = 'asc' | 'desc';

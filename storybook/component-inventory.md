@@ -46,6 +46,8 @@ This is the curated list of UI building blocks that should be preferred before c
 | Crypto engine renderer | `src/components/shared/CryptoEngineViewer.tsx` | Manually pairing engine icons and names |
 | Identifier display | `src/components/shared/IdentifierDisplay.tsx` | Repeating copyable or mode-aware ID rendering |
 | Date formatting | `src/components/shared/DateDisplay.tsx` | Rewriting relative/absolute date display logic |
+| Device icon | `src/components/shared/DeviceIcon.tsx` | Hand-rolled tinted device icon tiles. `DeviceIcon` renders a Lucide icon by name with `iconColor`/`bgColor`; `mapApiIconToIconType` normalizes the API icon name (falls back to `HelpCircle`) |
+| Integration icon | `src/components/shared/IntegrationIcon.tsx` | Per-type integration logos (AWS IoT Core, light/dark variants) with a generic fallback |
 | Key strength bars | `src/components/shared/KeyStrengthIndicator.tsx` | One-off crypto strength indicators |
 | Tag input | `src/components/shared/TagInput.tsx` | Custom removable-chip tag editors |
 

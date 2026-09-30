@@ -67,7 +67,6 @@ export const CompactDateDisplay: React.FC<DateDisplayProps> = ({
   date,
   className,
   highlightExpired = false,
-  ...props
 }) => {
   const { displayTime } = useIdentifierDisplay();
 

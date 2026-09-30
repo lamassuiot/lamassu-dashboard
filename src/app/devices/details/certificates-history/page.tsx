@@ -11,7 +11,6 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { format, formatDistanceStrict, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { getDisplayDateFormat } from '@/lib/config';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -147,10 +146,10 @@ export default function CertificatesHistoryPage() {
                   ) : cert.ca}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
-                  <DateDisplay date={cert.validFrom} formatString={getDisplayDateFormat()} className="text-xs" />
+                  <DateDisplay date={cert.validFrom} className="text-xs" />
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
-                  <DateDisplay date={cert.validTo} formatString={getDisplayDateFormat()} className="text-xs" highlightExpired />
+                  <DateDisplay date={cert.validTo} className="text-xs" highlightExpired />
                 </TableCell>
                 <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                 <TableCell>

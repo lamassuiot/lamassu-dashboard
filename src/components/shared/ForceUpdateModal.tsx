@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import type { ApiDevice } from '@/lib/devices-api';
 import type { ApiRaItem } from '@/lib/dms-api';
 import type { DiscoveredIntegration } from '@/lib/integrations-api';
-import { IntegrationIcon } from '@/app/integrations/page';
+import { IntegrationIcon } from '@/components/shared/IntegrationIcon';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface ForceUpdateModalProps {
