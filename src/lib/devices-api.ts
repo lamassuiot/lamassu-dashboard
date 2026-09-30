@@ -306,7 +306,7 @@ export function subscribeToDeviceEventsSSE({
         if (!controller.signal.aborted) {
           connect(1000);
         }
-      } catch (err) {
+      } catch {
         if (controller.signal.aborted) return;
         setConnected(false);
         // Reconnect with backoff (max 10s)

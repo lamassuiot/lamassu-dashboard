@@ -36,7 +36,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check, FileCode2, Type, ZoomIn, Minus, Plus } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -92,33 +92,6 @@ const decodeTokenClaims = (token?: string): DecodedClaims => {
   } catch {
     return {};
   }
-};
-
-const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
-  'certificates': "Certificates",
-  'certificate-authorities': "Certification Authorities",
-  'signing-profiles': "Issuance Profiles",
-  'registration-authorities': "Registration Authorities",
-  'verification-authorities': "Verification Authorities",
-  'new': "New",
-  'details': "Details",
-  'issue-certificate': "Issue Certificate",
-  'kms': "KMS",
-  'keys': "Keys",
-  'devices': "Devices",
-  'device-groups': "Device Groups",
-  'integrations': "Platform Integrations",
-  'crypto-engines': "Crypto Engines",
-  'alerts': "Alerts",
-  'tools': "Tools",
-  'certificate-viewer': "Certificate Viewer",
-  'job-manager': "Job Manager",
-  'jobs': "Jobs",
-  'workflows': "Workflows",
-  'authz': "Authorization",
-  'principals': "Principals",
-  'policies': "Policies",
-  'test': "Authorization Test",
 };
 
 interface NavItem {

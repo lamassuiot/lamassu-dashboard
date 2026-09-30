@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto'
+import { parseCsr } from '@/lib-crypto'
 import { VALID_CSR_PEM, CSR_WITH_SANS_PEM, ECDSA_CSR_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('csr-parser', () => {

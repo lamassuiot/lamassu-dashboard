@@ -34,8 +34,6 @@ interface DecodedImportedCertInfo {
   error?: string;
 }
 
-const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
-
 export default function CreateCaImportFullPage() {
   const router = useRouter();
 

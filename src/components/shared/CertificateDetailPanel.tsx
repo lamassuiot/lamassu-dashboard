@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { Separator } from '@/components/ui/separator';
 
 interface Props {
   certificate: CertificateData;

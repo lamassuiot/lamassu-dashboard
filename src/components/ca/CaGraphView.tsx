@@ -152,7 +152,6 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
   const isExpired = isPast(parseISO(ca.expires));
   const status = isExpired ? 'expired' : ca.status;
 
-  let statusIcon: React.ReactNode;
   let statusBadge: React.ReactNode;
   let nodeBgColor = 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/60 dark:to-blue-900/40';
   let iconBgColor = 'bg-blue-500 dark:bg-blue-600';
@@ -160,13 +159,10 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
   let titleColor = 'text-blue-900 dark:text-blue-100';
   let subtextColor = 'text-blue-700 dark:text-blue-300';
   let borderColor = 'border-blue-300 dark:border-blue-600';
-  let statusBgColor = 'bg-green-100 dark:bg-green-900/50';
-  let statusTextColor = 'text-green-700 dark:text-green-300';
   let shadowColor = 'shadow-blue-200/50 dark:shadow-blue-900/30';
 
   switch (status) {
     case 'active':
-      statusIcon = <CheckCircle className="h-5 w-5 text-green-500" />;
       statusBadge = (
         <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 border border-green-300 dark:border-green-700">
           <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
@@ -175,7 +171,6 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
       );
       break;
     case 'expired':
-      statusIcon = <AlertTriangle className="h-5 w-5 text-orange-500" />;
       nodeBgColor = 'bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/60 dark:to-orange-900/40';
       iconBgColor = 'bg-orange-500 dark:bg-orange-600';
       titleColor = 'text-orange-900 dark:text-orange-100';
@@ -190,7 +185,6 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
       );
       break;
     case 'revoked':
-      statusIcon = <XCircle className="h-5 w-5 text-red-500" />;
       nodeBgColor = 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/60 dark:to-red-900/40';
       iconBgColor = 'bg-red-500 dark:bg-red-600';
       titleColor = 'text-red-900 dark:text-red-100';

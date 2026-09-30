@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   ReactFlow,
   Node,
@@ -618,58 +618,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     });
     syncRulesToParent(latestNodes);
   };
-
-  const onConnect = useCallback(
-    (params: Connection) => {
-      const sourceNode = nodes.find((n) => n.id === params.source);
-      const targetNode = nodes.find((n) => n.id === params.target);
-
-      if (!sourceNode || !targetNode) return;
-
-      // Allow schema -> schema connections with action selection
-      if (sourceNode.type === 'schemaEntity' && targetNode.type === 'schemaEntity') {
-        const targetSchema = schemas.find((s) => `schema-${s.entity_type}` === targetNode.id);
-        if (!targetSchema) return;
-
-        // Get available actions from target schema
-        const actions = [
-          ...(targetSchema.atomic_actions || []),
-          ...(targetSchema.global_actions || []),
-        ];
-
-        setAvailableActions(actions);
-        setSelectedActions([]);
-        setPendingConnection(params);
-        setActionDialogOpen(true);
-        return;
-      }
-
-      // Only allow rule -> schema connections
-      if (sourceNode.type === 'rule' && targetNode.type === 'schemaEntity') {
-        const schema = schemas.find((s) => `schema-${s.entity_type}` === targetNode.id);
-        if (!schema) return;
-
-        // Prompt for relation name if there are relations available
-        const relationNames = Object.values(schema.relations).map((r) => r.name);
-        
-        setEdges((eds) =>
-          addEdge(
-            {
-              ...params,
-              type: 'smoothstep',
-              animated: true,
-              label: relationNames.length > 0 ? `via ${relationNames[0]}` : undefined,
-              style: { stroke: 'hsl(142 76% 36%)', strokeDasharray: '5,5' },
-              markerStart: { type: MarkerType.ArrowClosed },
-            },
-            eds
-          )
-        );
-        syncRulesToParent();
-      }
-    },
-    [nodes, schemas, setEdges]
-  );
 
   const syncRulesToParent = (currentNodes?: Node[]) => {
     if (selectedRuleIndex === null) return;

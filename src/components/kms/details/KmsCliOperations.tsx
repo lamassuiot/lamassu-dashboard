@@ -28,7 +28,6 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
     keyAlias,
     algorithm,
     size,
-    publicKeyPem
 }) => {
     const { user } = useAuth();
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterCaList, getEffectiveCaStatus, type CaStatusFilter, type CaTypeFilter } from './ca-utils'
+import { filterCaList, getEffectiveCaStatus, type CaStatusFilter } from './ca-utils'
 import type { CA } from './ca-data'
 
 function makeCa(overrides: Partial<CA> = {}): CA {

@@ -6,7 +6,7 @@ import type { CertificateData } from '@/types/certificate';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download } from 'lucide-react';
+import { MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +59,6 @@ const getCommonName = (subjectOrIssuer: string): string => {
 export function CertificateList({
   certificates,
   allCAs,
-  onInspectCertificate,
   onCertificateUpdated,
   sortConfig,
   requestSort,

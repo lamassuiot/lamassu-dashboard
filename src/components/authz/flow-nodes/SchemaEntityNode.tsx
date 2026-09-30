@@ -34,7 +34,7 @@ interface SchemaEntityNodeProps {
 }
 
 export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
-  const { schema, isStartingEntity, isPolicyNode, isReadOnly, isInRuleTree = false, onUpdate, onNestedRuleUpdate, nestedRules = [] } = data;
+  const { schema, isStartingEntity, isPolicyNode, isReadOnly, isInRuleTree = false, onUpdate } = data;
   const [selectedActions, setSelectedActions] = React.useState<string[]>(data.actions || []);
   const [ids, setIds] = React.useState<string[]>(data.direct_grants || []);
   const [newId, setNewId] = React.useState('');

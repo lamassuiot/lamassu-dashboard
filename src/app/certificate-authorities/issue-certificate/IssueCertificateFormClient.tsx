@@ -170,13 +170,6 @@ export default function IssueCertificateFormClient() {
     return null;
   }, [validity, issuerCa]);
 
-  const selectedProfile = useMemo(() => {
-    if (profileMode === 'reuse' && selectedProfileId) {
-      return signingProfiles.find(p => p.id === selectedProfileId);
-    }
-    return null;
-  }, [profileMode, selectedProfileId, signingProfiles]);
-
   const issuerCaError = !isLoadingCa && !issuerCa ? 'Issuing CA could not be loaded.' : null;
   const commonNameError = issuanceMode === 'generate' && !commonName.trim()
     ? 'Common Name is required.'
@@ -380,7 +373,7 @@ export default function IssueCertificateFormClient() {
       setCopied(true);
       sileo.success({ title: "Copied!", description: `${type} PEM copied to clipboard.` });
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       sileo.error({ title: "Copy Failed", description: `Could not copy ${type} PEM.` });
     }
   };
