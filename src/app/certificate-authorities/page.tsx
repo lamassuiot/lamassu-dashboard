@@ -62,7 +62,7 @@ const CaGraphView = dynamic(() =>
 type ViewMode = 'table' | 'hierarchy' | 'graph';
 
 // Views that render crypto engine details and so wait for engines to load.
-const ENGINE_VIEWS: ViewMode[] = ['table'];
+const ENGINE_VIEWS: ReadonlySet<ViewMode> = new Set(['table']);
 
 const VIEW_MODE_OPTIONS: ViewModeOption<ViewMode>[] = [
     { value: 'table', icon: Table2, label: 'Table' },
@@ -136,7 +136,7 @@ export default function CertificateAuthoritiesPage() {
   const filters = useMemo(() => ({ filterText, selectedStatuses, selectedTypes }), [filterText, selectedStatuses, selectedTypes]);
   const filteredCAs = useMemo(() => filterCaList(cas, filters), [cas, filters]);
   const isFiltering = hasActiveCaFilters(filters);
-  const needsEngines = ENGINE_VIEWS.includes(viewMode);
+  const needsEngines = ENGINE_VIEWS.has(viewMode);
   const hasError = Boolean(errorCas || (needsEngines && errorCryptoEngines));
 
 

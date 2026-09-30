@@ -37,7 +37,7 @@ export function DeviceStatusChartCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       setIsLoading(true);
       setError(null);
       try {

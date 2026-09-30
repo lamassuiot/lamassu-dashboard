@@ -18,7 +18,7 @@ export function hasActiveCaFilters({ filterText = '', selectedStatuses = [], sel
 /** Whether a single CA (ignoring its descendants) matches the filter criteria. */
 export function caMatchesFilters(ca: CA, { filterText = '', selectedStatuses = [], selectedTypes = [] }: CaFilterOptions): boolean {
   const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(ca.status);
-  const matchesType = selectedTypes.length === 0 || selectedTypes.some(type => ca.caType === type);
+  const matchesType = selectedTypes.length === 0 || selectedTypes.includes(ca.caType as CaTypeFilter);
   const matchesText = !filterText || ca.name.toLowerCase().includes(filterText.toLowerCase());
   return matchesStatus && matchesType && matchesText;
 }

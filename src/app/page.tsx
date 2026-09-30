@@ -43,7 +43,7 @@ interface SummaryStats {
 }
 
 // Mirrors the header and body frame of CaExpiryTimeline so loading/error states don't shift the layout.
-function TimelinePlaceholder({ children }: { children: React.ReactNode }) {
+function TimelinePlaceholder({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <section className="flex h-full w-full flex-col space-y-1.5">
       <div className="min-w-0 space-y-1">
@@ -147,6 +147,31 @@ export default function HomePage() {
   const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats;
 
 
+  let timelineContent: React.ReactNode;
+  if (anyTimelineError) {
+    timelineContent = (
+      <TimelinePlaceholder>
+        <Alert variant="destructive" className="max-w-lg">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Timeline Data</AlertTitle>
+          <AlertDescription>
+            {anyTimelineError}
+            <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80">Try again?</Button>
+          </AlertDescription>
+        </Alert>
+      </TimelinePlaceholder>
+    );
+  } else if (anyTimelineLoading) {
+    timelineContent = (
+      <TimelinePlaceholder>
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading timeline data…</p>
+      </TimelinePlaceholder>
+    );
+  } else {
+    timelineContent = <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />;
+  }
+
   return (
     <BreadcrumbPage className="space-y-8" items={[{ label: 'Home' }]}>
       <div className="flex items-center justify-start">
@@ -156,25 +181,7 @@ export default function HomePage() {
       </div>
       <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch">
         <div className="min-w-0 flex-1">
-          {anyTimelineError ? (
-            <TimelinePlaceholder>
-              <Alert variant="destructive" className="max-w-lg">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error Loading Timeline Data</AlertTitle>
-                <AlertDescription>
-                  {anyTimelineError}
-                  <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80">Try again?</Button>
-                </AlertDescription>
-              </Alert>
-            </TimelinePlaceholder>
-          ) : anyTimelineLoading ? (
-            <TimelinePlaceholder>
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading timeline data…</p>
-            </TimelinePlaceholder>
-          ) : (
-            <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
-          )}
+          {timelineContent}
         </div>
         <div className="w-full xl:max-w-lg xl:flex-none">
           <DeviceStatusChartCard />

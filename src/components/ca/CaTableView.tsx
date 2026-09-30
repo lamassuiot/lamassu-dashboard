@@ -23,7 +23,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
 import { caMatchesFilters, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
-import { collectParentIds, flattenTree, type TreeAccessors } from '@/lib/tree-table';
+import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
 import { useSortState } from '@/hooks/useSortState';
 import { useTreeCollapse } from '@/hooks/useTreeCollapse';
@@ -42,10 +42,10 @@ const PAGE_COLUMNS: ColumnDefinition<ColumnId>[] = [
 ];
 
 // Pickers live in dialogs and drawers, so they start with a narrower set of columns.
-const PICKER_HIDDEN_BY_DEFAULT: ColumnId[] = ['type', 'parentExpiry'];
+const PICKER_HIDDEN_BY_DEFAULT: ReadonlySet<ColumnId> = new Set(['type', 'parentExpiry']);
 const PICKER_COLUMNS: ColumnDefinition<ColumnId>[] = PAGE_COLUMNS.map((column) => ({
   ...column,
-  defaultVisible: !PICKER_HIDDEN_BY_DEFAULT.includes(column.id),
+  defaultVisible: !PICKER_HIDDEN_BY_DEFAULT.has(column.id),
 }));
 
 const CA_TREE: TreeAccessors<CA> = {
@@ -91,13 +91,17 @@ function buildParentMap(cas: readonly CA[]): Map<string, CA> {
   return parents;
 }
 
-function getDisplayStatus(ca: CA): 'REVOKED' | 'EXPIRED' | 'ACTIVE' {
+type DisplayStatus = 'REVOKED' | 'EXPIRED' | 'ACTIVE';
+
+const caDetailsHref = (ca: CA) => `/certificate-authorities/details?caId=${ca.id}`;
+
+function getDisplayStatus(ca: CA): DisplayStatus {
   if (ca.status === 'revoked') return 'REVOKED';
   if (ca.status === 'expired' || isPast(parseISO(ca.expires))) return 'EXPIRED';
   return 'ACTIVE';
 }
 
-function CaIcon({ status, engine }: Readonly<{ status: ReturnType<typeof getDisplayStatus>; engine?: ApiCryptoEngine }>) {
+function CaIcon({ status, engine }: Readonly<{ status: DisplayStatus; engine?: ApiCryptoEngine }>) {
   if (status === 'REVOKED') return <Ban className="h-4 w-4 shrink-0 text-destructive" />;
   if (status === 'EXPIRED') return <ShieldAlert className="h-4 w-4 shrink-0 text-destructive" />;
   if (engine) return <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 shrink-0" />;
@@ -170,6 +174,162 @@ function KeyCell({ keyAlgorithm, engine }: Readonly<{ keyAlgorithm?: string; eng
   );
 }
 
+function CaActionsMenu({ ca, status }: Readonly<{ ca: CA; status: DisplayStatus }>) {
+  const canIssue = status !== 'REVOKED' && ca.caType !== 'EXTERNAL_PUBLIC';
+  // Mirrors the parent checks on the create CA page.
+  const canCreateSubCa = status === 'ACTIVE' && ca.status === 'active' && ca.caType !== 'EXTERNAL_PUBLIC';
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${ca.name}`}>
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem asChild>
+          <Link href={caDetailsHref(ca)}>
+            <Eye className="mr-2 h-4 w-4" /> View Details
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild disabled={!canIssue}>
+          <Link href={`/certificate-authorities/issue-certificate?caId=${ca.id}`}>
+            <FilePlus2 className="mr-2 h-4 w-4" /> Issue Certificate
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild disabled={!canCreateSubCa}>
+          <Link href={`/certificate-authorities/new/generate?parentCaId=${ca.id}`}>
+            <GitBranchPlus className="mr-2 h-4 w-4" /> Create Sub-CA
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface CaNameProps {
+  ca: CA;
+  status: DisplayStatus;
+  engine?: ApiCryptoEngine;
+  query: string;
+  /** Pickers render plain text so selecting a CA never navigates away. */
+  asLink: boolean;
+  isSelected: boolean;
+}
+
+function CaName({ ca, status, engine, query, asLink, isSelected }: Readonly<CaNameProps>) {
+  const childCount = ca.children?.length ?? 0;
+  const subject = [ca.subjectDN?.common_name, ca.subjectDN?.organization].filter(Boolean).join(' · ');
+  const nameClassName = cn('truncate font-medium', status !== 'ACTIVE' && 'text-muted-foreground', isSelected && 'text-primary');
+  const name = <HighlightedText text={ca.name} query={query} />;
+
+  return (
+    <>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <CaIcon status={status} engine={engine} />
+        {asLink ? (
+          <Link href={caDetailsHref(ca)} className={cn(nameClassName, 'hover:underline')}>{name}</Link>
+        ) : (
+          <span className={nameClassName}>{name}</span>
+        )}
+        {childCount > 0 && (
+          <Badge variant="secondary">{childCount} sub-CA{childCount === 1 ? '' : 's'}</Badge>
+        )}
+      </div>
+      {subject && (
+        <p className="mt-0.5 line-clamp-1 max-w-xl text-xs text-muted-foreground" title={subject}>
+          {subject}
+        </p>
+      )}
+    </>
+  );
+}
+
+interface CaTableRowProps {
+  row: TreeTableRow<CA>;
+  engine?: ApiCryptoEngine;
+  parent?: CA;
+  isVisible: (column: ColumnId) => boolean;
+  query: string;
+  isFiltering: boolean;
+  isCollapsed: boolean;
+  onToggle: (caId: string) => void;
+  onSelect?: (ca: CA) => void;
+  isSelected: boolean;
+}
+
+function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isCollapsed, onToggle, onSelect, isSelected }: Readonly<CaTableRowProps>) {
+  const { node: ca, level, matches, hasVisibleChildren } = row;
+  const status = getDisplayStatus(ca);
+  const isPicker = Boolean(onSelect);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+    if (onSelect && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onSelect(ca);
+    }
+  };
+
+  let lastCell: React.ReactNode = <CaActionsMenu ca={ca} status={status} />;
+  if (isPicker) {
+    lastCell = isSelected ? <Check className="ml-auto h-4 w-4 text-primary" aria-label="Selected" /> : null;
+  }
+
+  return (
+    <TableRow
+      // Expand toggles carry aria-expanded, which would otherwise keep every parent row highlighted.
+      className={cn(
+        'has-aria-expanded:bg-transparent',
+        !matches && 'opacity-60',
+        isPicker && 'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
+        isSelected && 'bg-primary/10 hover:bg-primary/15 has-aria-expanded:bg-primary/10',
+      )}
+      onClick={onSelect ? () => onSelect(ca) : undefined}
+      onKeyDown={isPicker ? handleKeyDown : undefined}
+      tabIndex={isPicker ? 0 : undefined}
+      aria-selected={isPicker ? isSelected : undefined}
+    >
+      <TableCell>
+        <TreeNodeCell
+          level={level}
+          label={ca.name}
+          hasChildren={hasVisibleChildren}
+          isCollapsed={isCollapsed}
+          onToggle={() => onToggle(ca.id)}
+          toggleDisabled={isFiltering}
+        >
+          <CaName ca={ca} status={status} engine={engine} query={query} asLink={!isPicker} isSelected={isSelected} />
+        </TreeNodeCell>
+      </TableCell>
+      {isVisible('status') && (
+        <TableCell>
+          <ApiStatusBadge status={status} />
+        </TableCell>
+      )}
+      {isVisible('type') && (
+        <TableCell>
+          <TypeCell caType={ca.caType} />
+        </TableCell>
+      )}
+      {isVisible('key') && (
+        <TableCell className="max-w-0">
+          <KeyCell keyAlgorithm={ca.keyAlgorithm} engine={engine} />
+        </TableCell>
+      )}
+      {isVisible('expires') && (
+        <TableCell>
+          <DateDisplay date={ca.expires} className="text-xs" relativeClassName="text-xs" />
+        </TableCell>
+      )}
+      {isVisible('parentExpiry') && (
+        <TableCell>
+          <ParentExpiryCell ca={ca} parent={parent} />
+        </TableCell>
+      )}
+      <TableCell className="text-right">{lastCell}</TableCell>
+    </TableRow>
+  );
+}
+
 export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSelect, selectedCaId }: Readonly<CaTableViewProps>) {
   const isPicker = Boolean(onSelect);
   const { sortColumn, sortDirection, requestSort } = useSortState<SortableColumn>('name', ['expires']);
@@ -230,128 +390,21 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(({ node: ca, level, matches, hasVisibleChildren }) => {
-              const status = getDisplayStatus(ca);
-              const engine = ca.kmsKeyId ? enginesById.get(ca.kmsKeyId) : undefined;
-              const childCount = ca.children?.length ?? 0;
-              const subject = [ca.subjectDN?.common_name, ca.subjectDN?.organization].filter(Boolean).join(' · ');
-              const canIssue = status !== 'REVOKED' && ca.caType !== 'EXTERNAL_PUBLIC';
-              // Mirrors the parent checks on the create CA page.
-              const canCreateSubCa = status === 'ACTIVE' && ca.status === 'active' && ca.caType !== 'EXTERNAL_PUBLIC';
-              const detailsHref = `/certificate-authorities/details?caId=${ca.id}`;
-
-              const isSelected = isPicker && ca.id === selectedCaId;
-              const nameClassName = cn('truncate font-medium', status !== 'ACTIVE' && 'text-muted-foreground', isSelected && 'text-primary');
-
-              return (
-                <TableRow
-                  key={ca.id}
-                  // Expand toggles carry aria-expanded, which would otherwise keep every parent row highlighted.
-                  className={cn(
-                    'has-aria-expanded:bg-transparent',
-                    !matches && 'opacity-60',
-                    isPicker && 'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
-                    isSelected && 'bg-primary/10 hover:bg-primary/15 has-aria-expanded:bg-primary/10',
-                  )}
-                  onClick={onSelect ? () => onSelect(ca) : undefined}
-                  onKeyDown={onSelect ? (e) => {
-                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      onSelect(ca);
-                    }
-                  } : undefined}
-                  tabIndex={isPicker ? 0 : undefined}
-                  aria-selected={isPicker ? isSelected : undefined}
-                >
-                  <TableCell>
-                    <TreeNodeCell
-                      level={level}
-                      label={ca.name}
-                      hasChildren={hasVisibleChildren}
-                      isCollapsed={!isFiltering && collapsedIds.has(ca.id)}
-                      onToggle={() => toggle(ca.id)}
-                      toggleDisabled={isFiltering}
-                    >
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <CaIcon status={status} engine={engine} />
-                        {isPicker ? (
-                          <span className={nameClassName}>
-                            <HighlightedText text={ca.name} query={query} />
-                          </span>
-                        ) : (
-                          <Link href={detailsHref} className={cn(nameClassName, 'hover:underline')}>
-                            <HighlightedText text={ca.name} query={query} />
-                          </Link>
-                        )}
-                        {childCount > 0 && (
-                          <Badge variant="secondary">{childCount} sub-CA{childCount === 1 ? '' : 's'}</Badge>
-                        )}
-                      </div>
-                      {subject && (
-                        <p className="mt-0.5 line-clamp-1 max-w-xl text-xs text-muted-foreground" title={subject}>
-                          {subject}
-                        </p>
-                      )}
-                    </TreeNodeCell>
-                  </TableCell>
-                  {isVisible('status') && (
-                    <TableCell>
-                      <ApiStatusBadge status={status} />
-                    </TableCell>
-                  )}
-                  {isVisible('type') && (
-                    <TableCell>
-                      <TypeCell caType={ca.caType} />
-                    </TableCell>
-                  )}
-                  {isVisible('key') && (
-                    <TableCell className="max-w-0">
-                      <KeyCell keyAlgorithm={ca.keyAlgorithm} engine={engine} />
-                    </TableCell>
-                  )}
-                  {isVisible('expires') && (
-                    <TableCell>
-                      <DateDisplay date={ca.expires} className="text-xs" relativeClassName="text-xs" />
-                    </TableCell>
-                  )}
-                  {isVisible('parentExpiry') && (
-                    <TableCell>
-                      <ParentExpiryCell ca={ca} parent={parentById.get(ca.id)} />
-                    </TableCell>
-                  )}
-                  <TableCell className="text-right">
-                    {isPicker ? (
-                      isSelected && <Check className="ml-auto h-4 w-4 text-primary" aria-label="Selected" />
-                    ) : (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${ca.name}`}>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem asChild>
-                          <Link href={detailsHref}>
-                            <Eye className="mr-2 h-4 w-4" /> View Details
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild disabled={!canIssue}>
-                          <Link href={`/certificate-authorities/issue-certificate?caId=${ca.id}`}>
-                            <FilePlus2 className="mr-2 h-4 w-4" /> Issue Certificate
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild disabled={!canCreateSubCa}>
-                          <Link href={`/certificate-authorities/new/generate?parentCaId=${ca.id}`}>
-                            <GitBranchPlus className="mr-2 h-4 w-4" /> Create Sub-CA
-                          </Link>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {rows.map((row) => (
+              <CaTableRow
+                key={row.node.id}
+                row={row}
+                engine={row.node.kmsKeyId ? enginesById.get(row.node.kmsKeyId) : undefined}
+                parent={parentById.get(row.node.id)}
+                isVisible={isVisible}
+                query={query}
+                isFiltering={isFiltering}
+                isCollapsed={!isFiltering && collapsedIds.has(row.node.id)}
+                onToggle={toggle}
+                onSelect={onSelect}
+                isSelected={isPicker && row.node.id === selectedCaId}
+              />
+            ))}
           </TableBody>
         </Table>
       </div>

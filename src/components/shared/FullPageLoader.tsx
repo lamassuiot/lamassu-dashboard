@@ -30,7 +30,7 @@ interface FullPageLoaderProps {
  * login/logout callbacks). The layout has fixed dimensions and the bar animation keeps its
  * phase across remounts, so switching stages only swaps the text.
  */
-export function FullPageLoader({ title, message }: FullPageLoaderProps) {
+export function FullPageLoader({ title, message }: Readonly<FullPageLoaderProps>) {
   const barRef = useRef<HTMLDivElement>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
 
