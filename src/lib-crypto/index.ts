@@ -12,6 +12,7 @@ export * from "./ecdsa-signature";
 export * from "./csr-builder";
 export * from "./engine";
 export * from "./cert-parser";
+export * from "./cert-file";
 export * from "./csr-parser";
 export * from "./ocsp";
 export * from "./crl-parser";

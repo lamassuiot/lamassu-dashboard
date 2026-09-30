@@ -190,7 +190,7 @@ export default function CreateCaImportPublicPage() {
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
             <div>
               <p className="font-semibold">Certificate</p>
-              <p className="text-sm text-muted-foreground mt-1">Paste the PEM-encoded CA certificate. Only the public certificate is needed for this import type.</p>
+              <p className="text-sm text-muted-foreground mt-1">Paste the PEM-encoded CA certificate, or drag &amp; drop a PEM or DER file onto the field. Only the public certificate is needed for this import type.</p>
             </div>
             <div className="space-y-4 lg:col-span-2">
               <div className="space-y-1.5">
