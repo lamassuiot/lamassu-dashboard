@@ -679,7 +679,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 id="deviceIconButton"
                 type="button"
                 onClick={() => setIsDeviceIconModalOpen(true)}
-                aria-invalid={!selectedDeviceIconName}
                 aria-describedby={!selectedDeviceIconName ? 'device-icon-error' : undefined}
                 className={cn("flex h-auto w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50", !selectedDeviceIconName && "border-destructive ring-3 ring-destructive/20")}
               >
@@ -756,7 +755,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     type="button"
                     onClick={() => setIsEnrollmentCaModalOpen(true)}
                     disabled={isLoadingDependencies}
-                    aria-invalid={!enrollmentCa}
                     aria-describedby={!enrollmentCa ? 'enrollment-ca-error' : undefined}
                     className={cn("flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50", !enrollmentCa && "border-destructive ring-3 ring-destructive/20")}
                   >

@@ -435,9 +435,12 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                 <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
                   <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
                   {user?.profile.picture && !avatarError ? (
-                    <img
+                    <Image
                       src={user.profile.picture}
                       alt={user.profile.name || user.profile.email || 'User'}
+                      width={32}
+                      height={32}
+                      unoptimized
                       referrerPolicy="no-referrer"
                       className="h-8 w-8 rounded-full object-cover"
                       onError={() => setAvatarError(true)}
@@ -673,9 +676,12 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
             {/* Identity */}
             <div className="flex items-center gap-3">
               {user?.profile.picture && !avatarError ? (
-                <img
+                <Image
                   src={user.profile.picture}
                   alt={user.profile.name || ''}
+                  width={48}
+                  height={48}
+                  unoptimized
                   referrerPolicy="no-referrer"
                   className="h-12 w-12 rounded-full object-cover ring-2 ring-border shrink-0"
                   onError={() => setAvatarError(true)}
