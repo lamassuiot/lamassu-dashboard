@@ -340,7 +340,7 @@ function DateFilterControl<TValues extends GenericFilterValues>({
               captionLayout="dropdown"
               startMonth={new Date(new Date().getFullYear() - 30, 0)}
               endMonth={new Date(new Date().getFullYear() + 50, 11)}
-              initialFocus
+              autoFocus
               className="[--cell-size:1.85rem] bg-transparent p-1"
               {...field.calendarProps}
             />
@@ -723,7 +723,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                     mode="single"
                     selected={selectedDate}
                     onSelect={(nextDate) => context.onValueChange(nextDate)}
-                    initialFocus
+                    autoFocus
                     {...field.calendarProps}
                   />
                 </PopoverContent>

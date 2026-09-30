@@ -14,7 +14,6 @@ import {
 import type { CertificateData } from '@/types/certificate'
 import * as caData from './ca-data'
 
-const MOCK_TOKEN = 'test-access-token'
 const CA_API_BASE = 'https://api.test.lamassu.io/ca/v1'
 
 // Valid X.509 certificate for testing (self-signed RSA 2048-bit certificate)
@@ -115,7 +114,6 @@ describe('issued-certificate-data', () => {
 
       const result = await fetchIssuedCertificates({
         forCaId: caId,
-        accessToken: MOCK_TOKEN,
         apiQueryString: '',
       })
 
@@ -136,7 +134,6 @@ describe('issued-certificate-data', () => {
 
       await fetchIssuedCertificates({
         forCaId: caId,
-        accessToken: MOCK_TOKEN,
         apiQueryString: 'status=active&limit=10',
       })
 
@@ -158,7 +155,6 @@ describe('issued-certificate-data', () => {
 
       const result = await fetchIssuedCertificates({
         forCaId: caId,
-        accessToken: MOCK_TOKEN,
         apiQueryString: '',
       })
 
@@ -178,7 +174,6 @@ describe('issued-certificate-data', () => {
       await expect(
         fetchIssuedCertificates({
           forCaId: caId,
-          accessToken: MOCK_TOKEN,
           apiQueryString: '',
         })
       ).rejects.toThrow('Failed to fetch issued certificates')
@@ -198,7 +193,6 @@ describe('issued-certificate-data', () => {
 
       const result = await fetchIssuedCertificates({
         forCaId: caId,
-        accessToken: MOCK_TOKEN,
         apiQueryString: '',
       })
 
@@ -268,7 +262,6 @@ describe('issued-certificate-data', () => {
           serialNumber: '123456',
           status: 'REVOKED',
           reason: 'keyCompromise',
-          accessToken: MOCK_TOKEN,
         })
       ).resolves.toBeUndefined()
     })
@@ -284,7 +277,6 @@ describe('issued-certificate-data', () => {
         updateCertificateStatus({
           serialNumber: '123456',
           status: 'ACTIVE',
-          accessToken: MOCK_TOKEN,
         })
       ).resolves.toBeUndefined()
     })
@@ -303,7 +295,6 @@ describe('issued-certificate-data', () => {
         updateCertificateStatus({
           serialNumber: '123456',
           status: 'REVOKED',
-          accessToken: MOCK_TOKEN,
         })
       ).rejects.toThrow('Failed to revoke certificate')
     })
@@ -319,7 +310,6 @@ describe('issued-certificate-data', () => {
         updateCertificateStatus({
           serialNumber: '123456',
           status: 'ACTIVE',
-          accessToken: MOCK_TOKEN,
         })
       ).rejects.toThrow('Failed to re-activate certificate')
     })
@@ -337,7 +327,6 @@ describe('issued-certificate-data', () => {
       await updateCertificateStatus({
         serialNumber: '12:34:56',
         status: 'REVOKED',
-        accessToken: MOCK_TOKEN,
       })
 
       expect(capturedUrl).toBe('123456')
@@ -355,7 +344,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        updateCertificateMetadata('123456', patchOperations, MOCK_TOKEN)
+        updateCertificateMetadata('123456', patchOperations)
       ).resolves.toBeUndefined()
     })
 
@@ -370,7 +359,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        updateCertificateMetadata('123456', [], MOCK_TOKEN)
+        updateCertificateMetadata('123456', [])
       ).rejects.toThrow('Failed to update certificate metadata')
     })
 
@@ -382,7 +371,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        updateCertificateMetadata('123456', [], MOCK_TOKEN)
+        updateCertificateMetadata('123456', [])
       ).rejects.toThrow('Failed to update certificate metadata')
     })
   })
@@ -397,8 +386,7 @@ describe('issued-certificate-data', () => {
 
       await expect(
         importCertificate(
-          { certificate: 'base64cert', metadata: {} },
-          MOCK_TOKEN
+          { certificate: 'base64cert', metadata: {} }
         )
       ).resolves.toBeUndefined()
     })
@@ -414,7 +402,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        importCertificate({ certificate: 'invalid', metadata: {} }, MOCK_TOKEN)
+        importCertificate({ certificate: 'invalid', metadata: {} })
       ).rejects.toThrow('Failed to import certificate')
     })
 
@@ -426,7 +414,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        importCertificate({ certificate: 'cert', metadata: {} }, MOCK_TOKEN)
+        importCertificate({ certificate: 'cert', metadata: {} })
       ).rejects.toThrow('Failed to import certificate')
     })
   })
@@ -440,7 +428,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        deleteCertificate('123456', MOCK_TOKEN)
+        deleteCertificate('123456')
       ).resolves.toBeUndefined()
     })
 
@@ -455,7 +443,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        deleteCertificate('123456', MOCK_TOKEN)
+        deleteCertificate('123456')
       ).rejects.toThrow('Failed to delete certificate')
     })
 
@@ -467,7 +455,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        deleteCertificate('123456', MOCK_TOKEN)
+        deleteCertificate('123456')
       ).rejects.toThrow('Failed to delete certificate')
     })
 
@@ -481,7 +469,7 @@ describe('issued-certificate-data', () => {
         })
       )
 
-      await deleteCertificate('AA:BB:CC', MOCK_TOKEN)
+      await deleteCertificate('AA:BB:CC')
 
       expect(capturedUrl).toBe('AABBCC')
     })
@@ -508,9 +496,7 @@ describe('issued-certificate-data', () => {
         })
       )
 
-      const result = await fetchIssuedCertificates({
-        accessToken: MOCK_TOKEN,
-      })
+      const result = await fetchIssuedCertificates({})
 
       expect(result.certificates[0].publicKeyAlgorithm).toContain('ECDSA')
       expect(result.certificates[0].publicKeyAlgorithm).toContain('P-256')
@@ -536,9 +522,7 @@ describe('issued-certificate-data', () => {
         })
       )
 
-      const result = await fetchIssuedCertificates({
-        accessToken: MOCK_TOKEN,
-      })
+      const result = await fetchIssuedCertificates({})
 
       expect(result.certificates[0].subject).toContain('O=Example Org')
     })
@@ -563,9 +547,7 @@ describe('issued-certificate-data', () => {
         })
       )
 
-      const result = await fetchIssuedCertificates({
-        accessToken: MOCK_TOKEN,
-      })
+      await fetchIssuedCertificates({})
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to decode base64 PEM data'),

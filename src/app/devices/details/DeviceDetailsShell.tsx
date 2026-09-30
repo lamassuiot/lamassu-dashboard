@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2 } from 'lucide-react';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { mapApiIconToIconType } from '@/app/devices/page';
+import { mapApiIconToIconType } from '@/components/shared/DeviceIcon';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';

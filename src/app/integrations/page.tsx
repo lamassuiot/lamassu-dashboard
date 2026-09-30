@@ -27,25 +27,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import Image from 'next/image';
-import AwsIcon from '../aws.svg';
-import AwsIconWhite from '../aws-white.svg';
+import { IntegrationIcon } from '@/components/shared/IntegrationIcon';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
-
-export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> = ({ type }) => {
-    switch (type) {
-        case 'AWS_IOT_CORE':
-            return (
-              <>
-                <Image src={AwsIcon} alt="AWS IoT Core Icon" className="h-5 w-5 dark:hidden" width={20} height={20} />
-                <Image src={AwsIconWhite} alt="AWS IoT Core Icon" className="hidden h-5 w-5 dark:block" width={20} height={20} />
-              </>
-            );
-        default:
-            return <Blocks className="h-5 w-5 text-muted-foreground" />;
-    }
-};
 
 export default function IntegrationsPage() {
   const router = useRouter();

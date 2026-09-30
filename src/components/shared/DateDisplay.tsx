@@ -8,6 +8,7 @@ import { getDisplayDateFormat, getDisplayDateAndTimeFormat } from '@/lib/config'
 
 interface DateDisplayProps {
   date: string; // ISO date string
+  formatString?: string; // date-fns format override; defaults to the configured display format
   className?: string;
   showRelative?: boolean; // Whether to show relative time, defaults to true
   relativeClassName?: string; // Additional className for relative time
@@ -17,6 +18,7 @@ interface DateDisplayProps {
 export const DateDisplay: React.FC<DateDisplayProps> = ({
   date,
   className,
+  formatString,
   showRelative = true,
   relativeClassName,
   highlightExpired = false
@@ -29,7 +31,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
 
   try {
     const parsedDate = parseISO(date);
-    const effectiveFormatString = displayTime ? getDisplayDateAndTimeFormat() : getDisplayDateFormat();
+    const effectiveFormatString = formatString ?? (displayTime ? getDisplayDateAndTimeFormat() : getDisplayDateFormat());
     const formattedDate = format(parsedDate, effectiveFormatString);
 
     if (!showRelative) {
@@ -66,8 +68,8 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
 export const CompactDateDisplay: React.FC<DateDisplayProps> = ({
   date,
   className,
+  formatString,
   highlightExpired = false,
-  ...props
 }) => {
   const { displayTime } = useIdentifierDisplay();
 
@@ -78,7 +80,7 @@ export const CompactDateDisplay: React.FC<DateDisplayProps> = ({
   try {
     const parsedDate = parseISO(date);
     const relativeTime = formatDistanceToNow(parsedDate, { addSuffix: true });
-    const effectiveFormatString = displayTime ? getDisplayDateAndTimeFormat() : getDisplayDateFormat();
+    const effectiveFormatString = formatString ?? (displayTime ? getDisplayDateAndTimeFormat() : getDisplayDateFormat());
     const tooltipDate = format(parsedDate, effectiveFormatString);
     const isExpired = isPast(parsedDate);
 
