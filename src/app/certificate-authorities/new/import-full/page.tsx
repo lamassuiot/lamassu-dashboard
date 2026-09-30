@@ -258,7 +258,7 @@ export default function CreateCaImportFullPage() {
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
             <div>
               <p className="font-semibold">Certificate &amp; Key</p>
-              <p className="text-sm text-muted-foreground mt-1">Paste the PEM-encoded CA certificate, its private key, and optionally the issuing chain.</p>
+              <p className="text-sm text-muted-foreground mt-1">Paste the PEM-encoded CA certificate, its private key, and optionally the issuing chain. Certificate fields also accept dropped PEM or DER files.</p>
             </div>
             <div className="space-y-4 lg:col-span-2">
               <div className="space-y-1.5">

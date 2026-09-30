@@ -18,6 +18,7 @@ import dynamic from 'next/dynamic';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { cn } from '@/lib/utils';
+import { CERTIFICATE_FILE_EXTENSIONS, CERTIFICATE_MAX_FILE_SIZE, loadCertificateFilesAsPem } from '@/lib/certificate-files';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -68,9 +69,6 @@ function parseSubjectFields(subject: string) {
     ou: fields['OU'] || '',
   };
 }
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
 
 export default function ImportCertificatePage() {
   const monacoTheme = useMonacoTheme();
@@ -136,26 +134,14 @@ export default function ImportCertificatePage() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    // Reset so selecting the same file again still triggers onChange.
+    event.target.value = '';
     if (!file) return;
 
-    if (file.size > MAX_FILE_SIZE) {
-      sileo.error({ title: 'File Too Large', description: `File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB` });
-      return;
-    }
-
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
-      sileo.error({ title: 'Invalid File Type', description: `Only ${ALLOWED_EXTENSIONS.join(', ')} files are supported` });
-      return;
-    }
-
-    try {
-      const content = await file.text();
-      setCertificatePem(content);
-      await parseCertificate(content);
-    } catch {
-      sileo.error({ title: 'File Read Error', description: 'Could not read the certificate file' });
-    }
+    const pem = await loadCertificateFilesAsPem([file]);
+    if (pem === null) return;
+    setCertificatePem(pem);
+    await parseCertificate(pem);
   };
 
   const handlePemTextChange = async (value: string) => {
@@ -242,7 +228,7 @@ export default function ImportCertificatePage() {
             <div>
               <p className="font-semibold">Certificate</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload a <code className="text-xs">.pem</code>, <code className="text-xs">.crt</code>, or <code className="text-xs">.cer</code> file, or paste the PEM content below.
+                Upload or drag &amp; drop a <code className="text-xs">.pem</code>, <code className="text-xs">.crt</code>, <code className="text-xs">.cer</code>, or <code className="text-xs">.der</code> file, or paste the PEM content below. DER files are converted to PEM automatically.
               </p>
             </div>
             <div className="space-y-4 lg:col-span-2">
@@ -250,7 +236,7 @@ export default function ImportCertificatePage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={ALLOWED_EXTENSIONS.join(',')}
+                  accept={CERTIFICATE_FILE_EXTENSIONS.join(',')}
                   onChange={handleFileUpload}
                   disabled={isLoading}
                   className="hidden"
@@ -265,7 +251,7 @@ export default function ImportCertificatePage() {
                   Upload File
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Supported: {ALLOWED_EXTENSIONS.join(', ')} &mdash; max {MAX_FILE_SIZE / 1024 / 1024}MB
+                  Supported: {CERTIFICATE_FILE_EXTENSIONS.join(', ')} (PEM or DER) &mdash; max {CERTIFICATE_MAX_FILE_SIZE / 1024 / 1024}MB
                 </p>
               </div>
 
@@ -285,8 +271,6 @@ export default function ImportCertificatePage() {
                   placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
                   rows={8}
                   disabled={isLoading}
-                  allowedExtensions={ALLOWED_EXTENSIONS}
-                  maxFileSize={MAX_FILE_SIZE}
                   className="font-mono text-sm"
                   aria-invalid={!!certificateError}
                   aria-describedby={certificateError ? 'certificate-import-pem-error' : undefined}

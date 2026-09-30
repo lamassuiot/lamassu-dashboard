@@ -3,10 +3,7 @@
 import React, { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { sileo } from '@/lib/toast';
-
-const DEFAULT_MAX_FILE_SIZE = 5 * 1024 * 1024;
-const DEFAULT_ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
+import { CERTIFICATE_FILE_EXTENSIONS, CERTIFICATE_MAX_FILE_SIZE, loadCertificateFilesAsPem } from '@/lib/certificate-files';
 
 type CertificatePemTextareaProps = Omit<React.ComponentProps<'textarea'>, 'value'> & {
   value: string;
@@ -16,16 +13,11 @@ type CertificatePemTextareaProps = Omit<React.ComponentProps<'textarea'>, 'value
   multipleFiles?: boolean;
 };
 
-const extensionFor = (fileName: string) => {
-  const index = fileName.lastIndexOf('.');
-  return index >= 0 ? fileName.slice(index).toLowerCase() : '';
-};
-
 export function CertificatePemTextarea({
   value,
   onValueChange,
-  allowedExtensions = DEFAULT_ALLOWED_EXTENSIONS,
-  maxFileSize = DEFAULT_MAX_FILE_SIZE,
+  allowedExtensions = CERTIFICATE_FILE_EXTENSIONS,
+  maxFileSize = CERTIFICATE_MAX_FILE_SIZE,
   multipleFiles = false,
   className,
   disabled,
@@ -77,30 +69,8 @@ export function CertificatePemTextarea({
     const files = Array.from(event.dataTransfer.files ?? []);
     if (files.length > 0) {
       const selectedFiles = multipleFiles ? files : files.slice(0, 1);
-      const invalidFile = selectedFiles.find(file => !allowedExtensions.includes(extensionFor(file.name)));
-      if (invalidFile) {
-        sileo.error({
-          title: 'Invalid File Type',
-          description: `Only ${allowedExtensions.join(', ')} files are supported.`,
-        });
-        return;
-      }
-
-      const oversizedFile = selectedFiles.find(file => file.size > maxFileSize);
-      if (oversizedFile) {
-        sileo.error({
-          title: 'File Too Large',
-          description: `File size must be less than ${maxFileSize / 1024 / 1024}MB.`,
-        });
-        return;
-      }
-
-      try {
-        const contents = await Promise.all(selectedFiles.map(file => file.text()));
-        onValueChange(contents.join('\n'));
-      } catch {
-        sileo.error({ title: 'File Read Error', description: 'Could not read the certificate file.' });
-      }
+      const pem = await loadCertificateFilesAsPem(selectedFiles, { allowedExtensions, maxFileSize });
+      if (pem !== null) onValueChange(pem);
       return;
     }
 

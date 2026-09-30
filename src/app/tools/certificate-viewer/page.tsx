@@ -521,7 +521,7 @@ export default function CertificateViewerPage() {
                                         />
                                     </div>
 
-                                    <p className="text-xs text-muted-foreground">Supports PEM-encoded X.509 certificates.</p>
+                                    <p className="text-xs text-muted-foreground">Paste a PEM-encoded X.509 certificate, or drag &amp; drop a PEM or DER file (DER is converted to PEM automatically).</p>
 
                                     {error && (
                                         <Alert variant="destructive">
