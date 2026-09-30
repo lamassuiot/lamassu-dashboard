@@ -56,7 +56,7 @@ interface PemCardProps {
   itemName: string;
 }
 
-function PemCard({ title, subtitle, icon: Icon, badge, pem, filename }: PemCardProps) {
+function PemCard({ title, subtitle, icon: Icon, badge, pem, filename }: Readonly<PemCardProps>) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {

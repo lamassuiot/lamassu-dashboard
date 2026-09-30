@@ -184,6 +184,63 @@ export async function deleteDevice(deviceId: string): Promise<void> {
     await handleApiError(response, 'Failed to delete device');
 }
 
+const SSE_DEFAULT_TIMESTAMP = '1970-01-01T00:00:00.000Z';
+
+/** Parses one SSE line into a device event. Returns null for comments, non-data lines and malformed JSON. */
+function parseSseDataLine(line: string): ApiDeviceEventItem | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('data:')) return null;
+
+  const jsonStr = trimmed.slice(5).trim();
+  if (!jsonStr) return null;
+
+  let raw: any;
+  try {
+    raw = JSON.parse(jsonStr);
+  } catch {
+    return null; // skip malformed JSON lines
+  }
+
+  const timestampStr = raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || SSE_DEFAULT_TIMESTAMP;
+  const rawType = raw.type || raw.event_type || 'EVENT';
+  return {
+    id: raw.id || `${timestampStr}:${rawType}`,
+    timestampStr,
+    type: normalizeSSEEventType(rawType),
+    description: raw.description || raw.event_descriptions || '',
+    data: raw.structured_fields ?? raw.data,
+    source: raw.source || 'device',
+  };
+}
+
+/** Reads the SSE stream until it ends, emitting one event per `data:` line. */
+async function readSseEvents(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onEvent: (event: ApiDeviceEventItem) => void,
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const event = parseSseDataLine(line);
+      if (!event) continue;
+      try {
+        onEvent(event);
+      } catch {
+        // a failing consumer must not break the stream
+      }
+    }
+  }
+}
+
 /**
  * Subscribe to real-time device events via SSE (Server-Sent Events).
  * Uses `Accept: text/event-stream` to open a streaming connection.
@@ -237,7 +294,7 @@ export function subscribeToDeviceEventsSSE({
   const connect = (retryDelay = 1000) => {
     if (controller.signal.aborted) return;
 
-    (async () => {
+    void (async () => {
       try {
         const token = getAccessToken();
         if (!token) {
@@ -264,41 +321,7 @@ export function subscribeToDeviceEventsSSE({
 
         setConnected(true);
 
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith(':')) continue;
-
-            if (trimmed.startsWith('data:')) {
-              const jsonStr = trimmed.slice(5).trim();
-              if (!jsonStr) continue;
-              try {
-                const raw = JSON.parse(jsonStr);
-                const event: ApiDeviceEventItem = {
-                  id: raw.id || `${raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || '1970-01-01T00:00:00.000Z'}:${raw.type || raw.event_type || 'EVENT'}`,
-                  timestampStr: raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || '1970-01-01T00:00:00.000Z',
-                  type: normalizeSSEEventType(raw.type || raw.event_type || 'EVENT'),
-                  description: raw.description || raw.event_descriptions || '',
-                  data: raw.structured_fields ?? raw.data,
-                  source: raw.source || 'device',
-                };
-                onEvent(event);
-              } catch {
-                // skip malformed JSON lines
-              }
-            }
-          }
-        }
+        await readSseEvents(reader, onEvent);
 
         // Stream ended gracefully — reconnect immediately.
         // Many servers close the stream after each batch/event and expect the client to reconnect.
