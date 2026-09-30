@@ -318,7 +318,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setIncludeDownstreamCA(ca_distribution_settings.include_system_ca);
         setManagedCAs(ca_distribution_settings.managed_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
     }
-  }, [isEditMode, raData, availableCAsForSelection]);
+  }, [isEditMode, raData, availableCAsForSelection, inlineProfileForm]);
   
   // Effect to randomize icon color for new RAs
   useEffect(() => {

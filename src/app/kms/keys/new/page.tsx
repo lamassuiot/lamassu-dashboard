@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
@@ -101,7 +101,7 @@ export default function CreateKmsKeyPage() {
   }, [cryptoEngineId]);
 
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
-  const supportedKeyTypes = selectedEngine?.supported_key_types || [];
+  const supportedKeyTypes = useMemo(() => selectedEngine?.supported_key_types || [], [selectedEngine]);
 
   const availableKeyTypeOptions = supportedKeyTypes.map(keyType => ({
     value: keyType.type,

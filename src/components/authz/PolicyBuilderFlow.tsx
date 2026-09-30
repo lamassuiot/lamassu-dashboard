@@ -273,6 +273,9 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     walkRelations(selectedRule.relations || [], rootEntity);
 
     return { ruleTreeEntities: entities, ruleTreeEdgeKeys: edgeKeys };
+    // selectedRule is derived from rules[selectedRuleIndex]; rulesKey is its stable serialization.
+    // Depending on selectedRule directly would recompute (and return new Sets) on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rulesKey, selectedRuleIndex, schemas]);
 
   // Load schemas on mount
@@ -577,6 +580,10 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
     hasNodes.current = true;
+    // Intentionally keyed on rulesKey instead of rules, and excludes nodes/setNodes/setEdges and the
+    // (non-memoized) update handlers: this effect rebuilds the layout, so re-running it whenever nodes
+    // or handler identities change would loop (setNodes -> nodes changed -> rebuild).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas, loadingSchemas, ruleConfigs, rulesKey, isInitialized, selectedRuleIndex, isolateToRule, ruleTreeEntities, ruleTreeEdgeKeys]);
 
   const handlePolicyUpdate = (entity_type: string, data: any) => {
