@@ -11,7 +11,7 @@ COPY package*.json ./
 
 # Install dependencies
 # Using npm ci for cleaner installs in CI/build environments
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Copy the rest of the application code
 COPY . .

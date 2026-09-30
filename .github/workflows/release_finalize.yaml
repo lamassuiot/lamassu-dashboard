@@ -104,9 +104,6 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          build-args: |
-            SHA1VER=${{ github.sha }}
-            VERSION=${{ needs.detect-release.outputs.release_version }}
           tags: |
             ghcr.io/lamassuiot/lamassu-ui:${{ needs.detect-release.outputs.release_version }}
             ghcr.io/lamassuiot/lamassu-ui:latest
