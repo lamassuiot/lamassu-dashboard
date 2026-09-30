@@ -10,8 +10,7 @@ import LogoFullWhite from '@/app/lamassu_full_white.svg';
 const BAR_ANIMATION_MS = 1200;
 const BAR_CYCLE_MS = BAR_ANIMATION_MS * 2;
 
-// Hints shown once the page has been loading for a while. Elapsed time is measured from
-// document load (performance.now()), so it keeps counting across loader stages.
+// Hints shown once the current loading sequence has been running for a while.
 const SLOW_HINTS: { afterMs: number; message: string }[] = [
   { afterMs: 10_000, message: 'This is taking longer than usual. Hang tight…' },
   {
@@ -19,6 +18,29 @@ const SLOW_HINTS: { afterMs: number; message: string }[] = [
     message: 'Still working on it. If this persists, check your network connection or contact your administrator.',
   },
 ];
+
+// Consecutive stages (configuration → session → permissions) swap loaders within a frame or two.
+// A longer gap means the app was on screen in between, so the next loader starts a new sequence.
+const SEQUENCE_GAP_MS = 500;
+
+let mountedLoaders = 0;
+// The first sequence starts at document load (0): the user has been waiting since navigation.
+let sequenceStartMs = 0;
+let lastHiddenAtMs: number | null = null;
+
+/** Registers a mounted loader and returns when its loading sequence started. */
+function joinLoadingSequence(now: number): number {
+  if (mountedLoaders === 0 && lastHiddenAtMs !== null && now - lastHiddenAtMs > SEQUENCE_GAP_MS) {
+    sequenceStartMs = now;
+  }
+  mountedLoaders += 1;
+  return sequenceStartMs;
+}
+
+function leaveLoadingSequence(now: number) {
+  mountedLoaders -= 1;
+  if (mountedLoaders === 0) lastHiddenAtMs = now;
+}
 
 interface FullPageLoaderProps {
   title: string;
@@ -42,9 +64,14 @@ export function FullPageLoader({ title, message }: Readonly<FullPageLoaderProps>
   }, []);
 
   useEffect(() => {
-    setElapsedMs(performance.now());
-    const interval = setInterval(() => setElapsedMs(performance.now()), 1000);
-    return () => clearInterval(interval);
+    const startedAt = joinLoadingSequence(performance.now());
+    const tick = () => setElapsedMs(performance.now() - startedAt);
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => {
+      clearInterval(interval);
+      leaveLoadingSequence(performance.now());
+    };
   }, []);
 
   const slowHint = [...SLOW_HINTS].reverse().find(hint => elapsedMs >= hint.afterMs);
