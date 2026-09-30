@@ -1,204 +1,361 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { format, formatDistanceStrict, isPast, parseISO } from 'date-fns';
+import { AlertTriangle, Ban, Check, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, MoreVertical, ShieldAlert, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ColumnSelector } from '@/components/ui/column-selector';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { FileSearch, FilePlus2, HardDrive, UploadCloud, FileText, ShieldAlert, GitFork } from 'lucide-react';
+import { SortableTableHead } from '@/components/shared/SortableTableHead';
+import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
+import { caMatchesFilters, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
+import { collectParentIds, flattenTree, type TreeAccessors } from '@/lib/tree-table';
+import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
+import { useSortState } from '@/hooks/useSortState';
+import { useTreeCollapse } from '@/hooks/useTreeCollapse';
 import { cn } from '@/lib/utils';
-import { isPast, parseISO } from 'date-fns';
+
+type SortableColumn = 'name' | 'expires';
+type ColumnId = 'name' | 'status' | 'type' | 'key' | 'expires' | 'parentExpiry';
+
+const PAGE_COLUMNS: ColumnDefinition<ColumnId>[] = [
+  { id: 'name', label: 'Certification Authority', alwaysVisible: true },
+  { id: 'status', label: 'Status' },
+  { id: 'type', label: 'Type' },
+  { id: 'key', label: 'Key' },
+  { id: 'expires', label: 'Expires' },
+  { id: 'parentExpiry', label: 'Expires vs. parent' },
+];
+
+// Pickers live in dialogs and drawers, so they start with a narrower set of columns.
+const PICKER_HIDDEN_BY_DEFAULT: ColumnId[] = ['type', 'parentExpiry'];
+const PICKER_COLUMNS: ColumnDefinition<ColumnId>[] = PAGE_COLUMNS.map((column) => ({
+  ...column,
+  defaultVisible: !PICKER_HIDDEN_BY_DEFAULT.includes(column.id),
+}));
+
+const CA_TREE: TreeAccessors<CA> = {
+  getId: (ca) => ca.id,
+  getChildren: (ca) => ca.children,
+};
+
+const CA_TYPES: Record<string, { label: string; icon: React.ElementType }> = {
+  MANAGED: { label: 'Managed', icon: Landmark },
+  IMPORTED_WITH_KEY: { label: 'Imported with key', icon: UploadCloud },
+  IMPORTED_WITHOUT_KEY: { label: 'Imported without key', icon: UploadCloud },
+  IMPORTED: { label: 'Imported', icon: UploadCloud },
+  EXTERNAL_PUBLIC: { label: 'External public', icon: FileText },
+};
 
 interface CaTableViewProps {
+  /** CA forest, already pruned by `filterCaList` (ancestors of matches are kept). */
   cas: CA[];
-  router: ReturnType<typeof useRouter>;
   allCryptoEngines: ApiCryptoEngine[];
+  filters?: CaFilterOptions;
+  /**
+   * Turns the table into a single-select picker: clicking a row (or Enter/Space on it) selects it,
+   * and the name links and actions menu are replaced so a picker never navigates away on its own.
+   */
+  onSelect?: (ca: CA) => void;
+  selectedCaId?: string | null;
 }
 
-function flattenCAs(cas: CA[], depth = 0): (CA & { _depth: number })[] {
-  const result: (CA & { _depth: number })[] = [];
-  for (const ca of cas) {
-    result.push({ ...ca, _depth: depth });
-    if (ca.children && ca.children.length > 0) {
-      result.push(...flattenCAs(ca.children, depth + 1));
-    }
+const NO_FILTERS: CaFilterOptions = {};
+
+function countNodes(cas: readonly CA[]): number {
+  return cas.reduce((total, ca) => total + 1 + countNodes(ca.children ?? []), 0);
+}
+
+/** Maps each CA id to its parent within the given forest. */
+function buildParentMap(cas: readonly CA[]): Map<string, CA> {
+  const parents = new Map<string, CA>();
+  const walk = (ca: CA) => ca.children?.forEach((child) => {
+    parents.set(child.id, ca);
+    walk(child);
+  });
+  cas.forEach(walk);
+  return parents;
+}
+
+function getDisplayStatus(ca: CA): 'REVOKED' | 'EXPIRED' | 'ACTIVE' {
+  if (ca.status === 'revoked') return 'REVOKED';
+  if (ca.status === 'expired' || isPast(parseISO(ca.expires))) return 'EXPIRED';
+  return 'ACTIVE';
+}
+
+function CaIcon({ status, engine }: Readonly<{ status: ReturnType<typeof getDisplayStatus>; engine?: ApiCryptoEngine }>) {
+  if (status === 'REVOKED') return <Ban className="h-4 w-4 shrink-0 text-destructive" />;
+  if (status === 'EXPIRED') return <ShieldAlert className="h-4 w-4 shrink-0 text-destructive" />;
+  if (engine) return <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 shrink-0" />;
+  return <HardDrive className="h-4 w-4 shrink-0 text-primary" />;
+}
+
+function TypeCell({ caType }: Readonly<{ caType?: string }>) {
+  const type = caType ? CA_TYPES[caType] : undefined;
+  if (!type) return <span className="text-xs text-muted-foreground">{caType ?? '—'}</span>;
+  const Icon = type.icon;
+  return (
+    <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      {type.label}
+    </span>
+  );
+}
+
+/**
+ * How long before its parent a CA expires. A CA that outlives its parent is flagged: once the
+ * parent expires the chain no longer validates, so the extra validity is unusable.
+ */
+function ParentExpiryCell({ ca, parent }: Readonly<{ ca: CA; parent?: CA }>) {
+  if (!parent) {
+    return ca.issuer === 'Self-signed'
+      ? <span className="text-xs text-muted-foreground">Root</span>
+      : <span className="text-xs text-muted-foreground" title="The parent CA is not part of this list.">—</span>;
   }
-  return result;
-}
 
-const STATUS_VARIANTS: Record<CA['status'], BadgeVariant> = {
-  active: 'default',
-  expired: 'warning',
-  revoked: 'destructive',
-  unknown: 'muted',
-};
+  const childExpiry = parseISO(ca.expires);
+  const parentExpiry = parseISO(parent.expires);
+  const diffMs = parentExpiry.getTime() - childExpiry.getTime();
+  const distance = formatDistanceStrict(childExpiry, parentExpiry);
 
-const CA_TYPE_LABELS: Record<string, string> = {
-  MANAGED: 'Managed',
-  IMPORTED: 'Imported',
-  EXTERNAL: 'External',
-};
-
-export const CaTableView: React.FC<CaTableViewProps> = ({ cas, router, allCryptoEngines }) => {
-  const rows = useMemo(() => flattenCAs(cas), [cas]);
+  let content: React.ReactNode;
+  if (diffMs > 0) {
+    content = <span className="text-xs text-muted-foreground">{distance} before parent</span>;
+  } else if (diffMs < 0) {
+    content = (
+      <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        {distance} after parent
+      </span>
+    );
+  } else {
+    content = <span className="text-xs text-muted-foreground">Same as parent</span>;
+  }
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/40">
-            <TableHead className="w-[22%]">Name</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Subject</TableHead>
-            <TableHead>Issuer</TableHead>
-            <TableHead>Serial</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Key</TableHead>
-            <TableHead>Engine</TableHead>
-            <TableHead>Expires</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((ca) => {
-            const isExpiredOrRevoked = ca.status === 'expired' || ca.status === 'revoked' || isPast(parseISO(ca.expires));
-            const engine = allCryptoEngines.find(e => e.id === ca.kmsKeyId);
-            const subjectCN = ca.subjectDN?.common_name ?? ca.name;
-            const subjectOrg = ca.subjectDN?.organization;
-            const issuerCN = ca.issuerDN?.common_name;
-            const isSelfSigned = !issuerCN || issuerCN === subjectCN;
-            const childCount = ca.children?.length ?? 0;
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-default">{content}</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <p>Parent {parent.name} expires {format(parentExpiry, 'PP')}.</p>
+        {diffMs < 0 && <p className="mt-1">This CA outlives its parent. Its chain stops validating when the parent expires.</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
-            return (
-              <TableRow
-                key={ca.id}
-                className="cursor-pointer"
-                onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
-              >
-                {/* Name */}
-                <TableCell>
-                  <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: ca._depth * 16 }}>
-                    {isExpiredOrRevoked ? (
-                      <ShieldAlert className="h-4 w-4 text-destructive flex-shrink-0" />
-                    ) : engine ? (
-                      <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 flex-shrink-0" />
-                    ) : ca.kmsKeyId ? (
-                      <HardDrive className="h-4 w-4 text-primary flex-shrink-0" />
-                    ) : (
-                      <HardDrive className="h-4 w-4 text-primary flex-shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className={cn('text-sm font-medium truncate', isExpiredOrRevoked && 'text-muted-foreground')}>
-                        {ca.name}
-                      </p>
-                      {childCount > 0 && (
-                        <p className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                          <GitFork className="h-3 w-3" />{childCount} sub-CA{childCount !== 1 ? 's' : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </TableCell>
-
-                {/* Status */}
-                <TableCell>
-                  <Badge variant={STATUS_VARIANTS[ca.status]} dot className="capitalize">
-                    {ca.status}
-                  </Badge>
-                </TableCell>
-
-                {/* Subject */}
-                <TableCell>
-                  <div className="min-w-0">
-                    <p className="text-sm truncate max-w-[160px]">{subjectCN}</p>
-                    {subjectOrg && (
-                      <p className="text-xs text-muted-foreground truncate max-w-[160px]">{subjectOrg}</p>
-                    )}
-                  </div>
-                </TableCell>
-
-                {/* Issuer */}
-                <TableCell className="text-sm text-muted-foreground">
-                  {isSelfSigned ? (
-                    <span className="italic">Self-signed</span>
-                  ) : (
-                    <span className="truncate max-w-[140px] block">{issuerCN}</span>
-                  )}
-                </TableCell>
-
-                {/* Serial */}
-                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-                  <span title={ca.serialNumber}>
-                    {ca.serialNumber ? `${ca.serialNumber.slice(0, 12)}…` : '—'}
-                  </span>
-                </TableCell>
-
-                {/* Type */}
-                <TableCell>
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground whitespace-nowrap">
-                    {ca.caType === 'IMPORTED' ? (
-                      <UploadCloud className="h-3.5 w-3.5 flex-shrink-0" />
-                    ) : ca.caType === 'EXTERNAL' ? (
-                      <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-                    ) : null}
-                    {CA_TYPE_LABELS[ca.caType ?? ''] ?? ca.caType ?? '—'}
-                  </div>
-                </TableCell>
-
-                {/* Key algorithm */}
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {ca.keyAlgorithm || '—'}
-                </TableCell>
-
-                {/* Engine */}
-                <TableCell>
-                  {engine ? (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate max-w-[100px]">{engine.name || engine.type}</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-
-                {/* Expires */}
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  <DateDisplay date={ca.expires} showRelative={false} />
-                </TableCell>
-
-                {/* Actions */}
-                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                     
-                      className="h-7 px-2"
-                      onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
-                      title="Details"
-                    >
-                      <FileSearch className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                     
-                      className="h-7 px-2"
-                      onClick={() => router.push(`/certificate-authorities/issue-certificate?caId=${ca.id}`)}
-                      title="Issue Certificate"
-                    >
-                      <FilePlus2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+function KeyCell({ keyAlgorithm, engine }: Readonly<{ keyAlgorithm?: string; engine?: ApiCryptoEngine }>) {
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <p className="truncate text-sm">{keyAlgorithm || '—'}</p>
+      {engine && (
+        <p className="truncate text-xs text-muted-foreground">{engine.name || engine.type}</p>
+      )}
     </div>
   );
-};
+}
+
+export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSelect, selectedCaId }: Readonly<CaTableViewProps>) {
+  const isPicker = Boolean(onSelect);
+  const { sortColumn, sortDirection, requestSort } = useSortState<SortableColumn>('name', ['expires']);
+  const parentIds = useMemo(() => collectParentIds(cas, CA_TREE), [cas]);
+  const { collapsedIds, toggle, allCollapsed, toggleAll } = useTreeCollapse(parentIds);
+  const { isVisible, toggle: toggleColumn, columns } = useColumnVisibility(
+    isPicker ? PICKER_COLUMNS : PAGE_COLUMNS,
+    isPicker ? 'lamassu.caPicker.columns' : 'lamassu.caTable.columns',
+  );
+
+  const isFiltering = hasActiveCaFilters(filters);
+  const query = (filters.filterText ?? '').trim().toLowerCase();
+  const parentById = useMemo(() => buildParentMap(cas), [cas]);
+  const enginesById = useMemo(() => new Map(allCryptoEngines.map((engine) => [engine.id, engine])), [allCryptoEngines]);
+
+  const rows = useMemo(() => {
+    const factor = sortDirection === 'asc' ? 1 : -1;
+    return flattenTree(cas, {
+      ...CA_TREE,
+      collapsedIds,
+      isMatch: isFiltering ? (ca: CA) => caMatchesFilters(ca, filters) : undefined,
+      compare: (a, b) =>
+        sortColumn === 'expires'
+          ? (parseISO(a.expires).getTime() - parseISO(b.expires).getTime()) * factor
+          : a.name.localeCompare(b.name) * factor,
+    });
+  }, [cas, collapsedIds, isFiltering, filters, sortColumn, sortDirection]);
+
+  const total = countNodes(cas);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end gap-3">
+        <p className="text-sm text-muted-foreground">
+          {total} CA{total === 1 ? '' : 's'}
+          {cas.length !== total && <> · {cas.length} top-level</>}
+        </p>
+        {parentIds.size > 0 && (
+          <ExpandCollapseAllButton allCollapsed={allCollapsed} onToggle={toggleAll} disabled={isFiltering} />
+        )}
+        <ColumnSelector columns={columns} onColumnToggle={toggleColumn} />
+      </div>
+
+      <TooltipProvider>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortableTableHead column="name" title="Certification Authority" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="min-w-[300px]" />
+              {isVisible('status') && <TableHead className="w-[110px]">Status</TableHead>}
+              {isVisible('type') && <TableHead className="w-[170px]">Type</TableHead>}
+              {isVisible('key') && <TableHead className="w-[180px]">Key</TableHead>}
+              {isVisible('expires') && (
+                <SortableTableHead column="expires" title="Expires" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" isDateColumn className="w-[160px]" />
+              )}
+              {isVisible('parentExpiry') && <TableHead className="w-[190px]">Expires vs. parent</TableHead>}
+              <TableHead className="w-[60px] text-right"><span className="sr-only">{isPicker ? 'Selected' : 'Actions'}</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(({ node: ca, level, matches, hasVisibleChildren }) => {
+              const status = getDisplayStatus(ca);
+              const engine = ca.kmsKeyId ? enginesById.get(ca.kmsKeyId) : undefined;
+              const childCount = ca.children?.length ?? 0;
+              const subject = [ca.subjectDN?.common_name, ca.subjectDN?.organization].filter(Boolean).join(' · ');
+              const canIssue = status !== 'REVOKED' && ca.caType !== 'EXTERNAL_PUBLIC';
+              // Mirrors the parent checks on the create CA page.
+              const canCreateSubCa = status === 'ACTIVE' && ca.status === 'active' && ca.caType !== 'EXTERNAL_PUBLIC';
+              const detailsHref = `/certificate-authorities/details?caId=${ca.id}`;
+
+              const isSelected = isPicker && ca.id === selectedCaId;
+              const nameClassName = cn('truncate font-medium', status !== 'ACTIVE' && 'text-muted-foreground', isSelected && 'text-primary');
+
+              return (
+                <TableRow
+                  key={ca.id}
+                  // Expand toggles carry aria-expanded, which would otherwise keep every parent row highlighted.
+                  className={cn(
+                    'has-aria-expanded:bg-transparent',
+                    !matches && 'opacity-60',
+                    isPicker && 'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
+                    isSelected && 'bg-primary/10 hover:bg-primary/15 has-aria-expanded:bg-primary/10',
+                  )}
+                  onClick={onSelect ? () => onSelect(ca) : undefined}
+                  onKeyDown={onSelect ? (e) => {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      onSelect(ca);
+                    }
+                  } : undefined}
+                  tabIndex={isPicker ? 0 : undefined}
+                  aria-selected={isPicker ? isSelected : undefined}
+                >
+                  <TableCell>
+                    <TreeNodeCell
+                      level={level}
+                      label={ca.name}
+                      hasChildren={hasVisibleChildren}
+                      isCollapsed={!isFiltering && collapsedIds.has(ca.id)}
+                      onToggle={() => toggle(ca.id)}
+                      toggleDisabled={isFiltering}
+                    >
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <CaIcon status={status} engine={engine} />
+                        {isPicker ? (
+                          <span className={nameClassName}>
+                            <HighlightedText text={ca.name} query={query} />
+                          </span>
+                        ) : (
+                          <Link href={detailsHref} className={cn(nameClassName, 'hover:underline')}>
+                            <HighlightedText text={ca.name} query={query} />
+                          </Link>
+                        )}
+                        {childCount > 0 && (
+                          <Badge variant="secondary">{childCount} sub-CA{childCount === 1 ? '' : 's'}</Badge>
+                        )}
+                      </div>
+                      {subject && (
+                        <p className="mt-0.5 line-clamp-1 max-w-xl text-xs text-muted-foreground" title={subject}>
+                          {subject}
+                        </p>
+                      )}
+                    </TreeNodeCell>
+                  </TableCell>
+                  {isVisible('status') && (
+                    <TableCell>
+                      <ApiStatusBadge status={status} />
+                    </TableCell>
+                  )}
+                  {isVisible('type') && (
+                    <TableCell>
+                      <TypeCell caType={ca.caType} />
+                    </TableCell>
+                  )}
+                  {isVisible('key') && (
+                    <TableCell className="max-w-0">
+                      <KeyCell keyAlgorithm={ca.keyAlgorithm} engine={engine} />
+                    </TableCell>
+                  )}
+                  {isVisible('expires') && (
+                    <TableCell>
+                      <DateDisplay date={ca.expires} className="text-xs" relativeClassName="text-xs" />
+                    </TableCell>
+                  )}
+                  {isVisible('parentExpiry') && (
+                    <TableCell>
+                      <ParentExpiryCell ca={ca} parent={parentById.get(ca.id)} />
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right">
+                    {isPicker ? (
+                      isSelected && <Check className="ml-auto h-4 w-4 text-primary" aria-label="Selected" />
+                    ) : (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${ca.name}`}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem asChild>
+                          <Link href={detailsHref}>
+                            <Eye className="mr-2 h-4 w-4" /> View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild disabled={!canIssue}>
+                          <Link href={`/certificate-authorities/issue-certificate?caId=${ca.id}`}>
+                            <FilePlus2 className="mr-2 h-4 w-4" /> Issue Certificate
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild disabled={!canCreateSubCa}>
+                          <Link href={`/certificate-authorities/new/generate?parentCaId=${ca.id}`}>
+                            <GitBranchPlus className="mr-2 h-4 w-4" /> Create Sub-CA
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      </TooltipProvider>
+    </div>
+  );
+}

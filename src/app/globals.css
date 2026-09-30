@@ -60,6 +60,12 @@
   /* Keyframes */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-loader-indeterminate: loader-indeterminate 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes loader-indeterminate {
+  from { left: 0%; }
+  to { left: 60%; }
 }
 
 @keyframes accordion-down {

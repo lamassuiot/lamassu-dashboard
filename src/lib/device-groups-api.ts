@@ -43,6 +43,28 @@ export async function getDeviceGroups(
 }
 
 /**
+ * Get every device group by following the bookmark cursor until exhausted.
+ *
+ * The list endpoint does not resolve ancestors, so each group's own rules end up
+ * split across `criteria`/`inherited_criteria` depending on backend version. They
+ * are merged back into `criteria` here; use `getDeviceGroupByID` for inherited rules.
+ */
+export async function fetchAllDeviceGroups(): Promise<DeviceGroup[]> {
+  const all: DeviceGroup[] = [];
+  let bookmark: string | undefined;
+  do {
+    const response = await getDeviceGroups({ pageSize: 100, bookmark, sortBy: 'name', sortMode: 'asc' });
+    all.push(...response.list.map((group) => ({
+      ...group,
+      criteria: [...(group.criteria ?? []), ...(group.inherited_criteria ?? [])],
+      inherited_criteria: [],
+    })));
+    bookmark = response.next_bookmark || response.next || undefined;
+  } while (bookmark);
+  return all;
+}
+
+/**
  * Get a specific device group by ID
  */
 export async function getDeviceGroupByID(

@@ -1,4 +1,5 @@
 import type { ApiDevice } from '@/lib/devices-api';
+import type { DeviceStatusKey } from '@/lib/device-status';
 
 // Filter operation type matching backend string values
 export type FilterOperation =
@@ -62,24 +63,18 @@ export interface UpdateDeviceGroupBody {
   criteria: DeviceGroupFilterOption[];
 }
 
-// List response
+// List response. The backend currently names the cursor `next_bookmark`;
+// `next` is kept for compatibility with other DevManager list endpoints.
 export interface GetDeviceGroupsResponse {
-  next: string;
+  next?: string;
+  next_bookmark?: string;
   list: DeviceGroup[];
 }
 
-// Group statistics
+// Group statistics (same shape as the global device stats endpoint)
 export interface DeviceGroupStats {
   total: number;
-  status_distribution: {
-    NO_IDENTITY: number;
-    ACTIVE: number;
-    RENEWAL_WINDOW: number;
-    ABOUT_TO_EXPIRE: number;
-    EXPIRED: number;
-    REVOKED: number;
-    DECOMMISSIONED: number;
-  };
+  status_distribution: Partial<Record<DeviceStatusKey, number>>;
 }
 
 // Get devices by group response

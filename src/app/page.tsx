@@ -12,7 +12,6 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
@@ -41,6 +40,22 @@ interface SummaryStats {
   cas: number | null;
   ras: number | null;
   devices: number | null;
+}
+
+// Mirrors the header and body frame of CaExpiryTimeline so loading/error states don't shift the layout.
+function TimelinePlaceholder({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="flex h-full w-full flex-col space-y-1.5">
+      <div className="min-w-0 space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timeline</p>
+        <h2 className="text-sm font-semibold text-foreground">Certification Authority Expiry Timeline</h2>
+        <p className="text-[11px] text-muted-foreground">Visual timeline of CA expiry dates. Select an item to view details.</p>
+      </div>
+      <div className="flex h-[340px] items-center justify-center gap-3 border-y border-border/80 bg-background p-4">
+        {children}
+      </div>
+    </section>
+  );
 }
 
 export default function HomePage() {
@@ -141,34 +156,22 @@ export default function HomePage() {
       </div>
       <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch">
         <div className="min-w-0 flex-1">
-          {anyTimelineLoading && !anyTimelineError ? (
-            <section className="flex h-full w-full flex-col space-y-1.5">
-              <div className="min-w-0 space-y-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timeline</p>
-                <h2 className="text-sm font-semibold text-foreground">Certification Authority Expiry Timeline</h2>
-                <p className="text-[11px] text-muted-foreground">Visual timeline of CA expiry dates. Select an item to view details.</p>
-              </div>
-              <div className="flex h-[340px] items-center justify-center gap-3 border-y border-border/80 bg-background">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Loading timeline data…</p>
-              </div>
-            </section>
-          ) : anyTimelineError ? (
-            <Card className="flex h-full w-full flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Certification Authority Expiry Timeline</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Error Loading Timeline Data</AlertTitle>
-                  <AlertDescription>
-                    {anyTimelineError}
-                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80">Try again?</Button>
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
+          {anyTimelineError ? (
+            <TimelinePlaceholder>
+              <Alert variant="destructive" className="max-w-lg">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error Loading Timeline Data</AlertTitle>
+                <AlertDescription>
+                  {anyTimelineError}
+                  <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80">Try again?</Button>
+                </AlertDescription>
+              </Alert>
+            </TimelinePlaceholder>
+          ) : anyTimelineLoading ? (
+            <TimelinePlaceholder>
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading timeline data…</p>
+            </TimelinePlaceholder>
           ) : (
             <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
           )}

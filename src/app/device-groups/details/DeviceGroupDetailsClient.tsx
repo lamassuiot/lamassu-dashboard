@@ -1,39 +1,23 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { sileo } from '@/lib/toast';
-import {
-  AlertCircle,
-  Edit,
-  Trash2,
-  FolderTree,
-  Loader2,
-  Monitor,
-  RefreshCw,
-  Info,
-  Users,
-} from 'lucide-react';
-import { getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
+import { AlertCircle, Edit, Trash2, FolderTree, FolderPlus, Loader2, Monitor, RefreshCw, Info, Layers, ListFilter } from 'lucide-react';
+import { fetchAllDeviceGroups, getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
+import { getAncestorChain, getDescendantIds } from '@/lib/device-groups-utils';
 import type { DeviceGroup } from '@/types/device-group';
-import { FilterCriteriaDisplay } from '@/components/device-groups/FilterCriteriaDisplay';
-import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
+import { MembershipRulesView } from '@/components/device-groups/MembershipRulesView';
+import { GroupHierarchyTree } from '@/components/device-groups/GroupHierarchyTree';
+import { DeviceGroupStatusBar } from '@/components/device-groups/DeviceGroupStatusBar';
+import { DeleteDeviceGroupDialog } from '@/components/device-groups/DeleteDeviceGroupDialog';
+import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -45,18 +29,30 @@ const DEVICE_GROUP_CRUMBS = [
   { label: 'Device Groups', href: '/device-groups' },
 ];
 
-async function fetchParentGroup(parentId?: string | null): Promise<DeviceGroup | null> {
-  if (!parentId) return null;
-  try {
-    return await getDeviceGroupByID(parentId);
-  } catch {
-    return null;
-  }
+type DetailTab = 'members' | 'rules' | 'hierarchy';
+
+function parseTab(value: string | null): DetailTab {
+  if (value === 'rules' || value === 'info') return 'rules';
+  if (value === 'hierarchy') return 'hierarchy';
+  return 'members';
 }
 
-function filterRulesLabel(count: number): string {
-  if (count === 0) return 'None (catch-all)';
-  return `${count} rule${count === 1 ? '' : 's'}`;
+function HeroDeviceStat({ groupId, refreshKey }: Readonly<{ groupId: string; refreshKey: number }>) {
+  const { stats, isLoading, error } = useDeviceGroupStats(groupId, refreshKey);
+  return (
+    <DetailHeroStat label="Devices">
+      {isLoading ? (
+        <Skeleton className="h-9 w-32" />
+      ) : error || !stats ? (
+        <span className="text-muted-foreground">Unavailable</span>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="font-medium tabular-nums">{stats.total.toLocaleString()}</p>
+          <DeviceGroupStatusBar stats={stats} className="max-w-[180px]" />
+        </div>
+      )}
+    </DetailHeroStat>
+  );
 }
 
 export default function DeviceGroupDetailsClient() {
@@ -65,13 +61,13 @@ export default function DeviceGroupDetailsClient() {
   const groupId = searchParams.get('groupId');
 
   const [group, setGroup] = useState<DeviceGroup | null>(null);
-  const [parentGroup, setParentGroup] = useState<DeviceGroup | null>(null);
+  const [allGroups, setAllGroups] = useState<DeviceGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const tabFromQuery = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<string>(tabFromQuery || 'members');
+  const [activeTab, setActiveTab] = useState<DetailTab>(parseTab(searchParams.get('tab')));
 
   const fetchGroupData = useCallback(async () => {
     if (!groupId) {
@@ -82,9 +78,13 @@ export default function DeviceGroupDetailsClient() {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await getDeviceGroupByID(groupId);
+      const [data, groups] = await Promise.all([
+        getDeviceGroupByID(groupId),
+        // Hierarchy context is best-effort: the page still works without it.
+        fetchAllDeviceGroups().catch(() => [] as DeviceGroup[]),
+      ]);
       setGroup(data);
-      setParentGroup(await fetchParentGroup(data.parent_id));
+      setAllGroups(groups);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch device group');
     } finally {
@@ -93,6 +93,23 @@ export default function DeviceGroupDetailsClient() {
   }, [groupId]);
 
   useEffect(() => { fetchGroupData(); }, [fetchGroupData]);
+
+  // Reset to the default tab when navigating between groups (e.g. via the hierarchy tree).
+  useEffect(() => { setActiveTab(parseTab(searchParams.get('tab'))); }, [groupId, searchParams]);
+
+  const handleRefresh = () => {
+    setRefreshKey((key) => key + 1);
+    fetchGroupData();
+  };
+
+  const groupsById = useMemo(() => new Map(allGroups.map((g) => [g.id, g])), [allGroups]);
+  const ancestors = useMemo(() => (group ? getAncestorChain(group, groupsById) : []), [group, groupsById]);
+  const descendants = useMemo(() => {
+    if (!group) return [];
+    const ids = getDescendantIds(allGroups, group.id);
+    return allGroups.filter((g) => ids.has(g.id));
+  }, [group, allGroups]);
+  const directChildCount = descendants.filter((g) => g.parent_id === group?.id).length;
 
   const handleDelete = async () => {
     if (!group) return;
@@ -103,13 +120,12 @@ export default function DeviceGroupDetailsClient() {
       router.push('/device-groups');
     } catch (err) {
       sileo.error({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to delete device group' });
-    } finally {
       setIsDeleting(false);
       setDeleteDialogOpen(false);
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !group) {
     return (
       <BreadcrumbPage items={DEVICE_GROUP_CRUMBS}>
         <div className="w-full flex flex-col items-center justify-center py-20 space-y-4">
@@ -144,27 +160,39 @@ export default function DeviceGroupDetailsClient() {
     );
   }
 
-  const filterCount = group.criteria?.length ?? 0;
+  const ownRuleCount = group.criteria?.length ?? 0;
   const inheritedCount = group.inherited_criteria?.length ?? 0;
+  const parentGroup = ancestors.at(-1) ?? null;
+  const isCatchAll = ownRuleCount + inheritedCount === 0;
+
+  const tabs: { value: DetailTab; icon: React.ElementType; label: string; count?: number }[] = [
+    { value: 'members', icon: Monitor, label: 'Devices' },
+    { value: 'rules', icon: ListFilter, label: 'Membership Rules', count: ownRuleCount + inheritedCount },
+    { value: 'hierarchy', icon: FolderTree, label: 'Hierarchy', count: descendants.length || undefined },
+  ];
 
   return (
     <BreadcrumbPage
       className="space-y-5"
       items={[
         ...DEVICE_GROUP_CRUMBS,
-        ...(parentGroup ? [{ label: parentGroup.name, href: `/device-groups/details?groupId=${parentGroup.id}` }] : []),
+        ...ancestors.map((ancestor) => ({ label: ancestor.name, href: `/device-groups/details?groupId=${ancestor.id}` })),
         { label: <Badge className="max-w-[320px] truncate">{group.name}</Badge> },
       ]}
     >
       <DetailHero
-        icon={Users}
+        icon={Layers}
         title={group.name}
         idLabel="Group ID"
         id={group.id}
         meta={
-          <Badge variant="secondary">
-            {filterCount > 0 ? 'Dynamic Group' : 'Catch-All Group'}
-          </Badge>
+          <>
+            <Badge variant="secondary">{isCatchAll ? 'Catch-all group' : 'Dynamic group'}</Badge>
+            <Badge variant="secondary">{ancestors.length === 0 ? 'Top-level' : `Level ${ancestors.length + 1}`}</Badge>
+            <span className="text-xs text-muted-foreground">
+              Created <DateDisplay date={group.created_at} showRelative={false} className="text-xs" />
+            </span>
+          </>
         }
         description={group.description || undefined}
         actions={
@@ -173,8 +201,13 @@ export default function DeviceGroupDetailsClient() {
               <Edit className="mr-2 h-4 w-4" /> Edit
             </Button>
             <DetailHeroActionsMenu ariaLabel="Device group actions">
-              <DropdownMenuItem onClick={fetchGroupData} disabled={isLoading}>
+              <DropdownMenuItem onClick={handleRefresh} disabled={isLoading}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/device-groups/new?parentId=${group.id}`}>
+                  <FolderPlus className="mr-2 h-4 w-4" /> Add Subgroup
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -188,6 +221,22 @@ export default function DeviceGroupDetailsClient() {
         }
         stats={
           <>
+            <HeroDeviceStat groupId={group.id} refreshKey={refreshKey} />
+            <DetailHeroStat
+              label="Membership rules"
+              aside={activeTab !== 'rules' && (
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => setActiveTab('rules')}>View</button>
+              )}
+            >
+              {isCatchAll ? (
+                <span className="text-muted-foreground">None (matches all devices)</span>
+              ) : (
+                <>
+                  {ownRuleCount} own
+                  {inheritedCount > 0 && <span className="text-muted-foreground"> + {inheritedCount} inherited</span>}
+                </>
+              )}
+            </DetailHeroStat>
             <DetailHeroStat label="Parent group">
               {parentGroup ? (
                 <Link
@@ -197,18 +246,28 @@ export default function DeviceGroupDetailsClient() {
                   <FolderTree className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{parentGroup.name}</span>
                 </Link>
+              ) : group.parent_id ? (
+                <Link href={`/device-groups/details?groupId=${group.parent_id}`} className="text-primary hover:underline">View parent</Link>
               ) : (
-                <span className="text-muted-foreground">None (root level)</span>
+                <span className="text-muted-foreground">None (top-level)</span>
               )}
             </DetailHeroStat>
-            <DetailHeroStat label="Filter rules">
-              {filterRulesLabel(filterCount)}
-              {inheritedCount > 0 && (
-                <span className="text-muted-foreground"> + {inheritedCount} inherited</span>
+            <DetailHeroStat
+              label="Subgroups"
+              aside={descendants.length > 0 && activeTab !== 'hierarchy' && (
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => setActiveTab('hierarchy')}>View</button>
               )}
-            </DetailHeroStat>
-            <DetailHeroStat label="Created">
-              <DateDisplay date={group.created_at} className="text-sm" />
+            >
+              {descendants.length === 0 ? (
+                <span className="text-muted-foreground">None</span>
+              ) : (
+                <>
+                  {directChildCount} direct
+                  {descendants.length > directChildCount && (
+                    <span className="text-muted-foreground"> · {descendants.length} total</span>
+                  )}
+                </>
+              )}
             </DetailHeroStat>
             <DetailHeroStat label="Last updated">
               <DateDisplay date={group.updated_at} className="text-sm" />
@@ -217,17 +276,16 @@ export default function DeviceGroupDetailsClient() {
         }
       />
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={pageTabsListClass}>
-            {([
-              { value: 'members', icon: Monitor, label: 'Devices' },
-              { value: 'info', icon: Info, label: 'Information' },
-            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+            {tabs.map(({ value, icon: Icon, label, count }) => (
               <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
                 <Icon className="h-4 w-4" />
                 {label}
+                {count !== undefined && count > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{count}</span>
+                )}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -235,138 +293,27 @@ export default function DeviceGroupDetailsClient() {
 
         <div className="mt-6 pb-6">
           <TabsContent value="members" className="mt-0">
-            <GroupMembersList groupId={group.id} />
+            <GroupMembersList groupId={group.id} refreshKey={refreshKey} />
           </TabsContent>
 
-          <TabsContent value="info" className="mt-0">
-            {/* Section: General */}
-            <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-              <div>
-                <p className="font-semibold">General Information</p>
-                <p className="mt-1 text-sm text-muted-foreground">Identity and lifecycle details for this group.</p>
-              </div>
-              <div className="lg:col-span-2">
-                <div className="divide-y">
-                  <div className="py-3 first:pt-0">
-                    <p className="text-xs font-medium text-muted-foreground">Group ID</p>
-                    <p className="mt-1 text-sm font-medium font-mono break-all">{group.id}</p>
-                  </div>
-                  <div className="py-3">
-                    <p className="text-xs font-medium text-muted-foreground">Name</p>
-                    <p className="mt-1 text-sm font-medium">{group.name}</p>
-                  </div>
-                  {group.description && (
-                    <div className="py-3">
-                      <p className="text-xs font-medium text-muted-foreground">Description</p>
-                      <p className="mt-1 text-sm font-medium">{group.description}</p>
-                    </div>
-                  )}
-                  <div className="py-3">
-                    <p className="text-xs font-medium text-muted-foreground">Type</p>
-                    <p className="mt-1 text-sm font-medium">{filterCount > 0 ? 'Dynamic Group' : 'Catch-All Group'}</p>
-                  </div>
-                  <div className="py-3">
-                    <p className="text-xs font-medium text-muted-foreground">Created</p>
-                    <div className="mt-1">
-                      <DateDisplay date={group.created_at} showRelative className="text-sm font-medium" />
-                    </div>
-                  </div>
-                  <div className="py-3 last:pb-0">
-                    <p className="text-xs font-medium text-muted-foreground">Last Updated</p>
-                    <div className="mt-1">
-                      <DateDisplay date={group.updated_at} showRelative className="text-sm font-medium" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <TabsContent value="rules" className="mt-0">
+            <MembershipRulesView group={group} ancestors={ancestors} />
+          </TabsContent>
 
-            <Separator />
-
-            {/* Section: Hierarchy & Stats */}
-            <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-              <div>
-                <p className="font-semibold">Hierarchy & Statistics</p>
-                <p className="mt-1 text-sm text-muted-foreground">Group placement and device membership counts.</p>
-              </div>
-              <div className="lg:col-span-2">
-                <div className="divide-y">
-                  <div className="py-3 first:pt-0">
-                    <p className="text-xs font-medium text-muted-foreground">Level</p>
-                    <p className="mt-1 text-sm font-medium">{parentGroup ? 'Child Group' : 'Root Group'}</p>
-                  </div>
-                  <div className="py-3">
-                    <p className="text-xs font-medium text-muted-foreground">Parent Group</p>
-                    {parentGroup ? (
-                      <button
-                        className="mt-1 text-sm font-medium text-primary hover:underline flex items-center gap-1"
-                        onClick={() => router.push(`/device-groups/details?groupId=${parentGroup.id}`)}
-                      >
-                        <FolderTree className="h-3.5 w-3.5" />
-                        {parentGroup.name}
-                      </button>
-                    ) : (
-                      <p className="mt-1 text-sm font-medium text-muted-foreground">None (root level)</p>
-                    )}
-                  </div>
-                  <div className="py-3">
-                    <p className="text-xs font-medium text-muted-foreground">Filter Rules</p>
-                    <p className="mt-1 text-sm font-medium">
-                      {filterRulesLabel(filterCount)}
-                    </p>
-                  </div>
-                  <div className="py-3 last:pb-0">
-                    <p className="text-xs font-medium text-muted-foreground">Device Statistics</p>
-                    <div className="mt-3">
-                      <CompactGroupStats groupId={group.id} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Filter Criteria */}
-            {(filterCount > 0 || inheritedCount > 0) && (
-              <>
-                <Separator />
-                <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-                  <div>
-                    <p className="font-semibold">Filter Criteria</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Rules that determine dynamic membership for this group.</p>
-                  </div>
-                  <div className="lg:col-span-2">
-                    <FilterCriteriaDisplay
-                      criteria={group.criteria}
-                      inheritedCriteria={group.inherited_criteria}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+          <TabsContent value="hierarchy" className="mt-0">
+            <GroupHierarchyTree group={group} ancestors={ancestors} descendants={descendants} refreshKey={refreshKey} />
           </TabsContent>
         </div>
       </Tabs>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Device Group</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{group.name}&quot;? This action cannot be undone. Devices will not be deleted, only the group definition will be removed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting...</> : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteDeviceGroupDialog
+        group={group}
+        descendants={descendants}
+        open={deleteDialogOpen}
+        onOpenChange={(open) => !isDeleting && setDeleteDialogOpen(open)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+      />
     </BreadcrumbPage>
   );
 }

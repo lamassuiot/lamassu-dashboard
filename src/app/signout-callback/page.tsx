@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { FullPageLoader } from '@/components/shared/FullPageLoader';
 
 export default function SignoutCallbackPage() {
   const router = useRouter();
@@ -33,9 +33,5 @@ export default function SignoutCallbackPage() {
   }, [userManager, router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-      <p className="text-lg">Processing logout, please wait...</p>
-    </div>
-  );
+<FullPageLoader title="Signing Out" message="Ending your session…" />  );
 }

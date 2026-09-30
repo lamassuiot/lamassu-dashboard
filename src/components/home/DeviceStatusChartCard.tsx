@@ -6,22 +6,13 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recha
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { fetchDeviceStats } from '@/lib/devices-api';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { getDeviceStatusMeta } from '@/lib/device-status';
 
 interface ChartData {
   name: string;
   value: number;
   color: string;
 }
-
-const statusConfig: { [key: string]: { label: string; color: string } } = {
-  ACTIVE:           { label: 'Active',           color: 'rgb(34, 197, 94)' },
-  NO_IDENTITY:      { label: 'No Identity',       color: '#3b82f6' },
-  DECOMMISSIONED:   { label: 'Decommissioned',    color: '#9ca3af' },
-  EXPIRING_SOON:    { label: 'Expiring Soon',     color: '#f97316' },
-  RENEWAL_PENDING:  { label: 'Renewal Pending',   color: '#eab308' },
-  REVOKED:          { label: 'Revoked',           color: '#ef4444' },
-  EXPIRED:          { label: 'Expired',           color: '#8b5cf6' },
-};
 
 const renderLegend = (props: any) => {
   const { payload } = props;
@@ -55,7 +46,7 @@ export function DeviceStatusChartCard() {
         setChartData(
           Object.entries(data.status_distribution)
             .map(([k, v]) => {
-              const cfg = statusConfig[k] ?? { label: k, color: '#8884d8' };
+              const cfg = getDeviceStatusMeta(k);
               return { name: cfg.label, value: v as number, color: cfg.color };
             })
             .filter(d => d.value > 0),

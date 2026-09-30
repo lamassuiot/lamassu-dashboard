@@ -1,40 +1,20 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { 
-  AlertCircle, 
-  Loader2, 
-  Search, 
-  ChevronLeft, 
-  ChevronRight, 
-  ChevronsUpDown,
-  ArrowUpZA,
-  ArrowDownAZ,
-  ArrowUp01,
-  ArrowDown10,
-  Eye,
-  MoreVertical,
-  TerminalSquare,
-  HelpCircle
-} from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertCircle, Loader2, Search, Eye, MoreVertical, TerminalSquare, HelpCircle, X, MonitorSmartphone } from 'lucide-react';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { SortableTableHead } from '@/components/shared/SortableTableHead';
+import { BookmarkPaginationFooter } from '@/components/shared/BookmarkPaginationFooter';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
 import type { ApiDevice } from '@/lib/devices-api';
 import { cn } from '@/lib/utils';
@@ -42,234 +22,183 @@ import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal
 import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
+import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
+import { getDeviceStatusMeta, type DeviceStatusKey } from '@/lib/device-status';
+import { getStatusSegments } from './DeviceGroupStatusBar';
 
 interface GroupMembersListProps {
   groupId: string;
+  /** Bumped by the parent page to re-fetch devices and stats. */
+  refreshKey?: number;
   className?: string;
 }
 
-type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 type SortableColumn = 'id' | 'status' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
+type SearchField = 'id' | 'tags';
 
-interface SortConfig {
-  column: SortableColumn;
-  direction: SortDirection;
-}
-
-
-const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
-  const IconComponent = getLucideIconByName(type);
-
-  return (
-    <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: bgColor || '#F0F8FF' }}>
-      {IconComponent ? (
-        <IconComponent className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      ) : (
-        <HelpCircle className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      )}
-    </div>
-  );
+const SORT_COLUMN_TO_API: Record<SortableColumn, string> = {
+  id: 'id',
+  status: 'status',
+  createdAt: 'creation_timestamp',
 };
 
-export function GroupMembersList({ groupId, className }: GroupMembersListProps) {
-  const router = useRouter();
-  
+function DeviceIcon({ type, iconColor, bgColor }: Readonly<{ type: string; iconColor?: string; bgColor?: string }>) {
+  const IconComponent = getLucideIconByName(type) ?? HelpCircle;
+  return (
+    <div className="inline-flex shrink-0 items-center justify-center rounded-md p-1.5" style={{ backgroundColor: bgColor || '#F0F8FF' }}>
+      <IconComponent className="h-5 w-5" style={{ color: iconColor || '#0f67ff' }} />
+    </div>
+  );
+}
+
+export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonly<GroupMembersListProps>) {
   const [devices, setDevices] = useState<ApiDevice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pageSize, setPageSize] = useState('20');
+  const [pageSize, setPageSize] = useState('25');
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchField, setSearchField] = useState<'id' | 'tags'>('id');
-  const [statusFilter, setStatusFilter] = useState<DeviceStatus | 'ALL'>('ALL');
-  const [sortConfig, setSortConfig] = useState<SortConfig>({column: 'createdAt', direction: 'desc'});
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<SearchField>('id');
+  const [statusFilter, setStatusFilter] = useState<DeviceStatusKey | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortableColumn>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [bookmarkHistory, setBookmarkHistory] = useState<(string | undefined)[]>([undefined]);
   const [nextBookmark, setNextBookmark] = useState<string | null>(null);
 
-  // Modal states for EST enrollment
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [raForEnrollModal, setRaForEnrollModal] = useState<ApiRaItem | null>(null);
   const [deviceForEnrollModal, setDeviceForEnrollModal] = useState<ApiDevice | null>(null);
 
-  // Column visibility state
-  const [columnVisibility] = useState<Record<string, boolean>>({
-    id: true,
-    status: true,
-    createdAt: true,
-    tags: true,
-  });
+  const { stats, isLoading: isLoadingStats } = useDeviceGroupStats(groupId, refreshKey);
 
-  const fetchDevices = useCallback(async (bookmark?: string, pageIndex?: number) => {
-    
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const fetchDevices = useCallback(async (bookmark?: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Apply sorting
-      let apiSortColumn = sortConfig.column;
-      if (apiSortColumn === 'createdAt') {
-        apiSortColumn = 'creation_timestamp';
-      }
-
-      // Apply filters
-      const filtersToApply: string[] = [];
-      if (searchTerm.trim() !== '') {
-        filtersToApply.push(`${searchField}[contains_ignorecase]${searchTerm.trim()}`);
-      }
-      if (statusFilter !== 'ALL') {
-        filtersToApply.push(`status[equal]${statusFilter}`);
-      }
+      const filters: string[] = [];
+      if (debouncedSearchTerm) filters.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm}`);
+      if (statusFilter) filters.push(`status[equal]${statusFilter}`);
 
       const response = await getDevicesByGroup(groupId, {
-        pageSize: Number.parseInt(pageSize),
-        bookmark: bookmark || undefined,
-        sortBy: apiSortColumn as any,
-        sortMode: sortConfig.direction as any,
-        filters: filtersToApply.length > 0 ? filtersToApply : undefined,
+        pageSize: Number.parseInt(pageSize, 10),
+        bookmark,
+        sortBy: SORT_COLUMN_TO_API[sortColumn],
+        sortMode: sortDirection,
+        filters: filters.length > 0 ? filters : undefined,
       });
 
       setDevices(response.list);
       setNextBookmark(response.next || null);
-      
-      if (pageIndex !== undefined) {
-        setCurrentPageIndex(pageIndex);
-      }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch devices';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'Failed to fetch devices');
     } finally {
       setIsLoading(false);
     }
-  }, [groupId, pageSize, sortConfig, searchTerm, searchField, statusFilter]);
+    // refreshKey is a dependency so a parent refresh re-creates the fetcher and re-runs the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, pageSize, sortColumn, sortDirection, debouncedSearchTerm, searchField, statusFilter, refreshKey]);
 
-  const refresh = () => {
+  // Reset pagination whenever the query changes.
+  useEffect(() => {
     setCurrentPageIndex(0);
     setBookmarkHistory([undefined]);
-    fetchDevices(undefined, 0);
-  };
+  }, [debouncedSearchTerm, searchField, statusFilter, pageSize, sortColumn, sortDirection]);
+
+  useEffect(() => {
+    if (currentPageIndex < bookmarkHistory.length) {
+      fetchDevices(bookmarkHistory[currentPageIndex]);
+    }
+  }, [currentPageIndex, bookmarkHistory, fetchDevices]);
 
   const handleNextPage = () => {
     if (isLoading) return;
-    const potentialNextPageIndex = currentPageIndex + 1;
-    if (potentialNextPageIndex < bookmarkHistory.length) {
-      setCurrentPageIndex(potentialNextPageIndex);
+    const nextIndex = currentPageIndex + 1;
+    if (nextIndex < bookmarkHistory.length) {
+      setCurrentPageIndex(nextIndex);
     } else if (nextBookmark) {
-      const newStack = bookmarkHistory.slice(0, currentPageIndex + 1);
-      setBookmarkHistory([...newStack, nextBookmark]);
-      setCurrentPageIndex(newStack.length);
+      setBookmarkHistory((prev) => [...prev.slice(0, currentPageIndex + 1), nextBookmark]);
+      setCurrentPageIndex(nextIndex);
     }
   };
 
   const handlePreviousPage = () => {
     if (isLoading || currentPageIndex === 0) return;
-    const prevIndex = currentPageIndex - 1;
-    setCurrentPageIndex(prevIndex);
+    setCurrentPageIndex((prev) => prev - 1);
   };
 
   const requestSort = (column: SortableColumn) => {
-    let direction: SortDirection = 'asc';
-    if (sortConfig.column === column && sortConfig.direction === 'asc') {
-      direction = 'desc';
+    if (column === sortColumn) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
     }
-    setSortConfig({ column, direction });
-  };
-
-  const handleViewDetails = (deviceId: string) => {
-    router.push(`/devices/details?deviceId=${deviceId}`);
   };
 
   const handleOpenEnrollModal = async (device: ApiDevice) => {
     setDeviceForEnrollModal(device);
     setRaForEnrollModal(null);
     setIsEnrollModalOpen(true);
-
     try {
-      const raData = await fetchRaById(device.dms_owner);
-      setRaForEnrollModal(raData);
-    } catch (err: any) {
-      sileo.error({ title: 'Error Fetching RA Details', description: err.message });
+      setRaForEnrollModal(await fetchRaById(device.dms_owner));
+    } catch (err) {
+      sileo.error({ title: 'Error Fetching RA Details', description: err instanceof Error ? err.message : String(err) });
       setIsEnrollModalOpen(false);
     }
   };
 
-  // Reset pagination when filters change
-  useEffect(() => {
-    setCurrentPageIndex(0);
-    setBookmarkHistory([undefined]);
-  }, [searchTerm, searchField, statusFilter, pageSize, sortConfig]);
-
-  useEffect(() => {
-    if (currentPageIndex < bookmarkHistory.length) {
-      fetchDevices(bookmarkHistory[currentPageIndex], currentPageIndex);
-    }
-  }, [currentPageIndex, bookmarkHistory, fetchDevices]);
-
-  // Client-side filtering is no longer needed - filtering happens on the server
-  const sortedDevices = useMemo(() => {
-    return [...devices];
-  }, [devices]);
-
-  const SortableTableHeader: React.FC<{ column: SortableColumn; title: string; className?: string }> = ({ column, title, className }) => {
-    const isSorted = sortConfig?.column === column;
-    let Icon = ChevronsUpDown;
-    if (isSorted) {
-      if (column === 'createdAt') {
-        Icon = sortConfig?.direction === 'asc' ? ArrowUp01 : ArrowDown10;
-      } else {
-        Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
-      }
-    } else if (column === 'createdAt') {
-      Icon = ChevronsUpDown;
-    }
-
-    return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/60", 
-        column === 'createdAt' && "text-center", 
-        className)} onClick={() => requestSort(column)}>
-        <div className={cn("flex items-center gap-1", 
-          column === 'createdAt' && "justify-center")}>
-          {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
-        </div>
-      </TableHead>
-    );
+  const hasActiveFilters = Boolean(debouncedSearchTerm) || statusFilter !== null;
+  const clearFilters = () => {
+    setSearchTerm('');
+    setDebouncedSearchTerm('');
+    setStatusFilter(null);
   };
 
-  const statusOptions = [
-    { label: 'All Statuses', value: 'ALL' },
-    { label: 'Active', value: 'ACTIVE' },
-    { label: 'No Identity', value: 'NO_IDENTITY' },
-    { label: 'Renewal Pending', value: 'RENEWAL_PENDING' },
-    { label: 'Expiring Soon', value: 'EXPIRING_SOON' },
-    { label: 'Expired', value: 'EXPIRED' },
-    { label: 'Revoked', value: 'REVOKED' },
-    { label: 'Decommissioned', value: 'DECOMMISSIONED' },
-  ];
-
-  const hasActiveFilters = searchTerm || statusFilter !== 'ALL';
+  const statusSegments = stats ? getStatusSegments(stats) : [];
 
   return (
-    <div className={cn("space-y-4 py-4", className)}>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
-        <div className="space-y-1">
-          <Label htmlFor="deviceSearchTerm">Search Term</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-            <Input
-              id="deviceSearchTerm"
-              type="text"
-              placeholder="Filter by ID or Tag..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10"
-              disabled={isLoading}
-            />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="deviceSearchField">Search In</Label>
-          <Select value={searchField} onValueChange={(value: 'id' | 'tags') => setSearchField(value)} disabled={isLoading}>
-            <SelectTrigger id="deviceSearchField">
+    <div className={cn('space-y-4', className)}>
+      {/* Status quick filters */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by status">
+        {isLoadingStats && !stats ? (
+          <>
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-8 w-28" />
+          </>
+        ) : (
+          <>
+            <StatusChip label="All devices" count={stats?.total} active={statusFilter === null} onClick={() => setStatusFilter(null)} />
+            {statusSegments.map((segment) => {
+              const meta = getDeviceStatusMeta(segment.status);
+              return (
+                <StatusChip
+                  key={segment.status}
+                  label={meta.label}
+                  color={meta.color}
+                  count={segment.count}
+                  active={statusFilter === segment.status}
+                  onClick={() => setStatusFilter(statusFilter === segment.status ? null : segment.status)}
+                />
+              );
+            })}
+          </>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex w-full max-w-xl items-center gap-2">
+          <Select value={searchField} onValueChange={(value) => setSearchField(value as SearchField)}>
+            <SelectTrigger className="w-[130px] shrink-0" aria-label="Search in">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -277,23 +206,28 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
               <SelectItem value="tags">Tags</SelectItem>
             </SelectContent>
           </Select>
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              aria-label={searchField === 'id' ? 'Search by device ID' : 'Search by tag'}
+              placeholder={searchField === 'id' ? 'Search by device ID...' : 'Search by tag...'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9"
+            />
+          </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="deviceStatusFilter">Status</Label>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DeviceStatus | 'ALL')} disabled={isLoading}>
-            <SelectTrigger id="deviceStatusFilter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="self-start sm:self-auto">
+            <X className="mr-1 h-3.5 w-3.5" /> Clear filters
+          </Button>
+        )}
       </div>
 
-      {isLoading && devices.length === 0 ? (
-        <div className="flex items-center justify-center p-6">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      {isLoading && devices.length === 0 && !error ? (
+        <div className="flex items-center justify-center p-10">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <p className="ml-2 text-muted-foreground">Loading devices...</p>
         </div>
       ) : error ? (
@@ -301,78 +235,60 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Loading Devices</AlertTitle>
           <AlertDescription>
-            {error}
-            <Button variant="link" onClick={refresh} className="p-0 h-auto ml-1">Try again?</Button>
+            {error}{' '}
+            <Button variant="link" onClick={() => fetchDevices(bookmarkHistory[currentPageIndex])} className="h-auto p-0">Try again?</Button>
           </AlertDescription>
         </Alert>
-      ) : sortedDevices.length > 0 ? (
+      ) : devices.length > 0 ? (
         <>
-          <div className={cn("overflow-x-auto transition-opacity duration-300", isLoading && "opacity-50 pointer-events-none")}>
+          <div className={cn('overflow-x-auto transition-opacity duration-300', isLoading && 'pointer-events-none opacity-50')}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  {columnVisibility.id && <SortableTableHeader column="id" title="ID" className="w-[250px]" />}
-                  {columnVisibility.status && <SortableTableHeader column="status" title="Status" className="w-[120px]" />}
-                  {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
-                  {columnVisibility.tags && <TableHead>Tags</TableHead>}
-                  <TableHead className="text-right w-[100px]">Actions</TableHead>
+                  <SortableTableHead column="id" title="Device" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="min-w-[240px]" />
+                  <SortableTableHead column="status" title="Status" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="w-[160px]" />
+                  <TableHead>Tags</TableHead>
+                  <SortableTableHead column="createdAt" title="Registered" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" isDateColumn className="w-[170px]" />
+                  <TableHead className="w-[60px] text-right"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedDevices.map((device) => {
+                {devices.map((device) => {
                   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
+                  const detailsHref = `/devices/details?deviceId=${encodeURIComponent(device.id)}`;
                   return (
                     <TableRow key={device.id}>
-                      {columnVisibility.id && (
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <DeviceIcon type={device.icon || 'HelpCircle'} iconColor={iconColor} bgColor={bgColor} />
-                            <Button
-                              variant="link"
-                              className="font-medium truncate p-0 h-auto text-left"
-                              onClick={() => handleViewDetails(device.id)}
-                              title={`View details for ${device.id}`}
-                            >
-                              {device.id}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                      {columnVisibility.status && (
-                        <TableCell><DeviceStatusBadge status={device.status} /></TableCell>
-                      )}
-                      {columnVisibility.createdAt && (
-                        <TableCell>
-                          <DateDisplay 
-                            date={device.creation_timestamp} 
-                           
-                            className="text-xs"
-                            relativeClassName="text-xs"
-                          />
-                        </TableCell>
-                      )}
-                      {columnVisibility.tags && (
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {device.tags && device.tags.length > 0 ? (
-                              device.tags.map((tag: string) => <Badge key={tag} variant="secondary">{tag}</Badge>)
-                            ) : (
-                              <span className="text-muted-foreground text-xs">No tags</span>
-                            )}
-                          </div>
-                        </TableCell>
-                      )}
+                      <TableCell>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <DeviceIcon type={device.icon || 'HelpCircle'} iconColor={iconColor} bgColor={bgColor} />
+                          <Link href={detailsHref} className="truncate font-medium text-primary hover:underline" title={device.id}>
+                            {device.id}
+                          </Link>
+                        </div>
+                      </TableCell>
+                      <TableCell><DeviceStatusBadge status={device.status} /></TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {device.tags && device.tags.length > 0 ? (
+                            device.tags.map((tag: string) => <Badge key={tag} variant="secondary">{tag}</Badge>)
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <DateDisplay date={device.creation_timestamp} className="text-xs" relativeClassName="text-xs" />
+                      </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${device.id}`}>
                               <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Device Actions</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewDetails(device.id)}>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            <DropdownMenuItem asChild>
+                              <Link href={detailsHref}><Eye className="mr-2 h-4 w-4" /> View Details</Link>
                             </DropdownMenuItem>
                             {device.status === 'NO_IDENTITY' && (
                               <DropdownMenuItem onClick={() => handleOpenEnrollModal(device)}>
@@ -388,41 +304,32 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
               </TableBody>
             </Table>
           </div>
-          <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="pageSizeSelect" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-              <Select value={pageSize} onValueChange={setPageSize}>
-                <SelectTrigger id="pageSizeSelect" className="w-[80px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
-                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
-              </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !(currentPageIndex < bookmarkHistory.length - 1 || nextBookmark)} variant="secondary">
-                Next <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <BookmarkPaginationFooter
+            pageSizeId="groupDevicesPageSize"
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            isLoading={isLoading}
+            currentPageIndex={currentPageIndex}
+            canGoNext={currentPageIndex < bookmarkHistory.length - 1 || Boolean(nextBookmark)}
+            onPreviousPage={handlePreviousPage}
+            onNextPage={handleNextPage}
+          />
         </>
       ) : (
-        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <p className="text-sm text-muted-foreground">
+        <div className="rounded-lg border-2 border-dashed bg-muted/20 p-10 text-center">
+          <MonitorSmartphone className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+          <p className="font-medium">{hasActiveFilters ? 'No devices match these filters' : 'No devices in this group yet'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             {hasActiveFilters
-              ? "No devices match the current filter."
-              : 'No devices currently match the filter criteria for this group.'}
+              ? 'Try another search term or status.'
+              : 'Devices appear here automatically as soon as they match every membership rule.'}
           </p>
+          {hasActiveFilters && (
+            <Button variant="secondary" size="sm" className="mt-4" onClick={clearFilters}>Clear filters</Button>
+          )}
         </div>
       )}
-      
+
       <EstEnrollModal
         isOpen={isEnrollModalOpen}
         onOpenChange={setIsEnrollModalOpen}
@@ -430,5 +337,29 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
         initialDeviceId={deviceForEnrollModal?.id}
       />
     </div>
+  );
+}
+
+function StatusChip({
+  label,
+  count,
+  color,
+  active,
+  onClick,
+}: Readonly<{ label: string; count?: number; color?: string; active: boolean; onClick: () => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        active ? 'border-primary/40 bg-primary/10 text-foreground' : 'bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+      )}
+    >
+      {color && <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: color }} />}
+      <span>{label}</span>
+      {count !== undefined && <span className="font-medium tabular-nums text-foreground">{count.toLocaleString()}</span>}
+    </button>
   );
 }

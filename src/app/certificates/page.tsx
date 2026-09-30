@@ -374,7 +374,6 @@ export default function CertificatesPage() {
         errorCAs={errorCAs} 
         loadCAsAction={loadPageDependencies} 
         onCaSelected={caSelectorMode === 'issue' ? handleCaSelectedForIssuance : handleCaSelectedForFilter}
-        useSheet={caSelectorMode === 'issue'}
         allCryptoEngines={allCryptoEngines}
       />
     </BreadcrumbPage>
