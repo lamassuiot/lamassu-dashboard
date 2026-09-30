@@ -223,7 +223,7 @@ export default function CryptoEnginesPage() {
                     onSort={requestSort}
                     isDateColumn // numeric sort icons
                   />
-                  <TableHead className="hidden lg:table-cell">Supported Keys</TableHead>
+                  <TableHead>Supported Keys</TableHead>
                   <TableHead className="text-right">Metadata</TableHead>
                 </TableRow>
               </TableHeader>
@@ -267,7 +267,7 @@ export default function CryptoEnginesPage() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
+                      <TableCell>
                         <KeyTypeChips chips={getKeyTypeChips(engine)} />
                       </TableCell>
                       <TableCell className="text-right">
