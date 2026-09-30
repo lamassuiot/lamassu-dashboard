@@ -34,7 +34,7 @@ export function ViewModeToggle<T extends string>({
   label,
   ariaLabel = 'View mode',
   className,
-}: ViewModeToggleProps<T>) {
+}: Readonly<ViewModeToggleProps<T>>) {
   return (
     <div className={cn('flex items-center gap-2', className)}>
       {label && <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">{label}</span>}

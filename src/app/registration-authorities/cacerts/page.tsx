@@ -2,11 +2,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Button } from "@/components/ui/button";
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, ArrowLeft, FileText, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, FileText, Info } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
@@ -34,8 +33,13 @@ interface ParsedCaCert {
 
 
 
+const CACERTS_CRUMBS = [
+    { label: 'Home', href: '/' },
+    { label: 'Registration Authorities', href: '/registration-authorities' },
+    { label: 'CA Certificates' },
+];
+
 export default function EstCaCertsPage() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const raId = searchParams.get('raId');
     
@@ -112,25 +116,28 @@ export default function EstCaCertsPage() {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center flex-1 p-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading CA Certificates...</p>
-            </div>
+            <BreadcrumbPage items={CACERTS_CRUMBS}>
+                <div className="flex flex-col items-center justify-center flex-1 p-8">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="text-lg text-muted-foreground">Loading CA Certificates...</p>
+                </div>
+            </BreadcrumbPage>
         );
     }
     
     return (
-        <BreadcrumbPage className="space-y-6 pb-12" items={[ {label:'Home',href:'/'}, {label:'Registration Authorities',href:'/registration-authorities'}, {label:'CA Certificates'} ]}>
-            <Button variant="secondary" onClick={() => router.back()}>
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            <div className="flex items-center space-x-3">
-                <FileText className="h-8 w-8 text-primary" />
-                <h1 className="text-2xl font-headline font-semibold">CA Certificates for {raId}</h1>
+        <BreadcrumbPage className="space-y-6 pb-12" items={CACERTS_CRUMBS}>
+            <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+                    <FileText className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                    <h1 className="text-2xl font-headline font-semibold">CA Certificates for {raId}</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Obtain the list of trusted CAs that are configured for this DMS instance.
+                    </p>
+                </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-                Obtain the list of trusted CAs that are configured for this DMS instance.
-            </p>
 
             {error && (
                 <Alert variant="destructive">

@@ -94,8 +94,8 @@ function AppliesTo({ rule, schema }: { rule: Rule; schema?: SchemaDefinition }) 
       <div className="space-y-1.5">
         <p className="text-sm">Instances matching every condition</p>
         <div className="flex flex-wrap gap-1">
-          {rule.column_filters!.map((filter, i) => (
-            <Badge key={i} variant="secondary" className="font-mono">
+          {rule.column_filters!.map((filter) => (
+            <Badge key={`${filter.column}${filter.operator}${JSON.stringify(filter.value)}`} variant="secondary" className="font-mono">
               {filter.column}
               <span className="text-muted-foreground">{OPERATOR_SYMBOL[filter.operator] ?? filter.operator}</span>
               {formatFilterValue(filter.value)}

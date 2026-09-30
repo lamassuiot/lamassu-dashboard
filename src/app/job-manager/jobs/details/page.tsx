@@ -18,6 +18,7 @@ import { WorkflowGraph } from '@/components/shared/WorkflowGraph';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
@@ -105,6 +106,24 @@ function getStatusSnapshots(job: WfxJob): JobStatusSnapshot[] {
     ];
 }
 
+function describeStatusSnapshot(snapshot?: JobStatusSnapshot): string {
+    if (snapshot?.isCurrent) return 'Latest reported context from the job status.';
+    if (snapshot?.status.state) return `Context reported when the job entered ${snapshot.status.state}.`;
+    return 'Reported context for the selected job status.';
+}
+
+function StatDate({ date }: Readonly<{ date?: string | null }>) {
+    return date
+        ? <DateDisplay date={date} className="text-sm" />
+        : <span className="text-muted-foreground">—</span>;
+}
+
+const JOB_CRUMBS = [
+    { label: 'Home', href: '/' },
+    { label: 'Job Manager' },
+    { label: 'Jobs', href: '/job-manager/jobs' },
+];
+
 export default function JobDetailsPage() {
     const searchParams = useSearchParams();
     const monacoTheme = useMonacoTheme();
@@ -143,21 +162,19 @@ export default function JobDetailsPage() {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center flex-1 p-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading job...</p>
-            </div>
+            <BreadcrumbPage items={JOB_CRUMBS}>
+                <div className="flex flex-col items-center justify-center flex-1 p-8">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="text-lg text-muted-foreground">Loading job...</p>
+                </div>
+            </BreadcrumbPage>
         );
     }
 
     if (error || !job) {
         return (
             <BreadcrumbPage
-                items={[
-                    { label: 'Home', href: '/' },
-                    { label: 'Job Manager', href: '/job-manager/jobs' },
-                    { label: 'Jobs', href: '/job-manager/jobs' },
-                ]}
+                items={JOB_CRUMBS}
             >
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -171,19 +188,13 @@ export default function JobDetailsPage() {
     const selectedStatusSnapshot = statusSnapshots.find(snapshot => snapshot.id === selectedStatusSnapshotId)
         ?? statusSnapshots[statusSnapshots.length - 1];
     const selectedStatusContext = selectedStatusSnapshot?.status.context;
-    const selectedStatusDescription = selectedStatusSnapshot?.isCurrent
-        ? 'Latest reported context from the job status.'
-        : selectedStatusSnapshot?.status.state
-        ? `Context reported when the job entered ${selectedStatusSnapshot.status.state}.`
-        : 'Reported context for the selected job status.';
+    const selectedStatusDescription = describeStatusSnapshot(selectedStatusSnapshot);
 
     return (
         <BreadcrumbPage
             className="space-y-5"
             items={[
-                { label: 'Home', href: '/' },
-                { label: 'Job Manager', href: '/job-manager/jobs' },
-                { label: 'Jobs', href: '/job-manager/jobs' },
+                ...JOB_CRUMBS,
                 {
                     label: (
                         <Badge className="font-mono">
@@ -193,32 +204,40 @@ export default function JobDetailsPage() {
                 },
             ]}
         >
-            {/* Hero */}
-            <div>
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-
-                    {/* Identity */}
-                    <div className="flex items-start gap-4">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary">
-                            <ClipboardList className="h-6 w-6" />
-                        </div>
-
-                        <div className="min-w-0 space-y-2">
-                            <h1 className="break-all text-2xl font-semibold tracking-tight">
-                                {job.id}
-                            </h1>
-                            {job.workflow?.name && (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                    <Badge variant="secondary" className="font-mono">
-                                        {job.workflow.name}
-                                    </Badge>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                </div>
-            </div>
+            <DetailHero
+                icon={ClipboardList}
+                title={job.id}
+                titleClassName="font-mono"
+                badges={
+                    <>
+                        {job.status?.state && <WfxStatusBadge state={job.status.state} />}
+                        {group && <WfxGroupBadge group={group} />}
+                    </>
+                }
+                meta={job.workflow?.name && (
+                    <Badge variant="secondary" className="font-mono" asChild>
+                        <Link href={`/job-manager/workflows/details?name=${encodeURIComponent(job.workflow.name)}`} className="hover:bg-muted/70">
+                            <Workflow />
+                            {job.workflow.name}
+                        </Link>
+                    </Badge>
+                )}
+                stats={
+                    <>
+                        <DetailHeroStat label="Device">
+                            {job.clientId
+                                ? <Link href={`/devices/details/information?deviceId=${encodeURIComponent(job.clientId)}`} className="block truncate font-mono text-primary hover:underline underline-offset-4" title={job.clientId}>{job.clientId}</Link>
+                                : <span className="text-muted-foreground">N/A</span>}
+                        </DetailHeroStat>
+                        <DetailHeroStat label="Created">
+                            <StatDate date={job.stime} />
+                        </DetailHeroStat>
+                        <DetailHeroStat label="Last modified">
+                            <StatDate date={job.mtime} />
+                        </DetailHeroStat>
+                    </>
+                }
+            />
 
             <Tabs defaultValue="overview" className="w-full">
                 <div className="border-b overflow-x-auto overflow-y-hidden">

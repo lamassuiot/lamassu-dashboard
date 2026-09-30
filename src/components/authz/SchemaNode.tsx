@@ -49,8 +49,8 @@ export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
               Atomic Actions
             </div>
             <div className="flex flex-wrap gap-1">
-              {schema.atomic_actions!.slice(0, 4).map((action: string, index: number) => (
-                <Badge key={index} variant="secondary">
+              {schema.atomic_actions!.slice(0, 4).map((action: string) => (
+                <Badge key={action} variant="secondary">
                   {action}
                 </Badge>
               ))}
@@ -71,8 +71,8 @@ export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
               Global Actions
             </div>
             <div className="flex flex-wrap gap-1">
-              {schema.global_actions!.slice(0, 4).map((action: string, index: number) => (
-                <Badge key={index} variant="secondary">
+              {schema.global_actions!.slice(0, 4).map((action: string) => (
+                <Badge key={action} variant="secondary">
                   {action}
                 </Badge>
               ))}

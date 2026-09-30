@@ -361,7 +361,7 @@ export default function KmsKeysPage() {
 
 
   return (
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label: 'Home', href: '/'}, {label: 'KMS', href: '/kms'}, {label: 'Keys'} ]}>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label: 'Home', href: '/'}, {label: 'KMS'}, {label: 'Keys'} ]}>
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
@@ -490,8 +490,8 @@ export default function KmsKeysPage() {
                       <TableCell>
                         {key.aliases && key.aliases.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {key.aliases.map((alias, idx) => (
-                              <Badge key={idx} variant="secondary">
+                            {key.aliases.map((alias) => (
+                              <Badge key={alias} variant="secondary">
                                 {alias}
                               </Badge>
                             ))}
@@ -503,8 +503,8 @@ export default function KmsKeysPage() {
                       <TableCell>
                         {key.tags && key.tags.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {key.tags.map((tag, idx) => (
-                              <Badge key={idx} variant="secondary">
+                            {key.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">
                                 {tag}
                               </Badge>
                             ))}

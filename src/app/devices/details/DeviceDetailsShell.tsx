@@ -4,11 +4,17 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, ClipboardList } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/page';
+import Link from 'next/link';
+import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2 } from 'lucide-react';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { mapApiIconToIconType } from '@/app/devices/page';
+import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
+import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +44,11 @@ const SLUG_TO_TAB: Record<string, string> = {
   jobs: 'jobs',
 };
 
+const DEVICE_CRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'Devices', href: '/devices' },
+];
+
 export default function DeviceDetailsShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -50,7 +61,6 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
   const [errorDevice, setErrorDevice] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState(false);
 
   const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
@@ -196,45 +206,42 @@ export default function DeviceDetailsShell({ children }: { children: React.React
 
   if (isLoadingDevice) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading device details...</p>
-      </div>
+      <BreadcrumbPage items={DEVICE_CRUMBS}>
+        <div className="flex flex-col items-center justify-center flex-1 p-8">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg text-muted-foreground">Loading device details...</p>
+        </div>
+      </BreadcrumbPage>
     );
   }
 
   if (errorDevice) {
     return (
-      <div className="w-full space-y-4 p-4">
-        <Button variant="secondary" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
+      <BreadcrumbPage items={DEVICE_CRUMBS}>
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Device</AlertTitle>
           <AlertDescription>{errorDevice}</AlertDescription>
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   if (!device) {
     return (
-      <div className="w-full space-y-4 p-4">
-        <Button variant="secondary" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
+      <BreadcrumbPage items={DEVICE_CRUMBS}>
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>Device Not Found</AlertTitle>
           <AlertDescription>The device with ID &quot;{deviceId ?? 'Unknown'}&quot; could not be found.</AlertDescription>
         </Alert>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
-  const deviceIconType = mapApiIconToIconType(device.icon);
+  const DeviceGlyph = getLucideIconByName(mapApiIconToIconType(device.icon));
   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
+  const activeCertificateSn = device.identity?.versions?.[device.identity.active_version];
 
   return (
     <DeviceDetailsContext.Provider value={{
@@ -250,58 +257,49 @@ export default function DeviceDetailsShell({ children }: { children: React.React
       updateMetadata: (id, ops) => updateDeviceMetadata(id, ops),
     }}>
       <BreadcrumbPage
-        className="space-y-4"
+        className="space-y-5"
         items={[
-          { label: 'Home', href: '/' },
-          { label: 'Devices', href: '/devices' },
-          { label: 'Details' },
+          ...DEVICE_CRUMBS,
+          { label: <Badge className="max-w-[320px] truncate">{device.id}</Badge> },
         ]}
       >
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex items-start gap-4">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-              style={{ backgroundColor: bgColor || '#F0F8FF' }}
-            >
-              <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
+        <DetailHero
+          leading={
+            <div className="shrink-0 rounded-md p-1.5" style={{ backgroundColor: bgColor || '#F0F8FF' }}>
+              <DeviceGlyph className="h-8 w-8" style={{ color: iconColor || '#0f67ff' }} />
             </div>
-            <div className="min-w-0 space-y-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight" title={device.id}>{device.id}</h1>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">ID</span>
-                <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">{device.id}</code>
-                <Button
-                  variant="ghost"
-                  className="h-6 w-6 shrink-0 p-0"
-                  onClick={() => { navigator.clipboard.writeText(device.id); setCopiedId(true); setTimeout(() => setCopiedId(false), 2000); }}
-                >
-                  {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 xl:justify-end">
-            <Button variant="ghost" size="icon" onClick={fetchDevice} title="Refresh">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+          }
+          title={device.id}
+          badges={<DeviceStatusBadge status={device.status} />}
+          idLabel="Device ID"
+          id={device.id}
+          meta={device.tags?.map(tag => (
+            <Badge key={tag} variant="secondary">{tag}</Badge>
+          ))}
+          actions={
+            <>
+              <Button
+                onClick={() => setIsAssignIdentityModalOpen(true)}
+                disabled={!!device.identity && device.identity.status !== 'REVOKED'}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
+              </Button>
+              <DetailHeroActionsMenu ariaLabel="Device actions">
+                <DropdownMenuItem onClick={fetchDevice}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+                </DropdownMenuItem>
                 {availableIntegrations.length > 0 && (
-                  <>
-                    <DropdownMenuItem onClick={() => setIsForceUpdateModalOpen(true)}>Force Update</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem onClick={() => setIsForceUpdateModalOpen(true)}>
+                    <RotateCw className="mr-2 h-4 w-4" /> Force Update
+                  </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={() => setIsDecommissionModalOpen(true)}
                   disabled={device.status === 'DECOMMISSIONED'}
                 >
-                  Decommission
+                  <PowerOff className="mr-2 h-4 w-4" /> Decommission
                 </DropdownMenuItem>
                 {device.status === 'DECOMMISSIONED' && (
                   <DropdownMenuItem
@@ -309,19 +307,58 @@ export default function DeviceDetailsShell({ children }: { children: React.React
                     onClick={() => setIsDeleteModalOpen(true)}
                     disabled={isDeleting}
                   >
-                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                    <Trash2 className="mr-2 h-4 w-4" /> {isDeleting ? 'Deleting...' : 'Permanently Delete'}
                   </DropdownMenuItem>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              onClick={() => setIsAssignIdentityModalOpen(true)}
-              disabled={!!device.identity && device.identity.status !== 'REVOKED'}
-            >
-              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
-            </Button>
-          </div>
-        </div>
+              </DetailHeroActionsMenu>
+            </>
+          }
+          stats={
+            <>
+              <DetailHeroStat label="Registration Authority">
+                {device.dms_owner ? (
+                  <Link
+                    href={`/registration-authorities/new?raId=${encodeURIComponent(device.dms_owner)}`}
+                    className="block truncate text-primary hover:underline"
+                    title={device.dms_owner}
+                  >
+                    {raForIntegration?.name || device.dms_owner}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">Not assigned</span>
+                )}
+              </DetailHeroStat>
+              <DetailHeroStat
+                label="Identity"
+                aside={activeCertificateSn && (
+                  <Link
+                    href={`/certificates/details?certificateId=${activeCertificateSn}`}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    View certificate
+                  </Link>
+                )}
+              >
+                {device.identity ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <ApiStatusBadge status={device.identity.status} />
+                    <span className="text-xs text-muted-foreground">v{device.identity.active_version}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">No identity assigned</span>
+                )}
+              </DetailHeroStat>
+              <DetailHeroStat label="Identity expires">
+                {device.identity?.expiration_date
+                  ? <DateDisplay date={device.identity.expiration_date} highlightExpired className="text-sm" />
+                  : <span className="text-muted-foreground">—</span>}
+              </DetailHeroStat>
+              <DetailHeroStat label="Created">
+                <DateDisplay date={device.creation_timestamp} className="text-sm" />
+              </DetailHeroStat>
+            </>
+          }
+        />
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <div className="border-b overflow-x-auto overflow-y-hidden">

@@ -19,8 +19,8 @@ interface BreadcrumbPageProps {
  * so the breadcrumb border spans edge-to-edge. Pass `className` to control the
  * content spacing (e.g. "space-y-5" or "space-y-6 pb-8").
  *
- * Replaces DetailBreadcrumbRow for detail pages and is the standard wrapper for
- * list/form pages too, allowing layout.tsx's auto-generated breadcrumb to be removed.
+ * Every page (list, detail, form — including loading/error states) should render
+ * inside this so the breadcrumb bar is always at the top.
  */
 export function BreadcrumbPage({ items, actions, children, className }: BreadcrumbPageProps) {
   return (

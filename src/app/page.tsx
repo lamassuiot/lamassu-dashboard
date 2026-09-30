@@ -17,6 +17,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
 import { fetchDeviceStats } from '@/lib/devices-api';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 // Helper function from old page.tsx
@@ -132,7 +133,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="w-full space-y-8">
+    <BreadcrumbPage className="space-y-8" items={[{ label: 'Home' }]}>
       <div className="flex items-center justify-start">
         <Button onClick={loadInitialData} variant="secondary" disabled={isReloading}>
           <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
@@ -179,6 +180,6 @@ export default function HomePage() {
       <div>
         <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats} />
       </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

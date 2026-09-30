@@ -347,8 +347,13 @@ export default function IssueCertificateFormClient() {
 
 
   const handleAddSan = () => {
-    if (currentSanValue.trim() === '') return;
-    setSans(prev => [...prev, { type: currentSanType, value: currentSanValue.trim() }]);
+    const value = currentSanValue.trim();
+    if (value === '') return;
+    setSans(prev => (
+      prev.some(san => san.type === currentSanType && san.value === value)
+        ? prev
+        : [...prev, { type: currentSanType, value }]
+    ));
     setCurrentSanValue('');
   };
 
@@ -791,7 +796,7 @@ export default function IssueCertificateFormClient() {
                           <div className="mt-3 p-3 border rounded-md bg-muted/30">
                             <div className="flex flex-wrap gap-2">
                               {sans.map((san, index) => (
-                                <Badge key={index} variant="secondary" className="pr-1">
+                                <Badge key={`${san.type}:${san.value}`} variant="secondary" className="pr-1">
                                   <span className="font-medium">{san.type}:</span>
                                   <span>{san.value}</span>
                                   <Button

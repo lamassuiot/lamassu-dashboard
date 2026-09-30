@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCertificatePemDetails, abToHex } from '@/lib-crypto'
+import { parseCertificatePemDetails, abToHex, parseDistinguishedName } from '@/lib-crypto'
 import { VALID_RSA_CERT_PEM, VALID_ECDSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('cert-parser', () => {
@@ -25,5 +25,14 @@ describe('cert-parser', () => {
     const buf = new Uint8Array([0x00, 0x0a, 0xff]).buffer
     expect(abToHex(buf)).toBe('000aff')
     expect(abToHex(buf, ':', false)).toBe('00:0a:ff')
+  })
+
+  it('should split a DN into ordered parts and unescape commas with parseDistinguishedName', () => {
+    expect(parseDistinguishedName(String.raw`C=ES, O=Acme\, Inc., CN=Root CA`)).toEqual([
+      { label: 'C', value: 'ES' },
+      { label: 'O', value: 'Acme, Inc.' },
+      { label: 'CN', value: 'Root CA' },
+    ])
+    expect(parseDistinguishedName('')).toEqual([])
   })
 })

@@ -20,6 +20,14 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { parseISO, isPast, formatDistanceToNowStrict } from 'date-fns';
 import type { ColumnConfig } from '@/components/ui/column-selector';
 
+function getEnrollmentCaStatus(ca: CA): { label: string; variant: BadgeVariant; expiryText: string | null } {
+  if (ca.status === 'revoked') return { label: 'Revoked', variant: 'destructive', expiryText: null };
+  const expiryDate = parseISO(ca.expires);
+  const distance = formatDistanceToNowStrict(expiryDate);
+  if (isPast(expiryDate)) return { label: 'Expired', variant: 'warning', expiryText: `Expired ${distance} ago` };
+  return { label: 'Active', variant: 'default', expiryText: `Expires in ${distance}` };
+}
+
 interface SortConfig {
   column: SortableColumn;
   direction: SortDirection;
@@ -156,14 +164,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                   {(() => {
                     const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
                     if (!ca) return <span className="text-muted-foreground text-sm">—</span>;
-                    const expiryDate = parseISO(ca.expires);
-                    const isRevoked = ca.status === 'revoked';
-                    const isExpired = !isRevoked && isPast(expiryDate);
-                    const statusLabel = isRevoked ? 'Revoked' : isExpired ? 'Expired' : 'Active';
-                    const statusVariant: BadgeVariant = isRevoked ? 'destructive' : isExpired ? 'warning' : 'default';
-                    const expiryText = isRevoked ? null : isExpired
-                      ? `Expired ${formatDistanceToNowStrict(expiryDate)} ago`
-                      : `Expires in ${formatDistanceToNowStrict(expiryDate)}`;
+                    const { label: statusLabel, variant: statusVariant, expiryText } = getEnrollmentCaStatus(ca);
                     return (
                       <div className="flex items-center gap-2 min-w-0">
                         <button

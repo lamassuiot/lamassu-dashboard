@@ -321,6 +321,7 @@ function EditPrincipalContent() {
 
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
+    { label: 'Authorization' },
     { label: 'Principals', href: '/authz/principals' },
     ...(principal_id
       ? [{ label: principal?.name || 'Details', href: `/authz/principals/details?principal_id=${principal_id}` }]

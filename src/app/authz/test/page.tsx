@@ -344,7 +344,7 @@ export default function AuthorizationTestPage() {
   return (
     <BreadcrumbPage
       className="space-y-6 pb-8"
-      items={[{ label: 'Home', href: '/' }, { label: 'Authorization', href: '/authz' }, { label: 'Test' }]}
+      items={[{ label: 'Home', href: '/' }, { label: 'Authorization' }, { label: 'Test' }]}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
