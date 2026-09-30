@@ -832,7 +832,7 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
   const authenticatedAppKey = isLoggedIn
     ? `${user?.profile.iss ?? 'unknown'}:${user?.profile.sub ?? 'unknown'}`
     : 'anonymous';
-  const access = usePlatformAccess(user?.access_token, !authIsLoading && isLoggedIn);
+  const access = usePlatformAccess(user?.access_token, authenticatedAppKey, !authIsLoading && isLoggedIn);
   const isAuthorized = access.status === 'authorized';
 
   // State to determine if the wizard should be shown

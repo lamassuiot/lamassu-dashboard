@@ -20,14 +20,28 @@ export interface PlatformAccess {
  * Any non-2xx answer means the user is not authorized to use the platform; a request that never
  * gets an answer (network failure) is reported as `error` so the user can retry.
  *
- * Token renewals refetch in the background without dropping back to `loading`, so the app is not
- * unmounted every time the session is silently refreshed.
+ * Token renewals for the same user refetch in the background without dropping back to `loading`,
+ * so the app is not unmounted every time the session is silently refreshed. A different user (or a
+ * sign-out) resets everything to `loading`, so one user's access is never shown to the next.
+ *
+ * @param userKey Stable identity of the signed-in user (e.g. `iss:sub`).
  */
-export function usePlatformAccess(accessToken: string | undefined, enabled: boolean): PlatformAccess {
+export function usePlatformAccess(accessToken: string | undefined, userKey: string, enabled: boolean): PlatformAccess {
   const [status, setStatus] = useState<PlatformAccessStatus>('loading');
   const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
   const [matchedPrincipalIds, setMatchedPrincipalIds] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
+
+  // Reset during render (not in an effect) so not even one frame renders with the previous user's access.
+  const sessionKey = enabled ? userKey : null;
+  const [resolvedSessionKey, setResolvedSessionKey] = useState(sessionKey);
+  if (sessionKey !== resolvedSessionKey) {
+    setResolvedSessionKey(sessionKey);
+    setStatus('loading');
+    setGlobalCapabilities(null);
+    setMatchedPrincipalIds([]);
+  }
+
   const statusRef = useRef(status);
   statusRef.current = status;
 
