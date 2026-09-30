@@ -14,6 +14,48 @@ const extensionFor = (fileName: string) => {
   return index >= 0 ? fileName.slice(index).toLowerCase() : '';
 };
 
+const quotedList = (names: string[]) => names.map(name => '"' + name + '"').join(', ');
+
+/** Shows an error toast and returns false when any file has a disallowed extension or size. */
+function validateCertificateFiles(files: File[], allowedExtensions: string[], maxFileSize: number): boolean {
+  if (files.some(file => !allowedExtensions.includes(extensionFor(file.name)))) {
+    sileo.error({
+      title: 'Invalid File Type',
+      description: `Only ${allowedExtensions.join(', ')} files are supported.`,
+    });
+    return false;
+  }
+
+  if (files.some(file => file.size > maxFileSize)) {
+    sileo.error({
+      title: 'File Too Large',
+      description: `File size must be less than ${maxFileSize / 1024 / 1024}MB.`,
+    });
+    return false;
+  }
+
+  return true;
+}
+
+function notifyDerConversions(convertedFileNames: string[], truncatedFileNames: string[]) {
+  if (convertedFileNames.length > 0) {
+    sileo.info({
+      title: 'DER Converted to PEM',
+      description: convertedFileNames.length === 1
+        ? `"${convertedFileNames[0]}" was DER-encoded and has been converted to PEM.`
+        : `${convertedFileNames.length} DER-encoded files have been converted to PEM.`,
+    });
+  }
+
+  if (truncatedFileNames.length > 0) {
+    sileo.warning({
+      title: 'Only First Certificate Used',
+      description: `${quotedList(truncatedFileNames)} contained data after the first certificate `
+        + '(e.g. a concatenated DER chain), which was ignored. Provide each chain certificate as a separate DER file or as PEM.',
+    });
+  }
+}
+
 /**
  * Validates and reads certificate files (PEM or DER), returning their combined PEM content.
  *
@@ -27,23 +69,7 @@ export async function loadCertificateFilesAsPem(
     maxFileSize = CERTIFICATE_MAX_FILE_SIZE,
   }: LoadCertificateFilesOptions = {},
 ): Promise<string | null> {
-  const invalidFile = files.find(file => !allowedExtensions.includes(extensionFor(file.name)));
-  if (invalidFile) {
-    sileo.error({
-      title: 'Invalid File Type',
-      description: `Only ${allowedExtensions.join(', ')} files are supported.`,
-    });
-    return null;
-  }
-
-  const oversizedFile = files.find(file => file.size > maxFileSize);
-  if (oversizedFile) {
-    sileo.error({
-      title: 'File Too Large',
-      description: `File size must be less than ${maxFileSize / 1024 / 1024}MB.`,
-    });
-    return null;
-  }
+  if (!validateCertificateFiles(files, allowedExtensions, maxFileSize)) return null;
 
   const pems: string[] = [];
   const convertedFileNames: string[] = [];
@@ -63,22 +89,6 @@ export async function loadCertificateFilesAsPem(
     }
   }
 
-  if (convertedFileNames.length > 0) {
-    sileo.info({
-      title: 'DER Converted to PEM',
-      description: convertedFileNames.length === 1
-        ? `"${convertedFileNames[0]}" was DER-encoded and has been converted to PEM.`
-        : `${convertedFileNames.length} DER-encoded files have been converted to PEM.`,
-    });
-  }
-
-  if (truncatedFileNames.length > 0) {
-    sileo.warning({
-      title: 'Only First Certificate Used',
-      description: `${truncatedFileNames.map(name => `"${name}"`).join(', ')} contained data after the first certificate `
-        + '(e.g. a concatenated DER chain), which was ignored. Provide each chain certificate as a separate DER file or as PEM.',
-    });
-  }
-
+  notifyDerConversions(convertedFileNames, truncatedFileNames);
   return pems.join('\n');
 }

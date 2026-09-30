@@ -21,8 +21,9 @@ function convertFirstDerCertificate(der: ArrayBuffer): { pem: string; ignoredTra
   if (asn1.offset === -1) {
     throw new Error("Invalid ASN.1 structure.");
   }
-  // Throws if the ASN.1 structure does not match the X.509 Certificate schema.
-  new Certificate({ schema: asn1.result });
+  if (!asn1js.compareSchema(asn1.result, asn1.result, Certificate.schema()).verified) {
+    throw new Error("ASN.1 structure does not match the X.509 Certificate schema.");
+  }
   return {
     pem: formatAsPem(arrayBufferToBase64(der.slice(0, asn1.offset)), "CERTIFICATE"),
     ignoredTrailingData: asn1.offset < der.byteLength,
