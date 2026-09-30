@@ -6,11 +6,11 @@ import { ShieldQuestion, FolderKey } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import AWSKMSLogo from "./CryptoEngineIcons/AWS-KMS.png"
-import AWSSMLogo from "./CryptoEngineIcons/AWS-SM.png"
-import PKCS11Logo from "./CryptoEngineIcons/PKCS11.png"
-import VaultLogo from "./CryptoEngineIcons/HASHICORP-VAULT.png"
-import AzureKeyVaultLogo from "./CryptoEngineIcons/AZURE-KEYVAULT.webp"
+import AWSKMSLogo from "./crypto-engine-icons/AWS-KMS.png"
+import AWSSMLogo from "./crypto-engine-icons/AWS-SM.png"
+import PKCS11Logo from "./crypto-engine-icons/PKCS11.png"
+import VaultLogo from "./crypto-engine-icons/HASHICORP-VAULT.png"
+import AzureKeyVaultLogo from "./crypto-engine-icons/AZURE-KEYVAULT.webp"
 
 import { Badge } from '@/components/ui/badge';
 interface CryptoEngineViewerProps {
