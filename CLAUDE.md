@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Lamassu Dashboard is a Next.js 15 web UI for managing X.509 certificates and PKI infrastructure (CAs, RAs, VAs, devices, and authorization policies). It is deployed as a static export served by Nginx in Docker.
+Lamassu Dashboard is a Vite and React Router web UI for managing X.509 certificates and PKI infrastructure (CAs, RAs, VAs, devices, and authorization policies). It is deployed as a static site served by Nginx in Docker.
 
 ## Commands
 
 ```bash
-pnpm run dev          # Development server with Turbopack on port 9002
-pnpm run build        # Production static export to out/
+pnpm run dev          # Vite development server on port 9002
+pnpm run build        # Production static build to out/
 pnpm run lint         # ESLint analysis
 pnpm run fix          # ESLint auto-fix
 pnpm run typecheck    # TypeScript type checking (run before committing)
 ```
 
-No automated test suite — validation relies on `typecheck`, `lint`, and `build`.
+Unit tests run with `pnpm run test`; also validate with `typecheck`, `lint`, and `build`.
 
 **Always run `pnpm run typecheck` and `pnpm run lint` before committing.**
 
@@ -24,7 +24,7 @@ No automated test suite — validation relies on `typecheck`, `lint`, and `build
 
 ### Static Export + Runtime Configuration
 
-The app uses `output: 'export'` in `next.config.ts` — no API routes or server-side rendering. Configuration is injected at runtime via `public/config.js` (populated from `config.js.tmpl` by `docker-entrypoint.sh`). Key config values:
+Vite builds the browser app into `out/`; React Router maps the existing `src/app/**/page.tsx` files to client routes. There are no API routes or server-side rendering. Configuration is injected at runtime via `public/config.js` (populated from `config.js.tmpl` by `docker-entrypoint.sh`). Key config values:
 
 - `LAMASSU_API` — backend API base URL
 - `LAMASSU_AUTH_ENABLED` / `LAMASSU_AUTH_AUTHORITY` / `LAMASSU_AUTH_CLIENT_ID` — OIDC settings
@@ -71,7 +71,7 @@ Browser-side PKI operations use `pki.js` and `asn1.js`:
 - `src/components/ui/` — ShadCN base components (do not modify directly)
 - `src/components/shared/` — cross-cutting components (status badges, dialogs)
 - `src/components/<feature>/` — feature-specific components (ca/, devices/, authz/, etc.)
-- `src/app/` — Next.js App Router pages; pages are thin wrappers, logic lives in components and lib
+- `src/app/` — React Router page components; pages are thin wrappers, logic lives in components and lib
 
 ### Authorization v2
 

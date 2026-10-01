@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn, getCookie, setCookie } from '@/lib/utils';
 import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';

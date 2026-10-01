@@ -6,7 +6,7 @@
  * object available on the `window` object.
  *
  * This allows for easy configuration in different environments (dev, staging, prod)
- * without needing to rebuild the Next.js application. This is particularly useful
+ * without needing to rebuild the Vite application. This is particularly useful
  * for containerized deployments (e.g., Docker) where you can mount a different
  * `config.js` file for each environment.
  *
@@ -18,9 +18,9 @@ window.lamassuConfig = {
     // The base URL for all backend API services (CA, DMS, DevManager, etc.).
     // This should be the root of your API gateway or load balancer.
     // Example: "https://api.yourdomain.com"    
-    // LAMASSU_API: "https://lab.lamassu.io/api",
+    LAMASSU_API: "https://lab.lamassu.io/api",
     // LAMASSU_API: "https://localhost:8443/api",
-    LAMASSU_API: "http://localhost:8080/api",
+    // LAMASSU_API: "http://localhost:8080/api",
 
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
     // If not provided, these endpoints will be based on the LAMASSU_API value.

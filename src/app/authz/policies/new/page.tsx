@@ -1,17 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { PlusCircle } from 'lucide-react';
 import { createPolicy } from '@/lib/authz-api';
 import type { Rule, HTTPRule } from '@/types/authz';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { PolicyForm } from '@/components/authz/PolicyForm';
+import { PolicyForm, type PolicyFormData } from '@/components/authz/PolicyForm';
 
 export default function NewPolicyPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PolicyFormData>({
     id: crypto.randomUUID(),
     name: '',
     description: '',

@@ -59,7 +59,7 @@ function App() {
             Sometimes Scalar injects styles into the head; this CSS ensures 
             the container always wins.
         */}
-        <style jsx global>{`
+        <style>{`
           .scalar-app {
             --scalar-color-scheme: ${isDarkMode ? 'dark' : 'light'};
           }

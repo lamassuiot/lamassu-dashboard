@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
@@ -675,7 +675,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="deviceIconButton">Device Icon</Label>
-              {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
+              { }
               <button
                 id="deviceIconButton"
                 type="button"
@@ -752,7 +752,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               <div className="space-y-4 lg:col-span-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="enrollmentCa">Enrollment CA</Label>
-                  {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
+                  { }
                   <button
                     id="enrollmentCa"
                     type="button"

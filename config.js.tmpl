@@ -6,7 +6,7 @@
  * object available on the `window` object.
  *
  * This allows for easy configuration in different environments (dev, staging, prod)
- * without needing to rebuild the Next.js application. This is particularly useful
+ * without needing to rebuild the Vite application. This is particularly useful
  * for containerized deployments (e.g., Docker) where you can mount a different
  * `config.js` file for each environment.
  *

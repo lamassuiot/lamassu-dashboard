@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { format, formatDistanceStrict, parseISO } from 'date-fns';
 import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, MoreVertical, ShieldAlert, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';

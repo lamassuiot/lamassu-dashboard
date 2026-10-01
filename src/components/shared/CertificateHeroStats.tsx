@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { differenceInDays, isPast, parseISO } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
 import { DateDisplay } from '@/components/shared/DateDisplay';

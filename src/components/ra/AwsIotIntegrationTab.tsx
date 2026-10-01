@@ -247,7 +247,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
     }
     setIsSyncing(true);
     try {
-        let patchOperations: PatchOperation[] = [];
+        const patchOperations: PatchOperation[] = [];
         const awsConfigPointer = `/${configKey.replace(/\//g, '~1')}`;
         
         if (isRetry) {

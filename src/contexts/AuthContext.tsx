@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback, useRef } from 'react';
 import { User, UserManager, WebStorageStateStore, Log, UserProfile } from 'oidc-client-ts';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { useConfig } from './ConfigContext';
 
 // Optional: Configure oidc-client-ts logging

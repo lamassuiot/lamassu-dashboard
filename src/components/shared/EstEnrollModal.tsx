@@ -83,7 +83,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 }) => {
     const isMobile = useIsMobile();
     const resolvedPresentation = presentation === 'inline' && isMobile ? 'dialog' : presentation;
-    
+
     // Dependencies state
     const [availableCAs, setAvailableCAs] = useState<CA[]>([]);
     const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
@@ -94,7 +94,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const [deviceId, setDeviceId] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
-    
+
     // Step 2 state
     const [keygenMethod, setKeygenMethod] = useState<'device' | 'server'>('device');
     const [keygenType, setKeygenType] = useState('RSA');
@@ -107,7 +107,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const [selectableSigners, setSelectableSigners] = useState<CA[]>([]);
     const [bootstrapKeygenType, setBootstrapKeygenType] = useState('RSA');
     const [bootstrapKeygenSpec, setBootstrapKeygenSpec] = useState('2048');
-    
+
     // Step 4 state
     const [bootstrapCertificate, setBootstrapCertificate] = useState('');
     const [bootstrapPrivateKey, setBootstrapPrivateKey] = useState('');
@@ -138,9 +138,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     useEffect(() => {
         if (!isOpen) return;
         loadDependencies();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, [isOpen]);
-    
+
 
     useEffect(() => {
         if(isOpen) {
@@ -157,17 +157,17 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setBootstrapKeygenSpec('2048');
             setBootstrapPrivateKey('');
             setValidateServerCert(false);
-            
+
             // Auto-select CA based on RA config
             if (ra && availableCAs.length > 0) {
                 const validationCaIds = ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas || [];
-                
+
                 const signers = validationCaIds
                     .map(id => findCaById(id, availableCAs))
                     .filter((ca): ca is CA => !!ca);
 
                 setSelectableSigners(signers);
-                
+
                 const defaultSigner = signers.length > 0 ? signers[0] : null;
                 setBootstrapSigner(defaultSigner);
                 if (defaultSigner?.defaultIssuanceLifetime && DURATION_REGEX.test(defaultSigner.defaultIssuanceLifetime)) {
@@ -180,7 +180,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             }
         }
     }, [isOpen, ra, availableCAs, initialDeviceId]);
-    
+
     useEffect(() => {
         initPkijsEngine();
     }, []);
@@ -239,7 +239,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         setBootstrapPrivateKey('');
         setStep(5);
     };
-    
+
     const handleNext = async () => {
         if (stepValidationErrors.length > 0) return;
 
@@ -253,11 +253,11 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setIsGenerating(true);
             try {
                 // Generate temporary key pair for bootstrap CSR
-                const algorithm = bootstrapKeygenType === 'RSA' 
+                const algorithm = bootstrapKeygenType === 'RSA'
                     ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(bootstrapKeygenSpec, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
                     : { name: "ECDSA", namedCurve: bootstrapKeygenSpec };
                 const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
-                
+
                 const privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');
                 setBootstrapPrivateKey(privateKeyPem);
 
@@ -274,11 +274,11 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                         validity: { type: "Duration", duration: bootstrapValidity }
                     }
                 };
-                
+
                 // Call signing API
                 const result = await signCertificate(bootstrapSigner.id, payload);
                 const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
-                
+
                 setBootstrapCertificate(issuedPem);
                 setStep(4);
 
@@ -292,7 +292,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setStep(5);
         }
     };
-    
+
     const handleBack = () => {
         if (step === 5) {
             // If we are at step 5 and there's no bootstrap certificate,
@@ -320,9 +320,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const opensslCombinedCommand = `openssl req -new ${keygenCommandPart} -nodes -keyout ${finalDeviceId}.key -out ${finalDeviceId}.csr -subj "/CN=${finalDeviceId}"\ncat ${finalDeviceId}.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d'  | sed '/-----END CERTIFICATE REQUEST-----/d'> ${finalDeviceId}.stripped.csr`;
 
     const serverCertCommand = `echo "Fetching server root CA for validation..."\nLAMASSU_SERVER=lab.lamassu.io\nopenssl s_client -showcerts -servername $LAMASSU_SERVER -connect $LAMASSU_SERVER:443 2>/dev/null </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > root-ca.pem`;
-    
+
     const curlValidationFlag = validateServerCert ? '--cacert root-ca.pem' : '-k';
-    
+
     const finalEnrollCommand = [
       `echo "Performing enrollment..."`,
       `curl -v --cert bootstrap.crt --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.stripped.csr   -o ${finalDeviceId}.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simpleenroll"`,
@@ -336,9 +336,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const dummyKeygenCommand = `openssl req -new -newkey rsa:2048 -nodes -keyout dummy.key -out dummy.csr -subj "/CN=${finalDeviceId}"`;
     const dummyStripCommand = `cat dummy.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d'  | sed '/-----END CERTIFICATE REQUEST-----/d'> dummy.stripped.csr`;
     const dummyCombinedCommand = `${dummyKeygenCommand}\n\n# Strip header/footer from CSR for cURL\n${dummyStripCommand}`;
-    
+
     const serverKeygenCurlCommand = `curl -v --cert bootstrap.crt --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @dummy.stripped.csr -o ${finalDeviceId}.multipart "${get_EST_API_BASE_URL()}/${ra?.id}/serverkeygen"`;
-    
+
     const serverKeygenParseCommands = [
         `# 3. Extract Private Key`,
         `awk '/Content-Type: application\\/pkcs8/{f=1; next} /--estServerLamassuBoundary/{f=0} f' ${finalDeviceId}.multipart > key.b64`,
@@ -364,7 +364,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                     <div className="pt-2">
                         <Stepper currentStep={step} steps={["Device", "CSR", "Bootstrap Options", "Bootstrap", "Commands"]} />
                     </div>
-                    
+
                     <div className="space-y-4">
                         {step === 1 && (
                             <div className="space-y-2">
@@ -484,7 +484,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         />
                                     )}
                                 </div>
-                                
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="bootstrap-keygen-type">Key Type</Label>
@@ -556,7 +556,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     onChange={setBootstrapValidity}
                                     error={bootstrapValidityError || undefined}
                                 />
-                                
+
                                 <div className="relative pt-4">
                                     <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
                                     <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
@@ -586,9 +586,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     <p className="text-sm text-muted-foreground mb-2">
                                         Copy and paste these commands to quickly create your bootstrap files:
                                     </p>
-                                    <CodeBlock 
-                                        content={`echo "${encodeToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${encodeToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`} 
-                                        textareaClassName="h-24" 
+                                    <CodeBlock
+                                        content={`echo "${encodeToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${encodeToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
+                                        textareaClassName="h-24"
                                     />
                                 </div>
                             </div>
@@ -612,7 +612,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         <CodeBlock content={serverCertCommand} textareaClassName="h-28" />
                                     </div>
                                 )}
-                                
+
                                 {keygenMethod === 'device' ? (
                                     <div>
                                         <Label>{validateServerCert ? '2. ' : '1. '}Enrollment Command</Label>

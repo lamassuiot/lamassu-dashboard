@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { sileo } from '@/lib/toast';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import type { CA } from '@/lib/ca-data';
