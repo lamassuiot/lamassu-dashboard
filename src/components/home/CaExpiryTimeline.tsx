@@ -148,11 +148,10 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
 
   const handleFullscreen = () => {
     if (!cardRef.current) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      cardRef.current.requestFullscreen();
-    }
+    const fullscreenAction = document.fullscreenElement
+      ? document.exitFullscreen()
+      : cardRef.current.requestFullscreen();
+    void fullscreenAction.catch(error => console.error('Failed to toggle fullscreen:', error));
   };
 
   return (
