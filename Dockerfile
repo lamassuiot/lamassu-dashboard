@@ -1,4 +1,4 @@
-# Stage 1: Build the Next.js application
+# Stage 1: Build the Vite application
 FROM node:24-slim AS builder
 
 # Set working directory
@@ -18,9 +18,8 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 
 # Build the application
-# This will output to the 'out' directory due to `output: 'export'` in next.config.ts
-# NEXT_TELEMETRY_DISABLED: prevents background HTTP requests triggering TLS/crypto module init crashes.
-RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
+# Vite writes the static application to out.
+RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine
@@ -39,7 +38,6 @@ ENV UI_FOOTER_ENABLED=false
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy the static assets from the builder stage
-# The 'out' directory contains the result of `next export`
 COPY --from=builder --chown=65532:65532 /app/out /var/www/html
 
 WORKDIR /var/www/html

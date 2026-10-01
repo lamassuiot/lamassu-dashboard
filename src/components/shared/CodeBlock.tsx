@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Button } from '@/components/ui/button';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';

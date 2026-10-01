@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import {
     Sheet,
     SheetContent,
@@ -533,7 +533,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 )}
             </div>
         );
-      case 3:
+      case 3: {
         const currentCondition = filterType === 'JAVASCRIPT' ? jsFunction 
                                : filterType === 'JSON-SCHEMA' ? jsonSchema
                                : filterCondition;
@@ -619,6 +619,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 </div>
             </div>
         );
+      }
       default:
         return null;
     }

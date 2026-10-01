@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Rocket, ShieldCheck, FilePlus2, ArrowRight, ArrowLeft, Loader2, CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { BackendStatusCheck } from './BackendStatusCheck';
@@ -590,7 +590,7 @@ export const InitializationWizard: React.FC = () => {
                         )}
                     </div>
                 );
-            case 5:
+            case 5: {
                 const allTasksDone = defaultProfileExists && caCount !== null && caCount > 0;
                 return (
                     <div className="w-full max-w-3xl mx-auto animate-fade-in">
@@ -640,6 +640,7 @@ export const InitializationWizard: React.FC = () => {
                         </div>
                     </div>
                 );
+            }
             default:
                 return null;
         }

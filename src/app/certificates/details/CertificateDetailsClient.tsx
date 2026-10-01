@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
+import { useSearchParams, useRouter } from '@/lib/router'; // Changed from useParams
 import { Button } from "@/components/ui/button";
 import { FileText, Ban, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, KeyRound, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";

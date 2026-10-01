@@ -36,7 +36,7 @@ import { toPng } from 'html-to-image';
 interface CaGraphViewProps {
   cas: CA[];
   allCryptoEngines: ApiCryptoEngine[];
-  router: ReturnType<typeof import('next/navigation').useRouter>;
+  router: ReturnType<typeof import('@/lib/router').useRouter>;
 }
 
 interface CaNodeData extends Record<string, unknown> {
@@ -155,7 +155,7 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
   let statusBadge: React.ReactNode;
   let nodeBgColor = 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/60 dark:to-blue-900/40';
   let iconBgColor = 'bg-blue-500 dark:bg-blue-600';
-  let iconColor = 'text-white';
+  const iconColor = 'text-white';
   let titleColor = 'text-blue-900 dark:text-blue-100';
   let subtextColor = 'text-blue-700 dark:text-blue-300';
   let borderColor = 'border-blue-300 dark:border-blue-600';
@@ -1063,7 +1063,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       // In group mode, edge connects to the group instead
       if (ca.subjectKeyId) {
         const engineNodeId = `engine-${ca.subjectKeyId}`;
-        let targetId = ca.id;
+        const targetId = ca.id;
 
         // If grouping is enabled and this CA is in a group, connect to the group
         if (groupByAttestedKey) {

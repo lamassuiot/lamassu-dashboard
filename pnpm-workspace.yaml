@@ -19,5 +19,5 @@ ignoredBuiltDependencies:
 # Use the patched 1.x release until Firebase updates its range.
 overrides:
   '@grpc/grpc-js': 1.13.6
-  # Next.js pins 8.4.31, which is affected by GHSA-r28c-9q8g-f849.
+  # Pin PostCSS to the patched release across the build toolchain.
   postcss: 8.5.28

@@ -8,11 +8,10 @@ import { FullPageLoader } from '@/components/shared/FullPageLoader';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import Link from '@/components/shared/RouterLink';
+import { usePathname, useRouter } from '@/lib/router';
 import { getPrincipal } from '@/lib/authz-api';
 import { usePlatformAccess } from '@/hooks/usePlatformAccess';
 import { AccessDeniedScreen } from '@/components/shared/AccessDeniedScreen';
@@ -28,7 +27,6 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarGroupLabel,
-  useSidebar,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -36,14 +34,14 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PrincipalBadge } from '@/components/authz/PrincipalBadge';
 import { jwtDecode } from 'jwt-decode';
-import Image from 'next/image'
+import Image from '@/components/shared/StaticImage'
 import LogoFullWhite from './lamassu_full_white.svg'
 import LogoFullBlue from './lamassu_full_blue.svg'
 import LogoBlue from './lamassu_logo_blue.svg'
@@ -72,15 +70,9 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
-import { Roboto, Inter, JetBrains_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { UIPreferencesProvider } from '@/contexts/UIPreferencesContext';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-roboto' });
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-ibm-plex-sans' });
-const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' });
 
 type DecodedClaims = Record<string, unknown>;
 
@@ -597,12 +589,12 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
               <SidebarContent className="p-2">
                 <SidebarMenu>
                   {navigationConfig.map((group, groupIndex) => {
-                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                    if (group.devOnly && !(import.meta.env.DEV || import.meta.env.VITE_FORCE_DEV_OPTIONS)) {
                       return null;
                     }
 
                     const filteredItems = group.items.filter(item =>
-                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) &&
+                      !(item.devOnly && !(import.meta.env.DEV || import.meta.env.VITE_FORCE_DEV_OPTIONS)) &&
                       isNavItemVisible(item)
                     );
 
@@ -637,7 +629,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                 </SidebarMenu>
               </SidebarContent>
               <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
-                <CustomSidebarToggle />
+                <SidebarTrigger className="w-full justify-start" />
                 <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
 
                 </div>
@@ -933,57 +925,21 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable, roboto.variable, jetbrainsMono.variable, ibmPlexSans.variable, manrope.variable)}>
-      <head>
-        <Script src="/config.js" strategy="beforeInteractive" />
-        <title>LamassuIoT Certificate Manager</title>
-        <meta name="description" content="Manage and verify your X.509 certificates with LamassuIoT." />
-        <link rel="manifest" href="/manifest.json" />
-        {/* Runtime-provided theme override served from /public (not part of the bundle), so it cannot be imported. */}
-        {/* eslint-disable-next-line @next/next/no-css-tags */}
-        <link rel="stylesheet" href="/custom-theme.css" />
-      </head>
-      <body className="font-body antialiased">
-        <ConfigProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <UIPreferencesProvider>
-                <IdentifierDisplayProvider>
-                  <React.Suspense fallback={<LoadingState />}>
-                    <InnerLayout>{children}</InnerLayout>
-                  </React.Suspense>
-                  <ThemedToaster offset={{ top: 40 }} />
-                </IdentifierDisplayProvider>
-              </UIPreferencesProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </ConfigProvider>
-      </body>
-    </html>
-  );
-}
-
-function CustomSidebarToggle() {
-  const { open, toggleSidebar, isMobile } = useSidebar();
-
-  if (isMobile) {
-    return null;
-  }
-
-  return (
-    <SidebarMenuButton
-      onClick={toggleSidebar}
-      className="w-full flex items-center group-data-[collapsible=icon]:justify-center mb-2"
-      tooltip={{ children: open ? "Collapse sidebar" : "Expand sidebar", side: 'right', align: 'center' }}
-    >
-      {open ? <ChevronsLeft /> : <ChevronsRight />}
-      <span className="ml-2 group-data-[collapsible=icon]:hidden whitespace-nowrap">{open ? "Collapse" : ""}</span>
-    </SidebarMenuButton>
+    <ConfigProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <UIPreferencesProvider>
+            <IdentifierDisplayProvider>
+              <React.Suspense fallback={<LoadingState />}>
+                <InnerLayout>{children}</InnerLayout>
+              </React.Suspense>
+              <ThemedToaster offset={{ top: 40 }} />
+            </IdentifierDisplayProvider>
+          </UIPreferencesProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </ConfigProvider>
   );
 }

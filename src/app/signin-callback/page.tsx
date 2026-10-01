@@ -3,7 +3,7 @@
 
 import { useEffect } from 'react';
 import { useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { useAuth } from '@/contexts/AuthContext';
 import { FullPageLoader } from '@/components/shared/FullPageLoader';
 

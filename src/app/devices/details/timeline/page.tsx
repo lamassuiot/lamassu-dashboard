@@ -205,7 +205,7 @@ export default function TimelinePage() {
       sseEventBufferRef.current = [];
       setIsSseConnected(false);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [timelineMode, deviceId]);
 
   useEffect(() => {

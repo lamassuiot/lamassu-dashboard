@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Button } from "@/components/ui/button";
 import { Copy, Check, Save, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';

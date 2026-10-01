@@ -3,8 +3,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import { useRouter } from '@/lib/router';
+import dynamic from '@/components/shared/dynamic';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
