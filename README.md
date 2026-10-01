@@ -30,7 +30,7 @@ Follow these steps to get the development environment running.
 ### Prerequisites
 
 -   [Node.js](https://nodejs.org/) (version 20 or later recommended)
--   [npm](https://www.npmjs.com/) (usually comes with Node.js)
+-   [pnpm](https://pnpm.io/) (version pinned in `package.json`)
 
 ### Installation
 
@@ -42,17 +42,20 @@ Follow these steps to get the development environment running.
     ```bash
     cd lamassuiot-pki-dashboard
     ```
-3.  Install the dependencies:
+3.  Enable pnpm through Corepack and install the dependencies:
     ```bash
-    npm install
+    corepack enable
+    pnpm install
     ```
+
+Use `pnpm install --frozen-lockfile` in CI. Commit `pnpm-lock.yaml` when dependencies change. If migrating an existing checkout, remove the old `node_modules` directory before installing with pnpm. Dependency patches should use `pnpm patch` and `pnpm patch-commit`.
 
 ### Running the Development Server
 
 To start the development server, run the following command:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 The application will be available at [http://localhost:9002](http://localhost:9002).
@@ -103,12 +106,12 @@ window.lamassuConfig = {
 
 ## Available Scripts
 
--   `npm run dev`: Starts the application in development mode with hot-reloading.
--   `npm run build`: Creates an optimized production build of the application.
--   `npm run start`: Starts a production server for the built application.
--   `npm run lint`: Runs ESLint to identify and report on patterns in the code.
--   `npm run fix`: Runs ESLint and automatically fixes fixable issues.
--   `npm run typecheck`: Runs the TypeScript compiler to check for type errors.
+-   `pnpm run dev`: Starts the application in development mode with hot-reloading.
+-   `pnpm run build`: Creates an optimized production build of the application.
+-   `pnpm run start`: Starts a production server for the built application.
+-   `pnpm run lint`: Runs ESLint to identify and report on patterns in the code.
+-   `pnpm run fix`: Runs ESLint and automatically fixes fixable issues.
+-   `pnpm run typecheck`: Runs the TypeScript compiler to check for type errors.
 
 ## Production build
 
@@ -116,17 +119,17 @@ Create an optimized static build and verify it locally:
 
 1. Install clean dependencies and build:
 ```bash
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 ```
 The build output is exported to the out/ directory (static site).
 
 Serve the static output locally for verification:
 Quick (no global install):
 ```bash
-npx http-server out -p 9002
+pnpm dlx http-server out -p 9002
 # or
-npx serve out -l 9002
+pnpm dlx serve out -l 9002
 ```
 - The site will be available at http://localhost:9002.
 
@@ -207,12 +210,12 @@ How the toggle works
 
 Enable developer-only items
 - Local development
-  - Run the dev server (`npm run dev` / `pnpm dev`) — items appear automatically.
+  - Run the dev server (`pnpm dev`) — items appear automatically.
 - Forcing in non-development environments
   - Set the environment variable `NEXT_FORCE_DEV_OPTIONS=1` (or another truthy value) and rebuild/restart the Next.js app.
   - Example (Linux/macOS):
-    - In one-off run: `NEXT_FORCE_DEV_OPTIONS=1 npm start`
-    - Or export then start: `export NEXT_FORCE_DEV_OPTIONS=1 && npm run build && npm start`
+    - In one-off run: `NEXT_FORCE_DEV_OPTIONS=1 pnpm start`
+    - Or export then start: `export NEXT_FORCE_DEV_OPTIONS=1 && pnpm run build && pnpm start`
 
 Adding a dev-only menu item
 - Example snippet from `src/app/layout.tsx`:

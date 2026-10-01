@@ -1,0 +1,23 @@
+# Keep version generation in prebuild when running pnpm build.
+enablePrePostScripts: true
+
+# Dependencies whose install scripts are needed by the existing toolchain.
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - esbuild
+  - fsevents
+  - protobufjs
+  - sharp
+  - unrs-resolver
+  - vue-demi
+
+# MSW only prints a support message during installation.
+ignoredBuiltDependencies:
+  - msw
+
+# Firestore's grpc-js range (~1.9.0) includes GHSA-m9gg-hp2v-232j.
+# Use the patched 1.x release until Firebase updates its range.
+overrides:
+  '@grpc/grpc-js': 1.13.6
+  # Next.js pins 8.4.31, which is affected by GHSA-r28c-9q8g-f849.
+  postcss: 8.5.28

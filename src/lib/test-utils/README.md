@@ -18,16 +18,16 @@ The testing infrastructure uses **Vitest** as the test framework with MSW (Mock 
 
 ```bash
 # Run all tests
-npm test
+pnpm test
 
 # Run tests in watch mode
-npm test -- --watch
+pnpm run test:watch
 
 # Run tests with UI
-npm run test:ui
+pnpm run test:ui
 
 # Run tests with coverage
-npm run test:coverage
+pnpm run test:coverage
 ```
 
 ## Project Structure
@@ -190,7 +190,7 @@ To add tests for a new lib module:
 2. Import test utilities from `./test-utils/`
 3. Add MSW handlers if the module makes API calls
 4. Follow existing test structure and patterns
-5. Run tests to verify: `npm test`
+5. Run tests to verify: `pnpm test`
 
 ## Troubleshooting
 

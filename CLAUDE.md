@@ -9,16 +9,16 @@ Lamassu Dashboard is a Next.js 15 web UI for managing X.509 certificates and PKI
 ## Commands
 
 ```bash
-npm run dev          # Development server with Turbopack on port 9002
-npm run build        # Production static export to out/
-npm run lint         # ESLint analysis
-npm run fix          # ESLint auto-fix
-npm run typecheck    # TypeScript type checking (run before committing)
+pnpm run dev          # Development server with Turbopack on port 9002
+pnpm run build        # Production static export to out/
+pnpm run lint         # ESLint analysis
+pnpm run fix          # ESLint auto-fix
+pnpm run typecheck    # TypeScript type checking (run before committing)
 ```
 
 No automated test suite — validation relies on `typecheck`, `lint`, and `build`.
 
-**Always run `npm run typecheck` and `npm run lint` before committing.**
+**Always run `pnpm run typecheck` and `pnpm run lint` before committing.**
 
 ## Architecture
 
