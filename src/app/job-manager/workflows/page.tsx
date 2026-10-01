@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
+import { WfxGroupBadge } from '@/components/shared/WfxJobBadges';
 import { fetchWorkflows, type WfxWorkflow } from '@/lib/wfx-api';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
@@ -126,23 +127,41 @@ export default function WorkflowsPage() {
                                 <TableRow>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Description</TableHead>
+                                    <TableHead className="text-center">States</TableHead>
+                                    <TableHead className="text-center">Transitions</TableHead>
+                                    <TableHead>Groups</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {workflows.map(wf => (
                                     <TableRow key={wf.name}>
-                                        <TableCell className="font-medium">
-                                            <button
+                                        <TableCell>
+                                            <Button
+                                                variant="link"
+                                                className="font-medium truncate p-0 h-auto text-left"
                                                 onClick={() => handleOpenWorkflow(wf)}
-                                                className="text-left text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors"
+                                                title={wf.name}
                                             >
                                                 {wf.name}
-                                            </button>
+                                            </Button>
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-sm text-muted-foreground">
                                                 {wf.description || '—'}
                                             </span>
+                                        </TableCell>
+                                        <TableCell className="text-center tabular-nums">{wf.states?.length ?? 0}</TableCell>
+                                        <TableCell className="text-center tabular-nums">{wf.transitions?.length ?? 0}</TableCell>
+                                        <TableCell>
+                                            {(wf.groups?.length ?? 0) > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {wf.groups!.map(g => (
+                                                        <WfxGroupBadge key={g.name} group={g.name} workflow={wf} />
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground text-xs">—</span>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}

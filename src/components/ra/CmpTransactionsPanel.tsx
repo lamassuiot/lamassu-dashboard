@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { CmpStateBadge } from '@/components/shared/CmpStateBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -25,27 +26,16 @@ import { approveCmpTransaction, fetchCmpTransactions, rejectCmpTransaction, type
 import { fetchJob } from '@/lib/wfx-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { CmpTransactionFilterBar } from '@/components/shared/filters/CmpTransactionFilterBar';
+import {
+    appendCmpTransactionQueryFilters,
+    defaultCmpTransactionQueryFilters,
+    type CmpTransactionQueryFilters,
+} from '@/lib/cmp-transaction-filter-query';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { useCertificateStatusBySerial } from '@/hooks/useCertificateStatusBySerial';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-
-// State badge styling — mirrors the colour conventions used for device/cert
-// states elsewhere in the dashboard.
-const stateBadgeVariant = (state: string): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } => {
-    switch (state) {
-        case 'ISSUED':
-            return { variant: 'outline', className: 'text-blue-600 border-blue-300 dark:border-blue-700' };
-        case 'PENDING':
-            return { variant: 'outline', className: 'text-amber-600 border-amber-300 dark:border-amber-700' };
-        case 'CONFIRMED':
-            return { variant: 'outline', className: 'text-emerald-600 border-emerald-300 dark:border-emerald-700' };
-        case 'REVOKED':
-            return { variant: 'destructive' };
-        case 'ISSUE_FAILED':
-            return { variant: 'destructive' };
-        default:
-            return { variant: 'secondary' };
-    }
-};
 
 const PAGE_SIZES = ['10', '25', '50', '100'];
 
@@ -64,8 +54,7 @@ const WfxReasonBadge: React.FC<{
     state: string;
     wfxJobId?: string;
     errorMessage?: string;
-    badge: { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string };
-}> = ({ state, wfxJobId, errorMessage, badge }) => {
+}> = ({ state, wfxJobId, errorMessage }) => {
     const [fetchedReason, setFetchedReason] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const fetched = useRef(false);
@@ -92,7 +81,7 @@ const WfxReasonBadge: React.FC<{
     };
 
     if (!showTooltip) {
-        return <Badge variant={badge.variant} className={badge.className}>{state}</Badge>;
+        return <CmpStateBadge state={state} />;
     }
 
     const reason = hasInlineReason ? inlineReason : fetchedReason;
@@ -101,9 +90,7 @@ const WfxReasonBadge: React.FC<{
         <TooltipProvider delayDuration={200}>
             <Tooltip onOpenChange={onOpen}>
                 <TooltipTrigger asChild>
-                    <Badge variant={badge.variant} className={cn(badge.className, 'cursor-help')}>
-                        {state}
-                    </Badge>
+                    <CmpStateBadge state={state} className="cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs text-xs">
                     {loading && <span className="text-muted-foreground">Loading…</span>}
@@ -137,6 +124,9 @@ export interface CmpTransactionsPanelProps {
      * already scopes the section to a particular subset and the dropdown
      * would be misleading. */
     hideStateFilter?: boolean;
+    /** Initial value of the State dropdown. Defaults to "all" when
+     * extraFilter already scopes the rows, "inflight" otherwise. */
+    defaultStateFilter?: 'inflight' | 'all' | 'completed';
     /** Shown in the empty state instead of the default "No CMP transactions". */
     emptyMessage?: string;
     /** Override the label of the Workflow column. Defaults to "Workflow". */
@@ -151,6 +141,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     description = "In-flight CMP enrollment transactions for this RA (PENDING, ISSUED, ISSUE_FAILED). Completed enrollments are shown in the Issued Certificates tab — switch the State filter to see CONFIRMED or REVOKED rows here.",
     extraFilter,
     hideStateFilter = false,
+    defaultStateFilter,
     emptyMessage = 'No CMP transactions for this RA.',
     workflowColumnLabel = 'Workflow',
     className,
@@ -163,13 +154,12 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     // passes state[in]…), default to "all" so we don't double-filter. When
     // used standalone, default to "inflight" for the classic behaviour.
     const [stateFilter, setStateFilter] = useState<'inflight' | 'all' | 'completed' | 'PENDING' | 'ISSUED' | 'ISSUE_FAILED' | 'CONFIRMED' | 'REVOKED'>(
-        extraFilter ? 'all' : 'inflight',
+        defaultStateFilter ?? (extraFilter ? 'all' : 'inflight'),
     );
-    // Operation filter distinguishes the three CMP body tags that create a
-    // transaction: ir (initial), cr (initial), and kur (re-enrollment).
-    // Older rows lack a stored request_type — fall back to is_reenrollment
-    // when querying so the filter still works against the existing data.
-    const [kindFilter, setKindFilter] = useState<'all' | 'ir' | 'cr' | 'kur'>('all');
+    // Advanced search: device (subject CN), transaction ID, operation
+    // (ir / cr / kur — the CMP body tags that create a transaction),
+    // enrollment kind and created/expires dates.
+    const [filters, setFilters] = useState<CmpTransactionQueryFilters>(defaultCmpTransactionQueryFilters);
     const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
     const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -178,6 +168,13 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     const [rejectingId, setRejectingId] = useState<string | null>(null);
     const [rejectTarget, setRejectTarget] = useState<string | null>(null);
     const [rejectReason, setRejectReason] = useState('');
+
+    // Transaction state (CMP protocol / workflow phase) and certificate status
+    // (ACTIVE / REVOKED / EXPIRED at the CA) are different things: a CONFIRMED
+    // transaction can hold a certificate that has since expired or been revoked.
+    const { statuses: certStatuses } = useCertificateStatusBySerial(
+        transactions.flatMap((tx) => (tx.has_certificate && tx.certificate_serial_number ? [tx.certificate_serial_number] : [])),
+    );
 
     const loadPage = useCallback(async () => {
         setIsLoading(true);
@@ -208,9 +205,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                 default:
                     params.append('filter', `state[equal]${stateFilter}`);
             }
-            if (kindFilter !== 'all') {
-                params.append('filter', `request_type[equal]${kindFilter}`);
-            }
+            appendCmpTransactionQueryFilters(params, filters);
             if (extraFilter) {
                 for (const f of extraFilter) params.append('filter', f);
             }
@@ -224,13 +219,23 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [raId, pageSize, bookmarkStack, currentPageIndex, stateFilter, kindFilter, extraFilter]);
+    }, [raId, pageSize, bookmarkStack, currentPageIndex, stateFilter, filters, extraFilter]);
 
     useEffect(() => { void loadPage(); }, [loadPage]);
 
     const resetPagination = () => {
         setBookmarkStack([null]);
         setCurrentPageIndex(0);
+    };
+
+    const handleFilterChange = (key: keyof CmpTransactionQueryFilters, value: unknown) => {
+        setFilters((prev) => ({ ...prev, [key]: value }));
+        resetPagination();
+    };
+
+    const handleClearFilters = () => {
+        setFilters(defaultCmpTransactionQueryFilters);
+        resetPagination();
     };
 
     const handleNextPage = () => {
@@ -311,7 +316,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
             <div className="flex flex-wrap items-center gap-2">
                 {!hideStateFilter && (
                     <Select value={stateFilter} onValueChange={(v) => { setStateFilter(v as any); resetPagination(); }}>
-                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="State" /></SelectTrigger>
+                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="Transaction state" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="inflight">In-flight (default)</SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
@@ -324,15 +329,6 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                         </SelectContent>
                     </Select>
                 )}
-                <Select value={kindFilter} onValueChange={(v) => { setKindFilter(v as any); resetPagination(); }}>
-                    <SelectTrigger className="w-[150px]"><SelectValue placeholder="Operation" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All operations</SelectItem>
-                        <SelectItem value="ir">IR (initialization)</SelectItem>
-                        <SelectItem value="cr">CR (certification)</SelectItem>
-                        <SelectItem value="kur">KUR (re-enroll)</SelectItem>
-                    </SelectContent>
-                </Select>
                 <Button variant="outline" size="icon" onClick={onRefresh} disabled={isLoading} title="Refresh">
                     {isLoading
                         ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -344,6 +340,12 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
 
     const body = (
         <div className="space-y-4">
+            <CmpTransactionFilterBar
+                values={filters}
+                onChange={handleFilterChange}
+                onClearAll={handleClearFilters}
+            />
+
             {error && (
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -357,10 +359,11 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                     <TableHeader>
                         <TableRow>
                             <TableHead className="min-w-[220px]">Transaction ID</TableHead>
-                            <TableHead>State</TableHead>
+                            <TableHead>Transaction State</TableHead>
                             <TableHead>Operation</TableHead>
                             <TableHead>Device ID</TableHead>
                             <TableHead>Certificate</TableHead>
+                            <TableHead>Certificate Status</TableHead>
                             <TableHead>{workflowColumnLabel}</TableHead>
                             <TableHead>Created</TableHead>
                             <TableHead>Confirmed</TableHead>
@@ -371,20 +374,19 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                     <TableBody>
                         {isLoading && transactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                                     <Loader2 className="inline mr-2 h-4 w-4 animate-spin" /> Loading…
                                 </TableCell>
                             </TableRow>
                         )}
                         {!isLoading && transactions.length === 0 && !error && (
                             <TableRow>
-                                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                                     {emptyMessage}
                                 </TableCell>
                             </TableRow>
                         )}
                         {transactions.map((tx) => {
-                            const badge = stateBadgeVariant(tx.state);
                             // Prefer the persisted request_type; fall back to
                             // is_reenrollment for legacy rows where the field
                             // wasn't populated at insert time. "ir/cr" remains
@@ -395,7 +397,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                 : (tx.is_reenrollment ? 'kur' : 'ir/cr');
                             return (
                                 <TableRow key={tx.transaction_id}>
-                                    <TableCell className="font-mono text-xs">
+                                    <TableCell>
                                         {/* The transaction ID is the primary click target — it opens
                                             the detail page where the user can travel the workflow
                                             states and inspect the ASN.1-decoded CMP messages. The
@@ -404,7 +406,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                         <div className="flex items-center gap-2">
                                             <Link
                                                 href={txDetailHref(tx.transaction_id)}
-                                                className="hover:underline text-left"
+                                                className="font-medium text-primary hover:underline underline-offset-4 text-left"
                                                 title="Open transaction details"
                                             >
                                                 {tx.transaction_id}
@@ -426,18 +428,18 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <WfxReasonBadge state={tx.state} wfxJobId={tx.wfx_job_id} errorMessage={tx.error_message} badge={badge} />
+                                        <WfxReasonBadge state={tx.state} wfxJobId={tx.wfx_job_id} errorMessage={tx.error_message} />
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary" className="font-mono text-xs uppercase">
+                                        <Badge variant="secondary">
                                             {opLabel}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs">
+                                    <TableCell>
                                         {tx.subject_common_name ? (
                                             <Link
                                                 href={`/devices/details?deviceId=${encodeURIComponent(tx.subject_common_name)}`}
-                                                className="hover:underline"
+                                                className="font-medium text-primary hover:underline underline-offset-4"
                                                 title={`View device ${tx.subject_common_name}`}
                                             >
                                                 {tx.subject_common_name}
@@ -446,11 +448,11 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                             <span className="text-muted-foreground">—</span>
                                         )}
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs">
+                                    <TableCell>
                                         {tx.has_certificate && tx.certificate_serial_number ? (
                                             <Link
                                                 href={`/certificates/details?certificateId=${tx.certificate_serial_number}`}
-                                                className="hover:underline"
+                                                className="font-medium text-primary hover:underline underline-offset-4"
                                             >
                                                 {tx.certificate_serial_number}
                                             </Link>
@@ -458,11 +460,18 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                             <span className="text-muted-foreground">—</span>
                                         )}
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs">
+                                    <TableCell>
+                                        {tx.has_certificate && tx.certificate_serial_number && certStatuses[tx.certificate_serial_number] ? (
+                                            <ApiStatusBadge status={certStatuses[tx.certificate_serial_number]} />
+                                        ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
                                         {tx.wfx_job_id ? (
                                             <Link
                                                 href={`/job-manager/jobs/details?jobId=${encodeURIComponent(tx.wfx_job_id)}`}
-                                                className="inline-flex items-center gap-1 hover:underline"
+                                                className="inline-flex items-center gap-1 font-medium text-primary hover:underline underline-offset-4"
                                                 title="Open the WFX workflow for this transaction"
                                             >
                                                 <span className="truncate max-w-[140px]">{tx.wfx_job_id}</span>

@@ -184,7 +184,7 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
                                             <TableCell className="font-medium">
                                                 <button
                                                     onClick={() => handleViewJob(job.id)}
-                                                    className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors font-mono text-xs"
+                                                    className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors"
                                                     title={job.id}
                                                 >
                                                     {job.id}
@@ -203,10 +203,10 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <WfxStatusBadge state={job.status?.state} />
+                                                <WfxStatusBadge state={job.status?.state} workflow={job.workflow} />
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <WfxGroupBadge group={group} />
+                                                <WfxGroupBadge group={group} workflow={job.workflow} />
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {job.stime ? <DateDisplay date={job.stime} className="items-center" /> : <span className="text-xs text-muted-foreground">—</span>}

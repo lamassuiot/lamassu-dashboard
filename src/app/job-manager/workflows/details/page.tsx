@@ -15,7 +15,7 @@ import { WorkflowGraph } from '@/components/shared/WorkflowGraph';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
-import { WfxGroupBadge } from '@/components/shared/WfxJobBadges';
+import { WfxGroupBadge, WfxStatusBadge } from '@/components/shared/WfxJobBadges';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
@@ -100,7 +100,6 @@ export default function WorkflowDetailsPage() {
             <DetailHero
                 icon={Workflow}
                 title={workflow.name}
-                titleClassName="font-mono"
                 description={workflow.description}
                 stats={
                     <>
@@ -114,7 +113,7 @@ export default function WorkflowDetailsPage() {
                             {(workflow.groups?.length ?? 0) > 0 ? (
                                 <div className="flex flex-wrap gap-1">
                                     {workflow.groups!.map(group => (
-                                        <WfxGroupBadge key={group.name} group={group.name} />
+                                        <WfxGroupBadge key={group.name} group={group.name} workflow={workflow} />
                                     ))}
                                 </div>
                             ) : (
@@ -170,9 +169,7 @@ export default function WorkflowDetailsPage() {
                                                     value={
                                                         <div className="flex flex-wrap gap-1">
                                                             {group.states?.map(s => (
-                                                                <Badge key={s} variant="secondary" className="font-mono">
-                                                                    {s}
-                                                                </Badge>
+                                                                <WfxStatusBadge key={s} state={s} workflow={workflow} />
                                                             ))}
                                                         </div>
                                                     }

@@ -197,7 +197,7 @@ export default function JobDetailsPage() {
                 ...JOB_CRUMBS,
                 {
                     label: (
-                        <Badge className="font-mono">
+                        <Badge>
                             {job.id}
                         </Badge>
                     ),
@@ -207,15 +207,14 @@ export default function JobDetailsPage() {
             <DetailHero
                 icon={ClipboardList}
                 title={job.id}
-                titleClassName="font-mono"
                 badges={
                     <>
-                        {job.status?.state && <WfxStatusBadge state={job.status.state} />}
-                        {group && <WfxGroupBadge group={group} />}
+                        {job.status?.state && <WfxStatusBadge state={job.status.state} workflow={job.workflow} />}
+                        {group && <WfxGroupBadge group={group} workflow={job.workflow} />}
                     </>
                 }
                 meta={job.workflow?.name && (
-                    <Badge variant="secondary" className="font-mono" asChild>
+                    <Badge variant="secondary" asChild>
                         <Link href={`/job-manager/workflows/details?name=${encodeURIComponent(job.workflow.name)}`} className="hover:bg-muted/70">
                             <Workflow />
                             {job.workflow.name}
@@ -226,7 +225,7 @@ export default function JobDetailsPage() {
                     <>
                         <DetailHeroStat label="Device">
                             {job.clientId
-                                ? <Link href={`/devices/details/information?deviceId=${encodeURIComponent(job.clientId)}`} className="block truncate font-mono text-primary hover:underline underline-offset-4" title={job.clientId}>{job.clientId}</Link>
+                                ? <Link href={`/devices/details/information?deviceId=${encodeURIComponent(job.clientId)}`} className="block truncate font-medium text-primary hover:underline underline-offset-4" title={job.clientId}>{job.clientId}</Link>
                                 : <span className="text-muted-foreground">N/A</span>}
                         </DetailHeroStat>
                         <DetailHeroStat label="Created">
@@ -266,13 +265,13 @@ export default function JobDetailsPage() {
                                 <DetailInfoRows>
                                     <DetailInfoRow
                                         label="Job ID"
-                                        value={<code className="font-mono text-xs">{job.id}</code>}
+                                        value={<span className="text-sm">{job.id}</span>}
                                     />
                                     <DetailInfoRow
                                         label="Device ID"
                                         value={
                                             job.clientId
-                                                ? <Link href={`/devices/details/information?deviceId=${encodeURIComponent(job.clientId)}`} className="font-mono text-xs text-primary hover:underline underline-offset-4">{job.clientId}</Link>
+                                                ? <Link href={`/devices/details/information?deviceId=${encodeURIComponent(job.clientId)}`} className="text-sm font-medium text-primary hover:underline underline-offset-4">{job.clientId}</Link>
                                                 : <span className="text-xs text-muted-foreground">N/A</span>
                                         }
                                     />
@@ -280,7 +279,7 @@ export default function JobDetailsPage() {
                                         label="Current State"
                                         value={
                                             job.status?.state
-                                                ? <WfxStatusBadge state={job.status.state} />
+                                                ? <WfxStatusBadge state={job.status.state} workflow={job.workflow} />
                                                 : <span className="text-xs text-muted-foreground">N/A</span>
                                         }
                                     />
@@ -288,7 +287,7 @@ export default function JobDetailsPage() {
                                         label="Group"
                                         value={
                                             group
-                                                ? <WfxGroupBadge group={group} />
+                                                ? <WfxGroupBadge group={group} workflow={job.workflow} />
                                                 : <span className="text-xs text-muted-foreground">N/A</span>
                                         }
                                     />
@@ -298,7 +297,7 @@ export default function JobDetailsPage() {
                                         label="Tags"
                                         value={
                                             job.tags?.length
-                                                ? <div className="flex flex-wrap gap-1">{job.tags.map(t => <Badge key={t} variant="secondary" className="font-mono">{t}</Badge>)}</div>
+                                                ? <div className="flex flex-wrap gap-1">{job.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}</div>
                                                 : <span className="text-xs text-muted-foreground">—</span>
                                         }
                                     />

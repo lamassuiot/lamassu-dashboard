@@ -1,31 +1,38 @@
 'use client';
 
 import React from 'react';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import type { WfxWorkflow } from '@/lib/wfx-api';
+import { colorBadgeStyle, resolveGroupColor, resolveStateColor } from '@/lib/wfx-colors';
 
-export function getStateVariant(state: string): BadgeVariant {
-    const s = state.toUpperCase();
-    if (/FAIL|ERROR|ABORT|REJECT|CANCEL/.test(s)) return 'destructive';
-    if (/SUCCESS|DONE|COMPLET|FINISH|OK/.test(s)) return 'success';
-    if (/WAIT|PEND|QUEUE|HOLD|PAUSE/.test(s)) return 'warning';
-    return 'info';
+interface WfxWorkflowBadgeProps {
+    /** Workflow the state/group belongs to; its descriptions provide the color. */
+    workflow?: WfxWorkflow;
 }
 
-export function WfxStatusBadge({ state }: { state: string | undefined }) {
+export function WfxStatusBadge({ state, workflow }: { state: string | undefined } & WfxWorkflowBadgeProps) {
     if (!state) return <span className="text-muted-foreground text-xs">—</span>;
+    const color = resolveStateColor(workflow, state);
+    if (!color) {
+        return (
+            <Badge variant="secondary" dot>
+                {state}
+            </Badge>
+        );
+    }
     return (
-        <Badge variant={getStateVariant(state)} dot className="font-mono">
+        <Badge variant="muted" dot style={colorBadgeStyle(color)}>
             {state}
         </Badge>
     );
 }
 
-export function WfxGroupBadge({ group }: { group: string | undefined }) {
+export function WfxGroupBadge({ group, workflow }: { group: string | undefined } & WfxWorkflowBadgeProps) {
     if (!group) return <span className="text-muted-foreground text-xs">—</span>;
+    const color = resolveGroupColor(workflow, group);
+    if (!color) return <Badge variant="secondary">{group}</Badge>;
     return (
-        <Badge variant="secondary" className="uppercase">
-            <span className={cn('size-1.5 shrink-0 rounded-full', group === 'TERMINAL' ? 'bg-emerald-500' : 'bg-blue-500')} />
+        <Badge variant="muted" style={colorBadgeStyle(color)}>
             {group}
         </Badge>
     );

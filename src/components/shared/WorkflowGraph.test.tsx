@@ -8,7 +8,7 @@ import { WorkflowGraph } from './WorkflowGraph';
 const workflow: WfxWorkflow = {
     name: 'CMP enrollment',
     states: [
-        { name: 'requested' },
+        { name: 'requested', description: 'Request received' },
         { name: 'validated' },
         { name: 'approved' },
         { name: 'issued' },
@@ -20,25 +20,39 @@ const workflow: WfxWorkflow = {
     ],
 };
 
-function expectLabelClasses(label: string, rectClasses: string, textClasses: string) {
-    const text = screen.getByText(label, { selector: 'text' });
-    const rect = text.previousElementSibling;
-
-    expect(rect).toHaveClass(...rectClasses.split(' '));
-    expect(text).toHaveClass(...textClasses.split(' '));
-}
-
 describe('WorkflowGraph', () => {
     it('preserves label colors on traversed edges', () => {
-        render(
+        const { container } = render(
             <WorkflowGraph
                 workflow={workflow}
                 followedStates={['requested', 'validated', 'approved', 'issued']}
             />,
         );
 
-        expectLabelClasses('Device', 'fill-card stroke-emerald-500', 'fill-emerald-600');
-        expectLabelClasses('Admin', 'fill-card stroke-amber-500', 'fill-amber-600');
-        expectLabelClasses('WFX', 'fill-card stroke-border', 'fill-muted-foreground');
+        const [device, admin] = Array.from(container.querySelectorAll('[data-slot="workflow-edge-label"]'));
+        expect(device).toHaveTextContent('Device');
+        expect(device).toHaveClass('border-emerald-500/30');
+        expect(admin).toHaveTextContent('Admin');
+        expect(admin).toHaveClass('border-amber-500/30');
+    });
+
+    it('only labels transitions that someone other than the backend performs', () => {
+        const { container } = render(<WorkflowGraph workflow={workflow} />);
+
+        expect(container.querySelectorAll('[data-slot="workflow-edge-label"]')).toHaveLength(2);
+    });
+
+    it('marks the last followed state as current', () => {
+        const { container } = render(<WorkflowGraph workflow={workflow} followedStates={['requested', 'validated']} />);
+
+        expect(container.querySelector('[data-state-id="validated"]')).toHaveAttribute('aria-current', 'step');
+        expect(container.querySelector('[data-state-id="requested"]')).not.toHaveAttribute('aria-current');
+        expect(container.querySelector('[data-state-id="issued"]')).not.toHaveAttribute('data-active');
+    });
+
+    it('renders an empty workflow without crashing', () => {
+        render(<WorkflowGraph workflow={{ name: 'empty', states: [], transitions: [] }} />);
+
+        expect(screen.getByText('This workflow defines no states.')).toBeInTheDocument();
     });
 });

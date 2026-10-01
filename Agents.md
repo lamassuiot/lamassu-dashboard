@@ -178,6 +178,12 @@ Before shipping changes:
 - **PEM/DER Handling**: `buffer-utils.ts` in `lib-crypto` — do not reimplement
 - **Validation**: Use functions from `cert-parser.ts` for chain validation and expiry checking
 
+### Typography: em dash
+
+- do not use the em dash character (`—`, U+2014) anywhere: UI text, placeholders for empty values, code comments, generated scripts, docs, or commit messages
+- the only exception is when the user has explicitly authorized it for a specific place; that authorization does not extend to other places
+- rewrite with a comma, colon, period, semicolon, or parentheses instead; for empty-value placeholders use `-`
+
 ### Performance and UX
 
 - avoid unnecessary repeated API calls

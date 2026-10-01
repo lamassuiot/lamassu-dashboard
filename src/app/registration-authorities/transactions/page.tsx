@@ -11,6 +11,8 @@ import { CmpTransactionsPanel } from '@/components/ra/CmpTransactionsPanel';
 import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificatesPanel';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +30,13 @@ import { cn } from '@/lib/utils';
 //   - Past Enrollments (certificates) → from the CA service, filtered by RA.
 //     Shows the permanent cert record (ACTIVE / REVOKED / EXPIRED).
 
+const ACTIVE_FILTER = ['state[in]PENDING,ISSUED'];
+const COMPLETED_FILTER = ['state[in]CONFIRMED,REVOKED,ISSUE_FAILED'];
+
+const SPLIT_VIEWS_STORAGE_KEY = 'lamassu.cmpTransactions.splitViews';
+
+type TransactionsTab = 'active' | 'completed' | 'enrollments' | 'certificates';
+
 export default function RaCmpTransactionsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -35,6 +44,32 @@ export default function RaCmpTransactionsPage() {
 
     const [ra, setRa] = useState<ApiRaItem | null>(null);
     const [raLoadError, setRaLoadError] = useState<string | null>(null);
+
+    // "Split Views" on: Active / Completed / Issued Certificates.
+    // Off: Active and Completed are merged into a single Enrollments tab.
+    // The preference is a per-viewer convenience, so storage failures are ignored.
+    const [splitViews, setSplitViews] = useState(true);
+    const [activeTab, setActiveTab] = useState<TransactionsTab>('active');
+
+    useEffect(() => {
+        try {
+            if (window.localStorage.getItem(SPLIT_VIEWS_STORAGE_KEY) === 'false') {
+                setSplitViews(false);
+                setActiveTab((tab) => (tab === 'active' || tab === 'completed' ? 'enrollments' : tab));
+            }
+        } catch { /* storage unavailable */ }
+    }, []);
+
+    const handleSplitViewsChange = (checked: boolean) => {
+        setSplitViews(checked);
+        setActiveTab((tab) => {
+            if (checked) return tab === 'enrollments' ? 'active' : tab;
+            return tab === 'active' || tab === 'completed' ? 'enrollments' : tab;
+        });
+        try {
+            window.localStorage.setItem(SPLIT_VIEWS_STORAGE_KEY, String(checked));
+        } catch { /* storage unavailable */ }
+    };
 
     useEffect(() => {
         if (!raId) return;
@@ -75,26 +110,32 @@ export default function RaCmpTransactionsPage() {
                 items={[
                     { label: 'Registration Authorities', href: '/registration-authorities' },
                     { label: ra?.name ?? raId },
-                    { label: <Badge variant="default" className="text-xs">CMP Enrollments</Badge> },
+                    { label: <Badge>CMP Enrollments</Badge> },
                 ]}
             />
 
-            <div className="flex items-center gap-3">
-                <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                    style={{ backgroundColor: heroBgColor }}
-                >
-                    {HeroIcon ? (
-                        <HeroIcon className="h-5 w-5" style={{ color: heroIconColor }} />
-                    ) : (
-                        <Settings2 className="h-5 w-5 text-primary" />
-                    )}
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                    <div
+                        className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+                        style={{ backgroundColor: heroBgColor }}
+                    >
+                        {HeroIcon ? (
+                            <HeroIcon className="h-5 w-5" style={{ color: heroIconColor }} />
+                        ) : (
+                            <Settings2 className="h-5 w-5 text-primary" />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <h1 className="truncate text-xl font-semibold tracking-tight" title={ra?.name ?? raId}>
+                            {ra?.name ?? raId}
+                        </h1>
+                        <p className="text-xs text-muted-foreground">CMP (RFC-9483) Registration Authority</p>
+                    </div>
                 </div>
-                <div className="min-w-0">
-                    <h1 className="truncate text-xl font-semibold tracking-tight" title={ra?.name ?? raId}>
-                        {ra?.name ?? raId}
-                    </h1>
-                    <p className="text-xs text-muted-foreground">CMP (RFC-9483) Registration Authority</p>
+                <div className="flex shrink-0 items-center gap-2">
+                    <Label htmlFor="cmp-split-views" className="cursor-pointer text-sm font-medium">Split Views</Label>
+                    <Switch id="cmp-split-views" checked={splitViews} onCheckedChange={handleSplitViewsChange} />
                 </div>
             </div>
 
@@ -102,15 +143,23 @@ export default function RaCmpTransactionsPage() {
                 <p className="text-sm text-destructive">Could not load RA metadata: {raLoadError}</p>
             )}
 
-            <Tabs defaultValue="active" className="w-full">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TransactionsTab)} className="w-full">
                 <div className="border-b overflow-x-auto overflow-y-hidden">
                     <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
-                        <TabsTrigger value="active" className={pageTabsTriggerClass}>
-                            <ListOrdered className="h-4 w-4" />Active Enrollments
-                        </TabsTrigger>
-                        <TabsTrigger value="completed" className={pageTabsTriggerClass}>
-                            <CheckCircle2 className="h-4 w-4" />Completed Enrollments
-                        </TabsTrigger>
+                        {splitViews ? (
+                            <>
+                                <TabsTrigger value="active" className={pageTabsTriggerClass}>
+                                    <ListOrdered className="h-4 w-4" />Active Enrollments
+                                </TabsTrigger>
+                                <TabsTrigger value="completed" className={pageTabsTriggerClass}>
+                                    <CheckCircle2 className="h-4 w-4" />Completed Enrollments
+                                </TabsTrigger>
+                            </>
+                        ) : (
+                            <TabsTrigger value="enrollments" className={pageTabsTriggerClass}>
+                                <ListOrdered className="h-4 w-4" />Enrollments
+                            </TabsTrigger>
+                        )}
                         <TabsTrigger value="certificates" className={pageTabsTriggerClass}>
                             <FileText className="h-4 w-4" />Issued Certificates
                         </TabsTrigger>
@@ -118,13 +167,26 @@ export default function RaCmpTransactionsPage() {
                 </div>
 
                 <div className="mt-6 pb-6">
+                    {!splitViews && (
+                        <TabsContent value="enrollments" className="mt-0">
+                            <CmpTransactionsPanel
+                                raId={raId}
+                                withCard={false}
+                                title="Enrollments"
+                                description="All CMP enrollment transactions for this RA — in-flight (PENDING, ISSUED) and terminal (CONFIRMED, REVOKED, ISSUE_FAILED)."
+                                defaultStateFilter="all"
+                                emptyMessage="No CMP enrollments for this RA."
+                                workflowColumnLabel="Job"
+                            />
+                        </TabsContent>
+                    )}
                     <TabsContent value="active" className="mt-0">
                         <CmpTransactionsPanel
                             raId={raId}
                             withCard={false}
                             title="Active Enrollments"
                             description="In-flight CMP enrollment transactions awaiting completion (PENDING, ISSUED)."
-                            extraFilter={['state[in]PENDING,ISSUED']}
+                            extraFilter={ACTIVE_FILTER}
                             hideStateFilter
                             emptyMessage="No active CMP enrollments for this RA."
                         />
@@ -135,7 +197,7 @@ export default function RaCmpTransactionsPage() {
                             withCard={false}
                             title="Completed Enrollments"
                             description="Terminal CMP transactions — CONFIRMED (valid certConf received), REVOKED (cert revoked after issuance), or ISSUE_FAILED (rejected by CA, administrator, or approval timeout)."
-                            extraFilter={['state[in]CONFIRMED,REVOKED,ISSUE_FAILED']}
+                            extraFilter={COMPLETED_FILTER}
                             hideStateFilter
                             emptyMessage="No completed CMP transactions for this RA."
                             workflowColumnLabel="Job"

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -18,31 +18,8 @@ import {
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { resolveCertificateStatus } from '@/lib/certificate-status';
 import { cn } from '@/lib/utils';
-
-// Render the status badge using the same colour vocabulary as the device/cert
-// pages elsewhere. EXPIRED is not a stored status on the certificate itself —
-// the API returns ACTIVE for any non-revoked cert — but we synthesise it
-// client-side so the user sees the same three buckets they asked for.
-type ResolvedStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
-
-function resolveStatus(cert: CertificateData): ResolvedStatus {
-    if ((cert.apiStatus ?? '').toUpperCase() === 'REVOKED') return 'REVOKED';
-    const notAfter = new Date(cert.validTo).getTime();
-    if (Number.isFinite(notAfter) && notAfter < Date.now()) return 'EXPIRED';
-    return 'ACTIVE';
-}
-
-const statusBadge = (status: ResolvedStatus): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } => {
-    switch (status) {
-        case 'ACTIVE':
-            return { variant: 'outline', className: 'text-emerald-600 border-emerald-300 dark:border-emerald-700' };
-        case 'REVOKED':
-            return { variant: 'destructive' };
-        case 'EXPIRED':
-            return { variant: 'outline', className: 'text-amber-600 border-amber-300 dark:border-amber-700' };
-    }
-};
 
 const PAGE_SIZES = ['10', '25', '50', '100'];
 
@@ -101,7 +78,7 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
             const result = await fetchIssuedCertificates({ apiQueryString: params.toString() });
             let list = result.certificates;
             if (statusFilter === 'EXPIRED') {
-                list = list.filter((c) => resolveStatus(c) === 'EXPIRED');
+                list = list.filter((c) => resolveCertificateStatus(c) === 'EXPIRED');
             }
             setCerts(list);
             setNextToken(result.nextToken);
@@ -197,8 +174,7 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
                             </TableRow>
                         )}
                         {certs.map((cert) => {
-                            const status = resolveStatus(cert);
-                            const badge = statusBadge(status);
+                            const status = resolveCertificateStatus(cert);
                             return (
                                 <TableRow key={cert.serialNumber}>
                                     <TableCell>
@@ -207,10 +183,10 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
                                         </Link>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={badge.variant} className={badge.className}>{status}</Badge>
+                                        <ApiStatusBadge status={status} />
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs">
-                                        <Link href={`/certificates/details?certificateId=${cert.serialNumber}`} className="hover:underline">
+                                    <TableCell>
+                                        <Link href={`/certificates/details?certificateId=${cert.serialNumber}`} className="font-medium text-primary hover:underline underline-offset-4">
                                             {cert.serialNumber}
                                         </Link>
                                     </TableCell>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { CmpStateBadge } from '@/components/shared/CmpStateBadge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -58,23 +59,6 @@ const INNER_TAB_TRIGGER_CLASS =
 //     certConfB64, pkiConfB64). Asn1Viewer decodes them via the shared
 //     Pyodide + pycrate runtime so the user sees a fully ASN.1-decoded view,
 //     surfaced in the Snapshot Context section's ASN.1 tab.
-
-// State-badge styling — same conventions as CmpTransactionsPanel.
-const stateBadgeVariant = (state: string): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } => {
-    switch (state) {
-        case 'ISSUED':
-            return { variant: 'outline', className: 'text-blue-600 border-blue-300 dark:border-blue-700' };
-        case 'PENDING':
-            return { variant: 'outline', className: 'text-amber-600 border-amber-300 dark:border-amber-700' };
-        case 'CONFIRMED':
-            return { variant: 'outline', className: 'text-emerald-600 border-emerald-300 dark:border-emerald-700' };
-        case 'REVOKED':
-        case 'ISSUE_FAILED':
-            return { variant: 'destructive' };
-        default:
-            return { variant: 'secondary' };
-    }
-};
 
 // Build an oldest-first timeline from the WFX history. The current `status`
 // (which may not yet be in the history array) is appended as the most recent
@@ -422,7 +406,6 @@ export default function CmpTransactionDetailsPage() {
     }
 
     const opLabel = tx.request_type ? tx.request_type : tx.is_reenrollment ? 'kur' : 'ir/cr';
-    const stateBadge = stateBadgeVariant(tx.state);
 
     return (
         <BreadcrumbPage
@@ -431,7 +414,7 @@ export default function CmpTransactionDetailsPage() {
                 { label: 'Home', href: '/' },
                 { label: 'Registration Authorities', href: '/registration-authorities' },
                 { label: raId, href: `/registration-authorities/transactions?raId=${encodeURIComponent(raId)}` },
-                { label: <Badge variant="default" className="max-w-[240px] truncate text-xs font-mono">{tx.transaction_id}</Badge> },
+                { label: <Badge className="max-w-[240px] truncate">{tx.transaction_id}</Badge> },
             ]}
         >
             {/* Hero */}
@@ -445,12 +428,12 @@ export default function CmpTransactionDetailsPage() {
                         </div>
 
                         <div className="min-w-0 space-y-2">
-                            <h1 className="break-all text-2xl font-semibold tracking-tight font-mono">
+                            <h1 className="break-all text-2xl font-semibold tracking-tight">
                                 {tx.transaction_id}
                             </h1>
                             {tx.subject_common_name && (
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
+                                    <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
                                         CN: {tx.subject_common_name}
                                     </span>
                                 </div>
@@ -518,26 +501,26 @@ export default function CmpTransactionDetailsPage() {
                                 <DetailInfoRows>
                                     <DetailInfoRow
                                         label="Transaction ID"
-                                        value={<code className="font-mono text-xs break-all">{tx.transaction_id}</code>}
+                                        value={<span className="text-sm break-all">{tx.transaction_id}</span>}
                                     />
                                     <DetailInfoRow
                                         label="State"
-                                        value={<Badge variant={stateBadge.variant} className={cn('text-xs', stateBadge.className)}>{tx.state}</Badge>}
+                                        value={<CmpStateBadge state={tx.state} />}
                                     />
                                     <DetailInfoRow
                                         label="Operation"
-                                        value={<Badge variant="secondary" className="font-mono text-xs uppercase">{opLabel}</Badge>}
+                                        value={<Badge variant="secondary">{opLabel}</Badge>}
                                     />
                                     <DetailInfoRow
                                         label="DMS / RA"
-                                        value={<code className="font-mono text-xs">{tx.dms_id}</code>}
+                                        value={<span className="text-sm">{tx.dms_id}</span>}
                                     />
                                     <DetailInfoRow
                                         label="Device (CN)"
                                         value={tx.subject_common_name ? (
                                             <Link
                                                 href={`/devices/details?deviceId=${encodeURIComponent(tx.subject_common_name)}`}
-                                                className="inline-flex items-center gap-1 hover:underline font-mono text-xs"
+                                                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline underline-offset-4"
                                             >
                                                 {tx.subject_common_name}
                                                 <ExternalLink className="h-3 w-3 shrink-0" />
@@ -549,7 +532,7 @@ export default function CmpTransactionDetailsPage() {
                                         value={tx.has_certificate && tx.certificate_serial_number ? (
                                             <Link
                                                 href={`/certificates/details?certificateId=${tx.certificate_serial_number}`}
-                                                className="inline-flex items-center gap-1 hover:underline font-mono text-xs"
+                                                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline underline-offset-4"
                                             >
                                                 {tx.certificate_serial_number}
                                                 <ExternalLink className="h-3 w-3 shrink-0" />
@@ -561,7 +544,7 @@ export default function CmpTransactionDetailsPage() {
                                         value={tx.wfx_job_id ? (
                                             <Link
                                                 href={`/job-manager/jobs/details?jobId=${encodeURIComponent(tx.wfx_job_id)}`}
-                                                className="inline-flex items-center gap-1 hover:underline font-mono text-xs"
+                                                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline underline-offset-4"
                                             >
                                                 {tx.wfx_job_id}
                                                 <ExternalLink className="h-3 w-3 shrink-0" />
