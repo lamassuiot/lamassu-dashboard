@@ -6,12 +6,13 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Copy package.json and package-lock.json (or yarn.lock)
-COPY package*.json ./
+# Use the pnpm version pinned in package.json.
+RUN corepack enable
 
-# Install dependencies
-# Using npm ci for cleaner installs in CI/build environments
-RUN npm ci --ignore-scripts
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Install exactly the dependencies committed in the lockfile.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy the rest of the application code
 COPY . .
@@ -19,7 +20,7 @@ COPY . .
 # Build the application
 # This will output to the 'out' directory due to `output: 'export'` in next.config.ts
 # NEXT_TELEMETRY_DISABLED: prevents background HTTP requests triggering TLS/crypto module init crashes.
-RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build
+RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine

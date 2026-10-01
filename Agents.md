@@ -137,18 +137,18 @@ Key domains:
 Common commands:
 
 ```bash
-npm run dev
-npm run lint
-npm run fix
-npm run typecheck
-npm run build
+pnpm run dev
+pnpm run lint
+pnpm run fix
+pnpm run typecheck
+pnpm run build
 ```
 
 Before shipping changes:
 
-- run `npm run typecheck`
-- run `npm run lint` when relevant
-- run `npm run build` when the change affects routing, exports, or broader app behavior
+- run `pnpm run typecheck`
+- run `pnpm run lint` when relevant
+- run `pnpm run build` when the change affects routing, exports, or broader app behavior
 
 ## Implementation rules
 
@@ -337,11 +337,11 @@ When contributing to Lamassu Dashboard, maintain clear and user-focused communic
 - **Build Validation** - Static export process validates entire application
 
 **Pre-commit Validation:**
-1. **Always run `npm run typecheck`** - ensures TypeScript compilation succeeds
-2. **Always run `npm run lint`** - catches style and potential logic issues
+1. **Always run `pnpm run typecheck`** - ensures TypeScript compilation succeeds
+2. **Always run `pnpm run lint`** - catches style and potential logic issues
 3. **Test critical PKI workflows** - certificate creation, validation, and revocation
 4. **Verify responsive design** - test on mobile and desktop viewports
-5. **Check `npm run build`** - ensures static export generation succeeds
+5. **Check `pnpm run build`** - ensures static export generation succeeds
 6. **Review for refactoring opportunities** - flag or address duplication and dead code found during the change
 
 **Docker Validation:**
