@@ -27,6 +27,7 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarGroupLabel,
+  useSidebar,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -34,7 +35,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
-import { FileText, Landmark, HomeIcon, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -444,7 +445,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuContent className="w-56" align="end">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">My Account</p>
@@ -629,7 +630,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                 </SidebarMenu>
               </SidebarContent>
               <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
-                <SidebarTrigger className="w-full justify-start" />
+                <CustomSidebarToggle />
                 <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
 
                 </div>
@@ -941,5 +942,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </ThemeProvider>
       </AuthProvider>
     </ConfigProvider>
+  );
+}
+
+function CustomSidebarToggle() {
+  const { open, toggleSidebar, isMobile } = useSidebar();
+
+  if (isMobile) {
+    return null;
+  }
+
+  return (
+    <SidebarMenuButton
+      onClick={toggleSidebar}
+      className="w-full flex items-center group-data-[collapsible=icon]:justify-center mb-2"
+      tooltip={{ children: open ? "Collapse sidebar" : "Expand sidebar", side: 'right', align: 'center' }}
+    >
+      {open ? <ChevronsLeft /> : <ChevronsRight />}
+      <span className="ml-2 group-data-[collapsible=icon]:hidden whitespace-nowrap">{open ? "Collapse" : ""}</span>
+    </SidebarMenuButton>
   );
 }

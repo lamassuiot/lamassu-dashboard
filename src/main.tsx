@@ -19,7 +19,9 @@ function ScrollToTop() {
   const location = useLocation();
 
   useEffect(() => {
-    if (!location.state?.preserveScroll) window.scrollTo(0, 0);
+    if (location.state?.preserveScroll) return;
+    document.querySelector<HTMLElement>('[data-slot="sidebar-inset"]')?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
   }, [location.key, location.state]);
 
   return null;
