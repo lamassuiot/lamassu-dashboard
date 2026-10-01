@@ -1,5 +1,7 @@
 name: Develop Workflow
 
+permissions: {}
+
 on:
   push:
     branches:
@@ -74,10 +76,11 @@ jobs:
       # digest only; the merge job stitches the digests into a multi-arch tag.
       - name: Build the Docker image
         id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=ghcr.io/lamassuiot/lamassu-ui,push-by-digest=true,name-canonical=true,push=true
+          sbom: true
 
       - name: Export digest
         env:
@@ -135,3 +138,17 @@ jobs:
           IMAGE: ghcr.io/lamassuiot/lamassu-ui
           TAG: ${{ needs.validate_tag.outputs.tag }}
         run: docker buildx imagetools inspect "${IMAGE}:${TAG}"
+
+
+  scan-image:
+    name: Scan DEV image
+    needs: [validate_tag, dev_image]
+    uses: ./.github/workflows/trivy-image-scan.yml
+    with:
+      image-ref: ghcr.io/lamassuiot/lamassu-ui:${{ needs.validate_tag.outputs.tag }}-${{ github.sha }}
+      category: trivy-image-dev
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write

@@ -1,0 +1,26 @@
+name: "Pin Check: verify all GitHub Actions are pinned to commit SHAs"
+
+permissions: {}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/*.yaml"
+      - ".github/workflows/*.yml"
+
+jobs:
+  pinact:
+    name: Verify actions are pinned to commit SHAs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Verify pinned actions
+        uses: suzuki-shunsuke/pinact-action@896d595f299e71d65b9d28349d6956abe144390a # v3.0.0
+        with:
+          skip_push: "true"
+          fix: "false"
