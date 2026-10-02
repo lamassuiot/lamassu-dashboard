@@ -46,6 +46,7 @@ import { ModuleFileSheet } from '@/components/iot/module-file-sheet';
 import { DELIVERY_LABELS } from '@/components/iot/module-files';
 import { deleteSoftwareModule, fetchAllSoftwareModules, fetchAllUpdatePacks, importSoftwareModule, removeSoftwareModule } from '@/lib/iot-api';
 import { moduleRemovalBlockedReason } from '@/components/iot/module-removal';
+import { setBlockedReason } from '@/components/iot/add-to-set';
 import type { ReusableSoftwareModule, SoftwareModule } from '@/types/iot';
 
 type TypeFilter = 'all' | 'os' | 'application';
@@ -181,13 +182,13 @@ export default function SoftwareModulesCatalogPage() {
   // Each set's CURRENT version and build state, keyed by group and name. A catalog row can point at
   // an older version of a set, and only the current one can change its composition; whether that
   // version is built decides removal on native. Best-effort: without it no Remove is offered.
-  const [packState, setPackState] = useState<Map<string, { version: string; built: boolean }>>(new Map());
+  const [packState, setPackState] = useState<Map<string, { version: string; built: boolean; locked: boolean }>>(new Map());
 
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     fetchAllUpdatePacks({ pageSize: 500 })
-      .then((r) => setPackState(new Map(r.list.map((p) => [`${p.group_id ?? ''}::${p.name}`, { version: p.version, built: p.status === 'built' }]))))
+      .then((r) => setPackState(new Map(r.list.map((p) => [`${p.group_id ?? ''}::${p.name}`, { version: p.version, built: p.status === 'built', locked: p.locked === true }]))))
       .catch(() => setPackState(new Map()));
     try {
       setModules(await fetchAllSoftwareModules());
@@ -732,6 +733,7 @@ export default function SoftwareModulesCatalogPage() {
         sets={packState}
         groupNames={groupNames}
         shared={backend === 'hawkbit'}
+        freezesAtBuild={backend === 'native'}
         onOpenChange={(o) => { if (!o) setAddToSet(null); }}
         onDone={() => { setAddToSet(null); load(); }}
       />
@@ -1002,14 +1004,17 @@ function AddToSetDialog({
   sets,
   groupNames,
   shared,
+  freezesAtBuild,
   onOpenChange,
   onDone,
 }: {
   target: { key: string; uses: ReusableSoftwareModule[] } | null;
   /** `${groupId}::${setName}` -> the set's current version and build state. */
-  sets: Map<string, { version: string; built: boolean }>;
+  sets: Map<string, { version: string; built: boolean; locked: boolean }>;
   groupNames: Map<string, string>;
   shared: boolean;
+  /** Native freezes a set's composition at its build; hawkBit does it when devices are targeted. */
+  freezesAtBuild: boolean;
   onOpenChange: (open: boolean) => void;
   onDone: () => void;
 }) {
@@ -1034,18 +1039,21 @@ function AddToSetDialog({
     [target],
   );
 
+  // Every set is listed. Those that cannot take the module stay visible but greyed out, with the
+  // reason, instead of vanishing (which hides that the set exists) or being offered and then refused.
   const options = useMemo(
     () =>
       [...sets.entries()]
-        .filter(([k]) => !composedIn.has(k))
         .map(([k, v]) => {
           const [groupId, ...rest] = k.split('::');
           const name = rest.join('::');
-          return { key: k, groupId, name, version: v.version, built: v.built, group: groupNames.get(groupId) ?? groupId };
+          const blocked = setBlockedReason({ alreadyHoldsModule: composedIn.has(k), set: v, freezesAtBuild });
+          return { key: k, groupId, name, version: v.version, built: v.built, blocked, group: groupNames.get(groupId) ?? groupId };
         })
         .sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name)),
-    [sets, composedIn, groupNames],
+    [sets, composedIn, groupNames, freezesAtBuild],
   );
+  const addable = options.filter((o) => o.blocked === null);
 
   // Reset on open so a previous choice never lingers into a different module.
   useEffect(() => {
@@ -1114,23 +1122,27 @@ function AddToSetDialog({
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Distribution set</p>
             {options.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {sets.size === 0 ? 'No distribution sets found.' : 'Every distribution set already holds this module.'}
-              </p>
+              <p className="text-sm text-muted-foreground">No distribution sets found.</p>
             ) : (
               <Select value={setKey} onValueChange={setSetKey}>
                 <SelectTrigger><SelectValue placeholder="Select a distribution set" /></SelectTrigger>
                 <SelectContent>
                   {options.map((o) => (
-                    <SelectItem key={o.key} value={o.key}>
-                      {o.group} · {o.name} v{o.version}{o.built ? ' (built)' : ''}
+                    <SelectItem key={o.key} value={o.key} disabled={o.blocked !== null} className={cn(o.blocked !== null && 'text-muted-foreground')}>
+                      {o.group} · {o.name} v{o.version}
+                      {o.blocked !== null && <span className="ml-2 text-xs italic">— {o.blocked}</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
+            {options.length > 0 && addable.length === 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                None of the distribution sets can take this module right now. Create a new version of a set to change its composition.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Only a set's current version can change, and a built or locked version will refuse it.
+              Greyed-out sets cannot take it: they already hold it, or their composition is frozen.
             </p>
           </div>
         </div>

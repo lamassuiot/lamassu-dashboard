@@ -105,6 +105,10 @@ export interface UpdatePack {
   // build that was attempted and broke: still editable and retryable like 'draft', but distinguishable
   // from it — see last_build_error for the reason.
   status?: 'draft' | 'built' | 'build_failed' | string;
+  // The backend froze this version's composition because it was sent, or planned to be sent, to
+  // devices (hawkBit locks a set when a campaign is created or a device is assigned it). Absent on
+  // native, which freezes composition at the build instead — see `status`.
+  locked?: boolean;
   descriptorFileName?: string;
   descriptorContent?: string; // Added for viewing descriptor
   uri?: string;
