@@ -8,11 +8,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { sileo } from '@/lib/toast';
-import { AlertCircle, Edit, Trash2, FolderTree, FolderPlus, Loader2, Monitor, RefreshCw, Info, Layers, ListFilter } from 'lucide-react';
+import { AlertCircle, Edit, Trash2, FolderTree, FolderPlus, Loader2, Monitor, RefreshCw, Info, Layers, ListFilter, Target } from 'lucide-react';
 import { fetchAllDeviceGroups, getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
 import { getAncestorChain, getDescendantIds } from '@/lib/device-groups-utils';
 import type { DeviceGroup } from '@/types/device-group';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
+import { GroupLatestVersionsCard } from '@/components/device-groups/GroupLatestVersionsCard';
 import { MembershipRulesView } from '@/components/device-groups/MembershipRulesView';
 import { GroupHierarchyTree } from '@/components/device-groups/GroupHierarchyTree';
 import { DeviceGroupStatusBar } from '@/components/device-groups/DeviceGroupStatusBar';
@@ -29,11 +30,12 @@ const DEVICE_GROUP_CRUMBS = [
   { label: 'Device Groups', href: '/device-groups' },
 ];
 
-type DetailTab = 'members' | 'rules' | 'hierarchy';
+type DetailTab = 'members' | 'rules' | 'hierarchy' | 'latest-versions';
 
 function parseTab(value: string | null): DetailTab {
   if (value === 'rules' || value === 'info') return 'rules';
   if (value === 'hierarchy') return 'hierarchy';
+  if (value === 'latest-versions') return 'latest-versions';
   return 'members';
 }
 
@@ -169,6 +171,7 @@ export default function DeviceGroupDetailsClient() {
     { value: 'members', icon: Monitor, label: 'Devices' },
     { value: 'rules', icon: ListFilter, label: 'Membership Rules', count: ownRuleCount + inheritedCount },
     { value: 'hierarchy', icon: FolderTree, label: 'Hierarchy', count: descendants.length || undefined },
+    { value: 'latest-versions', icon: Target, label: 'Latest Versions' },
   ];
 
   return (
@@ -302,6 +305,19 @@ export default function DeviceGroupDetailsClient() {
 
           <TabsContent value="hierarchy" className="mt-0">
             <GroupHierarchyTree group={group} ancestors={ancestors} descendants={descendants} refreshKey={refreshKey} />
+          </TabsContent>
+
+          <TabsContent value="latest-versions" className="mt-0">
+            <div className="space-y-3 py-6">
+              <div>
+                <p className="font-semibold">Latest Versions</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Which version of each distribution set every device in this group is running, versus the set&apos;s latest.
+                  Update any outdated device to the latest from here.
+                </p>
+              </div>
+              <GroupLatestVersionsCard groupId={group.id} />
+            </div>
           </TabsContent>
         </div>
       </Tabs>

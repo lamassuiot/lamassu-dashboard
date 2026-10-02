@@ -1,7 +1,7 @@
+
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
-import { apiFetch, createApiHeaders } from './api-client';
-import type { DeviceJob } from '@/types/iot'; // Import DeviceJob
+import { apiFetch } from './api-client';
 
 // Maps dot-notation SSE event types to the normalized REST API format
 const SSE_EVENT_TYPE_MAP: Record<string, string> = {
@@ -29,15 +29,8 @@ export interface ApiDeviceIdentity {
   active_version: number;
   type: string;
   versions: Record<string, string>;
-  events?: Record<string, { type: string; description: string; data?: any; }>;
-}
-
-export interface ApiDeviceEventItem {
-  timestampStr: string;
-  type: string;
-  description: string;
-  data?: any;
-  source: string;
+  expiration_date?: string;
+  events?: Record<string, { type: string; description: string }>;
 }
 
 export interface ApiDeviceEventItem {
@@ -60,7 +53,7 @@ export interface ApiDevice {
   dms_owner: string;
   identity: ApiDeviceIdentity | null;
   slots: Record<string, any>;
-  events?: Record<string, { type: string; description: string; data?: any; }>;
+  events?: Record<string, { type: string; description: string }>;
 }
 
 export interface ApiResponse {
@@ -108,10 +101,12 @@ export async function fetchDeviceById(deviceId: string): Promise<ApiDevice> {
 
 export async function fetchDeviceEventsPaginated({
   deviceId,
+  accessToken,
   limit = 5,
   bookmark,
 }: {
   deviceId: string;
+  accessToken: string;
   limit?: number;
   bookmark?: string;
 }): Promise<PaginatedDeviceEventsResponse> {
@@ -120,7 +115,9 @@ export async function fetchDeviceEventsPaginated({
   if (bookmark) params.set('bookmark', bookmark);
 
   const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events${params.toString() ? `?${params.toString()}` : ''}`;
-  const response = await apiFetch(url);
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
 
   const data = await handleApiError(response, `Failed to fetch events for device ${deviceId}`);
 
@@ -144,9 +141,8 @@ export async function fetchDeviceEventsPaginated({
 
 export async function decommissionDevice(deviceId: string): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/decommission`;
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     await handleApiError(response, 'Failed to decommission device');
 }
@@ -155,7 +151,9 @@ export async function registerDevice(payload: any): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices`;
     const response = await apiFetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
     });
     await handleApiError(response, 'Failed to register device');
@@ -169,7 +167,9 @@ export async function fetchDeviceStats(): Promise<DeviceStats> {
 export async function updateDeviceMetadata(deviceId: string, patchOperations: PatchOperation[]): Promise<void> {
   const response = await apiFetch(`${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/metadata`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({ patches: patchOperations }),
   });
 
@@ -178,9 +178,8 @@ export async function updateDeviceMetadata(deviceId: string, patchOperations: Pa
 
 export async function deleteDevice(deviceId: string): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     await handleApiError(response, 'Failed to delete device');
 }
@@ -242,13 +241,22 @@ async function readSseEvents(
   }
 }
 
+/**
+ * Subscribe to real-time device events via SSE (Server-Sent Events).
+ * Uses `Accept: text/event-stream` to open a streaming connection.
+ * Auto-reconnects silently on stream drops with exponential backoff.
+ * Only reports disconnected after a grace period so brief reconnects don't flicker the UI.
+ * Returns an AbortController so the caller can close the stream.
+ */
 export function subscribeToDeviceEventsSSE({
   deviceId,
+  getAccessToken,
   onEvent,
   onConnectionChange,
   disconnectGraceMs = 3000,
 }: {
   deviceId: string;
+  getAccessToken: () => string | undefined;
   onEvent: (event: ApiDeviceEventItem) => void;
   onConnectionChange?: (connected: boolean) => void;
   disconnectGraceMs?: number;
@@ -288,10 +296,19 @@ export function subscribeToDeviceEventsSSE({
 
     void (async () => {
       try {
+        const token = getAccessToken();
+        if (!token) {
+          // No valid token — retry after delay
+          const nextDelay = Math.min(retryDelay * 1.5, 10000);
+          setTimeout(() => connect(nextDelay), retryDelay);
+          return;
+        }
+
         const response = await fetch(url, {
-          headers: createApiHeaders({
+          headers: {
+            'Authorization': `Bearer ${token}`,
             'Accept': 'text/event-stream',
-          }),
+          },
           signal: controller.signal,
         });
 

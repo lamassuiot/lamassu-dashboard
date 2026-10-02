@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback, useRef } from 'react';
 import { User, UserManager, WebStorageStateStore, Log, UserProfile } from 'oidc-client-ts';
 import { useRouter } from '@/lib/router';
 import { useConfig } from './ConfigContext';
@@ -48,9 +48,9 @@ const createUserManager = (): UserManager | null => {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isLoggedIn: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  isAuthenticated: () => boolean;
   userManager: UserManager | null;
 }
 
@@ -60,6 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const { config, isConfigLoaded } = useConfig();
   const [authMode, setAuthMode] = useState<'loading' | 'enabled' | 'disabled'>('loading');
+  const isHandlingExpiryRef = useRef(false);
 
   // OIDC specific state that will only be used if authMode is 'enabled'
   const userManagerInstance = useMemo(() => {
@@ -79,6 +80,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthMode(isEnabled ? 'enabled' : 'disabled');
     }
   }, [config, isConfigLoaded]);
+
+  const signoutRedirectCognito = useCallback(async () => {
+    if (!userManagerInstance) {
+      router.push('/');
+      return;
+    }
+
+    const clientId = userManagerInstance.settings.client_id;
+    const logoutUri = `${window.location.origin}/signout-callback`;
+
+    await userManagerInstance?.signoutRedirect({
+      extraQueryParams: {
+        client_id: clientId,
+        logout_uri: logoutUri
+      }
+    })
+
+  }, [userManagerInstance, router]);
 
   const logout = useCallback(async () => {
     if (userManagerInstance) {
@@ -101,25 +120,56 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         router.push('/');
       }
     }
-  }, [userManagerInstance, router]);
+  }, [router, signoutRedirectCognito, userManagerInstance]);
 
-  const signoutRedirectCognito = useCallback(async () => {
+  const clearLocalSession = useCallback(async () => {
     if (!userManagerInstance) {
-      router.push('/');
+      setUser(null);
       return;
     }
 
-    const clientId = userManagerInstance.settings.client_id;
-    const logoutUri = `${window.location.origin}/signout-callback`;
+    try {
+      await userManagerInstance.removeUser();
+    } catch (error) {
+      console.error("AuthContext: Error clearing local session:", error);
+    } finally {
+      setUser(null);
+    }
+  }, [userManagerInstance]);
 
-    await userManagerInstance?.signoutRedirect({
-      extraQueryParams: {
-        client_id: clientId,
-        logout_uri: logoutUri
+  const recoverSessionAfterExpiry = useCallback(async () => {
+    if (!userManagerInstance || isHandlingExpiryRef.current) {
+      return;
+    }
+
+    isHandlingExpiryRef.current = true;
+
+    try {
+      const currentUser = await userManagerInstance.getUser();
+      if (currentUser && !currentUser.expired) {
+        setUser(currentUser);
+        return;
       }
-    })
 
-  }, [userManagerInstance, router]);
+      // automaticSilentRenew also runs inside oidc-client-ts. Waiting briefly lets
+      // the library finish storing the renewed user before we decide the session is gone.
+      await new Promise(resolve => window.setTimeout(resolve, 1500));
+
+      const refreshedUser = await userManagerInstance.getUser();
+      if (refreshedUser && !refreshedUser.expired) {
+        setUser(refreshedUser);
+        return;
+      }
+
+      console.warn("AuthContext: Access token remained expired after silent renew window. Clearing local session.");
+      await clearLocalSession();
+    } catch (error) {
+      console.error("AuthContext: Error while recovering expired session:", error);
+      await clearLocalSession();
+    } finally {
+      isHandlingExpiryRef.current = false;
+    }
+  }, [clearLocalSession, userManagerInstance]);
 
 
   useEffect(() => {
@@ -149,15 +199,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const onUserUnloaded = () => setUser(null);
     const onSilentRenewError = (error: Error) => {
       console.error("AuthContext: Silent renew error:", error);
-      // Only logout if the error is fatal and requires user interaction
+      // If silent renew cannot recover, clear only the local session so the UI
+      // can fall back to the login state without triggering a full-page redirect.
       const fatalErrors = ['login_required', 'interaction_required', 'invalid_grant'];
       if (fatalErrors.some(e => error.message.includes(e))) {
-        logout();
+        clearLocalSession();
       }
     };
-    const onAccessTokenExpired = () => {
-      console.warn("AuthContext: Access token expired. Logging out.");
-      logout();
+    const onAccessTokenExpired = async () => {
+      console.warn("AuthContext: Access token expired. Checking whether silent renew already recovered the session.");
+      await recoverSessionAfterExpiry();
     }
 
     userManagerInstance.events.addUserLoaded(onUserLoaded);
@@ -171,7 +222,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userManagerInstance.events.removeSilentRenewError(onSilentRenewError);
       userManagerInstance.events.removeAccessTokenExpired(onAccessTokenExpired);
     };
-  }, [userManagerInstance, authMode, logout]);
+  }, [authMode, clearLocalSession, recoverSessionAfterExpiry, userManagerInstance]);
 
   const login = useCallback(async () => {
     if (userManagerInstance) {
@@ -183,44 +234,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [userManagerInstance]);
 
-  const isAuthenticated = useCallback(() => {
-    return !!user && !user.expired;
-  }, [user]);
+  const isLoggedIn = !!user && !user.expired;
 
-  // If auth is disabled, provide the mock context.
-  if (authMode === 'disabled') {
-    const mockUser = new User({
-      id_token: 'mock_id_token',
-      access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiYXBwLWFkbWluIiwib2ZmbGluZV9hY2Nlc3MiXX0sIm5hbWUiOiJEZXYgVXNlciJ9.mockSignature',
-      scope: 'openid profile email',
-      token_type: 'Bearer',
-      profile: {
-        sub: 'mock-user-id',
-        name: 'Dev User',
-        email: 'dev@lamassu.io',
-        iss: 'mock-issuer',
-        aud: 'mock-client',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-      } as UserProfile,
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
-      session_state: 'mock-session-state',
-    });
+  // Keep hook order stable across auth mode changes by always computing the
+  // provider value before deciding what it contains.
+  const contextValue = useMemo(
+    () => {
+      if (authMode === 'disabled') {
+        const mockUser = new User({
+          id_token: 'mock_id_token',
+          access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiYXBwLWFkbWluIiwib2ZmbGluZV9hY2Nlc3MiXX0sIm5hbWUiOiJEZXYgVXNlciJ9.mockSignature',
+          scope: 'openid profile email',
+          token_type: 'Bearer',
+          profile: {
+            sub: 'mock-user-id',
+            name: 'Dev User',
+            email: 'dev@lamassu.io',
+            iss: 'mock-issuer',
+            aud: 'mock-client',
+            exp: Math.floor(Date.now() / 1000) + 3600,
+            iat: Math.floor(Date.now() / 1000),
+          } as UserProfile,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          session_state: 'mock-session-state',
+        });
 
-    const value: AuthContextType = {
-      user: mockUser,
-      isLoading: false,
-      login: async () => console.warn('Auth disabled: login action suppressed.'),
-      logout: async () => console.warn('Auth disabled: logout action suppressed.'),
-      isAuthenticated: () => true,
-      userManager: null,
-    };
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-  }
+        return {
+          user: mockUser,
+          isLoading: false,
+          isLoggedIn: true,
+          login: async () => console.warn('Auth disabled: login action suppressed.'),
+          logout: async () => console.warn('Auth disabled: logout action suppressed.'),
+          userManager: null,
+        };
+      }
 
-  // If auth is enabled (or still loading), provide the real OIDC context.
+      return { user, isLoading, isLoggedIn, login, logout, userManager: userManagerInstance };
+    },
+    [authMode, user, isLoading, isLoggedIn, login, logout, userManagerInstance]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated, userManager: userManagerInstance }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

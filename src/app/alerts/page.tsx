@@ -73,8 +73,7 @@ const EVENT_CATEGORY_OPTIONS: { label: string; value: EventCategoryFilter }[] = 
 ];
 
 const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
-  // Defensive: one malformed event should not take the whole page down.
-  const eventType = (event.type ?? '').toLowerCase();
+  const eventType = event.type.toLowerCase();
   return eventType.startsWith('audit.') ? 'AUDIT' : 'API';
 };
 
@@ -206,14 +205,19 @@ export default function AlertsPage() {
 
       const subscriptionsMap = buildSubscriptionsMap(apiSubscriptions);
 
-      const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => ({
-        id: apiAlert.event_type,
-        type: apiAlert.event_type,
-        lastSeen: apiAlert.seen_at,
-        eventCounter: apiAlert.counter,
-        activeSubscriptions: subscriptionsMap.get(apiAlert.event_type) || [],
-        payload: apiAlert.event,
-      }));
+      const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => {
+        // Fall back to the embedded CloudEvent's type: a row without event_type used to leave the
+        // type undefined, and getEventCategory then crashed on `.toLowerCase()`.
+        const eventType = apiAlert.event_type || apiAlert.event?.type || 'unknown';
+        return {
+          id: eventType,
+          type: eventType,
+          lastSeen: apiAlert.seen_at,
+          eventCounter: apiAlert.counter,
+          activeSubscriptions: subscriptionsMap.get(eventType) || [],
+          payload: apiAlert.event,
+        };
+      });
 
       setEvents(uiEvents);
       setNextBookmark(apiEventsResponse.next || '');

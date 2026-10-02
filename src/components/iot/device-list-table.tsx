@@ -65,7 +65,7 @@ async function fetchDevicesForTable(selectedDmsId: string | null): Promise<AppDe
 
 export function DeviceListTable() {
   const [selectedDevices, setSelectedDevices] = React.useState<Set<string>>(new Set());
-  const { isAuthenticated } = useAuth();
+  const { isLoggedIn } = useAuth();
   const { selectedDms } = useDms();
   const router = useRouter(); // Initialize useRouter
 
@@ -88,10 +88,10 @@ export function DeviceListTable() {
   }, [selectedDms?.id]);
 
   useEffect(() => {
-    if (isAuthenticated() && !!selectedDms?.id) {
+    if (isLoggedIn && !!selectedDms?.id) {
       fetchDevices();
     }
-  }, [fetchDevices, isAuthenticated, selectedDms?.id]);
+  }, [fetchDevices, isLoggedIn, selectedDms?.id]);
 
   const handleSelectAll = (checked: boolean | string) => { // Updated type for onCheckedChange
     if (checked) {

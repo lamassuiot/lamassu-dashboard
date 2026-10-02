@@ -167,7 +167,7 @@ describe('api-domains', () => {
 
       await expect(
         handleApiError(mockResponse, 'Upload failed')
-      ).rejects.toThrow('Upload failed. HTTP error 409: pack is already built')
+      ).rejects.toThrow('Upload failed: pack is already built (HTTP 409)')
     })
 
     it('returns null for an empty success body instead of throwing', async () => {

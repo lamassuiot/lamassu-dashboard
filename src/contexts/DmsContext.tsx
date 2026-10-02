@@ -24,14 +24,14 @@ interface DmsContextType {
 const DmsContext = createContext<DmsContextType | undefined>(undefined);
 
 export function DmsProvider({ children }: { children: ReactNode }) {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
   const [availableDms, setAvailableDms] = useState<GroupInfo[]>([]);
   const [selectedDms, setSelectedDms] = useState<GroupInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDms = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
+    if (!isLoggedIn || !user?.access_token) {
       if (!authLoading) setError('User not authenticated.');
       setIsLoading(false);
       return;
@@ -60,7 +60,7 @@ export function DmsProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading, selectedDms]);
+  }, [user?.access_token, isLoggedIn, authLoading, selectedDms]);
 
   useEffect(() => {
     if (!authLoading) {

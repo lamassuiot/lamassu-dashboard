@@ -37,7 +37,7 @@ const base64ToHex = (base64: string): string => {
 export default function SymKeysPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
 
   const [keys, setKeys] = useState<SymKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,8 +52,8 @@ export default function SymKeysPage() {
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
 
   const loadData = useCallback(async (bookmark: string | null = null) => {
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
+    if (authLoading || !isLoggedIn || !user?.access_token) {
+      if (!authLoading && !isLoggedIn) {
         setError("User not authenticated. Please log in.");
       }
       setIsLoading(false);
@@ -87,7 +87,7 @@ export default function SymKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, user?.profile, authLoading, isAuthenticated, pageSize]);
+  }, [user?.access_token, user?.profile, authLoading, isLoggedIn, pageSize]);
 
   useEffect(() => {
     // Reset pagination when page size changes
@@ -96,11 +96,11 @@ export default function SymKeysPage() {
   }, [pageSize]);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated()) {
+    if (!authLoading && isLoggedIn) {
       loadData(bookmarkStack[currentPageIndex]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, isAuthenticated, currentPageIndex, bookmarkStack]);
+  }, [authLoading, isLoggedIn, currentPageIndex, bookmarkStack]);
 
   const handleRefresh = () => {
     loadData(bookmarkStack[currentPageIndex]);

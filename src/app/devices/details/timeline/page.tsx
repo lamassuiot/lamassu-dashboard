@@ -125,7 +125,7 @@ export default function TimelinePage() {
     setIsTimelineLoading(true);
     try {
       const result = await fetchDeviceEventsPaginated({
-        deviceId, limit: timelinePageSize, bookmark: bookmark || undefined,
+        deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: bookmark || undefined,
       });
       setTimelineRawEvents(result.events);
       setTimelineNextBookmark(result.next);
@@ -165,7 +165,7 @@ export default function TimelinePage() {
       try {
         const token = accessTokenRef.current;
         if (!token) return;
-        const result = await fetchDeviceEventsPaginated({ deviceId, limit: TIMELINE_EVENTS_PAGE_SIZE });
+        const result = await fetchDeviceEventsPaginated({ deviceId, accessToken: token, limit: TIMELINE_EVENTS_PAGE_SIZE });
         if (cancelled) return;
         setTimelineRawEvents(result.events);
         setTimelineNextBookmark(result.next);
@@ -190,6 +190,7 @@ export default function TimelinePage() {
 
       sseControllerRef.current = subscribeToDeviceEventsSSE({
         deviceId,
+        getAccessToken: () => accessTokenRef.current,
         onEvent: (event) => { sseEventBufferRef.current.push(event); },
         onConnectionChange: (connected) => { setIsSseConnected(connected); },
       });
@@ -324,7 +325,7 @@ export default function TimelinePage() {
     setIsLoadingMoreTimelineEvents(true);
     try {
       const result = await fetchDeviceEventsPaginated({
-        deviceId, limit: timelinePageSize, bookmark: timelineNextBookmark,
+        deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: timelineNextBookmark,
       });
       setTimelineRawEvents(prev => [...prev, ...result.events]);
       setTimelineNextBookmark(result.next);

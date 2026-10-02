@@ -9,7 +9,6 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { getDeviceGroupByID } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupForm } from '@/components/device-groups/DeviceGroupForm';
-import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export default function EditDeviceGroupClient() {
   const searchParams = useSearchParams();

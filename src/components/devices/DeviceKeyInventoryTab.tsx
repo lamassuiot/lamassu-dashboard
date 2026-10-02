@@ -53,7 +53,7 @@ const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => 
 };
 
 export const DeviceKeyInventoryTab: React.FC<DeviceKeyInventoryTabProps> = ({ deviceId }) => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
   const { toast } = useToast();
 
   const [bindings, setBindings] = useState<DeviceKeyBinding[]>([]);
@@ -75,7 +75,7 @@ export const DeviceKeyInventoryTab: React.FC<DeviceKeyInventoryTabProps> = ({ de
   const [isRevoking, setIsRevoking] = useState(false);
 
   const loadData = useCallback(async (bookmark: string | null) => {
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
+    if (authLoading || !isLoggedIn || !user?.access_token) {
       setIsLoading(false);
       return;
     }
@@ -98,7 +98,7 @@ export const DeviceKeyInventoryTab: React.FC<DeviceKeyInventoryTabProps> = ({ de
     } finally {
       setIsLoading(false);
     }
-  }, [deviceId, user?.access_token, authLoading, isAuthenticated, pageSize]);
+  }, [deviceId, user?.access_token, authLoading, isLoggedIn, pageSize]);
 
   useEffect(() => {
     setCurrentPageIndex(0);
@@ -106,11 +106,11 @@ export const DeviceKeyInventoryTab: React.FC<DeviceKeyInventoryTabProps> = ({ de
   }, [pageSize]);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated()) {
+    if (!authLoading && isLoggedIn) {
       loadData(bookmarkStack[currentPageIndex]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, isAuthenticated, currentPageIndex, bookmarkStack]);
+  }, [authLoading, isLoggedIn, currentPageIndex, bookmarkStack]);
 
   const handleRefresh = () => {
     loadData(bookmarkStack[currentPageIndex]);

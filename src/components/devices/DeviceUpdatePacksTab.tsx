@@ -52,7 +52,7 @@ interface DeviceUpdatePacksTabProps {
 const HISTORY_PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
 export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ deviceId }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isLoggedIn } = useAuth();
 
   // Installed distribution sets reflect the device's current state (bounded), so the whole list is
   // fetched at once. The pack-update history is unbounded and grows with every campaign/job, so it
@@ -71,7 +71,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
   const [historyNext, setHistoryNext] = useState<string | null>(null);
 
   const loadInventory = useCallback(async () => {
-    if (!deviceId || !isAuthenticated() || !user?.access_token) return;
+    if (!deviceId || !isLoggedIn || !user?.access_token) return;
     setIsLoadingPacks(true);
     setError(null);
     try {
@@ -83,10 +83,10 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
     } finally {
       setIsLoadingPacks(false);
     }
-  }, [deviceId, user?.access_token, isAuthenticated]);
+  }, [deviceId, user?.access_token, isLoggedIn]);
 
   const loadHistory = useCallback(async (bookmark: string | undefined, pageSize: string) => {
-    if (!deviceId || !isAuthenticated() || !user?.access_token) return;
+    if (!deviceId || !isLoggedIn || !user?.access_token) return;
     setIsLoadingHistory(true);
     setError(null);
     try {
@@ -100,7 +100,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [deviceId, user?.access_token, isAuthenticated]);
+  }, [deviceId, user?.access_token, isLoggedIn]);
 
   // (Re)load both sections from scratch — used on mount, device change, and manual refresh.
   const reload = useCallback(() => {

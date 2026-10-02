@@ -16,14 +16,14 @@ interface KeyDevicesLookupCardProps {
 
 export const KeyDevicesLookupCard: React.FC<KeyDevicesLookupCardProps> = ({ keyId }) => {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
 
   const [deviceIds, setDeviceIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadDevices = useCallback(async () => {
-    if (!keyId || authLoading || !isAuthenticated() || !user?.access_token) {
+    if (!keyId || authLoading || !isLoggedIn || !user?.access_token) {
       setIsLoading(false);
       return;
     }
@@ -40,13 +40,13 @@ export const KeyDevicesLookupCard: React.FC<KeyDevicesLookupCardProps> = ({ keyI
     } finally {
       setIsLoading(false);
     }
-  }, [keyId, user?.access_token, authLoading, isAuthenticated]);
+  }, [keyId, user?.access_token, authLoading, isLoggedIn]);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated()) {
+    if (!authLoading && isLoggedIn) {
       loadDevices();
     }
-  }, [authLoading, isAuthenticated, loadDevices]);
+  }, [authLoading, isLoggedIn, loadDevices]);
 
   return (
     <Card>

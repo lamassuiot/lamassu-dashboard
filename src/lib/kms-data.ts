@@ -165,15 +165,6 @@ export async function updateKeyMetadata(keyId: string, patchOperations: PatchOpe
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags }),
-    });
-    await handleApiError(response, 'Failed to update key tags');
-}
-
-export async function updateKeyMetadata(keyId: string, patchOperations: PatchOperation[]): Promise<void> {
-    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patches: patchOperations }),
     });
     await handleApiError(response, 'Failed to update key metadata');

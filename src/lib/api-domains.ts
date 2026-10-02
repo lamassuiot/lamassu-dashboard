@@ -26,6 +26,45 @@ export const getPublicAPIUrl = (): string => {
 
 
 export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
+
+// Helper function to get the base URL for updates and symkms services
+// These services can be on a separate server from the main API
+const getUpdatesSymkmsBaseUrl = (): string => {
+    // 0. A developer override wins over the deployment's configuration: the two backends are separate
+    //    services with their own data, so previewing the other one means TALKING to it, not relabelling
+    //    this one's answers. See src/lib/debug-backend.ts.
+    const debugBase = getDebugUpdatesBaseUrl();
+    if (debugBase) return debugBase.replace(/\/+$/g, '');
+
+    // 1. Check for configuration from config.js on the window object
+    let configured: string | undefined;
+    if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_UPDATES_API) {
+        configured = String((window as any).lamassuConfig.LAMASSU_UPDATES_API);
+    }
+
+    const base = configured && configured.length > 0 ? configured : getApiBaseUrl();
+    if (!base) return '';
+
+    // Normalize: remove any trailing whitespace and slashes
+    let cleaned = String(base).trim().replace(/\/+$/g, '');
+    // Repeatedly strip any trailing /updates, /updates/v1, /symkms or /symkms/v1 segments to avoid double-appends
+    while (/(?:\/(?:updates(?:\/v1)?|symkms(?:\/v1)?))$/i.test(cleaned)) {
+        cleaned = cleaned.replace(/\/(?:updates(?:\/v1)?|symkms(?:\/v1)?)$/i, '');
+    }
+    // Final trim of trailing slashes
+    cleaned = cleaned.replace(/\/+$/g, '');
+
+    return cleaned;
+};
+
+export const get_CLIENT_UPDATES_API_BASE_URL = (): string => {
+    return `${getUpdatesSymkmsBaseUrl()}/updates/v1`;
+};
+
+export const get_CLIENT_SYMKMS_API_BASE_URL = (): string => {
+    return `${getUpdatesSymkmsBaseUrl()}/symkms/v1`;
+};
+
 export const get_KMS_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/kms`;
 
 export const get_AUTHZ_API_BASE_URL = () => `${getApiBaseUrl()}/authz/v1`;

@@ -54,7 +54,7 @@ const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => 
 
 export default function DeviceInventoryPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
   const { toast } = useToast();
 
   const [deviceIdInput, setDeviceIdInput] = useState('');
@@ -79,7 +79,7 @@ export default function DeviceInventoryPage() {
   const [isRevoking, setIsRevoking] = useState(false);
 
   const loadData = useCallback(async (deviceId: string, bookmark: string | null) => {
-    if (!deviceId || authLoading || !isAuthenticated() || !user?.access_token) {
+    if (!deviceId || authLoading || !isLoggedIn || !user?.access_token) {
       return;
     }
 
@@ -103,7 +103,7 @@ export default function DeviceInventoryPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, authLoading, isAuthenticated, pageSize]);
+  }, [user?.access_token, authLoading, isLoggedIn, pageSize]);
 
   const handleSearch = () => {
     const trimmed = deviceIdInput.trim();
@@ -148,7 +148,7 @@ export default function DeviceInventoryPage() {
   };
 
   useEffect(() => {
-    if (searchedDeviceId && !authLoading && isAuthenticated()) {
+    if (searchedDeviceId && !authLoading && isLoggedIn) {
       loadData(searchedDeviceId, bookmarkStack[currentPageIndex]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -70,7 +70,7 @@ export default function SymKeyDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
   const keyId = searchParams.get('keyId');
 
   const [keyDetails, setKeyDetails] = useState<SymmetricKey | null>(null);
@@ -127,8 +127,8 @@ export default function SymKeyDetailsClient() {
       return;
     }
 
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
+    if (authLoading || !isLoggedIn || !user?.access_token) {
+      if (!authLoading && !isLoggedIn) {
         setError("User not authenticated. Please log in.");
       }
       setIsLoading(false);
@@ -153,7 +153,7 @@ export default function SymKeyDetailsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [keyId, user?.access_token, user?.profile, authLoading, isAuthenticated]);
+  }, [keyId, user?.access_token, user?.profile, authLoading, isLoggedIn]);
 
   useEffect(() => {
     fetchKeyData();

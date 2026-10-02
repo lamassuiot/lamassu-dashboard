@@ -51,6 +51,9 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
   error,
 }) => {
   const errorId = `${idPrefix}-error`;
+  // Never trust `value` to be present — see the prop's doc comment.
+  const safeValue: ExpirationConfig = value ?? { type: defaultType };
+
   // Internal state to manage the component's UI without immediately propagating every keystroke
   const [currentType, setCurrentType] = useState<ExpirationType>(safeValue.type || defaultType);
   const [duration, setDuration] = useState<string>(safeValue.durationValue || defaultDuration);
