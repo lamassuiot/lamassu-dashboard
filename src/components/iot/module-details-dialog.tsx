@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CheckCircle2, CircleDashed, Copy, Download, Hammer, Lock, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
 import type { SoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 // The details view for ONE software module — everything the row's compact cells only summarise.
 //
@@ -35,6 +35,7 @@ export function ModuleDetailsDialog({
   onDownload,
   onRename,
   onRemove,
+  catalogEdited = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,6 +50,10 @@ export function ModuleDetailsDialog({
   onDownload: () => void;
   onRename: () => void;
   onRemove: () => void;
+  /** A module linked to a set is frozen (hawkbit): its files and build are edited in the Software
+   *  Modules catalog while nothing holds it, so this swaps the edit actions for a way there and
+   *  turns Remove into Unlink. */
+  catalogEdited?: boolean;
 }) {
   if (!mod) return null;
   const isBase = mod.type === 'os';
@@ -89,7 +94,7 @@ export function ModuleDetailsDialog({
           <Badge variant={isBase ? 'default' : 'secondary'} className="font-mono text-xs">
             {mod.type}
           </Badge>
-          <Badge variant="outline" className="font-mono text-xs">
+          <Badge variant="secondary" className="font-mono">
             v{mod.version}
           </Badge>
           {contributes ? (
@@ -98,7 +103,7 @@ export function ModuleDetailsDialog({
               {perModuleDeliverables ? 'Built' : 'Contributes to the build'}
             </Badge>
           ) : (
-            <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <Badge variant="muted">
               <CircleDashed className="h-3 w-3" />
               {perModuleDeliverables ? 'Not built' : 'Contributes nothing yet'}
             </Badge>
@@ -107,13 +112,13 @@ export function ModuleDetailsDialog({
               is not simply `!contributes`. Shown only when true: an unlocked, unencrypted module is
               the common case and does not need a badge to say so. */}
           {mod.locked ? (
-            <Badge variant="outline" className="gap-1 border-amber-500 text-amber-700 dark:text-amber-400">
+            <Badge variant="warning">
               <Lock className="h-3 w-3" />
               Locked — shipped to a device
             </Badge>
           ) : null}
           {mod.encrypted ? (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="secondary">
               <ShieldCheck className="h-3 w-3" />
               Stored encrypted
             </Badge>
@@ -136,7 +141,7 @@ export function ModuleDetailsDialog({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 shrink-0"
-                  onClick={() => { navigator.clipboard.writeText(mod.uri || ''); toast({ title: 'Copied' }); }}
+                  onClick={() => { navigator.clipboard.writeText(mod.uri || ''); sileo.success({ title: 'Copied' }); }}
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
@@ -232,6 +237,23 @@ export function ModuleDetailsDialog({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+          {catalogEdited ? (
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/updates/software-modules">
+                  <Hammer className="mr-2 h-4 w-4" />
+                  Edit or build in the catalog
+                </Link>
+              </Button>
+              <span title={busy ? 'Working…' : !mod.built ? 'Build this module first' : undefined} className="inline-flex">
+                <Button variant="outline" size="sm" onClick={onDownload} disabled={busy || !mod.built}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </span>
+            </>
+          ) : (
+            <>
           <span title={uploadBlocked} className="inline-flex">
             <Button variant="outline" size="sm" onClick={onUpload} disabled={Boolean(uploadBlocked)}>
               <Upload className="mr-2 h-4 w-4" />
@@ -277,11 +299,13 @@ export function ModuleDetailsDialog({
               Rename
             </Button>
           ) : null}
+            </>
+          )}
           {!isBase ? (
             <span title={busy ? 'Working…' : removeReason ?? undefined} className="ml-auto inline-flex">
               <Button variant="ghost" size="sm" onClick={onRemove} disabled={busy || removeReason !== null}>
                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-                Remove
+                {catalogEdited ? 'Unlink' : 'Remove'}
               </Button>
             </span>
           ) : null}

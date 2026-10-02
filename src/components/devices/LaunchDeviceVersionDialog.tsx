@@ -5,10 +5,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2, Rocket, Package, Boxes } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import { fetchUpdatePacks, fetchUpdatePackVersions, forceDeviceVersion } from '@/lib/iot-api';
 import { resolveDeviceGroups } from '@/lib/device-groups-api';
 import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
+import { sileo } from '@/lib/toast';
 
 export interface LaunchTarget {
   deviceId: string;
@@ -119,10 +119,10 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
     setSubmitting(true);
     try {
       await forceDeviceVersion({ deviceId, updatePackId: packId, version, groupId, workflow });
-      toast({ title: 'Update launched', description: `${deviceId} → ${selectedPack?.name} v${version}` });
+      sileo.success({ title: 'Update launched', description: `${deviceId} → ${selectedPack?.name} v${version}` });
       onClose();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Launch failed', description: err.message });
+      sileo.error({ title: 'Launch failed', description: err.message });
     } finally {
       setSubmitting(false);
     }

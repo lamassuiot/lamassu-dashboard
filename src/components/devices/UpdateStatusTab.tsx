@@ -276,7 +276,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({
                 <span className="hidden sm:inline text-blue-300 dark:text-blue-700">•</span>
                 <span className="flex items-center gap-2">
                   Current State: 
-                  <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/50">
+                  <Badge variant="info">
                     {(selectedJob || latestJobForWorkflow).status.state}
                   </Badge>
                 </span>
@@ -289,11 +289,11 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({
                   </>
                 )}
               </div>
-              {(selectedJob || latestJobForWorkflow).status.context?.lines && (selectedJob || latestJobForWorkflow).status.context.lines.length > 0 && (
+              {((selectedJob || latestJobForWorkflow).status.context?.lines?.length ?? 0) > 0 && (
                 <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
                   <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">Error Details:</p>
                   <div className="space-y-1">
-                    {(selectedJob || latestJobForWorkflow).status.context.lines.map((line: string, idx: number) => (
+                    {(selectedJob || latestJobForWorkflow).status.context?.lines?.map((line: string, idx: number) => (
                       <p key={idx} className="text-xs font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded text-red-700 dark:text-red-400">
                         {line}
                       </p>
@@ -340,7 +340,15 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({
             // Show selected job or latest job for workflow
             const jobToShow = selectedJob || latestJobForWorkflow;
             
-            if (jobToShow) {
+            if (jobToShow && !jobToShow.workflow) {
+              // hawkbit-mode jobs carry no WFX workflow, so there is no state graph to draw.
+              return (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <p>This job has no workflow to show: updates managed through hawkBit do not report one.</p>
+                </div>
+              );
+            }
+            if (jobToShow?.workflow) {
               return (
                 <div className="w-full h-full">
                   <JobWorkflowGraph 

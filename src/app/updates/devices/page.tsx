@@ -50,7 +50,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -93,10 +93,10 @@ type JobStatus = 'queued' | 'installing' | 'installed' | 'failed';
 // failed attempt is both more urgent and a fresher fact than "behind the target".
 type DeviceStatus = SetStatus | JobStatus | 'no-data';
 
-const STATUS_META: Record<DeviceStatus, { label: string; cls: string; Icon: React.ElementType }> = {
+const STATUS_META: Record<DeviceStatus, { label: string; variant: BadgeVariant; Icon: React.ElementType }> = {
   'up-to-date': {
     label: 'Up to date',
-    cls: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700',
+    variant: 'success',
     Icon: CheckCircle2,
   },
   // "Outdated", not "Pending update": with per-set job state now shown alongside it, "pending" is
@@ -104,37 +104,37 @@ const STATUS_META: Record<DeviceStatus, { label: string; cls: string; Icon: Reac
   // flight is a different situation, and one word cannot carry both.
   outdated: {
     label: 'Outdated',
-    cls: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-700/30 dark:text-amber-300 dark:border-amber-700',
+    variant: 'warning',
     Icon: AlertTriangle,
   },
   queued: {
     label: 'Queued',
-    cls: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-700/40 dark:text-slate-300 dark:border-slate-600',
+    variant: 'muted',
     Icon: Clock,
   },
   installing: {
     label: 'Installing',
-    cls: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700',
+    variant: 'info',
     Icon: Loader2,
   },
   installed: {
     label: 'Installed',
-    cls: 'bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-700/30 dark:text-teal-300 dark:border-teal-700',
+    variant: 'success',
     Icon: PackageCheck,
   },
   failed: {
     label: 'Failed',
-    cls: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700',
+    variant: 'destructive',
     Icon: XCircle,
   },
   'no-target': {
     label: 'No target',
-    cls: 'bg-muted text-muted-foreground border-border',
+    variant: 'muted',
     Icon: CircleSlash,
   },
   'no-data': {
     label: 'No OTA data',
-    cls: 'bg-muted text-muted-foreground border-border',
+    variant: 'muted',
     Icon: HelpCircle,
   },
 };
@@ -226,9 +226,9 @@ function setDisplayStatus(s: DeviceSetRow): DeviceStatus {
 }
 
 function StatusBadge({ status, spin }: { status: DeviceStatus; spin?: boolean }) {
-  const { label, cls, Icon } = STATUS_META[status];
+  const { label, variant, Icon } = STATUS_META[status];
   return (
-    <Badge variant="outline" className={cn('flex w-fit items-center gap-1 whitespace-nowrap', cls)}>
+    <Badge variant={variant}>
       <Icon className={cn('h-3 w-3 shrink-0', spin && status === 'installing' && 'animate-spin')} />
       {label}
     </Badge>
@@ -847,21 +847,13 @@ export default function OtaDevicesPage() {
                               )}
                             </TableCell>
                             <TableCell className={edge}>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'text-xs tabular-nums',
-                                  s.status === 'outdated'
-                                    ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                    : 'border-border',
-                                )}
-                              >
+                              <Badge variant={s.status === 'outdated' ? 'warning' : 'secondary'} className="tabular-nums">
                                 v{s.current}
                               </Badge>
                             </TableCell>
                             <TableCell className={edge}>
                               {s.target ? (
-                                <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-xs tabular-nums text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                <Badge variant="success" className="tabular-nums">
                                   v{s.target}
                                 </Badge>
                               ) : (

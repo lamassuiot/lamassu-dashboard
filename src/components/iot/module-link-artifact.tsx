@@ -4,9 +4,9 @@ import React from 'react';
 import { ChevronDown, ChevronRight, Link2, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from '@/hooks/use-toast';
 import { fetchAllArtifacts, linkArtifactToSoftwareModule } from '@/lib/iot-api';
 import type { Artifact } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 // Reuse a binary that is already in the global artifact catalog instead of uploading it again.
 //
@@ -65,10 +65,10 @@ export function ModuleLinkArtifact({
     try {
       await linkArtifactToSoftwareModule({ groupId, packName, moduleKey, artifactId: a.id });
       setJustLinked((prev) => [...prev, a.id]);
-      toast({ title: 'Artifact linked', description: `${a.filename || a.name} is now part of ${moduleKey}.` });
+      sileo.success({ title: 'Artifact linked', description: `${a.filename || a.name} is now part of ${moduleKey}.` });
       await onLinked();
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Could not link the artifact', description: e instanceof Error ? e.message : String(e) });
+      sileo.error({ title: 'Could not link the artifact', description: e instanceof Error ? e.message : String(e) });
     } finally {
       setLinking(null);
     }

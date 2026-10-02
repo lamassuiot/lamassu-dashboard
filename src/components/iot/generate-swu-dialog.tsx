@@ -24,13 +24,13 @@ import { checkDescriptorFiles, extractDescriptorFiles } from '@/lib/sw-descripto
 import { PrebuiltDeliverableUpload } from '@/components/iot/prebuilt-deliverable-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { toast } from '@/hooks/use-toast';
 import { FileUpload } from '@/components/iot/file-upload';
 import { uploadPackDescriptor, generateSwu, type GenerateSwuPayload } from '@/lib/iot-api';
 import { fetchKmsKeys } from '@/lib/kms-data';
 import { fetchSymmetricKeys } from '@/lib/symkms-api';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { Artifact } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -266,7 +266,7 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   const handleGenerate = async () => {
     if (!user?.access_token) return;
     if (!descriptorContent.trim()) {
-      toast({ title: 'Descriptor required', description: 'A sw-descriptor is required to build an SWU.', variant: 'destructive' });
+      sileo.error({ title: 'Descriptor required', description: 'A sw-descriptor is required to build an SWU.',});
       return;
     }
     setIsGenerating(true);
@@ -311,11 +311,11 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
 
       await generateSwu({ groupId, packName, userId: sub, payload });
 
-      toast({ title: 'SWU generated', description: `Build triggered for ${packName}.` });
+      sileo.success({ title: 'SWU generated', description: `Build triggered for ${packName}.` });
       onGenerated?.();
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: 'SWU generation failed', description: err.message || 'An error occurred.', variant: 'destructive' });
+      sileo.error({ title: 'SWU generation failed', description: err.message || 'An error occurred.',});
     } finally {
       setIsGenerating(false);
     }

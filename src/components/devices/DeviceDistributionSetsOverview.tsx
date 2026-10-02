@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Boxes, CheckCircle2, AlertTriangle, CircleSlash, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchDevicePackVersions, getDeviceLatestDrift } from '@/lib/iot-api';
@@ -53,25 +53,25 @@ function mergeRows(installed: DevicePackVersion[], drifts: PackDrift[] | null): 
   return [...byName.values()].sort((a, b) => a.packName.localeCompare(b.packName));
 }
 
-const STATUS_META: Record<PackStatus, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
+const STATUS_META: Record<PackStatus, { label: string; variant: BadgeVariant; Icon: typeof CheckCircle2 }> = {
   'in-sync': {
     label: 'Up to date',
-    cls: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700',
+    variant: 'success',
     Icon: CheckCircle2,
   },
   outdated: {
     label: 'Outdated',
-    cls: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-700/30 dark:text-amber-300 dark:border-amber-700',
+    variant: 'warning',
     Icon: AlertTriangle,
   },
   missing: {
     label: 'Not installed',
-    cls: 'bg-muted text-muted-foreground border-border',
+    variant: 'muted',
     Icon: CircleSlash,
   },
   'no-target': {
     label: 'No target set',
-    cls: 'bg-muted text-muted-foreground border-border',
+    variant: 'muted',
     Icon: HelpCircle,
   },
 };
@@ -135,20 +135,20 @@ export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string 
         </h3>
         {!isLoading && !error && rows && rows.length > 0 && (
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">{rows.length} tracked</Badge>
+            <Badge variant="secondary">{rows.length} tracked</Badge>
             {outdatedCount > 0 ? (
-              <Badge variant="outline" className={cn('text-xs', STATUS_META.outdated.cls)}>
+              <Badge variant={STATUS_META.outdated.variant}>
                 {outdatedCount} outdated
               </Badge>
             ) : rows.some((r) => r.status === 'in-sync') ? (
               // "All up to date" is a claim that a comparison was actually made — only earned once at
               // least one row has a real target it matched. Silent on 'no-target' rows for the same
               // reason: nothing was compared, so nothing was verified up to date.
-              <Badge variant="outline" className={cn('text-xs', STATUS_META['in-sync'].cls)}>
+              <Badge variant={STATUS_META['in-sync'].variant}>
                 All up to date
               </Badge>
             ) : (
-              <Badge variant="outline" className={cn('text-xs', STATUS_META['no-target'].cls)}>
+              <Badge variant={STATUS_META['no-target'].variant}>
                 No declared target
               </Badge>
             )}
@@ -166,7 +166,7 @@ export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string 
         ) : (
           <ul className="divide-y">
             {rows.map((r) => {
-              const { label, cls, Icon } = STATUS_META[r.status];
+              const { label, variant, Icon } = STATUS_META[r.status];
               return (
                 <li key={r.packName} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
@@ -181,7 +181,7 @@ export function DeviceDistributionSetsOverview({ deviceId }: { deviceId: string 
                       )}
                     </p>
                   </div>
-                  <Badge variant="outline" className={cn('flex shrink-0 items-center gap-1 text-xs', cls)} title={r.status === 'no-target' ? 'Installed — no declared latest version to compare against' : undefined}>
+                  <Badge variant={variant} className="shrink-0" title={r.status === 'no-target' ? 'Installed — no declared latest version to compare against' : undefined}>
                     <Icon className="h-3 w-3" />
                     {label}
                   </Badge>

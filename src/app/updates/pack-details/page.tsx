@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, Download, Package, FileText, Info,
   Copy, Shield, History, Plus, Loader2, UploadCloud, Link2,
-  ChevronDown, ChevronRight, MoreVertical, Layers, ShieldCheck
+  ChevronDown, ChevronRight, Layers, ShieldCheck
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -38,18 +38,19 @@ import { PackPreconditionsCard } from '@/components/iot/pack-preconditions-card'
 import { VersionModulesPanel } from '@/components/iot/version-modules-panel';
 import { VersionManifestPanel } from '@/components/iot/version-manifest-panel';
 import { HawkbitUnsupportedFeatures } from '@/components/iot/HawkbitUnsupportedFeatures';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { cn, formatBytes, isValidSemver } from '@/lib/utils';
 import type { DeviceListApiResponse, UpdatePackVersion, Artifact, ArtifactRef } from '@/types/iot';
 import type { UpdatePacksResponse } from '@/lib/iot-api';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
-import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
+import { sileo } from '@/lib/toast';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -81,6 +82,9 @@ export default function UpdatePackDetailsPage() {
   const { user } = useAuth();
   const { availableDms } = useDms();
   const { isSupported: isUpdatesCapabilitySupported, backend } = useUpdatesCapabilities();
+  // hawkbit mode: a set is never built directly. Each software module is built in the catalog, only a
+  // built module can be linked, and the set is built exactly when every module it links is.
+  const hawkbit = backend === 'hawkbit';
   // GetVersionSignature / DownloadVersionArtifactsArchive: the version manifest (KMS-signed when a key
   // was used) and its artifacts archive (pkg/updates.CapabilityArtifactSignatures).
   const artifactSignaturesSupported = isUpdatesCapabilitySupported('artifact_signatures');
@@ -306,10 +310,10 @@ export default function UpdatePackDetailsPage() {
     setIsDeleting(true);
     try {
       await deleteUpdatePackApi({ groupId, packName });
-      toast({ title: 'Distribution Set Deleted', description: `"${packName}" has been deleted.` });
+      sileo.success({ title: 'Distribution Set Deleted', description: `"${packName}" has been deleted.` });
       router.push('/package-inventory');
     } catch (err: Error | any) {
-      toast({ variant: 'destructive', title: 'Deletion Failed', description: `Could not delete "${packName}". ${err.message}` });
+      sileo.error({ title: 'Deletion Failed', description: `Could not delete "${packName}". ${err.message}` });
       setIsDeleting(false);
       setIsDeleteOpen(false);
     }
@@ -354,7 +358,7 @@ export default function UpdatePackDetailsPage() {
   const handleArtifactUpload = async () => {
     if (!uploadFile || !groupId || !packName || !user?.access_token) return;
     if (uploadVersion.trim() && !isValidSemver(uploadVersion.trim())) {
-      toast({ title: 'Invalid version', description: 'Version is optional, but if set it must be X.Y.Z.', variant: 'destructive' });
+      sileo.error({ title: 'Invalid version', description: 'Version is optional, but if set it must be X.Y.Z.',});
       return;
     }
     setIsUploading(true);
@@ -368,12 +372,12 @@ export default function UpdatePackDetailsPage() {
         method: 'POST', headers: { Authorization: `Bearer ${user.access_token}` }, body: formData,
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.err || `Upload failed: ${res.status}`); }
-      toast({ title: 'Artifact uploaded', description: `${name} registered.` });
+      sileo.success({ title: 'Artifact uploaded', description: `${name} registered.` });
       setUploadFile(null); setUploadArtifactName(''); setUploadVersion(''); setIsUploadOpen(false);
       fetchCatalogData();
       fetchCatalogData();
     } catch (err: any) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      sileo.error({ title: 'Upload failed', description: err.message,});
     } finally { setIsUploading(false); }
   };
 
@@ -382,10 +386,10 @@ export default function UpdatePackDetailsPage() {
     setLinkingArtifactId(artifactId);
     try {
       await linkArtifactToPack({ groupId, packName, artifactId });
-      toast({ title: 'Artifact linked' });
+      sileo.success({ title: 'Artifact linked' });
       fetchCatalogData();
     } catch (err: any) {
-      toast({ title: 'Link failed', description: err.message, variant: 'destructive' });
+      sileo.error({ title: 'Link failed', description: err.message,});
     } finally { setLinkingArtifactId(null); }
   };
 
@@ -407,20 +411,20 @@ export default function UpdatePackDetailsPage() {
       const blob = await downloadSwuVersion({ groupId, packName, version });
       triggerBlobDownload(blob, `${packName}_v${version}.${deliverableExt}`);
     } catch (err: any) {
-      toast({ title: 'Download failed', description: err.message, variant: 'destructive' });
+      sileo.error({ title: 'Download failed', description: err.message,});
     }
   };
 
   const handleDownloadCatalogArtifact = async (a: Artifact) => {
     if (!user?.access_token || !a.filename) {
-      toast({ title: 'No binary', variant: 'destructive' }); return;
+      sileo.error({ title: 'No binary',}); return;
     }
     setDownloadingArtifactId(a.id);
     try {
       const blob = await downloadArtifact({ id: a.id });
       triggerBlobDownload(blob, a.filename);
     } catch (err: any) {
-      toast({ title: 'Download failed', description: err.message, variant: 'destructive' });
+      sileo.error({ title: 'Download failed', description: err.message,});
     } finally { setDownloadingArtifactId(null); }
   };
 
@@ -432,9 +436,9 @@ export default function UpdatePackDetailsPage() {
       if (!response.ok) throw new Error(`Status ${response.status}`);
       const blob = await response.blob();
       triggerBlobDownload(blob, `${packName}-${deviceId}.${deliverableExt}`);
-      toast({ title: 'Download Started' });
+      sileo.success({ title: 'Download Started' });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Download Failed', description: error.message });
+      sileo.error({ title: 'Download Failed', description: error.message });
     }
   };
 
@@ -445,7 +449,7 @@ export default function UpdatePackDetailsPage() {
       const blob = await downloadVersionArtifactsArchive({ groupId, packName, version });
       triggerBlobDownload(blob, `${packName}_v${version}_artifacts.tar.gz`);
     } catch (err: any) {
-      toast({ title: 'Download failed', description: err.message, variant: 'destructive' });
+      sileo.error({ title: 'Download failed', description: err.message,});
     } finally { setVersionActionBusy(null); }
   };
 
@@ -455,7 +459,7 @@ export default function UpdatePackDetailsPage() {
   };
 
   const handleDownload = async () => {
-    if (!updatePack || !isBuilt || !groupId || !packName) { toast({ variant: 'destructive', title: 'Download Failed', description: 'This pack has not been built yet.' }); return; }
+    if (!updatePack || !isBuilt || !groupId || !packName) { sileo.error({ title: 'Download Failed', description: 'This pack has not been built yet.' }); return; }
     setIsDownloadingCurrent(true);
     try {
       // Prefer the pack's own `uri` when the backend set one (native mode); fall back to the
@@ -469,9 +473,9 @@ export default function UpdatePackDetailsPage() {
           })()
         : await downloadCurrentBuild({ groupId, packName, isNonSwu });
       triggerBlobDownload(blob, updatePack.binaryFileName || `${updatePack.name}-v${updatePack.version}.${deliverableExt}`);
-      toast({ title: 'Download Started' });
+      sileo.success({ title: 'Download Started' });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Download Failed', description: err.message });
+      sileo.error({ title: 'Download Failed', description: err.message });
     } finally { setIsDownloadingCurrent(false); }
   };
 
@@ -481,9 +485,9 @@ export default function UpdatePackDetailsPage() {
       if (!response.ok) throw new Error(`Failed to download ${fileName}`);
       const blob = await response.blob();
       triggerBlobDownload(blob, fileName);
-      toast({ title: 'Download Started' });
+      sileo.success({ title: 'Download Started' });
     } catch {
-      toast({ variant: 'destructive', title: 'Download Failed', description: `Failed to download ${fileName}` });
+      sileo.error({ title: 'Download Failed', description: `Failed to download ${fileName}` });
     }
   };
 
@@ -511,13 +515,19 @@ export default function UpdatePackDetailsPage() {
 
   // ── Build status ─────────────────────────────────────────────────────────
 
-  const buildStatus = isBuilt
-    ? isNonSwu ? 'Package built' : 'SWU built'
-    : buildError
-      ? 'Build failed'
-      : isNonSwu ? 'Package not built' : 'SWU not built';
+  const buildStatus = hawkbit
+    ? isBuilt ? 'All modules built' : 'Modules not built'
+    : isBuilt
+      ? isNonSwu ? 'Package built' : 'SWU built'
+      : buildError
+        ? 'Build failed'
+        : isNonSwu ? 'Package not built' : 'SWU not built';
 
-  const buildDescription = isBuilt
+  const buildDescription = hawkbit
+    ? isBuilt
+      ? 'Every software module in this distribution set is built, so it is ready for deployment.'
+      : 'A module in this set is not built. Unlink it, build it in the Software Modules catalog and link it again.'
+    : isBuilt
     ? isNonSwu
       ? 'Devices download this distribution set as a .tar.gz package.'
       : 'This distribution set is ready for deployment.'
@@ -539,7 +549,9 @@ export default function UpdatePackDetailsPage() {
   //
   // Stated per set because getting it wrong is not cosmetic: "will be built into the SWU" told an
   // operator on a non-SWU set that a build would happen to their file, and none ever would.
-  const artifactRole = isNonSwu
+  const artifactRole = hawkbit
+    ? 'Artifacts belong to software modules. Upload and build them on a module in the Software Modules catalog, then link the built module to this set.'
+    : isNonSwu
     ? 'Nothing is built here: whatever you add is what each device downloads and installs — a binary, an archive, or an already-built image.'
     : perModuleDeliverables
       ? 'On this backend each software module builds its own SWU, so an artifact belongs to a module — add and build them on the Software Modules tab.'
@@ -580,107 +592,85 @@ export default function UpdatePackDetailsPage() {
     <BreadcrumbPage
       items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set', href: '/package-inventory' }, { label: packName || 'Pack Details' }]}
       className="space-y-5"
-      actions={
-        <>
-          {/* A set-level SWU only exists where the set builds ONE deliverable from every module.
-              Where each module carries its own .swu (hawkbit), these buttons are wrong in two ways:
-              "Regenerate SWU" always failed with "already built — create a new version", and
-              "Download SWU" silently returned a single module's .swu for a set that ships several.
-              Building and downloading belong per module, on the Software Modules tab. */}
-          {!isNonSwu && !perModuleDeliverables && (
-            <Button onClick={() => setIsGenerateSwuOpen(true)} variant={isBuilt ? 'outline' : 'default'}>
-              {isBuilt ? 'Regenerate SWU' : 'Generate SWU'}
-            </Button>
-          )}
-          {!isPerDevice && !isNonSwu && !perModuleDeliverables && (
-            <Button onClick={handleDownload} disabled={!isBuilt || isDownloadingCurrent}>
-              {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Download SWU
-            </Button>
-          )}
-          {/* The replacement: point the operator at where the work actually happens. */}
-          {!isNonSwu && perModuleDeliverables && (
-            <Button variant="outline" onClick={() => setActiveTab('modules')}>
-              <Layers className="mr-2 h-4 w-4" />
-              Build software modules
-            </Button>
-          )}
-          {isNonSwu && (
-            <>
-              <Button onClick={() => setIsGeneratePackageOpen(true)} variant={isBuilt ? 'outline' : 'default'}>
-                {isBuilt ? 'Regenerate Package' : 'Generate Package'}
+    >
+      <DetailHero
+        icon={Package}
+        title={updatePack.name}
+        badges={
+          <Badge variant={isBuilt ? 'success' : buildError ? 'destructive' : 'muted'} dot>
+            {isBuilt ? 'Built' : buildError ? 'Build failed' : 'Not built'}
+          </Badge>
+        }
+        idLabel="Distribution set ID"
+        id={updatePack.id}
+        meta={
+          <>
+            <Badge variant="secondary">
+              {updatePack.type === 'rawfile' ? 'Raw File' : updatePack.type === 'firmware' ? 'Firmware' : updatePack.type}
+            </Badge>
+            <Badge variant="secondary">{isNonSwu ? 'Non-SWU' : 'SWU'}</Badge>
+            {backend !== 'hawkbit' && updatePack.encryption_mode && <Badge variant="secondary">{updatePack.encryption_mode}</Badge>}
+          </>
+        }
+        actions={
+          <>
+            {/* A set-level SWU only exists where the set builds ONE deliverable from every module.
+                Where each module carries its own .swu (hawkbit), these buttons are wrong in two ways:
+                "Regenerate SWU" always failed with "already built — create a new version", and
+                "Download SWU" silently returned a single module's .swu for a set that ships several.
+                Building and downloading belong per module, on the Software Modules tab. */}
+            {!hawkbit && !isNonSwu && !perModuleDeliverables && (
+              <Button onClick={() => setIsGenerateSwuOpen(true)} variant={isBuilt ? 'outline' : 'default'}>
+                {isBuilt ? 'Regenerate SWU' : 'Generate SWU'}
               </Button>
+            )}
+            {!hawkbit && !isPerDevice && !isNonSwu && !perModuleDeliverables && (
               <Button onClick={handleDownload} disabled={!isBuilt || isDownloadingCurrent}>
                 {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                Download Package
+                Download SWU
               </Button>
-            </>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="secondary" aria-label="More actions">
-                <MoreVertical className="h-4 w-4" />
+            )}
+            {/* The replacement: point the operator at where the work actually happens. */}
+            {hawkbit && (
+              <Button variant="outline" onClick={() => setActiveTab('modules')}>
+                <Layers className="mr-2 h-4 w-4" />
+                Software modules
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            )}
+            {isNonSwu && (
+              <>
+                {!hawkbit && (
+                  <Button onClick={() => setIsGeneratePackageOpen(true)} variant={isBuilt ? 'outline' : 'default'}>
+                    {isBuilt ? 'Regenerate Package' : 'Generate Package'}
+                  </Button>
+                )}
+                <Button onClick={handleDownload} disabled={!isBuilt || isDownloadingCurrent}>
+                  {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Download Package
+                </Button>
+              </>
+            )}
+            <DetailHeroActionsMenu ariaLabel="Distribution set actions">
               <DropdownMenuItem onClick={() => setIsTargetedOpen(true)} disabled={!isBuilt}>
                 Targeted Update
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setIsDeleteOpen(true)} className="text-destructive focus:text-destructive">
                 Delete Distribution Set
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      }
-    >
-      <div className="border-b pb-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Package className="h-6 w-6 text-primary" />
-            </div>
-
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="truncate text-2xl font-semibold tracking-tight" title={updatePack.name}>{updatePack.name}</h1>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">{updatePack.id}</code>
-                  <Button
-                    variant="ghost"
-                    className="h-6 w-6 shrink-0 p-0"
-                    onClick={() => { navigator.clipboard.writeText(updatePack.id); toast({ title: 'Copied' }); }}
-                  >
-                    <Copy className="h-3 w-3 text-muted-foreground" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary" className="text-xs">v{updatePack.version}</Badge>
-                <Badge variant="outline" className="text-xs">
-                  {updatePack.type === 'rawfile' ? 'Raw File' : updatePack.type === 'firmware' ? 'Firmware' : updatePack.type}
-                </Badge>
-                <Badge variant="outline" className="text-xs">{isNonSwu ? 'Non-SWU' : 'SWU'}</Badge>
-                {backend !== 'hawkbit' && updatePack.encryption_mode && <Badge variant="outline" className="text-xs">{updatePack.encryption_mode}</Badge>}
-              </div>
-            </div>
-          </div>
-
-          <div className="xl:flex-1 xl:border-l xl:pl-6">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-              {summaryCards.map((item, index) => (
-                <div key={item.label} className={cn('min-w-0', index > 0 && 'sm:border-l sm:pl-6')}>
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className="mt-0.5 text-2xl font-semibold tracking-tight tabular-nums">{item.value}</p>
-                  <p className="text-xs text-muted-foreground/60">{item.hint}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+            </DetailHeroActionsMenu>
+          </>
+        }
+        stats={
+          <>
+            {summaryCards.map((item) => (
+              <DetailHeroStat key={item.label} label={item.label}>
+                <p className="font-medium tabular-nums">{item.value}</p>
+                <p className="text-xs text-muted-foreground">{item.hint}</p>
+              </DetailHeroStat>
+            ))}
+          </>
+        }
+      />
 
       {/* ── Tabs ─────────────────────────────────────────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -780,7 +770,7 @@ export default function UpdatePackDetailsPage() {
                         <p className="mt-1 text-sm font-medium">{buildStatus}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{buildDescription}</p>
                       </div>
-                      <Badge variant={isBuilt ? 'secondary' : buildError ? 'destructive' : 'outline'} className="shrink-0 text-xs">
+                      <Badge variant={isBuilt ? 'success' : buildError ? 'destructive' : 'muted'} className="shrink-0">
                         {isBuilt ? 'Built' : buildError ? 'Failed' : 'Pending'}
                       </Badge>
                     </div>
@@ -845,7 +835,7 @@ export default function UpdatePackDetailsPage() {
                           </Link>
                         )}
                       </div>
-                      <Badge variant={updatePack.signature_alg_name || updatePack.alg_sign ? 'secondary' : 'outline'} className="shrink-0 text-xs">
+                      <Badge variant={updatePack.signature_alg_name || updatePack.alg_sign ? 'success' : 'muted'} className="shrink-0">
                         {updatePack.signature_alg_name || updatePack.alg_sign ? 'Signed' : 'Unsigned'}
                       </Badge>
                     </div>
@@ -864,7 +854,7 @@ export default function UpdatePackDetailsPage() {
                           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">IV: {updatePack.encryption_iv}</p>
                         )}
                       </div>
-                      <Badge variant={updatePack.encryption_alg_name ? 'secondary' : 'outline'} className="shrink-0 text-xs">
+                      <Badge variant={updatePack.encryption_alg_name ? 'success' : 'muted'} className="shrink-0">
                         {updatePack.encryption_mode === 'per-device' ? 'Per-device' : updatePack.encryption_alg_name ? 'Shared' : 'Unencrypted'}
                       </Badge>
                     </div>
@@ -872,7 +862,7 @@ export default function UpdatePackDetailsPage() {
                       <div className="py-3 last:pb-0">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-xs font-medium text-muted-foreground">Signature Certificate</p>
-                          <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(updatePack.signature_certificate!); toast({ title: 'Copied' }); }}>
+                          <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(updatePack.signature_certificate!); sileo.success({ title: 'Copied' }); }}>
                             <Copy className="mr-2 h-3 w-3" /> Copy
                           </Button>
                         </div>
@@ -901,7 +891,7 @@ export default function UpdatePackDetailsPage() {
                           {updatePack.uri || (isBuilt ? 'Not available' : 'Not built yet')}
                         </p>
                         {updatePack.uri && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { navigator.clipboard.writeText(updatePack.uri || ''); toast({ title: 'Copied' }); }}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { navigator.clipboard.writeText(updatePack.uri || ''); sileo.success({ title: 'Copied' }); }}>
                             <Copy className="h-3 w-3" />
                           </Button>
                         )}
@@ -979,7 +969,9 @@ export default function UpdatePackDetailsPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   What this distribution set is composed of: an OS/firmware module plus the applications on top of it, each
                   independently versioned and carrying its own artifacts.
-                  {isNonSwu
+                  {hawkbit
+                    ? ' Only built modules can be linked. A linked module is frozen — to change or rebuild one, unlink it, edit and build it in the Software Modules catalog, then link it again.'
+                    : isNonSwu
                     ? ' Nothing is built into a SWU here: this set delivers its artifacts as they are, and the modules say which part of the set each belongs to.'
                     : perModuleDeliverables
                       ? ' Each module is delivered as its own SWU, so building happens here rather than at the set level.'
@@ -1020,7 +1012,7 @@ export default function UpdatePackDetailsPage() {
                     </p>
                   )}
                 </div>
-                {isBuilt ? (
+                {hawkbit ? null : isBuilt ? (
                   <Button size="sm" variant="outline" onClick={() => router.push(`/updates/create-version?basePackId=${encodeURIComponent(updatePack.id)}&groupId=${encodeURIComponent(groupId || '')}`)}>
                     <Plus className="mr-2 h-4 w-4" /> New Version to Edit
                   </Button>
@@ -1126,7 +1118,7 @@ export default function UpdatePackDetailsPage() {
                       <p className="text-sm font-semibold">No artifacts on this version yet</p>
                       <p className="text-sm text-muted-foreground">{artifactRole}</p>
                     </div>
-                    {!isBuilt && (
+                    {!isBuilt && !hawkbit && (
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button variant="outline" onClick={() => { setIsLinkOpen(true); setIsUploadOpen(false); }}>
                           <Link2 className="mr-2 h-4 w-4" /> Link existing
@@ -1195,7 +1187,7 @@ export default function UpdatePackDetailsPage() {
                       {dmsDevices.map(device => (
                         <TableRow key={device.id}>
                           <TableCell className="font-mono text-sm">{device.id}</TableCell>
-                          <TableCell><Badge variant="outline" className="text-xs">{device.status}</Badge></TableCell>
+                          <TableCell><Badge variant="secondary">{device.status}</Badge></TableCell>
                           <TableCell className="text-right">
                             <Button variant="outline" size="sm" onClick={() => handlePerDeviceDownload(device.id)}>
                               <Download className="mr-2 h-4 w-4" /> Download SWU
@@ -1256,7 +1248,7 @@ export default function UpdatePackDetailsPage() {
                                 ? 'An artifact belongs to a software module, which is where one is added.'
                                 : 'Add one on the Artifacts tab.'}
                           </p>
-                          {!isBuilt && (
+                          {!isBuilt && !hawkbit && (
                             <Button
                               className="mt-3"
                               onClick={() => setActiveTab(compositionSupported ? 'modules' : 'artifacts')}
@@ -1302,7 +1294,7 @@ export default function UpdatePackDetailsPage() {
                       variant="outline"
                       size="sm"
                       disabled={!(descriptorContent || updatePack.descriptorContent)}
-                      onClick={() => { navigator.clipboard.writeText(descriptorContent || updatePack.descriptorContent || ''); toast({ title: 'Copied' }); }}
+                      onClick={() => { navigator.clipboard.writeText(descriptorContent || updatePack.descriptorContent || ''); sileo.success({ title: 'Copied' }); }}
                     >
                       <Copy className="mr-2 h-3 w-3" /> Copy
                     </Button>
@@ -1370,7 +1362,7 @@ export default function UpdatePackDetailsPage() {
                         <p className="text-xs font-medium text-muted-foreground">Previous Version Downloads</p>
                         <p className="mt-1 text-sm">{updatePack.allow_previous_version_download ? 'Enabled' : 'Disabled'}</p>
                       </div>
-                      <Badge variant={updatePack.allow_previous_version_download ? 'secondary' : 'outline'} className="text-xs">
+                      <Badge variant={updatePack.allow_previous_version_download ? 'info' : 'muted'}>
                         {updatePack.allow_previous_version_download ? 'Enabled' : 'Disabled'}
                       </Badge>
                     </div>

@@ -45,6 +45,7 @@ import { fetchAllCampaigns, fetchAllUpdatePacks, getGroupVersionStatus } from '@
 import {
   deriveCampaignStatus, deriveCampaignDeviceStats, isRolloutBlockedByTestDevice,
   type CampaignDisplayStatus,
+  CAMPAIGN_STATUS_VARIANT,
 } from '@/components/iot/campaign-cells';
 import type { CampaignItem, DevicePackVersionStatus } from '@/types/iot';
 
@@ -268,16 +269,6 @@ function CampaignProgressBar({ completed, failed, total }: { completed: number; 
   );
 }
 
-const STATUS_BADGE: Record<CampaignDisplayStatus, string> = {
-  'Rolling Out': 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-  Completed: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800',
-  'Partial Completed': 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
-  Paused: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-  Failed: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
-  Cancelled: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
-  'Not Started': 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-  Scheduled: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800',
-};
 
 export default function OtaDashboardPage() {
   const router = useRouter();
@@ -564,7 +555,7 @@ export default function OtaDashboardPage() {
           action={
             <div className="flex items-center gap-2">
               {attention.length > 0 && (
-                <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+                <Badge variant="destructive">
                   {attention.length}
                 </Badge>
               )}
@@ -612,7 +603,7 @@ export default function OtaDashboardPage() {
                         <CampaignProgressBar completed={stats.completed} failed={stats.failed} total={stats.total} />
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn('whitespace-nowrap', STATUS_BADGE[status])}>{status}</Badge>
+                        <Badge variant={CAMPAIGN_STATUS_VARIANT[status]} dot>{status}</Badge>
                       </TableCell>
                       <TableCell>
                         <TooltipProvider>
@@ -677,7 +668,7 @@ export default function OtaDashboardPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <Badge variant="success">
                             {row.latest || '—'}
                           </Badge>
                         </TableCell>

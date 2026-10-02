@@ -41,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ColumnSelector } from '@/components/ui/column-selector';
 import {
@@ -63,8 +63,8 @@ import {
 } from '@/lib/iot-api';
 import { cn, compareSemver } from '@/lib/utils';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
-import { toast } from '@/hooks/use-toast';
 import type { UpdatePack } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 type PackRow = UpdatePack & { groupId: string; groupName: string; orphaned: boolean };
 type SortDirection = 'asc' | 'desc';
@@ -111,29 +111,29 @@ function getGroupHref(pack: PackRow) {
 // interchangeable — 'build_failed' is a build that RAN and broke, which is what an operator needs to
 // tell apart from a set nobody has built yet — and this is the list where a stuck set gets deleted.
 function StatusChip({ pack }: { pack: PackRow }) {
-  const { Icon, label, cls, title } =
+  const { Icon, label, variant, title } =
     pack.status === 'built'
       ? {
           Icon: CheckCircle2,
           label: pack.packaging === 'non-swu' ? 'Built' : 'SWU built',
-          cls: 'border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-700/30 dark:text-green-300',
+          variant: 'success' as BadgeVariant,
           title: 'Has a deliverable devices can install',
         }
       : pack.status === 'build_failed'
         ? {
             Icon: AlertTriangle,
             label: 'Build failed',
-            cls: 'border-destructive/40 bg-destructive/10 text-destructive',
+            variant: 'destructive' as BadgeVariant,
             title: pack.last_build_error || 'The last build attempt failed.',
           }
         : {
             Icon: CircleDashed,
             label: 'Not built',
-            cls: 'border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-700/30 dark:text-amber-300',
+            variant: 'warning' as BadgeVariant,
             title: 'Nothing to install yet — needs artifacts and a build',
           };
   return (
-    <Badge variant="outline" className={cn('flex w-fit items-center gap-1 whitespace-nowrap font-normal', cls)} title={title}>
+    <Badge variant={variant} title={title}>
       <Icon className="h-3 w-3 shrink-0" />
       {label}
     </Badge>
@@ -359,8 +359,7 @@ const PackInventoryTable: React.FC<{
                       {pack.preconditions!.slice(0, 2).map((p, i) => (
                         <Badge
                           key={i}
-                          variant="outline"
-                          className="w-fit gap-1 font-mono text-[11px] font-normal"
+                          variant="secondary" className="font-mono"
                           title={`Requires ${preconditionTargetLabel(p)} at version ${p.min_version} or newer`}
                         >
                           <ShieldCheck className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -512,10 +511,10 @@ export default function PackageInventoryPage() {
     setIsDeleting(true);
     try {
       const data = await deleteUpdatePackByIdApi({ packId: pack.id });
-      toast({ title: 'Distribution Set Deleted', description: `Pack "${pack.name}" has been deleted. ${data?.message || ''}` });
+      sileo.success({ title: 'Distribution Set Deleted', description: `Pack "${pack.name}" has been deleted. ${data?.message || ''}` });
       fetchPacks();
     } catch (err: Error | any) {
-      toast({ variant: 'destructive', title: 'Deletion Failed', description: `Could not delete pack "${pack.name}". ${err.message}` });
+      sileo.error({ title: 'Deletion Failed', description: `Could not delete pack "${pack.name}". ${err.message}` });
     } finally {
       setIsDeleting(false);
       setPackToDelete(null);

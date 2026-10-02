@@ -15,10 +15,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, KeyRound, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { assignKeyToDevice } from '@/lib/device-inventory-api';
 import { fetchSymmetricKeys, type SymmetricKey } from '@/lib/symkms-api';
 import type { AssignKeyToDeviceRequest } from '@/types/device-inventory';
+import { sileo } from '@/lib/toast';
 
 interface AssignKeyToDeviceModalProps {
   isOpen: boolean;
@@ -36,7 +36,6 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
-  const { toast } = useToast();
 
   const [availableKeys, setAvailableKeys] = useState<SymmetricKey[]>([]);
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
@@ -54,15 +53,14 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
       setAvailableKeys(response.list);
     } catch (err) {
       console.error('Failed to load symmetric keys:', err);
-      toast({
+      sileo.error({
         title: 'Error',
         description: 'Failed to load available symmetric keys.',
-        variant: 'destructive',
       });
     } finally {
       setIsLoadingKeys(false);
     }
-  }, [user?.access_token, toast]);
+  }, [user?.access_token]);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,10 +76,9 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
 
     const effectivePurpose = purpose.trim();
     if (!effectivePurpose) {
-      toast({
+      sileo.error({
         title: 'Validation Error',
         description: 'Please specify a purpose for the key assignment.',
-        variant: 'destructive',
       });
       return;
     }
@@ -97,7 +94,7 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
 
       await assignKeyToDevice(deviceId, selectedKeyId, request);
 
-      toast({
+      sileo.success({
         title: 'Key Assigned',
         description: `Key "${selectedKeyId}" has been assigned to device "${deviceId}" with purpose "${effectivePurpose}".`,
       });
@@ -105,10 +102,9 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: 'Assignment Failed',
         description: err.message || 'An error occurred while assigning the key.',
-        variant: 'destructive',
       });
     } finally {
       setIsAssigning(false);

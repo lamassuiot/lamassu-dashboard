@@ -33,7 +33,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Boxes, Info, Loader2, Package } from 'lucide-react';
@@ -44,7 +43,6 @@ import {
 } from '@/components/iot/module-files';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { toast } from '@/hooks/use-toast';
 import { cn, isValidSemver } from '@/lib/utils';
 import {
   createStandaloneSoftwareModule, fetchAllUpdatePacks, fetchCatalogModule,
@@ -53,6 +51,7 @@ import {
 import type {
   ModuleDeliveryIntent, SoftwareModule, SoftwareModuleType, UpdatePack,
 } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 const NO_PACK = '__none__';
 
@@ -75,11 +74,6 @@ export default function CreateSoftwareModulePage() {
   const [type, setType] = useState<SoftwareModuleType>('application');
   const [version, setVersion] = useState('1.0.0');
   const [deliveryIntent, setDeliveryIntent] = useState<ModuleDeliveryIntent>('undecided');
-  // "raw" (deliver files unchanged) still lets ONE module opt into a real, signed/encrypted build
-  // where the backend builds per module (hawkbit) — see pkg/updates.ValidateModuleCompatibility.
-  // It is a separate, opt-in question from the delivery FORMAT itself: raw files do not say whether
-  // the operator wants them processed, unlike a staged .swu which unambiguously means "prebuilt".
-  const [encryptRaw, setEncryptRaw] = useState(false);
   const [releaseNotes, setReleaseNotes] = useState('');
   const [targetPackId, setTargetPackId] = useState<string>(NO_PACK);
   const [packs, setPacks] = useState<UpdatePack[] | null>(null);
@@ -89,23 +83,17 @@ export default function CreateSoftwareModulePage() {
   useEffect(() => {
     let cancelled = false;
     fetchAllUpdatePacks({ pageSize: 200 })
-      .then(({ list }) => { if (!cancelled) setPacks(list.filter((p) => p.group_id && p.status !== 'built')); })
+      .then(({ list }) => { if (!cancelled) setPacks(list.filter((p) => p.group_id && (backend === 'hawkbit' ? !p.locked : p.status !== 'built'))); })
       .catch(() => { if (!cancelled) setPacks([]); });
     return () => { cancelled = true; };
-  }, []);
+  }, [backend]);
 
   const targetPack = useMemo(
     () => (targetPackId === NO_PACK ? null : (packs ?? []).find((p) => p.id === targetPackId) ?? null),
     [targetPackId, packs],
   );
 
-  // Told "swu-build" (not the real "raw") when the operator opted a raw module into encryption/
-  // signing: that is the intent whose build-and-security machinery useModuleFiles already has, and
-  // the module's WIRE delivery_intent (sent below, and again by ModuleFilesFields' own build call)
-  // stays the real deliveryIntent state either way — this only reshapes what this hook offers here.
-  const filesDeliveryIntent: ModuleDeliveryIntent =
-    deliveryIntent === 'raw' && perModuleDeliverables && encryptRaw ? 'swu-build' : deliveryIntent;
-  const files = useModuleFiles({ active: true, perModuleDeliverables, standalone: true, deliveryIntent: filesDeliveryIntent });
+  const files = useModuleFiles({ active: true, perModuleDeliverables, standalone: true, deliveryIntent });
 
   // '/' and ':' are the API's own separators for "<pack>/<module>" and "<type>:<name>", so a name
   // containing either could not be addressed afterwards — the backend refuses them too.
@@ -128,8 +116,18 @@ export default function CreateSoftwareModulePage() {
           : null
     : null;
 
+  // Where modules are built on their own (hawkbit), only a BUILT module can join a set. So adding it to
+  // a set from this form needs the build to happen on create; otherwise it stays in the catalog and is
+  // added once built.
+  const willBeBuilt = perModuleDeliverables && (
+    (deliveryIntent === 'swu-prebuilt' && files.files.length === 1)
+    || ((deliveryIntent === 'swu-build' || deliveryIntent === 'raw') && files.willBuild && files.files.length > 0 && files.isComplete)
+  );
+  const needsBuildForSet = perModuleDeliverables && Boolean(targetPack) && !willBeBuilt;
+
   const disabled =
     creating ||
+    needsBuildForSet ||
     Boolean(compatibilityError || files.fileError) ||
     files.blocksSubmit ||
     !name.trim() ||
@@ -169,14 +167,13 @@ export default function CreateSoftwareModulePage() {
           source: { source_module_id: created.id, source_distribution_set_name: '', source_distribution_set_version: '', module_key: created.key },
         });
       }
-      toast({
+      sileo.success({
         title: 'Software module created',
         description: `${created.name} v${created.version}${targetPack ? ` added to ${targetPack.name}` : ' saved in the catalog'}.`,
       });
       router.push('/updates/software-modules');
     } catch (err) {
-      toast({
-        variant: 'destructive',
+      sileo.error({
         // The module may exist even when a later step failed, and saying so is what stops the
         // operator retrying the whole form and hitting a name-already-taken error next.
         title: created ? 'Module created; setup incomplete' : 'Could not create the software module',
@@ -202,7 +199,7 @@ export default function CreateSoftwareModulePage() {
         <SummaryRow label="Distribution set" value={targetPack ? `${targetPack.name} v${targetPack.version}` : 'Catalog only'} />
       </SummaryPanel>
 
-      <SummaryPanel title="First version" badge={<Badge variant="outline" className="font-mono text-[10px]">v{version.trim() || '—'}</Badge>}>
+      <SummaryPanel title="First version" badge={<Badge variant="secondary" className="font-mono">v{version.trim() || '—'}</Badge>}>
         <SummaryRow label="Files staged" value={files.files.length || undefined} />
         <SummaryRow label="Build on create" value={files.files.length === 0 ? undefined : files.buildNow ? 'Yes' : 'No'} />
         <SummaryRow label="Release notes" value={releaseNotes.trim() ? `${releaseNotes.trim().length} chars` : undefined} />
@@ -210,9 +207,9 @@ export default function CreateSoftwareModulePage() {
     </>
   );
 
-  // Build & security applies to a module that builds its own SWU, or to a raw module the operator
-  // opted into encryption/signing — dropped otherwise rather than shown inert.
-  const buildSectionApplies = perModuleDeliverables && (deliveryIntent === 'swu-build' || (deliveryIntent === 'raw' && encryptRaw));
+  // Build & security applies to a module that builds its own SWU, and to generic files, which are built
+  // by encrypting and/or signing them — dropped otherwise rather than shown inert.
+  const buildSectionApplies = perModuleDeliverables && (deliveryIntent === 'swu-build' || deliveryIntent === 'raw');
 
   return (
     <BreadcrumbPage
@@ -301,7 +298,7 @@ export default function CreateSoftwareModulePage() {
               : 'How this module is consumed, and which set it joins. Native sets build one deliverable, so the set’s driver decides.'}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <ModuleDeliverySelect id="sm-delivery" value={deliveryIntent} onChange={(v) => { setDeliveryIntent(v); if (v !== 'raw') setEncryptRaw(false); }} />
+              <ModuleDeliverySelect id="sm-delivery" value={deliveryIntent} onChange={setDeliveryIntent} perModuleDeliverables={perModuleDeliverables} />
               <div className="space-y-1.5">
                 <Label htmlFor="sm-pack">Distribution set</Label>
                 <Select value={targetPackId} onValueChange={setTargetPackId}>
@@ -329,17 +326,17 @@ export default function CreateSoftwareModulePage() {
               </div>
             </div>
 
-            {deliveryIntent === 'raw' && perModuleDeliverables && (
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <Label htmlFor="sm-encrypt-raw" className="text-sm">Encrypt and/or sign this file</Label>
-                  <p className="text-xs text-muted-foreground">
-                    The file still reaches the device unchanged in shape — nothing is converted to a SWU — but you
-                    can still apply a shared encryption key and/or a KMS signature to it below.
-                  </p>
-                </div>
-                <Switch id="sm-encrypt-raw" checked={encryptRaw} onCheckedChange={setEncryptRaw} />
-              </div>
+            {needsBuildForSet && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Only a built module can join a set</AlertTitle>
+                <AlertDescription className="text-xs">
+                  To add this module to {targetPack?.name} now, it has to be built as it is created: choose how it ships,
+                  stage its files and build them below (a prebuilt SWU is built by uploading it; generic files by
+                  encrypting and/or signing them). Otherwise leave the set empty, save the module in the catalog and
+                  add it once it is built.
+                </AlertDescription>
+              </Alert>
             )}
 
             {compatibilityError && (
@@ -402,7 +399,7 @@ export default function CreateSoftwareModulePage() {
             <FormSection
           title="Build & security"
           description={deliveryIntent === 'raw'
-            ? 'The shared encryption key and/or KMS signature applied to the file as uploaded — nothing is converted to a SWU.'
+            ? 'Generic files are built by encrypting and/or signing them — nothing is converted to a SWU. Until then the module cannot join a set.'
             : 'The sw-description the build reads, and the signing and encryption applied to the SWU it produces.'}
           collapsible
           aside={files.buildNow ? 'builds on create' : 'stored, build later'}

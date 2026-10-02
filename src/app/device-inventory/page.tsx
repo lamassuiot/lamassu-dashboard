@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,40 +22,29 @@ import {
 import { KeyRound, Search, Loader2, RefreshCw, Trash2, AlertTriangle, ChevronLeft, ChevronRight, PlusCircle, Eye, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { fetchDeviceInventory, revokeKeyFromDevice } from '@/lib/device-inventory-api';
 import type { DeviceKeyBinding, BindingStatus } from '@/types/device-inventory';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { AssignKeyToDeviceModal } from '@/components/devices/AssignKeyToDeviceModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { sileo } from '@/lib/toast';
 
-const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => {
-  let badgeClass = '';
-  switch (status) {
-    case 'active':
-      badgeClass = 'bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700';
-      break;
-    case 'rotating':
-      badgeClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700';
-      break;
-    case 'revoked':
-      badgeClass = 'bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700';
-      break;
-    default:
-      badgeClass = 'bg-muted text-muted-foreground border-border';
-  }
-  return (
-    <Badge variant="outline" className={cn('text-xs capitalize', badgeClass)}>
-      {status}
-    </Badge>
-  );
+const BINDING_STATUS_VARIANT: Partial<Record<BindingStatus, BadgeVariant>> = {
+  active: 'success',
+  rotating: 'warning',
+  revoked: 'destructive',
 };
+
+const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => (
+  <Badge variant={BINDING_STATUS_VARIANT[status] ?? 'muted'} dot className="capitalize">
+    {status}
+  </Badge>
+);
 
 export default function DeviceInventoryPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isLoggedIn } = useAuth();
-  const { toast } = useToast();
 
   const [deviceIdInput, setDeviceIdInput] = useState('');
   const [searchedDeviceId, setSearchedDeviceId] = useState('');
@@ -169,16 +158,15 @@ export default function DeviceInventoryPage() {
     setIsRevoking(true);
     try {
       await revokeKeyFromDevice(searchedDeviceId, bindingToRevoke.key_id);
-      toast({
+      sileo.success({
         title: 'Key Revoked',
         description: `Key "${bindingToRevoke.key_id}" has been revoked from device "${searchedDeviceId}".`,
       });
       handleRefresh();
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: 'Revocation Failed',
         description: err.message || 'An error occurred while revoking the key.',
-        variant: 'destructive',
       });
     } finally {
       setIsRevoking(false);

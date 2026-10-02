@@ -9,11 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ArrowLeft, KeyRound, UploadCloud, ChevronRight, PlusCircle, Loader2, Lock, Tag, AlertTriangle } from "lucide-react";
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { createSymmetricKey, type CreateSymmetricKeyRequest } from '@/lib/symkms-api';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { sileo } from '@/lib/toast';
 
 // Algorithm types
 const ALGORITHM_TYPES = [
@@ -113,7 +113,6 @@ const base64ToHex = (base64: string): string => {
 
 export default function CreateSymKeyPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
@@ -150,12 +149,12 @@ export default function CreateSymKeyPage() {
     event.preventDefault();
 
     if (!user?.access_token) {
-      toast({ title: "Authentication Error", description: "You must be logged in to create a key.", variant: "destructive" });
+      sileo.error({ title: "Authentication Error", description: "You must be logged in to create a key.",});
       return;
     }
 
     if (!keyName.trim()) {
-      toast({ title: "Validation Error", description: "Key name is required.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Key name is required.",});
       return;
     }
 
@@ -172,14 +171,14 @@ export default function CreateSymKeyPage() {
       } else if (selectedMode === 'import') {
         // Import key - validate hex format and send as hex
         if (!importKeyValue.trim()) {
-          toast({ title: "Validation Error", description: "Key value is required for import.", variant: "destructive" });
+          sileo.error({ title: "Validation Error", description: "Key value is required for import.",});
           setIsSubmitting(false);
           return;
         }
         
         if (keyFormat === 'hex') {
           if (!isValidHex(importKeyValue)) {
-            toast({ title: "Validation Error", description: "Invalid hex format. Please enter a valid hexadecimal string.", variant: "destructive" });
+            sileo.error({ title: "Validation Error", description: "Invalid hex format. Please enter a valid hexadecimal string.",});
             setIsSubmitting(false);
             return;
           }
@@ -209,14 +208,14 @@ export default function CreateSymKeyPage() {
         });
       } else {
         // For import mode, just show success and redirect
-        toast({
+        sileo.success({
           title: "Symmetric Key Imported",
           description: `Key "${finalKeyName}" has been successfully imported.`,
         });
         router.push('/kms/keys/sym-keys');
       }
     } catch (error: any) {
-      toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
+      sileo.error({ title: "Creation Failed", description: error.message,});
     } finally {
       setIsSubmitting(false);
     }

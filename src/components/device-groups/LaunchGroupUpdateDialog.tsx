@@ -5,9 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2, Rocket, Package } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import { fetchUpdatePacks, fetchUpdatePackVersions, forceDeviceVersion } from '@/lib/iot-api';
 import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
+import { sileo } from '@/lib/toast';
 
 // LaunchGroupUpdateDialog lets an operator update MANY selected devices at once: pick one of the
 // group's distribution sets, a version (defaults to latest) and a workflow, then dispatch a
@@ -101,11 +101,11 @@ export function LaunchGroupUpdateDialog({
     setSubmitting(false);
 
     if (failed === 0) {
-      toast({ title: 'Jobs created', description: `${ok} device(s) → ${selectedPack?.name} v${version}` });
+      sileo.success({ title: 'Jobs created', description: `${ok} device(s) → ${selectedPack?.name} v${version}` });
     } else if (ok === 0) {
-      toast({ variant: 'destructive', title: 'Launch failed', description: `All ${failed} job(s) failed to dispatch.` });
+      sileo.error({ title: 'Launch failed', description: `All ${failed} job(s) failed to dispatch.` });
     } else {
-      toast({ title: 'Partially launched', description: `${ok} dispatched, ${failed} failed.` });
+      sileo.success({ title: 'Partially launched', description: `${ok} dispatched, ${failed} failed.` });
     }
     onLaunched?.();
     onClose();

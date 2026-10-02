@@ -472,14 +472,15 @@ export interface JobHistoryEntry { // One entry in the 'history' array of a job
 
 export interface JobDetail { // A composite object representing a job with its complete history
   clientId: string;
-  definition: DeviceJobDefinition;
+  // Optional for the same reason as on DeviceJob: hawkbit-mode jobs carry no WFX definition/workflow.
+  definition?: DeviceJobDefinition;
   history: JobHistoryEntry[]; // The history is now explicitly part of this type
   id: string; // Job ID
   mtime: string; // Job's last modification time
   status: DeviceJobStatus; // Job's overall current status
   stime: string; // Job's start time
   tags: string[];
-  workflow: DeviceJobWorkflow;
+  workflow?: DeviceJobWorkflow;
 }
 
 export interface JobHistoryResponse { // Overall response for device job history API

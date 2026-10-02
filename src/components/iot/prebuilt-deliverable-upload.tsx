@@ -5,9 +5,9 @@ import React from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
 import { FileUpload } from '@/components/iot/file-upload';
 import { uploadPrebuiltDeliverable } from '@/lib/iot-api';
+import { sileo } from '@/lib/toast';
 
 interface PrebuiltDeliverableUploadProps {
   groupId: string;
@@ -57,17 +57,16 @@ export const PrebuiltDeliverableUpload: React.FC<PrebuiltDeliverableUploadProps>
         isNonSwu,
         user: user?.profile?.sub || '',
       });
-      toast({
+      sileo.success({
         title: 'Deliverable attached',
         description: `${file.name} is now this version's deliverable — the pack is built and can be launched.`,
       });
       onUploaded?.();
       return true;
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: 'Upload failed',
         description: err.message || 'An error occurred.',
-        variant: 'destructive',
       });
       return false;
     }

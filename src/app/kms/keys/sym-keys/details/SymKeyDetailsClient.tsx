@@ -4,10 +4,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { useDropzone } from 'react-dropzone';
-import { ArrowLeft, Lock, Info, FileText, Loader2, AlertTriangle, Upload, Download, Plus, X, UploadCloud, File as FileIcon, Shield, Zap, Key, Clock, Router as RouterIcon } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, Lock, Info, FileText, Loader2, AlertTriangle, Upload, Download, Plus, X, UploadCloud, File as FileIcon, Shield, Zap, Key, Router as RouterIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -35,6 +34,9 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { KeyDevicesLookupCard } from '@/components/kms/KeyDevicesLookupCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { cn } from '@/lib/utils';
+import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
+import { sileo } from '@/lib/toast';
 
 interface FileToEncrypt {
   id: string;
@@ -66,10 +68,19 @@ interface DecryptedFile {
   size: number;
 }
 
+/** Key length implied by the algorithm name (e.g. "AES-256-GCM" -> "256 bits"). */
+function symKeyLengthLabel(algorithm: string): string {
+  const algo = algorithm.toUpperCase();
+  if (algo.includes('256')) return '256 bits';
+  if (algo.includes('192')) return '192 bits';
+  if (algo.includes('128')) return '128 bits';
+  if (algo.includes('80PQ')) return '160 bits';
+  return 'N/A';
+}
+
 export default function SymKeyDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isLoggedIn } = useAuth();
   const keyId = searchParams.get('keyId');
 
@@ -162,10 +173,9 @@ export default function SymKeyDetailsClient() {
   // File upload handlers for encryption
   const onDropFiles = useCallback(async (acceptedFiles: File[], fileRejections: any[]) => {
     if (fileRejections.length > 0) {
-      toast({
+      sileo.error({
         title: "File Rejected",
         description: fileRejections[0].errors.map((err: any) => err.message).join(', '),
-        variant: "destructive",
       });
       return;
     }
@@ -380,15 +390,14 @@ export default function SymKeyDetailsClient() {
 
       setEncryptedFiles(encrypted);
       setFilesToEncrypt([]);
-      toast({
+      sileo.success({
         title: "Files Encrypted",
         description: `Successfully encrypted ${encrypted.length} file(s) using ${encryptFormat} format.`,
       });
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: "Encryption Failed",
         description: err.message || "Failed to encrypt files.",
-        variant: "destructive",
       });
     } finally {
       setIsEncrypting(false);
@@ -468,15 +477,14 @@ export default function SymKeyDetailsClient() {
         iv: response.iv,
       });
       setTextToEncrypt('');
-      toast({
+      sileo.success({
         title: "Text Encrypted",
         description: `Successfully encrypted text using ${encryptFormat} format.`,
       });
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: "Encryption Failed",
         description: err.message || "Failed to encrypt text.",
-        variant: "destructive",
       });
     } finally {
       setIsEncrypting(false);
@@ -545,15 +553,14 @@ export default function SymKeyDetailsClient() {
       if (decryptFormat !== 'pkcs7') {
         setIvForTextDecrypt('');
       }
-      toast({
+      sileo.success({
         title: "Text Decrypted",
         description: `Successfully decrypted text using ${decryptFormat} format.`,
       });
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: "Decryption Failed",
         description: err.message || "Failed to decrypt text.",
-        variant: "destructive",
       });
     } finally {
       setIsDecrypting(false);
@@ -678,15 +685,14 @@ export default function SymKeyDetailsClient() {
 
       setDecryptedFiles(decrypted);
       setFilesToDecrypt([]);
-      toast({
+      sileo.success({
         title: "Files Decrypted",
         description: `Successfully decrypted ${decrypted.length} file(s) using ${decryptFormat} format.`,
       });
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: "Decryption Failed",
         description: err.message || "Failed to decrypt files.",
-        variant: "destructive",
       });
     } finally {
       setIsDecrypting(false);
@@ -749,7 +755,7 @@ export default function SymKeyDetailsClient() {
     // Check if file is still loading
     if (macDataFile && isMacDataFileLoading) {
       console.log('Early return - file still loading');
-      toast({
+      sileo.success({
         title: "Please wait",
         description: "File is still being processed...",
       });
@@ -767,10 +773,9 @@ export default function SymKeyDetailsClient() {
       if (macDataFile) {
         // Check file size limit
         if (macDataFile.size > MAX_FILE_SIZE) {
-          toast({
+          sileo.error({
             title: "File Too Large",
             description: `File size exceeds the maximum limit of 350MB. Current file size: ${(macDataFile.size / (1024 * 1024)).toFixed(2)}MB`,
-            variant: "destructive",
           });
           setIsComputingMac(false);
           return;
@@ -778,7 +783,7 @@ export default function SymKeyDetailsClient() {
 
         // Wait for base64 if not ready yet
         if (!macDataFileBase64) {
-          toast({
+          sileo.success({
             title: "Please wait",
             description: "File is still being processed...",
           });
@@ -832,18 +837,17 @@ export default function SymKeyDetailsClient() {
         }
       }
       
-      toast({
+      sileo.success({
         title: "MAC Computed",
         description: `Successfully computed ${macAlgorithm} MAC.`,
       });
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        toast({ title: "MAC Aborted", description: "MAC computation was cancelled or timed out.", variant: "destructive" });
+        sileo.error({ title: "MAC Aborted", description: "MAC computation was cancelled or timed out.",});
       } else {
-      toast({
+      sileo.error({
         title: "MAC Computation Failed",
         description: err.message || "Failed to compute MAC.",
-        variant: "destructive",
       });
       }
     } finally {
@@ -856,7 +860,7 @@ export default function SymKeyDetailsClient() {
 
     // Check if file is still loading
     if (macVerifyFile && isMacVerifyFileLoading) {
-      toast({
+      sileo.success({
         title: "Please wait",
         description: "File is still being processed...",
       });
@@ -874,10 +878,9 @@ export default function SymKeyDetailsClient() {
       if (macVerifyFile) {
         // Check file size limit
         if (macVerifyFile.size > MAX_FILE_SIZE) {
-          toast({
+          sileo.error({
             title: "File Too Large",
             description: `File size exceeds the maximum limit of 350MB. Current file size: ${(macVerifyFile.size / (1024 * 1024)).toFixed(2)}MB`,
-            variant: "destructive",
           });
           setIsVerifyingMac(false);
           return;
@@ -885,7 +888,7 @@ export default function SymKeyDetailsClient() {
 
         // Wait for base64 if not ready yet
         if (!macVerifyFileBase64) {
-          toast({
+          sileo.success({
             title: "Please wait",
             description: "File is still being processed...",
           });
@@ -910,12 +913,11 @@ export default function SymKeyDetailsClient() {
         try {
           const response = await verifyMac(request, { signal: controller.signal });
           setMacVerifyResult(response.valid);
-          toast({
+          (response.valid ? sileo.success : sileo.error)({
             title: response.valid ? "MAC Valid" : "MAC Invalid",
             description: response.valid 
               ? "The MAC is valid and matches the data." 
               : "The MAC does not match the provided data.",
-            variant: response.valid ? "default" : "destructive",
           });
         } finally {
           clearTimeout(timeoutId);
@@ -940,12 +942,11 @@ export default function SymKeyDetailsClient() {
         try {
           const response = await verifyMac(request, { signal: controller.signal });
           setMacVerifyResult(response.valid);
-          toast({
+          (response.valid ? sileo.success : sileo.error)({
             title: response.valid ? "MAC Valid" : "MAC Invalid",
             description: response.valid 
               ? "The MAC is valid and matches the data." 
               : "The MAC does not match the provided data.",
-            variant: response.valid ? "default" : "destructive",
           });
         } finally {
           clearTimeout(timeoutId);
@@ -954,12 +955,11 @@ export default function SymKeyDetailsClient() {
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        toast({ title: "MAC Aborted", description: "MAC verification was cancelled or timed out.", variant: "destructive" });
+        sileo.error({ title: "MAC Aborted", description: "MAC verification was cancelled or timed out.",});
       } else {
-      toast({
+      sileo.error({
         title: "MAC Verification Failed",
         description: err.message || "Failed to verify MAC.",
-        variant: "destructive",
       });
       }
     } finally {
@@ -1015,104 +1015,58 @@ export default function SymKeyDetailsClient() {
   }
 
   return (
-    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Symmetric Keys', href: '/kms/keys/sym-keys' }, { label: keyId || 'Details' }]} className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" onClick={() => router.push('/kms/keys/sym-keys')}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Symmetric Keys
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-3">
-        <Lock className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-headline font-semibold">{keyDetails.id}</h1>
-          <p className="text-sm text-muted-foreground">Symmetric Key Details</p>
-        </div>
-      </div>
+    <BreadcrumbPage
+      className="space-y-5 pb-8"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'KMS' },
+        { label: 'Symmetric Keys', href: '/kms/keys/sym-keys' },
+        { label: <Badge className="max-w-[320px] truncate font-mono">{keyDetails.id}</Badge> },
+      ]}
+    >
+      <DetailHero
+        icon={Lock}
+        title={keyDetails.id}
+        titleClassName="font-mono"
+        idLabel="Key ID"
+        id={keyDetails.id}
+        stats={
+          <>
+            <DetailHeroStat label="Algorithm">
+              <p className="font-medium">{SYM_KEY_ALGORITHMS[keyDetails.algorithm] || keyDetails.algorithm}</p>
+            </DetailHeroStat>
+            <DetailHeroStat label="Key length">
+              <p className="font-medium tabular-nums">{symKeyLengthLabel(keyDetails.algorithm)}</p>
+            </DetailHeroStat>
+            <DetailHeroStat label="Created">
+              <p className="font-medium">
+                {keyDetails.created_at ? formatDistanceToNow(new Date(keyDetails.created_at), { addSuffix: true }) : 'Unknown'}
+              </p>
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">
-            <Info className="mr-2 h-4 w-4" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="devices">
-            <RouterIcon className="mr-2 h-4 w-4" /> Devices
-          </TabsTrigger>
-          <TabsTrigger value="encrypt">
-            <Lock className="mr-2 h-4 w-4" /> Encrypt
-          </TabsTrigger>
-          <TabsTrigger value="decrypt">
-            <FileText className="mr-2 h-4 w-4" /> Decrypt
-          </TabsTrigger>
-          <TabsTrigger value="mac">
-            <Shield className="mr-2 h-4 w-4" /> MAC
-          </TabsTrigger>
-        </TabsList>
+        <div className="border-b overflow-x-auto overflow-y-hidden">
+          <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
+            {([
+              { value: 'overview', icon: Info, label: 'Overview' },
+              { value: 'devices', icon: RouterIcon, label: 'Devices' },
+              { value: 'encrypt', icon: Lock, label: 'Encrypt' },
+              { value: 'decrypt', icon: FileText, label: 'Decrypt' },
+              { value: 'mac', icon: Shield, label: 'MAC' },
+            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+              <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
-          {/* Header Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-l-4 border-l-primary">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Algorithm</p>
-                    <p className="text-2xl font-bold">
-                      {SYM_KEY_ALGORITHMS[keyDetails.algorithm] || keyDetails.algorithm}
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-primary/10 p-3">
-                    <Key className="h-5 w-5 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Key Length</p>
-                    <p className="text-2xl font-bold">
-                      {(() => {
-                        const algo = keyDetails.algorithm.toUpperCase();
-                        if (algo.includes('256')) return '256 bits';
-                        if (algo.includes('192')) return '192 bits';
-                        if (algo.includes('128')) return '128 bits';
-                        if (algo.includes('80PQ')) return '160 bits';
-                        return 'N/A';
-                      })()}
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-green-500/10 p-3">
-                    <Shield className="h-5 w-5 text-green-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Created</p>
-                    <p className="text-lg font-semibold">
-                      {keyDetails.created_at 
-                        ? formatDistanceToNow(new Date(keyDetails.created_at), { addSuffix: true })
-                        : 'Unknown'}
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-blue-500/10 p-3">
-                    <Clock className="h-5 w-5 text-blue-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Main Information Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Key Information Card */}
@@ -1125,11 +1079,8 @@ export default function SymKeyDetailsClient() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <DetailItem label="Key ID" value={keyDetails.id} isMono fullWidthValue />
-                {keyDetails.creation_ts && (
-                  <DetailItem 
-                    label="Created On" 
-                    value={new Date(keyDetails.creation_ts * 1000).toLocaleString()} 
-                  />
+                {keyDetails.created_at && (
+                  <DetailItem label="Created On" value={new Date(keyDetails.created_at).toLocaleString()} />
                 )}
                 <div className="pt-2 border-t">
                   <p className="text-sm font-medium mb-2">Tags</p>
@@ -1274,7 +1225,7 @@ export default function SymKeyDetailsClient() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">Mode</p>
-                  <Badge variant="outline" className="font-mono text-base">
+                  <Badge variant="secondary" className="font-mono">
                     {(() => {
                       const algo = keyDetails.algorithm.toUpperCase();
                       if (algo.includes('GCM')) return 'GCM';
@@ -1320,8 +1271,8 @@ export default function SymKeyDetailsClient() {
                   <p className="text-sm font-medium text-muted-foreground">Parallelization</p>
                   <Badge variant={(() => {
                     const algo = keyDetails.algorithm.toUpperCase();
-                    return (algo.includes('GCM') || algo.includes('CTR')) ? 'default' : 'outline';
-                  })()} className="text-base">
+                    return (algo.includes('GCM') || algo.includes('CTR')) ? 'default' : 'secondary';
+                  })()}>
                     {(() => {
                       const algo = keyDetails.algorithm.toUpperCase();
                       return (algo.includes('GCM') || algo.includes('CTR')) ? 'Yes' : 'No';
@@ -1941,13 +1892,13 @@ export default function SymKeyDetailsClient() {
                           <span className="text-xs text-muted-foreground">
                             ({(macDataFile.size / 1024 / 1024).toFixed(2)} MB)
                             {isMacDataFileLoading && (
-                              <Badge variant="outline" className="ml-2 text-yellow-600">Loading...</Badge>
+                              <Badge variant="warning" className="ml-2">Loading...</Badge>
                             )}
                             {!isMacDataFileLoading && macDataFile.size > 2 * 1024 * 1024 && (
-                              <Badge variant="outline" className="ml-2">Stream</Badge>
+                              <Badge variant="muted" className="ml-2">Stream</Badge>
                             )}
                             {!isMacDataFileLoading && macDataFile.size <= 2 * 1024 * 1024 && (
-                              <Badge variant="outline" className="ml-2 text-green-600">Ready</Badge>
+                              <Badge variant="success" className="ml-2">Ready</Badge>
                             )}
                           </span>
                           <Button 
@@ -2020,7 +1971,7 @@ export default function SymKeyDetailsClient() {
                           variant="outline"
                           onClick={() => {
                             navigator.clipboard.writeText(computedMac);
-                            toast({ title: "Copied", description: "MAC copied to clipboard." });
+                            sileo.success({ title: "Copied", description: "MAC copied to clipboard." });
                           }}
                         >
                           Copy
@@ -2097,13 +2048,13 @@ export default function SymKeyDetailsClient() {
                           <span className="text-xs text-muted-foreground">
                             ({(macVerifyFile.size / 1024 / 1024).toFixed(2)} MB)
                             {isMacVerifyFileLoading && (
-                              <Badge variant="outline" className="ml-2 text-yellow-600">Loading...</Badge>
+                              <Badge variant="warning" className="ml-2">Loading...</Badge>
                             )}
                             {!isMacVerifyFileLoading && macVerifyFile.size > 2 * 1024 * 1024 && (
-                              <Badge variant="outline" className="ml-2">Stream</Badge>
+                              <Badge variant="muted" className="ml-2">Stream</Badge>
                             )}
                             {!isMacVerifyFileLoading && macVerifyFile.size <= 2 * 1024 * 1024 && (
-                              <Badge variant="outline" className="ml-2 text-green-600">Ready</Badge>
+                              <Badge variant="success" className="ml-2">Ready</Badge>
                             )}
                           </span>
                           <Button 

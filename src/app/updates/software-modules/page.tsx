@@ -38,7 +38,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { useDms } from '@/contexts/DmsContext';
@@ -48,6 +47,7 @@ import { deleteSoftwareModule, fetchAllSoftwareModules, fetchAllUpdatePacks, imp
 import { moduleRemovalBlockedReason } from '@/components/iot/module-removal';
 import { setBlockedReason } from '@/components/iot/add-to-set';
 import type { ReusableSoftwareModule, SoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 type TypeFilter = 'all' | 'os' | 'application';
 // The module state axes the BACKEND actually has. Note what is absent: there is no
@@ -125,7 +125,7 @@ function UsedBySetLine({
             className="shrink-0"
             title={expanded ? 'Hide earlier versions' : `Show ${earlier.length} earlier version${earlier.length === 1 ? '' : 's'} of this set`}
           >
-            <Badge variant="outline" className="flex items-center gap-0.5 px-1.5 py-0 text-[10px] font-normal hover:bg-muted">
+            <Badge variant="secondary" className="hover:bg-muted">
               {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               +{earlier.length} earlier
             </Badge>
@@ -226,16 +226,15 @@ export default function SoftwareModulesCatalogPage() {
     setDeleting(true);
     try {
       await deleteSoftwareModule({ moduleKey: deleteTarget.key, version: deleteTarget.version });
-      toast({ title: 'Software module deleted', description: `${deleteTarget.key} v${deleteTarget.version}` });
+      sileo.success({ title: 'Software module deleted', description: `${deleteTarget.key} v${deleteTarget.version}` });
       setDeleteTarget(null);
       await load();
     } catch (err) {
       // Shown rather than swallowed: the refusal that matters ("a distribution set still holds it")
       // names the sets, and that is the whole value of the message.
-      toast({
+      sileo.error({
         title: 'Could not delete the software module',
         description: err instanceof Error ? err.message : String(err),
-        variant: 'destructive',
       });
     } finally {
       setDeleting(false);
@@ -274,17 +273,16 @@ export default function SoftwareModulesCatalogPage() {
         packName: removeTarget.source_distribution_set_name,
         moduleKey: removeTarget.key,
       });
-      toast({
+      sileo.success({
         title: 'Software module removed from the set',
         description: `${removeTarget.key} is no longer part of ${removeTarget.source_distribution_set_name}.`,
       });
       setRemoveTarget(null);
       await load();
     } catch (err) {
-      toast({
+      sileo.error({
         title: 'Could not remove the software module',
         description: err instanceof Error ? err.message : String(err),
-        variant: 'destructive',
       });
     } finally {
       setRemoving(false);
@@ -613,21 +611,21 @@ export default function SoftwareModulesCatalogPage() {
                           : null;
                       })()}
                       {inNoSet ? (
-                        <Badge variant="outline" className="flex w-fit items-center gap-1 border-border bg-muted text-muted-foreground">
+                        <Badge variant="muted">
                           <Layers className="h-3 w-3" /> In no set
                         </Badge>
                       ) : null}
                       {allBuilt ? (
-                        <Badge variant="outline" className="flex w-fit items-center gap-1 border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-700/30 dark:text-green-300">
+                        <Badge variant="success">
                           <CheckCircle2 className="h-3 w-3" /> Built
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="flex w-fit items-center gap-1 border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-700/30 dark:text-amber-300">
+                        <Badge variant="warning">
                           <CircleDashed className="h-3 w-3" /> Not built
                         </Badge>
                       )}
                       {lockSupported && anyLocked && (
-                        <Badge variant="outline" className="flex w-fit items-center gap-1 border-blue-300 bg-blue-100 text-[10px] text-blue-700 dark:border-blue-700 dark:bg-blue-700/30 dark:text-blue-300">
+                        <Badge variant="info">
                           <Lock className="h-2.5 w-2.5" /> locked
                         </Badge>
                       )}
@@ -734,6 +732,7 @@ export default function SoftwareModulesCatalogPage() {
         groupNames={groupNames}
         shared={backend === 'hawkbit'}
         freezesAtBuild={backend === 'native'}
+        requireBuilt={backend === 'hawkbit'}
         onOpenChange={(o) => { if (!o) setAddToSet(null); }}
         onDone={() => { setAddToSet(null); load(); }}
       />
@@ -852,7 +851,13 @@ function ModuleRowActions({
   onAddToSet: () => void;
 }) {
   const composed = uses.filter((u) => u.source_distribution_set_name);
-  const addable = uses.filter((u) => (u.id || u.source_distribution_set_name) && !u.locked && !(u.built && !perModuleDeliverables && !u.id));
+  // Where a module builds its own deliverable (hawkbit) its files and build are edited in the catalog,
+  // and only while no distribution set holds it: a linked module is frozen, so it has to be unlinked
+  // first. Elsewhere files go through the set that composes the module.
+  const addable = perModuleDeliverables
+    ? uses.filter((u) => u.id && !u.source_distribution_set_name && !u.locked)
+    : uses.filter((u) => (u.id || u.source_distribution_set_name) && !u.locked && !(u.built && !perModuleDeliverables && !u.id));
+  const anyBuilt = uses.some((u) => u.built);
   // A new version is cut from the NEWEST version on record, which is the one an operator means by
   // "upgrade this module". Only a catalog module can be versioned this way: it is created as a new
   // standalone module, which needs independent catalog storage.
@@ -879,20 +884,24 @@ function ModuleRowActions({
         {addable.length === 0 ? (
           <DropdownMenuItem disabled>
             <Upload className="mr-2 h-4 w-4" />
-            {composed.length === 0
-              ? 'Add files — needs a distribution set'
-              : composed.every((u) => u.locked)
-                ? 'Files — version is locked'
-                : 'Add files — already built'}
+            {perModuleDeliverables
+              ? composed.length > 0
+                ? 'Files and build — unlink it from its sets first'
+                : 'Files and build — version is locked'
+              : composed.length === 0
+                ? 'Add files — needs a distribution set'
+                : composed.every((u) => u.locked)
+                  ? 'Files — version is locked'
+                  : 'Add files — already built'}
           </DropdownMenuItem>
         ) : addable.length === 1 ? (
           <DropdownMenuItem onClick={() => onAddFiles(addable[0])}>
-            <Upload className="mr-2 h-4 w-4" /> Add artifact
+            <Upload className="mr-2 h-4 w-4" /> {perModuleDeliverables ? 'Files and build' : 'Add artifact'}
           </DropdownMenuItem>
         ) : (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <Upload className="mr-2 h-4 w-4" /> Add files
+              <Upload className="mr-2 h-4 w-4" /> {perModuleDeliverables ? 'Files and build' : 'Add files'}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {addable.map((u) => (
@@ -907,8 +916,10 @@ function ModuleRowActions({
           </DropdownMenuSub>
         )}
 
-        <DropdownMenuItem onClick={onAddToSet}>
-          <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set…
+        {/* Only a built module can be added to a set where modules are built on their own. */}
+        <DropdownMenuItem onClick={onAddToSet} disabled={perModuleDeliverables && !anyBuilt}>
+          <PackagePlus className="mr-2 h-4 w-4" />
+          {perModuleDeliverables && !anyBuilt ? 'Add to distribution set — build it first' : 'Add to distribution set…'}
         </DropdownMenuItem>
 
         {/* The counterpart to Add artifact: where a version is finished (built, or shipped and
@@ -1005,6 +1016,7 @@ function AddToSetDialog({
   groupNames,
   shared,
   freezesAtBuild,
+  requireBuilt,
   onOpenChange,
   onDone,
 }: {
@@ -1015,6 +1027,8 @@ function AddToSetDialog({
   shared: boolean;
   /** Native freezes a set's composition at its build; hawkBit does it when devices are targeted. */
   freezesAtBuild: boolean;
+  /** Only a built module version can be added (hawkbit). Unbuilt versions are listed but cannot be picked. */
+  requireBuilt: boolean;
   onOpenChange: (open: boolean) => void;
   onDone: () => void;
 }) {
@@ -1059,9 +1073,9 @@ function AddToSetDialog({
   useEffect(() => {
     if (target) {
       setSetKey('');
-      setVersionKey(versions[0]?.version ?? '');
+      setVersionKey((requireBuilt ? versions.find((v) => v.built) : versions[0])?.version ?? '');
     }
-  }, [target, versions]);
+  }, [target, versions, requireBuilt]);
 
   const chosen = options.find((o) => o.key === setKey);
   const source = versions.find((v) => v.version === versionKey);
@@ -1081,13 +1095,13 @@ function AddToSetDialog({
           module_key: source.key,
         },
       });
-      toast({
+      sileo.success({
         title: shared ? 'Software module linked' : 'Software module added',
         description: `${target.key} v${source.version} is now part of ${chosen.name} v${chosen.version}.`,
       });
       onDone();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not add the module to the distribution set', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not add the module to the distribution set', description: err?.message ?? String(err) });
     } finally {
       setSaving(false);
     }
@@ -1107,13 +1121,21 @@ function AddToSetDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {versions.length > 1 && (
+          {(versions.length > 1 || (requireBuilt && versions.some((v) => !v.built))) && (
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Module version</p>
               <Select value={versionKey} onValueChange={setVersionKey}>
                 <SelectTrigger><SelectValue placeholder="Select a version" /></SelectTrigger>
                 <SelectContent>
-                  {versions.map((v) => <SelectItem key={v.version} value={v.version}>v{v.version}</SelectItem>)}
+                  {versions.map((v) => {
+                    const unbuilt = requireBuilt && !v.built;
+                    return (
+                      <SelectItem key={v.version} value={v.version} disabled={unbuilt} className={cn(unbuilt && 'text-muted-foreground')}>
+                        v{v.version}
+                        {unbuilt && <span className="ml-2 text-xs italic">— not built</span>}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -1149,7 +1171,7 @@ function AddToSetDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={!chosen || !source || saving}>
+          <Button onClick={submit} disabled={!chosen || !source || saving || (requireBuilt && !source.built)}>
             {saving ? 'Adding…' : 'Add to set'}
           </Button>
         </DialogFooter>

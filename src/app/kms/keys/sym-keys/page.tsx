@@ -11,7 +11,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { KeyRound, PlusCircle, MoreVertical, Trash2, AlertTriangle, Loader2, RefreshCw, Lock, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSymmetricKeys, deleteSymmetricKey, type SymmetricKey as ApiSymKey } from '@/lib/symkms-api';
@@ -23,6 +22,7 @@ import { SYM_KEY_ALGORITHMS } from '@/lib/key-spec-constants';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { sileo } from '@/lib/toast';
 
 interface SymKey extends ApiSymKey {
   displayName: string;
@@ -36,7 +36,6 @@ const base64ToHex = (base64: string): string => {
 
 export default function SymKeysPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isLoggedIn } = useAuth();
 
   const [keys, setKeys] = useState<SymKey[]>([]);
@@ -135,17 +134,16 @@ export default function SymKeysPage() {
     try {
       await deleteSymmetricKey(keyToDelete.id);
       
-      toast({
+      sileo.success({
         title: "Key Deleted",
         description: `Symmetric key "${keyToDelete.displayName}" has been deleted successfully.`,
       });
       
       loadData();
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: "Deletion Failed",
         description: err.message || "Failed to delete symmetric key.",
-        variant: "destructive",
       });
     } finally {
       setIsDeleteDialogOpen(false);

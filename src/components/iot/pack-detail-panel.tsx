@@ -40,13 +40,9 @@ function StateChip({
   tone?: 'good' | 'info';
 }) {
   const Icon = on ? OnIcon : OffIcon;
-  const cls = !on
-    ? 'bg-muted text-muted-foreground border-border'
-    : tone === 'good'
-      ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700'
-      : 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700';
+  const variant = !on ? 'muted' : tone === 'good' ? 'success' : 'info';
   return (
-    <Badge variant="outline" className={cn('flex w-fit items-center gap-1 whitespace-nowrap', cls)}>
+    <Badge variant={variant}>
       <Icon className="h-3 w-3 shrink-0" />
       {on ? onLabel : offLabel}
     </Badge>
@@ -195,12 +191,12 @@ export function PackDetailPanel({
                 OnIcon={CheckCircle2} OffIcon={CircleDashed}
               />
               {pack.status === 'build_failed' && (
-                <Badge variant="outline" className="flex w-fit items-center gap-1 border-destructive/40 bg-destructive/10 text-destructive">
+                <Badge variant="destructive">
                   <AlertTriangle className="h-3 w-3" /> Build failed
                 </Badge>
               )}
               {pack.orphaned && (
-                <Badge variant="outline" className="flex w-fit items-center gap-1 border-destructive/40 bg-destructive/10 text-destructive">
+                <Badge variant="destructive">
                   <AlertTriangle className="h-3 w-3" /> Orphaned group
                 </Badge>
               )}
@@ -386,7 +382,7 @@ export function PackDetailPanel({
                   {preconditions.map((p, i) => (
                     <li key={`own-${i}`} className="flex items-center justify-between gap-2">
                       <span className="truncate text-muted-foreground">{preconditionTargetLabel(p)}</span>
-                      <Badge variant="outline" className="shrink-0 font-mono text-xs">&ge; v{p.min_version}</Badge>
+                      <Badge variant="secondary" className="shrink-0 font-mono">&ge; v{p.min_version}</Badge>
                     </li>
                   ))}
                 </ul>
@@ -416,8 +412,8 @@ export function PackDetailPanel({
                   <dd className="mt-0.5 text-xs text-muted-foreground">
                     {backend === 'hawkbit'
                       ? (pack.packaging === 'non-swu'
-                        ? 'Uploaded to hawkBit as raw module artifacts, unbuilt.'
-                        : 'Each software module builds, signs, and encrypts its own .swu.')
+                        ? 'Generic: each module delivers its files as they are, once they are encrypted and/or signed.'
+                        : 'SWU: each software module is built — and signed and encrypted — on its own before it is linked.')
                       : (pack.packaging === 'non-swu'
                         ? 'Launch this set on the Download-Install workflow — Direct/Phased expect an SWU and will leave the update looking stuck.'
                         : 'Launch this set on Direct or Phased — Download-Install expects a raw artifact and will leave the update looking stuck.')}

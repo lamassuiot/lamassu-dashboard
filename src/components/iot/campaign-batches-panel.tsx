@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchAllJobsByCampaign } from '@/lib/iot-api';
@@ -12,14 +12,14 @@ import type { CampaignItem, DeviceJob } from '@/types/iot';
 import { cn } from '@/lib/utils';
 import { deriveBatchPlan, deriveCampaignDeviceStats, type CampaignBatchState } from '@/components/iot/campaign-cells';
 
-const BATCH_BADGE: Record<CampaignBatchState, { label: string; cls: string }> = {
-  done: { label: 'Dispatched', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' },
-  running: { label: 'In progress', cls: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
-  waiting: { label: 'Awaiting release', cls: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800' },
-  paused: { label: 'Paused', cls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' },
-  failed: { label: 'Failed', cls: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800' },
-  pending: { label: 'Pending', cls: 'bg-muted text-muted-foreground border-border' },
-  skipped: { label: 'Not sent', cls: 'bg-muted text-muted-foreground border-border' },
+const BATCH_BADGE: Record<CampaignBatchState, { label: string; variant: BadgeVariant }> = {
+  done: { label: 'Dispatched', variant: 'success' },
+  running: { label: 'In progress', variant: 'info' },
+  waiting: { label: 'Awaiting release', variant: 'info' },
+  paused: { label: 'Paused', variant: 'warning' },
+  failed: { label: 'Failed', variant: 'destructive' },
+  pending: { label: 'Pending', variant: 'muted' },
+  skipped: { label: 'Not sent', variant: 'muted' },
 };
 
 const SUCCESS_STATES = ['ACTIVATED', 'COMPLETED', 'SUCCESS', 'FINISHED'];
@@ -29,12 +29,12 @@ const FAILED_STATES = ['TERMINATED', 'FAILED', 'ERROR', 'CANCELLED', 'CANCELED',
 // up front, so a later batch's devices sit here until their batch is released.
 const QUEUED_STATES = ['CREATED', 'SCHEDULED', 'PENDING'];
 
-function jobOutcome(state: string | undefined): { label: string; cls: string } {
+function jobOutcome(state: string | undefined): { label: string; variant: BadgeVariant } {
   const s = (state || '').toUpperCase();
-  if (SUCCESS_STATES.includes(s)) return { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' };
-  if (FAILED_STATES.includes(s)) return { label: 'Failed', cls: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800' };
-  if (QUEUED_STATES.includes(s)) return { label: 'Queued', cls: 'bg-muted text-muted-foreground border-border' };
-  return { label: 'In progress', cls: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' };
+  if (SUCCESS_STATES.includes(s)) return { label: 'Completed', variant: 'success' };
+  if (FAILED_STATES.includes(s)) return { label: 'Failed', variant: 'destructive' };
+  if (QUEUED_STATES.includes(s)) return { label: 'Queued', variant: 'muted' };
+  return { label: 'In progress', variant: 'info' };
 }
 
 function titleCase(state: string) {
@@ -174,7 +174,7 @@ export function CampaignBatchesPanel({ campaign, backend }: { campaign: Campaign
                   >
                     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       <p className="whitespace-nowrap text-sm font-semibold">{b.label}</p>
-                      <Badge variant="outline" className={cn('text-[10px]', badge.cls)}>{badge.label}</Badge>
+                      <Badge variant={badge.variant} dot>{badge.label}</Badge>
                     </div>
                     {pct !== null && (
                       <div className="mt-3 flex items-center gap-2">
@@ -293,7 +293,7 @@ export function CampaignBatchesPanel({ campaign, backend }: { campaign: Campaign
                         </TableCell>
                       )}
                       <TableCell>
-                        <Badge variant="outline" className={cn('text-[10px]', outcome.cls)}>{outcome.label}</Badge>
+                        <Badge variant={outcome.variant} dot>{outcome.label}</Badge>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-right text-xs text-muted-foreground">
                         {j.mtime ? formatDistanceToNow(parseISO(j.mtime), { addSuffix: true }) : '—'}

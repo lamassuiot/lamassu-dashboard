@@ -437,15 +437,7 @@ export default function OtaDeviceGroupsPage() {
                               className="hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'text-xs tabular-nums',
-                                  row.activeCampaigns > 0
-                                    ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-                                    : 'border-border',
-                                )}
-                              >
+                              <Badge variant={row.activeCampaigns > 0 ? 'info' : 'secondary'} className="tabular-nums">
                                 {row.activeCampaigns} active
                               </Badge>
                             </Link>
@@ -486,7 +478,7 @@ export default function OtaDeviceGroupsPage() {
                                       <TableRow key={p.packName}>
                                         <TableCell className="max-w-[220px] truncate pl-3 font-medium">{p.packName}</TableCell>
                                         <TableCell>
-                                          <Badge variant="outline" className="text-xs tabular-nums">v{p.latest}</Badge>
+                                          <Badge variant="secondary" className="tabular-nums">v{p.latest}</Badge>
                                         </TableCell>
                                         <TableCell className="text-sm tabular-nums">{p.tracked}</TableCell>
                                         <TableCell className="pr-3">

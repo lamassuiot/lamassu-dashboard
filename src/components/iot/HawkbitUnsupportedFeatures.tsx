@@ -143,7 +143,7 @@ function FeatureList({ title, features }: { title: string; features: Feature[] }
           <div key={f.name} className="py-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium">{f.name}</span>
-              <Badge variant="outline" className="font-mono text-[10px]">{f.api}</Badge>
+              <Badge variant="secondary" className="font-mono">{f.api}</Badge>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">{f.does}</p>
             <p className="mt-1 text-xs">

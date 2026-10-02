@@ -4,7 +4,6 @@ import React from 'react';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
 import { setPackPreconditions, fetchPackPreconditions, fetchAllUpdatePacks, fetchAllSoftwareModules } from '@/lib/iot-api';
 import {
   AddPreconditionButton,
@@ -14,6 +13,7 @@ import {
   hasPreconditionErrors,
 } from '@/components/iot/precondition-rows';
 import type { CampaignPrecondition, UpdatePack, ReusableSoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 // Launch preconditions live on the distribution set being launched — this is the ONLY place they are
 // declared (see UpdatePack.preconditions / CampaignPrecondition). Not on the campaign that launches
@@ -90,7 +90,7 @@ export function PackPreconditionsCard({
     setSaving(true);
     try {
       await setPackPreconditions({ groupId, packName, preconditions: cleaned });
-      toast({
+      sileo.success({
         title: 'Launch preconditions saved',
         description: cleaned.length === 0
           ? 'Cleared — every device now qualifies for a launch of this pack.'
@@ -99,8 +99,7 @@ export function PackPreconditionsCard({
       load();
       onSaved();
     } catch (err) {
-      toast({
-        variant: 'destructive',
+      sileo.error({
         title: 'Could not save launch preconditions',
         description: err instanceof Error ? err.message : String(err),
       });

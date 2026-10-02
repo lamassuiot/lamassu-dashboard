@@ -20,12 +20,12 @@ import { Loader2, Package, ShieldAlert, Info } from 'lucide-react';
 import { PrebuiltDeliverableUpload } from '@/components/iot/prebuilt-deliverable-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { toast } from '@/hooks/use-toast';
 import { generatePackage, type GeneratePackagePayload } from '@/lib/iot-api';
 import { fetchKmsKeys } from '@/lib/kms-data';
 import { fetchSymmetricKeys } from '@/lib/symkms-api';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { Artifact } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 const RSA_SIGNING_METHODS = [
   'RSASSA_PSS_SHA_256', 'RSASSA_PSS_SHA_384', 'RSASSA_PSS_SHA_512',
@@ -158,7 +158,7 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
   const handleGenerate = async () => {
     if (!user?.access_token) return;
     if (selectedArtifactIds.size === 0) {
-      toast({ title: 'No artifacts selected', description: 'Select at least one artifact to package.', variant: 'destructive' });
+      sileo.error({ title: 'No artifacts selected', description: 'Select at least one artifact to package.',});
       return;
     }
     setIsGenerating(true);
@@ -184,11 +184,11 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
 
       await generatePackage({ groupId, packName, payload });
 
-      toast({ title: 'Package generated', description: `Built the package for ${packName}.` });
+      sileo.success({ title: 'Package generated', description: `Built the package for ${packName}.` });
       onGenerated?.();
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: 'Package generation failed', description: err.message || 'An error occurred.', variant: 'destructive' });
+      sileo.error({ title: 'Package generation failed', description: err.message || 'An error occurred.',});
     } finally {
       setIsGenerating(false);
     }

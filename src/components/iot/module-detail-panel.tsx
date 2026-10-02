@@ -39,12 +39,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Package, CheckCircle2, CircleDashed, Lock, LockOpen, ShieldCheck, FileText, Boxes, Layers,
-  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2, PackagePlus,
+  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2, PackagePlus, Hammer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
 import { setSoftwareModuleReleaseNotes } from '@/lib/iot-api';
 import type { ModuleDeliveryIntent, ReusableSoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 /** One module identity plus every pack version that defines it. */
 export interface GroupedModule {
@@ -71,13 +71,9 @@ function StateChip({
   tone?: 'good' | 'info';
 }) {
   const Icon = on ? OnIcon : OffIcon;
-  const cls = !on
-    ? 'bg-muted text-muted-foreground border-border'
-    : tone === 'good'
-      ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700'
-      : 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700';
+  const variant = !on ? 'muted' : tone === 'good' ? 'success' : 'info';
   return (
-    <Badge variant="outline" className={cn('flex w-fit items-center gap-1 whitespace-nowrap', cls)}>
+    <Badge variant={variant}>
       <Icon className="h-3 w-3 shrink-0" />
       {on ? onLabel : offLabel}
     </Badge>
@@ -177,16 +173,34 @@ export function ModuleDetailPanel({
   // build already consumed the inputs, so the adapter refuses more. A module composed into no
   // distribution set has no address to upload against at all.
   const hasPack = Boolean(active?.source_distribution_set_name);
-  const canAddArtifacts = Boolean(active) && (hasPack || Boolean(active?.id)) && !active!.locked && !(active!.built && !perModuleDeliverables && !active!.id);
+  // Where a module builds its own deliverable (hawkbit) it is edited and built in the catalog, and only
+  // while no distribution set holds it — a linked module is frozen, so it has to be unlinked first.
+  const linkedSets = Array.from(new Set(
+    module.uses.filter((u) => u.version === active?.version && u.source_distribution_set_name).map((u) => u.source_distribution_set_name),
+  ));
+  const canAddArtifacts = perModuleDeliverables
+    ? Boolean(active?.id) && !active!.locked && linkedSets.length === 0
+    : Boolean(active) && (hasPack || Boolean(active?.id)) && !active!.locked && !(active!.built && !perModuleDeliverables && !active!.id);
   const addBlockedReason = !active
     ? null
-    : !hasPack && !active.id
-      ? 'Not composed into any distribution set yet — import it into one to add artifacts.'
-      : active.locked
+    : perModuleDeliverables
+      ? active.locked
         ? 'Locked — this module version is released, so its files can no longer change.'
-        : active.built && !perModuleDeliverables
-          ? "Already built — this distribution set builds one deliverable from every module's inputs, so adding more needs a new pack version."
-          : null;
+        : linkedSets.length > 0
+          ? `Linked to ${linkedSets.join(', ')} — remove it from ${linkedSets.length === 1 ? 'that set' : 'those sets'} to change or rebuild it.`
+          : null
+      : !hasPack && !active.id
+        ? 'Not composed into any distribution set yet — import it into one to add artifacts.'
+        : active.locked
+          ? 'Locked — this module version is released, so its files can no longer change.'
+          : active.built && !perModuleDeliverables
+            ? "Already built — this distribution set builds one deliverable from every module's inputs, so adding more needs a new pack version."
+            : null;
+  // The build step of this module, when it has one that is still to do: swu-build assembles its SWU,
+  // generic files are encrypted and/or signed. A prebuilt SWU is built by uploading it.
+  const buildLabel = perModuleDeliverables && active && !active.built && artifacts.length > 0
+    ? active.delivery_intent === 'swu-build' ? 'Build SWU' : active.delivery_intent === 'raw' ? 'Encrypt / sign' : null
+    : null;
 
   const save = async () => {
     if (!active) return;
@@ -205,13 +219,13 @@ export function ModuleDetailPanel({
         moduleKey: module.key,
         notes,
       });
-      toast({
+      sileo.success({
         title: 'Software module saved',
         description: [intentDirty && DELIVERY_LABELS[intent], notesDirty && 'release notes'].filter(Boolean).join(' · ') || module.name,
       });
       onSaved();
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Could not save the software module', description: e?.message ?? String(e) });
+      sileo.error({ title: 'Could not save the software module', description: e?.message ?? String(e) });
     } finally {
       setSaving(false);
     }
@@ -239,7 +253,7 @@ export function ModuleDetailPanel({
                 />
               )}
               {active.encrypted && (
-                <Badge variant="outline" className="flex w-fit items-center gap-1 border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                <Badge variant="info">
                   <ShieldCheck className="h-3 w-3" /> Encrypted at rest
                 </Badge>
               )}
@@ -255,7 +269,7 @@ export function ModuleDetailPanel({
             disabled={!canAddArtifacts}
             title={addBlockedReason ?? undefined}
           >
-            <Upload className="mr-2 h-4 w-4" /> Add artifact
+            <Upload className="mr-2 h-4 w-4" /> {perModuleDeliverables ? 'Files and build' : 'Add artifact'}
           </Button>
           {/* The way forward when this version is finished: its files and delivery are fixed once
               built or shipped, so "change what it delivers" means a new version, not an edit. */}
@@ -420,7 +434,13 @@ export function ModuleDetailPanel({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
               Files this module delivers to a device.
+              {perModuleDeliverables && !active.built ? ' It is not built yet, so it cannot be added to a distribution set.' : ''}
             </p>
+            {buildLabel && (
+              <Button size="sm" onClick={() => onAddArtifact(active)} disabled={!canAddArtifacts} title={addBlockedReason ?? undefined}>
+                <Hammer className="mr-2 h-4 w-4" /> {buildLabel}
+              </Button>
+            )}
           </div>
           {addBlockedReason && (
             <Alert className="mb-3">
@@ -466,7 +486,7 @@ export function ModuleDetailPanel({
                           <button
                             type="button"
                             className="flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => { navigator.clipboard?.writeText(a.checksum!); toast({ title: 'Checksum copied' }); }}
+                            onClick={() => { navigator.clipboard?.writeText(a.checksum!); sileo.success({ title: 'Checksum copied' }); }}
                             title={a.checksum}
                           >
                             {a.checksum.slice(0, 12)}… <Copy className="h-3 w-3" />
@@ -529,7 +549,7 @@ export function ModuleDetailPanel({
                       <span className="flex flex-wrap items-center gap-1.5">
                         <StateChip on={u.built} onLabel="Built" offLabel="Not built" OnIcon={CheckCircle2} OffIcon={CircleDashed} />
                         {lockSupported && u.locked && (
-                          <Badge variant="outline" className="flex items-center gap-1 border-blue-300 bg-blue-50 text-[10px] text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          <Badge variant="info">
                             <Lock className="h-2.5 w-2.5" /> locked
                           </Badge>
                         )}
@@ -612,7 +632,8 @@ export function ModuleDetailPanel({
                 <ModuleDeliverySelect
                   value={intent}
                   onChange={setIntent}
-                  disabled={saving || (lockSupported && active.locked)}
+                  perModuleDeliverables={perModuleDeliverables}
+                  disabled={saving || (lockSupported && active.locked) || (perModuleDeliverables && active.built)}
                   id={`module-intent-${module.key}`}
                 />
                 {lockSupported && active.locked && (

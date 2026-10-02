@@ -14,7 +14,6 @@ import {
 import type { CampaignItem } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
-import { toast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -39,6 +38,7 @@ import {
   type CampaignDisplayStatus,
 } from '@/components/iot/campaign-cells';
 import { CampaignBatchesPanel } from '@/components/iot/campaign-batches-panel';
+import { sileo } from '@/lib/toast';
 
 interface CampaignItemWithDms extends CampaignItem {
   dmsName: string;
@@ -254,11 +254,11 @@ export default function UpdatesPage() {
     setLifecycleBusy(true);
     try {
       await action();
-      toast(ok);
+      sileo.success(ok);
       after?.();
       refetchAllCampaigns();
     } catch (err) {
-      toast({ variant: "destructive", title: failTitle, description: (err instanceof Error ? err : new Error(String(err))).message });
+      sileo.error({ title: failTitle, description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
       setLifecycleBusy(false);
     }
@@ -306,11 +306,11 @@ export default function UpdatesPage() {
       // Through triggerItemRollout's apiFetch/handleApiError, so a refusal (e.g. "launch is paused;
       // resume it first") reaches the toast instead of a generic "Bad Request".
       await triggerItemRollout({ groupId: c.group_id, launchId: c.id });
-      toast({ title: "Campaign Executed", description: `${c.name}: the next batch is on its way.` });
+      sileo.success({ title: "Campaign Executed", description: `${c.name}: the next batch is on its way.` });
       refetchAllCampaigns();
     } catch (error) {
       clearStartedCampaign(c.id);
-      toast({ variant: "destructive", title: "Campaign Execution Failed", description: error instanceof Error ? error.message : "An unknown error occurred" });
+      sileo.error({ title: "Campaign Execution Failed", description: error instanceof Error ? error.message : "An unknown error occurred" });
     } finally {
       setExecutingCampaigns(prev => { const n = new Set(prev); n.delete(c.id); return n; });
     }

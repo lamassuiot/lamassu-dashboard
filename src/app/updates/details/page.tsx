@@ -15,12 +15,11 @@ import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Package, RefreshCw, RotateCcw, Loader2, AlertTriangle, Clock, CheckCircle,
   Eye, Pencil, PlayCircle, ArrowRight,
-  Info, Copy, Check,
+  Info, Rocket,
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
-import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { fetchAllJobsByCampaign, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices, triggerItemRollout } from '@/lib/iot-api';
@@ -31,11 +30,13 @@ import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { JobWorkflowGraph } from '@/components/devices/JobWorkflowGraph';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import {
   isPhasedWorkflow, isDirectWorkflow, extractWfxEligibleTransitions,
   CampaignProgressCell, CampaignStatusCell, TestDeviceBadge, getTestDeviceStatus,
 } from '@/components/iot/campaign-cells';
+import { sileo } from '@/lib/toast';
 
 // Human-readable label for an arbitrary workflow type, e.g.
 // "wfx.workflow.dau.canary" -> "Canary". Used for the neutral badge shown for
@@ -56,9 +57,8 @@ function getWorkflowLabel(workflowType?: string): string {
 }
 
 function WorkflowBadge({ workflowType, className }: { workflowType?: string; className?: string }) {
-  const variant = isPhasedWorkflow(workflowType) ? 'secondary' : 'outline';
   return (
-    <Badge variant={variant} className={cn('text-xs', className)}>
+    <Badge variant="secondary" className={className}>
       {getWorkflowLabel(workflowType)}
     </Badge>
   );
@@ -66,7 +66,7 @@ function WorkflowBadge({ workflowType, className }: { workflowType?: string; cla
 
 function AutomationBadge({ auto, enabledLabel = 'Auto', disabledLabel = 'Manual', className }: { auto?: boolean; enabledLabel?: string; disabledLabel?: string; className?: string }) {
   return (
-    <Badge variant={auto ? 'secondary' : 'outline'} className={cn('text-xs', className)}>
+    <Badge variant="secondary" className={className}>
       {auto ? enabledLabel : disabledLabel}
     </Badge>
   );
@@ -170,16 +170,16 @@ function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsCh
       }));
       const result = await transitionJobs(transitionRequests);
       if (result.succeeded.length > 0) {
-        toast({ title: "Transition Successful", description: `Successfully transitioned ${result.succeeded.length} device(s) to ${to}` });
+        sileo.success({ title: "Transition Successful", description: `Successfully transitioned ${result.succeeded.length} device(s) to ${to}` });
       }
       if (result.failed.length > 0) {
-        toast({ variant: "destructive", title: "Some Transitions Failed", description: `${result.failed.length} device(s) failed to transition.` });
+        sileo.error({ title: "Some Transitions Failed", description: `${result.failed.length} device(s) failed to transition.` });
         console.error('Failed transitions:', result.failed);
       }
       onJobsChanged();
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
-      toast({ variant: "destructive", title: "Transition Failed", description: (error as Error).message });
+      sileo.error({ title: "Transition Failed", description: (error as Error).message });
     } finally {
       setIsTransitioning(null);
     }
@@ -221,7 +221,7 @@ function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsCh
           <div key={`${from}-${to}`} className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="font-mono text-xs">{from}</Badge>
+                <Badge variant="secondary" className="font-mono">{from}</Badge>
                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
                 <Badge variant="secondary" className="font-mono text-xs">{to}</Badge>
                 <span className="text-sm text-muted-foreground ml-2">{description}</span>
@@ -347,15 +347,15 @@ function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActi
       }]);
 
       if (result.succeeded.length > 0) {
-        toast({ title: "Transition Successful", description: `Device transitioned to ${currentWfxTransition.to}` });
+        sileo.success({ title: "Transition Successful", description: `Device transitioned to ${currentWfxTransition.to}` });
         onJobsChanged();
       }
       if (result.failed.length > 0) {
-        toast({ variant: "destructive", title: "Transition Failed", description: result.failed[0]?.error || "Unknown error" });
+        sileo.error({ title: "Transition Failed", description: result.failed[0]?.error || "Unknown error" });
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
-      toast({ variant: "destructive", title: "Transition Failed", description: (error as Error).message });
+      sileo.error({ title: "Transition Failed", description: (error as Error).message });
     } finally {
       setIsTransitioning(false);
     }
@@ -420,7 +420,7 @@ function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActi
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant={needsAction ? 'secondary' : 'outline'} className="cursor-help whitespace-nowrap font-mono text-xs">
+                <Badge variant={needsAction ? 'warning' : 'muted'} className="cursor-help font-mono">
                   {state}
                 </Badge>
               </TooltipTrigger>
@@ -559,13 +559,13 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
 
   const handleRefreshJobs = async () => {
     setIsRefreshingJobs(true);
-    toast({ title: "Refreshing Job Statuses...", description: `For campaign: ${campaign.name}` });
+    sileo.success({ title: "Refreshing Job Statuses...", description: `For campaign: ${campaign.name}` });
     try {
       await Promise.all([refetchJobs(), onCampaignRefresh()]);
-      toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for campaign: ${campaign.name}` });
+      sileo.success({ title: "Job Statuses Refreshed", description: `Successfully updated details for campaign: ${campaign.name}` });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
-      toast({ variant: "destructive", title: "Refresh Failed", description: (error as Error).message });
+      sileo.error({ title: "Refresh Failed", description: (error as Error).message });
     } finally {
       setIsRefreshingJobs(false);
     }
@@ -663,7 +663,6 @@ export default function CampaignDetailsPage() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'devices' ? 'devices' : 'overview');
-  const [copiedId, setCopiedId] = useState(false);
   const [isEditRolloutOpen, setIsEditRolloutOpen] = useState(false);
   const [rolloutTypeInput, setRolloutTypeInput] = useState<'numeric' | 'percentage'>('numeric');
   const [rolloutValueInput, setRolloutValueInput] = useState('');
@@ -754,11 +753,11 @@ export default function CampaignDetailsPage() {
           auto: campaign?.auto,
         },
       });
-      toast({ title: 'Rollout updated', description: 'The campaign rollout settings have been saved.' });
+      sileo.success({ title: 'Rollout updated', description: 'The campaign rollout settings have been saved.' });
       refetchCampaign();
       setIsEditRolloutOpen(false);
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Update failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+      sileo.error({ title: 'Update failed', description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
       setIsEditRolloutPending(false);
     }
@@ -771,10 +770,10 @@ export default function CampaignDetailsPage() {
     setIsRetryFailedPending(true);
     try {
       await retryFailedDevices({ groupId: groupId!, campaignId: campaignId! });
-      toast({ title: 'Retrying failed devices', description: 'The failed devices are being rolled out again.' });
+      sileo.success({ title: 'Retrying failed devices', description: 'The failed devices are being rolled out again.' });
       refetchCampaign();
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Retry failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+      sileo.error({ title: 'Retry failed', description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
       setIsRetryFailedPending(false);
     }
@@ -789,11 +788,11 @@ export default function CampaignDetailsPage() {
   const handleSaveRollout = () => {
     const n = Number(rolloutValueInput);
     if (!Number.isInteger(n) || n < 1) {
-      toast({ variant: 'destructive', title: 'Invalid value', description: 'Enter a whole number of 1 or more.' });
+      sileo.error({ title: 'Invalid value', description: 'Enter a whole number of 1 or more.' });
       return;
     }
     if (rolloutTypeInput === 'percentage' && n > 100) {
-      toast({ variant: 'destructive', title: 'Invalid value', description: 'Percentage cannot exceed 100.' });
+      sileo.error({ title: 'Invalid value', description: 'Percentage cannot exceed 100.' });
       return;
     }
     editRolloutMutate({ rolloutType: rolloutTypeInput, rolloutValue: n });
@@ -807,7 +806,7 @@ export default function CampaignDetailsPage() {
       // Through triggerItemRollout's apiFetch/handleApiError, so a refusal (e.g. "launch is paused;
       // resume it first") reaches the toast instead of a generic "Bad Request".
       await triggerItemRollout({ groupId: groupId!, launchId: campaign.id });
-      toast({ title: "Campaign Executed", description: `Campaign ${campaign.name} has been successfully executed. Monitoring progress...` });
+      sileo.success({ title: "Campaign Executed", description: `Campaign ${campaign.name} has been successfully executed. Monitoring progress...` });
       refetchCampaign();
       setTimeout(() => { setIsExecuting(false); }, 30000);
     } catch (error) {
@@ -815,7 +814,7 @@ export default function CampaignDetailsPage() {
       console.error('Error executing campaign:', error);
       setIsExecuting(false);
       setExecutionStartTime(null);
-      toast({ variant: "destructive", title: "Campaign Execution Failed", description: error instanceof Error ? error.message : "An unknown error occurred" });
+      sileo.error({ title: "Campaign Execution Failed", description: error instanceof Error ? error.message : "An unknown error occurred" });
     }
   };
 
@@ -868,12 +867,6 @@ export default function CampaignDetailsPage() {
   const testBlocks = testStatus === 'testing' || testStatus === 'failed';
   const isTestPhase = testStatus === 'pending';
 
-  const copyId = () => {
-    navigator.clipboard.writeText(campaign.id);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 2000);
-  };
-
   const tabs = [
     { value: 'overview', icon: Info, label: 'Overview' },
     { value: 'devices', icon: Package, label: 'Device Jobs' },
@@ -888,118 +881,113 @@ export default function CampaignDetailsPage() {
         { label: campaign.name },
       ]}
     >
-      <div className="pb-6 pt-2">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight truncate">{campaign.name}</h1>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">{campaign.id}</code>
-                  <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={copyId}>
-                    {copiedId ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <WorkflowBadge workflowType={campaign.workflow_type} />
-                {campaign.rollout_type && (
-                  <Badge variant="outline" className="text-xs">
-                    {campaign.rollout_type.charAt(0).toUpperCase() + campaign.rollout_type.slice(1)}
-                  </Badge>
-                )}
-                <AutomationBadge auto={campaign.auto} />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3 xl:flex-1 xl:border-l xl:pl-6">
-            <div className="flex items-center gap-3 flex-wrap">
-              <CampaignStatusCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
-              <TestDeviceBadge campaign={campaign} />
-              {campaign.exec_date && (
-                <span className="text-xs text-muted-foreground">{format(parseISO(campaign.exec_date), "Pp")}</span>
-              )}
-            </div>
-            <CampaignProgressCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
+      <DetailHero
+        icon={Rocket}
+        title={campaign.name}
+        badges={
+          <>
+            <CampaignStatusCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
+            <TestDeviceBadge campaign={campaign} />
+          </>
+        }
+        idLabel="Campaign ID"
+        id={campaign.id}
+        meta={
+          <>
+            <WorkflowBadge workflowType={campaign.workflow_type} />
+            {campaign.rollout_type && (
+              <Badge variant="secondary">
+                {campaign.rollout_type.charAt(0).toUpperCase() + campaign.rollout_type.slice(1)}
+              </Badge>
+            )}
+            <AutomationBadge auto={campaign.auto} />
+          </>
+        }
+        actions={
+          <>
             {(canExecute || (hasPendingDevices && (campaign.auto || isPaused))) && (
-              <div className="flex items-center gap-2 pt-1">
-                {isPaused ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
-                            <PlayCircle className="h-4 w-4" />
-                            Execute Campaign
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>This campaign is paused — resume it from the campaign list to continue.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : campaign.auto ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
-                            <PlayCircle className="h-4 w-4" />
-                            Execute Campaign
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Auto mode is managing this rollout — manual execution is not available.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : testBlocks ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
-                            {testStatus === 'testing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
-                            {testStatus === 'testing' ? 'Testing…' : 'Test Failed'}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[260px]">{testStatus === 'testing'
-                          ? `Test device ${campaign.test_device_id} is updating — the rollout unlocks once it succeeds.`
-                          : `Test device ${campaign.test_device_id} failed — the rollout is blocked. Pause, cancel, or retry the test device.`}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <Button variant="default" size="sm" disabled={isExecuting} onClick={handleExecuteCampaign} className="gap-2">
-                    {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                    {isTestPhase ? 'Send to Test Device' : 'Execute Campaign'}
-                  </Button>
-                )}
-              </div>
+              isPaused ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
+                          <PlayCircle className="h-4 w-4" />
+                          Execute Campaign
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>This campaign is paused — resume it from the campaign list to continue.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : campaign.auto ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
+                          <PlayCircle className="h-4 w-4" />
+                          Execute Campaign
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Auto mode is managing this rollout — manual execution is not available.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : testBlocks ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
+                          {testStatus === 'testing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                          {testStatus === 'testing' ? 'Testing…' : 'Test Failed'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-[260px]">{testStatus === 'testing'
+                        ? `Test device ${campaign.test_device_id} is updating — the rollout unlocks once it succeeds.`
+                        : `Test device ${campaign.test_device_id} failed — the rollout is blocked. Pause, cancel, or retry the test device.`}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button variant="default" size="sm" disabled={isExecuting} onClick={handleExecuteCampaign} className="gap-2">
+                  {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                  {isTestPhase ? 'Send to Test Device' : 'Execute Campaign'}
+                </Button>
+              )
             )}
             {(campaign.failed_count || 0) > 0 && (
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => retryFailedMutate()}
-                  disabled={isRetryFailedPending}
-                  className="gap-2"
-                >
-                  {isRetryFailedPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                  Retry {campaign.failed_count} failed device{(campaign.failed_count || 0) === 1 ? '' : 's'}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => retryFailedMutate()}
+                disabled={isRetryFailedPending}
+                className="gap-2"
+              >
+                {isRetryFailedPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Retry {campaign.failed_count} failed device{(campaign.failed_count || 0) === 1 ? '' : 's'}
+              </Button>
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+        stats={
+          <>
+            <DetailHeroStat label="Progress" className="lg:col-span-2">
+              <CampaignProgressCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
+            </DetailHeroStat>
+            <DetailHeroStat label="Executed">
+              {campaign.exec_date ? format(parseISO(campaign.exec_date), 'Pp') : <span className="text-muted-foreground">Not yet</span>}
+            </DetailHeroStat>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1067,7 +1055,7 @@ export default function CampaignDetailsPage() {
                           <p className="text-xs font-medium text-muted-foreground">Configured prerequisites</p>
                           <div className="flex flex-wrap gap-2">
                             {campaign.preconditions.map((pc, idx) => (
-                              <Badge key={`${preconditionTargetLabel(pc)}-${idx}`} variant="outline" className="font-mono text-xs">
+                              <Badge key={`${preconditionTargetLabel(pc)}-${idx}`} variant="secondary" className="font-mono">
                                 {preconditionTargetLabel(pc)} &gt;= {pc.min_version}
                               </Badge>
                             ))}

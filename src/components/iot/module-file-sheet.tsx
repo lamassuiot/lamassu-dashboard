@@ -4,14 +4,14 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { Download, FileUp, Loader2, Trash2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { CheckCircle2, CircleDashed, Download, FileUp, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ModuleDeliverySelect, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
 import { ModuleLinkArtifact } from '@/components/iot/module-link-artifact';
 import { deleteCatalogModuleFile, downloadCatalogModuleFile, fetchCatalogModule, fetchUpdatePacks, updateCatalogModule } from '@/lib/iot-api';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { ModuleDeliveryIntent, SoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 // The one place files are added to an EXISTING software module.
 //
@@ -21,6 +21,17 @@ import type { ModuleDeliveryIntent, SoftwareModule } from '@/types/iot';
 // Everything it asks — build or deliver as uploaded, which files, the sw-description, and the signing
 // and encryption a build applies — lives in ModuleFilesFields, shared with the two dialogs that
 // create a module WITH files. This file is only the sheet around it.
+
+/** What a module in the given state still needs before it is built — shown in the sheet so the next
+ *  step is stated rather than guessed. Only meaningful where a module builds its own deliverable. */
+function nextBuildStep(intent: ModuleDeliveryIntent): string {
+  switch (intent) {
+    case 'swu-prebuilt': return 'Upload the finished .swu — the module is built as soon as it is stored.';
+    case 'swu-build': return 'Upload the build inputs and the sw-description, then build the SWU.';
+    case 'raw': return 'Upload the files, then encrypt and/or sign them.';
+    default: return 'Choose how this module ships, then upload and build it.';
+  }
+}
 
 export function ModuleFileSheet({
   open,
@@ -110,6 +121,12 @@ export function ModuleFileSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, module?.id, module?.key]);
 
+  // Staged files are uploaded first; with none staged and inputs already on the module, only the build runs.
+  const uploadsFirst = files.files.length > 0 || !current?.artifacts.length;
+  const submitLabel = files.secureFiles
+    ? uploadsFirst ? 'Upload and encrypt / sign' : 'Encrypt / sign'
+    : uploadsFirst ? 'Upload and build' : 'Build';
+
   const submit = async () => {
     if (!module || (!files.isComplete && !intentChanged) || files.blocksSubmit || current?.locked || busy) return;
     setBusy(true); setError(null);
@@ -123,7 +140,7 @@ export function ModuleFileSheet({
         state: files,
         userId: user?.profile?.sub || '',
       }) : ['delivery updated'];
-      toast({
+      sileo.success({
         title: files.willBuild ? 'Module built' : 'Module updated',
         description: `${module.key}: ${done.join(', ')}.`,
       });
@@ -132,8 +149,7 @@ export function ModuleFileSheet({
     } catch (err: any) {
       setError(err?.message ?? String(err));
       if (addressedById) await reload().catch(() => {});
-      toast({
-        variant: 'destructive',
+      sileo.error({
         title: 'Could not update the software module',
         description: err?.message ?? String(err),
       });
@@ -168,7 +184,25 @@ export function ModuleFileSheet({
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-5">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-            {addressedById && <ModuleDeliverySelect value={intent} onChange={setIntent} disabled={busy || current?.locked} />}
+            {perModuleDeliverables && addressedById && (current?.built ? (
+              <Alert>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <AlertTitle>Built</AlertTitle>
+                <AlertDescription>
+                  This module can be added to a distribution set. To change it, remove its file{(current?.artifacts.length ?? 0) === 1 ? '' : 's'} below
+                  and build it again — and if a distribution set holds it, remove it from that set first.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert>
+                <CircleDashed className="h-4 w-4" />
+                <AlertTitle>Not built</AlertTitle>
+                <AlertDescription>
+                  It cannot be added to a distribution set until it is built. {nextBuildStep(intent)}
+                </AlertDescription>
+              </Alert>
+            ))}
+            {addressedById && <ModuleDeliverySelect value={intent} onChange={setIntent} disabled={busy || current?.locked || (perModuleDeliverables && current?.built)} perModuleDeliverables={perModuleDeliverables} />}
             {current?.locked && <p className="text-sm text-muted-foreground">This version is released. Create a new module version to change its files or delivery.</p>}
             {addressedById && <div className="space-y-2">
               <p className="text-sm font-medium">Stored files</p>
@@ -181,7 +215,9 @@ export function ModuleFileSheet({
               </div>)}
             </div>}
             {/* Only for a module inside a set: linking is addressed by (set, module key). */}
-            {!standalone && module && !current?.locked && (
+            {/* Not where a module builds its own deliverable: a module in a set is frozen there, and
+                linking a catalogued binary is a pack-scoped edit the backend refuses. */}
+            {!standalone && module && !current?.locked && !perModuleDeliverables && (
               <ModuleLinkArtifact
                 groupId={groupId}
                 packName={packName}
@@ -191,7 +227,7 @@ export function ModuleFileSheet({
                 onLinked={reload}
               />
             )}
-            {!current?.locked && <ModuleFilesFields state={files} disabled={busy} versionPlaceholder={module?.version || undefined} />}
+            {!current?.locked && !(perModuleDeliverables && current?.built) && <ModuleFilesFields state={files} disabled={busy} versionPlaceholder={module?.version || undefined} />}
           </div>
         </div>
 
@@ -202,7 +238,11 @@ export function ModuleFileSheet({
             </Button>
             <Button onClick={submit} disabled={busy || current?.locked || files.blocksSubmit || (!files.isComplete && !intentChanged)}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {busy ? 'Working…' : files.willBuild ? 'Upload and build' : addressedById ? 'Save changes' : 'Upload'}
+              {busy
+                ? 'Working…'
+                : files.willBuild
+                  ? submitLabel
+                  : addressedById ? 'Save changes' : 'Upload'}
             </Button>
           </div>
         </SheetFooter>

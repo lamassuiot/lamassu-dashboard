@@ -10,12 +10,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CheckCircle2, RefreshCw, ArrowRight, AlertTriangle, Search, CircleSlash } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { getGroupVersionStatus, forceDeviceVersion } from '@/lib/iot-api';
 import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import type { DevicePackVersionStatus } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 // GroupLatestVersionsCard shows, for every tracked device in a group, which version of each pack it
 // is on versus the pack's latest version — compliant devices included. Outdated rows can be pushed
@@ -89,10 +89,10 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
         groupId,
         workflow: selectedWorkflow,
       });
-      toast({ title: 'Update launched', description: `${r.device_id} → ${r.distribution_set_name} v${r.latest_version}` });
+      sileo.success({ title: 'Update launched', description: `${r.device_id} → ${r.distribution_set_name} v${r.latest_version}` });
       await refetch();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Update failed', description: err.message });
+      sileo.error({ title: 'Update failed', description: err.message });
     } finally {
       setUpdating((prev) => {
         const n = new Set(prev);
@@ -237,11 +237,11 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
                     <TableCell className="font-mono text-sm">v{r.latest_version}</TableCell>
                     <TableCell>
                       {r.in_sync ? (
-                        <Badge variant="outline" className="border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-700/30 dark:text-green-300">
+                        <Badge variant="success">
                           <CheckCircle2 className="mr-1 h-3 w-3" /> Up to date
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-700/30 dark:text-amber-300">
+                        <Badge variant="warning">
                           <ArrowRight className="mr-1 h-3 w-3" /> Outdated
                         </Badge>
                       )}

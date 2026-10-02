@@ -3,11 +3,23 @@
 import React from 'react';
 import { Loader2, AlertTriangle, Check, Clock, Ban, PauseCircle, FlaskConical, CalendarClock } from 'lucide-react';
 import type { CampaignItem, DeviceJob, DeviceJobWorkflowTransition } from '@/types/iot';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 export type CampaignDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Cancelled' | 'Failed' | 'Scheduled' | 'Not Started' | 'Partial Completed';
+
+/** One colour per campaign status, shared by every screen that shows one (campaign list, dashboard). */
+export const CAMPAIGN_STATUS_VARIANT: Record<CampaignDisplayStatus, BadgeVariant> = {
+  'Rolling Out': 'info',
+  Completed: 'success',
+  'Partial Completed': 'warning',
+  Paused: 'warning',
+  Failed: 'destructive',
+  Cancelled: 'destructive',
+  'Not Started': 'muted',
+  Scheduled: 'info',
+};
 
 export interface WfxTransition {
   from: string;
@@ -50,11 +62,11 @@ export function isRolloutBlockedByTestDevice(campaign: CampaignItem): boolean {
   return s === 'testing' || s === 'failed';
 }
 
-const TEST_DEVICE_BADGE: Record<Exclude<TestDeviceGateStatus, 'none'>, { label: string; cls: string }> = {
-  pending: { label: 'Test pending', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
-  testing: { label: 'Testing…', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  passed: { label: 'Test passed', cls: 'bg-green-100 text-green-700 border-green-200' },
-  failed: { label: 'Test failed', cls: 'bg-red-100 text-red-700 border-red-200' },
+const TEST_DEVICE_BADGE: Record<Exclude<TestDeviceGateStatus, 'none'>, { label: string; variant: BadgeVariant }> = {
+  pending: { label: 'Test pending', variant: 'muted' },
+  testing: { label: 'Testing…', variant: 'warning' },
+  passed: { label: 'Test passed', variant: 'success' },
+  failed: { label: 'Test failed', variant: 'destructive' },
 };
 
 // Small badge summarising the canary status. Renders nothing when the campaign has no test
@@ -62,7 +74,7 @@ const TEST_DEVICE_BADGE: Record<Exclude<TestDeviceGateStatus, 'none'>, { label: 
 export function TestDeviceBadge({ campaign, className }: { campaign: CampaignItem; className?: string }) {
   const status = getTestDeviceStatus(campaign);
   if (status === 'none') return null;
-  const { label, cls } = TEST_DEVICE_BADGE[status];
+  const { label, variant } = TEST_DEVICE_BADGE[status];
   const tip =
     status === 'pending' ? `Test device ${campaign.test_device_id} updates first — the full rollout unlocks once it succeeds.` :
     status === 'testing' ? `Test device ${campaign.test_device_id} is updating — the rollout unlocks once it succeeds.` :
@@ -72,7 +84,7 @@ export function TestDeviceBadge({ campaign, className }: { campaign: CampaignIte
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline" className={cn('flex items-center gap-1 whitespace-nowrap cursor-help', cls, className)}>
+          <Badge variant={variant} className={cn('cursor-help', className)}>
             {status === 'testing'
               ? <Loader2 className="h-3 w-3 animate-spin" />
               : status === 'passed'
@@ -340,7 +352,7 @@ export function CampaignNameCell({ campaign, onClick }: CampaignNameCellProps) {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700">
+              <Badge variant="warning">
                 <AlertTriangle className="h-3 w-3" />
               </Badge>
             </TooltipTrigger>
@@ -376,16 +388,7 @@ export function CampaignStatusCell({ campaign, startedCampaigns, startedCampaign
 
   return (
     <div className="flex items-center gap-1">
-      <Badge variant="outline" className={`flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap ${
-        status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
-        status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
-        status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
-        status === 'Cancelled' ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-50' :
-        status === 'Paused' ? 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' :
-        status === 'Scheduled' ? 'bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800' :
-        status === 'Partial Completed' ? 'bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-50' :
-        'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
-      }`}>
+      <Badge variant={CAMPAIGN_STATUS_VARIANT[status]} className="min-w-[100px] justify-center">
         {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
         {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
         {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}

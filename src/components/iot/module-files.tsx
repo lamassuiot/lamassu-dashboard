@@ -129,9 +129,16 @@ export function useModuleFiles({
   // dropped the sw-description editor, the build step and these security fields out of the create
   // flow — a "build a SWU from inputs" module could stage binaries and never become a SWU.
   const canBuild = perModuleDeliverables;
-  const security = useSwuSecurity(active && canBuild && answer === 'build');
+  // Where a module builds its own deliverable (hawkbit), generic files are "built" too: uploading them
+  // is not enough, they only count as built once they have been encrypted and/or signed. So a raw
+  // module has a build step of its own — it just has no sw-description, only the security options.
+  const secureFiles = canBuild && deliveryIntent === 'raw';
+  const buildsSomething = answer === 'build' || secureFiles;
+  const security = useSwuSecurity(active && canBuild && buildsSomething);
 
-  const willBuild = canBuild && answer === 'build' && buildNow;
+  const willBuild = canBuild && buildsSomething && buildNow;
+  // A generic-files build with neither encryption nor signing would produce nothing.
+  const needsSecurityChoice = secureFiles && willBuild && !(security.value.hasSigning || security.value.encryptionMode === 'shared');
 
   const addFiles = React.useCallback((incoming: File[]) => {
     setFiles((prev) => {
@@ -191,7 +198,7 @@ export function useModuleFiles({
     : willBuild && descriptorCheck.missing.length > 0
       ? `The sw-description needs ${descriptorCheck.missing.length === 1 ? 'a file that is' : 'files that are'} not here: ${descriptorCheck.missing.join(', ')}.`
       : null;
-  const isComplete = !fileError && (files.length > 0 || (willBuild && (hasStoredFiles || uploadedAnswer !== undefined))) && (answer !== undefined || deliveryIntent === 'undecided') && (!willBuild || security.value.isComplete);
+  const isComplete = !fileError && (files.length > 0 || (willBuild && (hasStoredFiles || uploadedAnswer !== undefined))) && (answer !== undefined || deliveryIntent === 'undecided') && (!willBuild || security.value.isComplete) && !needsSecurityChoice;
 
   /** True when the staged files are incomplete in a way that must stop a submit. Distinguished from
    *  isComplete so a dialog whose file section is optional can still refuse a half-answered one. */
@@ -225,6 +232,8 @@ export function useModuleFiles({
     setVersion,
     security,
     perModuleDeliverables,
+    secureFiles,
+    needsSecurityChoice,
     willBuild,
     isComplete,
     blocksSubmit,
@@ -565,6 +574,33 @@ export function ModuleFilesFields({
             </>
           ) : null}
 
+          {showBuild && state.secureFiles ? (
+            <>
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
+                <div>
+                  <Label htmlFor="module-build-now" className="text-sm font-semibold">
+                    Encrypt and/or sign now
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Generic files are only built once they are encrypted and/or signed. Until then the module
+                    cannot be added to a distribution set. Leave off to store the files and do it later.
+                  </p>
+                </div>
+                <Switch
+                  id="module-build-now"
+                  checked={state.buildNow}
+                  onCheckedChange={state.setBuildNow}
+                  disabled={disabled}
+                />
+              </div>
+              {state.buildNow ? (
+                <>
+                  <SwuSecurityFields fields={state.security.fields} disabled={disabled} forFiles />
+                </>
+              ) : null}
+            </>
+          ) : null}
+
           {showFiles && files.length > 0 && deliveryIntent === undefined ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {/* Only with a single file: an explicit artifact name applied to several uploads would
@@ -817,20 +853,30 @@ export const DELIVERY_LABELS: Record<ModuleDeliveryIntent, string> = {
   raw: 'Deliver files unchanged',
 };
 
-export function ModuleDeliverySelect({ value, onChange, disabled, id = 'module-delivery-intent' }: {
+export function ModuleDeliverySelect({ value, onChange, disabled, id = 'module-delivery-intent', perModuleDeliverables = false }: {
   value: ModuleDeliveryIntent; onChange: (value: ModuleDeliveryIntent) => void; disabled?: boolean; id?: string;
+  /** Where a module builds its own deliverable (hawkbit) the copy states what makes it BUILT, since only
+   *  a built module can be added to a distribution set. */
+  perModuleDeliverables?: boolean;
 }) {
+  const help = perModuleDeliverables
+    ? {
+        undecided: 'Not built: choose how this module ships, then build it. Only a built module can be added to a distribution set.',
+        'swu-build': 'Upload the build inputs and a sw-description, then build the SWU. The module is built once the SWU exists.',
+        'swu-prebuilt': 'Upload a finished .swu. The module is built as soon as it is uploaded; its signing and encryption must already be inside it.',
+        raw: 'Upload the files, then encrypt and/or sign them. The module is built once that is done.',
+      }[value]
+    : value === 'undecided'
+      ? 'Files can be stored now. Choose delivery before adding the module to a distribution set.'
+      : value === 'swu-build' ? 'Upload build inputs. They are packaged into an SWU during the distribution set build workflow.'
+      : value === 'swu-prebuilt' ? 'Upload an existing .swu. Its signing and encryption must already be included.'
+      : 'The uploaded files are delivered without SWU conversion. The device must support their format.';
   return <div className="space-y-1.5">
     <Label htmlFor={id}>Delivery intent</Label>
     <Select value={value} onValueChange={(v) => onChange(v as ModuleDeliveryIntent)} disabled={disabled}>
       <SelectTrigger id={id}><SelectValue /></SelectTrigger>
       <SelectContent>{Object.entries(DELIVERY_LABELS).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
     </Select>
-    <p className="text-xs text-muted-foreground">{value === 'undecided'
-      ? 'Files can be stored now. Choose delivery before adding the module to a distribution set.'
-      : value === 'swu-build' ? 'Upload build inputs. They are packaged into an SWU during the distribution set build workflow.'
-      : value === 'swu-prebuilt' ? 'Upload an existing .swu. Its signing and encryption must already be included.'
-      : 'The uploaded files are delivered without SWU conversion. The device must support their format.'}</p>
+    <p className="text-xs text-muted-foreground">{help}</p>
   </div>;
 }
-

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Download, Hammer, Layers, Link2, Lock, MoreVertical, Package, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ModuleDetailsDialog } from '@/components/iot/module-details-dialog';
-import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   addSoftwareModule,
@@ -32,6 +32,7 @@ import { DELIVERY_LABELS, ModuleFilesFields, moduleBuildPayload, submitModuleFil
 import { SwuSecurityFields, useSwuSecurity } from '@/components/iot/swu-security-fields';
 import type { ReusableSoftwareModule, SoftwareModule } from '@/types/iot';
 import { moduleRemovalBlockedReason } from '@/components/iot/module-removal';
+import { sileo } from '@/lib/toast';
 
 // The only module type that can be ADDED to an existing set. Every distribution set already has its
 // one mandatory 'os' module (the backend creates it with the pack), and a second is refused —
@@ -118,6 +119,9 @@ export function SoftwareModulesCard({
   // launch dispatches one job per device carrying one URI. This decides whether a module gets its own
   // Build + sw-description actions, or whether the page's Generate SWU is the only build.
   const perModuleDeliverables = isSupported('software_module_deliverables');
+  // In hawkbit mode a module is built in the Software Modules catalog and only a built one is linked
+  // here; a linked module is frozen. So this card links and unlinks, it does not edit or build.
+  const hawkbit = backend === 'hawkbit';
 
   const [modules, setModules] = React.useState<SoftwareModule[] | undefined>(undefined);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -230,16 +234,15 @@ export function SoftwareModulesCard({
             state: newFiles,
             userId: user?.profile?.sub || '',
           });
-          toast({ title: 'Software module added', description: `${ADDABLE_TYPE}:${name}: ${done.join(', ')}.` });
+          sileo.success({ title: 'Software module added', description: `${ADDABLE_TYPE}:${name}: ${done.join(', ')}.` });
         } catch (upErr: any) {
-          toast({
-            variant: 'destructive',
+          sileo.error({
             title: 'Module added, but its files were not stored',
             description: `${upErr?.message ?? String(upErr)} — the module exists; add its files from the table.`,
           });
         }
       } else {
-        toast({ title: 'Software module added', description: `${ADDABLE_TYPE}:${name} is now part of this distribution set.` });
+        sileo.success({ title: 'Software module added', description: `${ADDABLE_TYPE}:${name} is now part of this distribution set.` });
       }
 
       setAddOpen(false);
@@ -248,7 +251,7 @@ export function SoftwareModulesCard({
       newFiles.reset();
       await refresh();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not add the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not add the software module', description: err?.message ?? String(err) });
     } finally {
       setAdding(false);
     }
@@ -301,7 +304,7 @@ export function SoftwareModulesCard({
           module_key: candidate.key,
         },
       });
-      toast({
+      sileo.success({
         title: candidate.shared ? 'Software module linked' : 'Software module imported',
         description: candidate.shared
           ? `${candidate.key} is now shared between this set and ${candidate.source_distribution_set_name || 'the module catalog'}.`
@@ -310,7 +313,7 @@ export function SoftwareModulesCard({
       setImportOpen(false);
       await refresh();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not import the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not import the software module', description: err?.message ?? String(err) });
     } finally {
       setImporting(null);
     }
@@ -360,26 +363,25 @@ export function SoftwareModulesCard({
           } catch {
             // Non-fatal: the rename itself succeeded, and notes are recoverable by hand. Reported
             // rather than failing the whole operation, which would leave the set mid-rename.
-            toast({
+            sileo.success({
               title: 'Renamed, but the release notes did not carry over',
               description: 'Copy them across from the module details panel.',
             });
           }
         }
       } catch (addErr: any) {
-        toast({
-          variant: 'destructive',
+        sileo.error({
           title: 'Module removed but not re-added',
           description: `${addErr?.message ?? String(addErr)} — "${mod.name}" is no longer on this set; add it again.`,
         });
         await refresh();
         return;
       }
-      toast({ title: 'Software module updated', description: `${mod.name} is now ${name}.` });
+      sileo.success({ title: 'Software module updated', description: `${mod.name} is now ${name}.` });
       setEditTarget(null);
       await refresh();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not update the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not update the software module', description: err?.message ?? String(err) });
     } finally {
       setEditing(false);
     }
@@ -389,11 +391,11 @@ export function SoftwareModulesCard({
     setBusyKey(mod.key);
     try {
       await removeSoftwareModule({ groupId, packName, moduleKey: mod.key });
-      toast({ title: 'Software module removed', description: `${mod.key} is no longer part of this distribution set.` });
+      sileo.success({ title: 'Software module removed', description: `${mod.key} is no longer part of this distribution set.` });
       setRemoveTarget(null);
       await refresh();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not remove the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not remove the software module', description: err?.message ?? String(err) });
     } finally {
       setBusyKey(null);
     }
@@ -408,11 +410,11 @@ export function SoftwareModulesCard({
         moduleKey: mod.key,
         payload: withSecurity ? moduleBuildPayload(moduleSecurity.value, user?.profile?.sub || '') : undefined,
       });
-      toast({ title: 'Software module built', description: `${mod.key} now has its own deliverable.` });
+      sileo.success({ title: 'Software module built', description: `${mod.key} now has its own deliverable.` });
       setBuildTarget(null);
       await refresh();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not build the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not build the software module', description: err?.message ?? String(err) });
     } finally {
       setBusyKey(null);
     }
@@ -442,7 +444,7 @@ export function SoftwareModulesCard({
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not download the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not download the software module', description: err?.message ?? String(err) });
     } finally {
       setBusyKey(null);
     }
@@ -506,7 +508,9 @@ export function SoftwareModulesCard({
   const readyCount = rows.filter((m) => (perModuleDeliverables ? m.built : (m.artifacts?.length ?? 0) > 0)).length;
   const allReady = rows.length > 0 && readyCount === rows.length;
   // The composition is frozen once the version is built; the backend refuses edits then.
-  const editable = !packIsBuilt;
+  // hawkBit does not freeze a built set — only one already assigned to devices, which hawkBit itself
+  // locks and the backend refuses with its own reason.
+  const editable = hawkbit ? true : !packIsBuilt;
   const frozenReason = 'This version is already built — create a new version to change its composition';
   // Removal has its own rule: hawkBit allows it on a built set until the set is assigned.
   const removalBlocked = (mod: SoftwareModule) =>
@@ -551,16 +555,20 @@ export function SoftwareModulesCard({
             disabledReason={editable ? undefined : frozenReason}
           >
             <Link2 className="mr-2 h-4 w-4" />
-            Import module
+            {hawkbit ? 'Link module' : 'Import module'}
           </ActionButton>
-          <ActionButton
-            size="sm"
-            onClick={() => setAddOpen(true)}
-            disabledReason={editable ? undefined : frozenReason}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add module
-          </ActionButton>
+          {/* Creating a module inside a set is what let an unbuilt one be linked. In hawkbit mode a
+              module is created and built in the catalog first. */}
+          {!hawkbit && (
+            <ActionButton
+              size="sm"
+              onClick={() => setAddOpen(true)}
+              disabledReason={editable ? undefined : frozenReason}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add module
+            </ActionButton>
+          )}
         </div>
       </div>
 
@@ -573,10 +581,11 @@ export function SoftwareModulesCard({
           <AlertDescription>
             {perModuleDeliverables ? (
               <>
-                {rows.length - readyCount === 1 ? 'One module has' : `${rows.length - readyCount} modules have`} no
-                deliverable yet. A device is assigned this set as a whole and downloads every module&apos;s
-                artifacts, so a module with nothing built delivers nothing. Build the remaining
-                module{rows.length - readyCount === 1 ? '' : 's'} before starting a campaign.
+                {rows.length - readyCount === 1 ? 'One module is' : `${rows.length - readyCount} modules are`} not built.
+                A device is assigned this set as a whole and downloads every module&apos;s artifacts, so a module
+                that is not built delivers nothing. Unlink {rows.length - readyCount === 1 ? 'it' : 'them'}, build{' '}
+                {rows.length - readyCount === 1 ? 'it' : 'them'} in the Software Modules catalog and link{' '}
+                {rows.length - readyCount === 1 ? 'it' : 'them'} again before starting a campaign.
               </>
             ) : (
               <>
@@ -665,15 +674,14 @@ export function SoftwareModulesCard({
                             Shown only when true, matching the encrypted badge below it. */}
                         {mod.locked ? (
                           <Badge
-                            variant="outline"
-                            className="gap-1 border-amber-500 text-amber-700 dark:text-amber-400"
+                            variant="warning"
                             title="Shipped to a device — hawkBit no longer accepts changes to it"
                           >
                             <Lock className="h-3 w-3" />
                           </Badge>
                         ) : null}
                         {mod.encrypted ? (
-                          <Badge variant="outline" className="gap-1" title="Stored encrypted at rest">
+                          <Badge variant="secondary" title="Stored encrypted at rest">
                             <ShieldCheck className="h-3 w-3" />
                           </Badge>
                         ) : null}
@@ -719,36 +727,51 @@ export function SoftwareModulesCard({
                           <DropdownMenuItem onClick={() => setDetailsTarget(mod)}>
                             <Package className="mr-2 h-4 w-4" /> View details
                           </DropdownMenuItem>
-                          {/* ONE file control per module. Everything it can be given — a finished
-                              SWU, build inputs, or its sw-description — goes through the same sheet,
-                              which asks which of those the files are. */}
-                          <DropdownMenuItem
-                            onClick={() => setFileSheetTarget(mod)}
-                            disabled={busy || mod.locked || (mod.built && !perModuleDeliverables) || !editable}
-                          >
-                            <Upload className="mr-2 h-4 w-4" /> Add files
-                          </DropdownMenuItem>
-                          {perModuleDeliverables ? (
+                          {hawkbit ? (
                             <>
-                              <DropdownMenuItem
-                                onClick={() => openBuild(mod)}
-                                disabled={busy || mod.built || artifactCount === 0 || !editable}
-                              >
-                                <Hammer className="mr-2 h-4 w-4" /> Build
+                              <DropdownMenuItem asChild>
+                                <Link href="/updates/software-modules">
+                                  <Hammer className="mr-2 h-4 w-4" /> Edit or build in the catalog
+                                </Link>
                               </DropdownMenuItem>
-                              {/* This is the module's OWN deliverable, not the pack-level download
-                                  (which refuses outright for a composed set, since it would
-                                  otherwise have to pick one module and silently drop the rest). */}
                               <DropdownMenuItem onClick={() => handleDownload(mod)} disabled={busy || !mod.built}>
                                 <Download className="mr-2 h-4 w-4" /> Download
                               </DropdownMenuItem>
                             </>
-                          ) : null}
+                          ) : (
+                            <>
+                          {/* ONE file control per module. Everything it can be given — a finished
+                                  SWU, build inputs, or its sw-description — goes through the same sheet,
+                                  which asks which of those the files are. */}
+                              <DropdownMenuItem
+                                onClick={() => setFileSheetTarget(mod)}
+                                disabled={busy || mod.locked || (mod.built && !perModuleDeliverables) || !editable}
+                              >
+                                <Upload className="mr-2 h-4 w-4" /> Add files
+                              </DropdownMenuItem>
+                              {perModuleDeliverables ? (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => openBuild(mod)}
+                                    disabled={busy || mod.built || artifactCount === 0 || !editable}
+                                  >
+                                    <Hammer className="mr-2 h-4 w-4" /> Build
+                                  </DropdownMenuItem>
+                                  {/* This is the module's OWN deliverable, not the pack-level download
+                                      (which refuses outright for a composed set, since it would
+                                      otherwise have to pick one module and silently drop the rest). */}
+                                  <DropdownMenuItem onClick={() => handleDownload(mod)} disabled={busy || !mod.built}>
+                                    <Download className="mr-2 h-4 w-4" /> Download
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
+                            </>
+                          )}
                           {/* Rename is offered only while the module holds nothing: it is
                               implemented as remove-then-add (see handleEdit), which is equivalent
                               for an empty module and destructive for one carrying binaries. The os
                               module is excluded because its name is the set's own. */}
-                          {!isBase && artifactCount === 0 && editable ? (
+                          {!hawkbit && !isBase && artifactCount === 0 && editable ? (
                             <DropdownMenuItem
                               onClick={() => {
                                 setEditTarget(mod);
@@ -767,7 +790,7 @@ export function SoftwareModulesCard({
                               disabled={busy || removalBlocked(mod) !== null}
                               className="text-destructive focus:text-destructive"
                             >
-                              <Trash2 className="mr-2 h-4 w-4" /> Remove
+                              <Trash2 className="mr-2 h-4 w-4" /> {hawkbit ? 'Unlink' : 'Remove'}
                             </DropdownMenuItem>
                           ) : null}
                         </DropdownMenuContent>
@@ -985,6 +1008,7 @@ export function SoftwareModulesCard({
           setDetailsTarget(null);
         }}
         onRemove={() => { setRemoveTarget(detailsTarget); setDetailsTarget(null); }}
+        catalogEdited={hawkbit}
       />
 
       {/* Import: compose this set from a module that already exists elsewhere, rather than
@@ -993,7 +1017,7 @@ export function SoftwareModulesCard({
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Import a software module</DialogTitle>
+            <DialogTitle>{hawkbit ? 'Link a built software module' : 'Import a software module'}</DialogTitle>
             <DialogDescription>
               A software module isn&apos;t confined to one distribution set. Pick one from the catalog, or one
               defined on another set, to compose this one with it — keeping its artifacts and its
@@ -1026,10 +1050,17 @@ export function SoftwareModulesCard({
                 offered when it can actually be composed here:
               </p>
               <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                <li>
-                  · it has files — an empty module would contribute nothing, and the set could never become
-                  launchable
-                </li>
+                {hawkbit ? (
+                  <li>
+                    · it is built — a module that is undecided, has no SWU yet, or holds generic files that are
+                    not yet encrypted and/or signed cannot be linked. Build it in the Software Modules catalog first
+                  </li>
+                ) : (
+                  <li>
+                    · it has files — an empty module would contribute nothing, and the set could never become
+                    launchable
+                  </li>
+                )}
                 <li>
                   · its delivery matches this set&apos;s packaging, and is not still
                   &ldquo;{DELIVERY_LABELS.undecided}&rdquo;
@@ -1046,13 +1077,15 @@ export function SoftwareModulesCard({
                   stated rather than left for the operator to discover. */}
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>{candidates[0].shared ? 'Importing shares the module' : 'Importing copies the module'}</AlertTitle>
+                <AlertTitle>{candidates[0].shared ? (hawkbit ? 'Linking shares the module' : 'Importing shares the module') : 'Importing copies the module'}</AlertTitle>
                 <AlertDescription>
                   {candidates[0].shared ? (
                     <>
                       Both distribution sets will hold the <em>same</em> module: its artifacts and its built
-                      deliverable exist once, so rebuilding it updates every set holding it — and so does changing
-                      it. Removing it here leaves the other set&apos;s copy intact.
+                      deliverable exist once. {hawkbit
+                        ? 'A linked module is frozen: to change or rebuild it, unlink it from every set holding it first.'
+                        : 'Rebuilding it updates every set holding it — and so does changing it.'}{' '}
+                      Removing it here leaves the other set&apos;s copy intact.
                     </>
                   ) : (
                     <>
@@ -1157,7 +1190,7 @@ export function SoftwareModulesCard({
       <Dialog open={removeTarget !== null} onOpenChange={(open) => !open && setRemoveTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove {removeTarget?.key}?</DialogTitle>
+            <DialogTitle>{hawkbit ? 'Unlink' : 'Remove'} {removeTarget?.key}?</DialogTitle>
             <DialogDescription>
               This removes the module from this distribution set version and unlinks its artifacts. The artifacts
               themselves stay in the catalogue, since other distribution sets may reference them.
@@ -1179,7 +1212,7 @@ export function SoftwareModulesCard({
               onClick={() => removeTarget && handleRemove(removeTarget)}
               disabled={busyKey !== null}
             >
-              Remove module
+              {hawkbit ? 'Unlink module' : 'Remove module'}
             </Button>
           </DialogFooter>
         </DialogContent>

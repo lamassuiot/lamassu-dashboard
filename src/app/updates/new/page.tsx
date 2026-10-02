@@ -17,9 +17,9 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { UpdateStrategyForm, type LaunchablePack } from '@/components/iot/update-strategy-form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { toast } from '@/hooks/use-toast';
 import { createCampaign, fetchPackPreconditions, fetchUpdatePacks, type CreateCampaignPayload } from '@/lib/iot-api';
 import type { PreconditionFailure, UpdateStrategy } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 const FORM_ID = 'create-campaign-form';
 
@@ -60,10 +60,10 @@ export default function NewCampaignPage() {
     setIsCreating(true);
     try {
       const data = await createCampaign({ groupId, campaignData });
-      toast({ title: 'Campaign created', description: data.message || 'The campaign is ready. Execute it from the campaigns list.' });
+      sileo.success({ title: 'Campaign created', description: data.message || 'The campaign is ready. Execute it from the campaigns list.' });
       router.push('/updates');
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Campaign creation failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+      sileo.error({ title: 'Campaign creation failed', description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
       setIsCreating(false);
     }
@@ -76,7 +76,7 @@ export default function NewCampaignPage() {
       setPreconditionCheck({ groupId, payload: campaignData, qualifying: data.qualifying_devices || [], failures: data.precondition_failures || [] });
       setForceDeploy(false);
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Precondition check failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+      sileo.error({ title: 'Precondition check failed', description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
       setIsDryRunPending(false);
     }
@@ -84,7 +84,7 @@ export default function NewCampaignPage() {
 
   const handleSubmit = async (strategy: UpdateStrategy, pack: LaunchablePack | undefined) => {
     if (!pack || !pack.group_id) {
-      toast({ variant: 'destructive', title: 'Pick a distribution set', description: 'A campaign rolls out one distribution set.' });
+      sileo.error({ title: 'Pick a distribution set', description: 'A campaign rolls out one distribution set.' });
       return;
     }
     const groupId = pack.group_id;

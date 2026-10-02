@@ -245,9 +245,13 @@ export function SwuSecurityFields({
   disabled = false,
   encryptionNote,
   sectionNote,
+  forFiles = false,
 }: {
   fields: ReturnType<typeof useSwuSecurity>['fields'];
   disabled?: boolean;
+  /** The options are applied to generic files rather than to a SWU: there is no sw-description to
+   *  encrypt, and at least one of signing / encryption is what makes the module built. */
+  forFiles?: boolean;
   encryptionNote?: React.ReactNode;
   /** Rendered next to BOTH the Signing and Encryption headers. For a note that applies to the
    *  whole security section (e.g. "these apply to this one deliverable only"), rather than only to
@@ -342,10 +346,12 @@ export function SwuSecurityFields({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="mod-desc-enc" className="text-xs">Encrypt the descriptor</Label>
-              <Switch id="mod-desc-enc" checked={f.swDescEncrypted} onCheckedChange={f.setSwDescEncrypted} disabled={disabled} />
-            </div>
+            {!forFiles && (
+              <div className="flex items-center justify-between">
+                <Label htmlFor="mod-desc-enc" className="text-xs">Encrypt the descriptor</Label>
+                <Switch id="mod-desc-enc" checked={f.swDescEncrypted} onCheckedChange={f.setSwDescEncrypted} disabled={disabled} />
+              </div>
+            )}
           </div>
         )}
         {f.encryptionMode === 'per-device' && (
@@ -369,7 +375,9 @@ export function SwuSecurityFields({
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>No security selected</AlertTitle>
           <AlertDescription>
-            This build will be neither signed nor encrypted. You can still proceed.
+            {forFiles
+              ? 'Generic files are only built once they are signed and/or encrypted. Choose at least one.'
+              : 'This build will be neither signed nor encrypted. You can still proceed.'}
           </AlertDescription>
         </Alert>
       )}

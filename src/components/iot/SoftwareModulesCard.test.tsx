@@ -27,6 +27,7 @@ const {
   uploadModuleArtifactBinaryMock,
   downloadModuleArtifactMock,
   isSupportedMock,
+  backendRef,
 } = vi.hoisted(() => ({
   fetchSoftwareModulesMock: vi.fn(),
   addSoftwareModuleMock: vi.fn(),
@@ -38,6 +39,7 @@ const {
   uploadModuleArtifactBinaryMock: vi.fn(),
   downloadModuleArtifactMock: vi.fn(),
   isSupportedMock: vi.fn(),
+  backendRef: { value: null as string | null },
 }));
 
 // The two backends differ in whether each module has its own deliverable, and the card must render
@@ -59,10 +61,10 @@ vi.mock('@/lib/iot-api', () => ({
 }));
 
 vi.mock('@/contexts/UpdatesCapabilitiesContext', () => ({
-  useUpdatesCapabilities: () => ({ isSupported: isSupportedMock, isLoading: false }),
+  useUpdatesCapabilities: () => ({ isSupported: isSupportedMock, isLoading: false, backend: backendRef.value }),
 }));
 
-vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@/lib/toast', () => ({ sileo: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 
 // The Add module dialog now carries the same file fields the sheet does (ModuleFilesFields), which
 // bring an auth context and the KMS/SymKMS/certificate lookups behind the build options with them.
@@ -142,6 +144,7 @@ describe('SoftwareModulesCard', () => {
     vi.clearAllMocks();
     // Native (atomic delivery) is the default for these tests; hawkbit-shaped cases opt in.
     asNative();
+    backendRef.value = null;
     fetchSoftwareModulesMock.mockResolvedValue(composition);
     fetchReusableSoftwareModulesMock.mockResolvedValue([]);
     uploadModuleArtifactBinaryMock.mockResolvedValue({});
@@ -495,5 +498,46 @@ describe('SoftwareModulesCard', () => {
       expect(screen.getByRole('menuitem', { name: /add files/i })).toBeTruthy();
       closeActionsFor();
     }
+  });
+});
+
+// hawkbit: a module is built in the Software Modules catalog and only a BUILT one is linked here. A
+// linked module is frozen, so this card links and unlinks — it neither creates, edits nor builds.
+describe('SoftwareModulesCard in hawkbit mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    asHawkbit();
+    backendRef.value = 'hawkbit';
+    fetchSoftwareModulesMock.mockResolvedValue(composition);
+    fetchReusableSoftwareModulesMock.mockResolvedValue([]);
+    if (!Element.prototype.hasPointerCapture) Element.prototype.hasPointerCapture = () => false;
+    if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
+    if (!Element.prototype.releasePointerCapture) Element.prototype.releasePointerCapture = () => {};
+    if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => {};
+  });
+
+  it('links a built module and cannot create one inside the set', async () => {
+    renderCard();
+    await waitFor(() => expect(screen.getByText('telemetry')).toBeTruthy());
+    expect(screen.getByRole('button', { name: /link module/i })).toBeTruthy();
+    // A module created in here would be unbuilt, and an unbuilt module cannot be linked.
+    expect(screen.queryByRole('button', { name: /^add module$/i })).toBeNull();
+  });
+
+  it('offers no file upload or build on a linked module — those happen in the catalog', async () => {
+    renderCard();
+    await waitFor(() => expect(screen.getByText('telemetry')).toBeTruthy());
+    openActionsFor('application:telemetry');
+    expect(screen.queryByRole('menuitem', { name: /add files/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^build$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /edit or build in the catalog/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /unlink/i })).toBeTruthy();
+  });
+
+  it('keeps linking open on a built set that was never sent to a device', async () => {
+    // Only a set hawkBit has locked (assigned to devices) is frozen — not one that is merely built.
+    renderCard({ packIsBuilt: true });
+    await waitFor(() => expect(screen.getByText('telemetry')).toBeTruthy());
+    expect((screen.getByRole('button', { name: /link module/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

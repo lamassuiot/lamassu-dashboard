@@ -8,10 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { toast } from '@/hooks/use-toast';
 import { fetchVersionSignature, type ManifestArtifact, type VersionManifest, type VersionSignature } from '@/lib/iot-api';
 import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
 import { formatBytes } from '@/lib/utils';
+import { sileo } from '@/lib/toast';
 
 type Loaded = { sig: VersionSignature; manifest: VersionManifest | null; digest: string | null; signer: string | null };
 
@@ -30,7 +30,7 @@ function formatDate(value?: string) {
 
 function copy(value: string, what: string) {
   navigator.clipboard?.writeText(value);
-  toast({ title: `${what} copied` });
+  sileo.success({ title: `${what} copied` });
 }
 
 function ArtifactsTable({ artifacts }: { artifacts: ManifestArtifact[] }) {
@@ -287,7 +287,7 @@ export function VersionManifestPanel({
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold">{m.name}</p>
                     <span className="text-sm text-muted-foreground">v{m.version}</span>
-                    <Badge variant="outline" className="text-[10px]">{m.type}</Badge>
+                    <Badge variant="secondary">{m.type}</Badge>
                     {m.encryption && <Badge variant="secondary" className="text-[10px]">Encrypted{m.encryption_alg ? ` · ${m.encryption_alg}` : ''}</Badge>}
                     {m.signature_alg && <Badge variant="secondary" className="text-[10px]">Module signed</Badge>}
                   </div>

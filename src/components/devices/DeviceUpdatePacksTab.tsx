@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -14,36 +14,22 @@ import { CertificatePaginationControls } from '@/components/shared/CertificatePa
 import { fetchAllDevicePackInventory, fetchDevicePackUpdates } from '@/lib/iot-api';
 import type { DevicePackWithArtifacts, DevicePackUpdate, FirmwareUpdateStatus } from '@/types/iot';
 
-const UpdateStatusBadge: React.FC<{ status: FirmwareUpdateStatus }> = ({ status }) => {
-  const classes: Record<string, string> = {
-    success: 'bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700',
-    running: 'bg-blue-100 text-blue-700 dark:bg-blue-700/30 dark:text-blue-300 border-blue-300 dark:border-blue-700',
-    pending: 'bg-muted text-muted-foreground border-border',
-    failed: 'bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700',
-  };
-  return (
-    <Badge variant="outline" className={cn('text-xs capitalize', classes[status] || classes.pending)}>
-      {status}
-    </Badge>
-  );
+const UPDATE_STATUS_VARIANT: Record<string, BadgeVariant> = {
+  success: 'success',
+  running: 'info',
+  pending: 'muted',
+  failed: 'destructive',
 };
 
-const PackagingBadge: React.FC<{ packaging?: string }> = ({ packaging }) => {
-  const isNonSwu = packaging === 'non-swu';
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        'text-xs',
-        isNonSwu
-          ? 'bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300 border-purple-300 dark:border-purple-700'
-          : 'bg-sky-100 text-sky-700 dark:bg-sky-700/30 dark:text-sky-300 border-sky-300 dark:border-sky-700'
-      )}
-    >
-      {packaging || 'swu'}
-    </Badge>
-  );
-};
+const UpdateStatusBadge: React.FC<{ status: FirmwareUpdateStatus }> = ({ status }) => (
+  <Badge variant={UPDATE_STATUS_VARIANT[status] ?? 'muted'} dot className="capitalize">
+    {status}
+  </Badge>
+);
+
+const PackagingBadge: React.FC<{ packaging?: string }> = ({ packaging }) => (
+  <Badge variant="secondary">{packaging || 'swu'}</Badge>
+);
 
 interface DeviceUpdatePacksTabProps {
   deviceId: string;

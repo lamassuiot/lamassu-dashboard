@@ -32,6 +32,7 @@ const {
   deleteCatalogModuleFileMock,
   updateCatalogModuleMock,
   fetchCatalogModuleMock,
+  buildCatalogModuleMock,
 } = vi.hoisted(() => ({
   uploadModuleArtifactBinaryMock: vi.fn(),
   uploadModuleSwDescriptorMock: vi.fn(),
@@ -45,6 +46,7 @@ const {
   deleteCatalogModuleFileMock: vi.fn(),
   updateCatalogModuleMock: vi.fn(),
   fetchCatalogModuleMock: vi.fn(),
+  buildCatalogModuleMock: vi.fn(),
 }));
 
 vi.mock('@/lib/iot-api', () => ({
@@ -59,6 +61,8 @@ vi.mock('@/lib/iot-api', () => ({
   deleteCatalogModuleFile: deleteCatalogModuleFileMock,
   updateCatalogModule: updateCatalogModuleMock,
   fetchCatalogModule: fetchCatalogModuleMock,
+  buildCatalogModule: buildCatalogModuleMock,
+  uploadCatalogModuleDescriptor: vi.fn(),
 }));
 
 vi.mock('@/contexts/UpdatesCapabilitiesContext', () => ({
@@ -72,7 +76,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 vi.mock('@/lib/kms-data', () => ({ fetchKmsKeys: fetchKmsKeysMock }));
 vi.mock('@/lib/symkms-api', () => ({ fetchSymmetricKeys: fetchSymmetricKeysMock }));
 vi.mock('@/lib/issued-certificate-data', () => ({ fetchIssuedCertificates: fetchIssuedCertificatesMock }));
-vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@/lib/toast', () => ({ sileo: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 
 // The real Monaco editor doesn't render meaningfully in happy-dom (and would try to fetch its
 // worker bundle). A plain textarea stands in for it, wired the same way: value in, onChange(text) out.
@@ -558,4 +562,70 @@ describe('standalone modules in the shared file sheet', () => {
     expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledTimes(1);
   });
 
+});
+
+// In hawkbit mode "built" is a property of the module: a prebuilt SWU is built once uploaded, an SWU
+// from inputs once it is generated, and generic files only once they are encrypted and/or signed.
+// Only a built module can be added to a distribution set, so the sheet has to say which state a
+// module is in and what is still missing.
+describe('building a standalone module (hawkbit)', () => {
+  const raw: SoftwareModule = { ...mod, id: 'raw-1', delivery_intent: 'raw' };
+  const renderRaw = (module: SoftwareModule = raw) =>
+    render(<ModuleFileSheet open onOpenChange={vi.fn()} groupId="" packName="" module={module} perModuleDeliverables onDone={vi.fn()} />);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isSupportedMock.mockReturnValue(true);
+    uploadModuleArtifactBinaryMock.mockResolvedValue({});
+    buildCatalogModuleMock.mockResolvedValue({});
+    fetchCatalogModuleMock.mockResolvedValue(raw);
+    fetchKmsKeysMock.mockResolvedValue({ list: [] });
+    fetchSymmetricKeysMock.mockResolvedValue({ list: [{ id: 'sym-1', algorithm: 'AES-256-CBC' }] });
+    fetchIssuedCertificatesMock.mockResolvedValue({ certificates: [] });
+  });
+
+  it('says an unbuilt module cannot join a set yet, and what to do next', () => {
+    renderRaw();
+    expect(outcomeTitles()).toContain('Not built');
+    expect(screen.getByText(/cannot be added to a distribution set until it is built/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Upload the files, then encrypt and\/or sign them\./i).length).toBeGreaterThan(0);
+  });
+
+  it('builds generic files by encrypting them, and will not build with nothing chosen', async () => {
+    renderRaw();
+    dropFile('firmware.bin');
+    // Files alone are not a build: neither encryption nor signing is chosen yet.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and encrypt / sign' })).toBeDisabled());
+
+    const combos = screen.getAllByRole('combobox');
+    openSelect(combos[combos.length - 1]);
+    await waitFor(() => expect(screen.getByRole('option', { name: /shared/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('option', { name: /shared/i }));
+    await waitFor(() => expect(screen.getByText(/Symmetric key/i)).toBeTruthy());
+    const withKey = screen.getAllByRole('combobox');
+    openSelect(withKey[withKey.length - 1]);
+    await waitFor(() => expect(screen.getByRole('option', { name: /sym-1/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('option', { name: /sym-1/i }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and encrypt / sign' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and encrypt / sign' }));
+
+    await waitFor(() => expect(buildCatalogModuleMock).toHaveBeenCalledWith('raw-1', expect.objectContaining({ encryption_key_name: 'sym-1', user: 'alice' })));
+    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }));
+    // It is a catalog build — never the set-scoped one, which a linked (frozen) module refuses.
+    expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
+  });
+
+  it('shows a built module as built and takes no more files', () => {
+    renderRaw({ ...raw, built: true, artifacts: [{ id: 'a1', name: 'fw', version: '', filename: 'firmware.bin.enc' }] });
+    expect(outcomeTitles()).toContain('Built');
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+    // The stored file can still be removed — that is how a built module is taken back to unbuilt.
+    expect(screen.getByRole('button', { name: 'Remove firmware.bin.enc' })).toBeEnabled();
+  });
+
+  it('asks for the .swu on a prebuilt module that has none', () => {
+    renderRaw({ ...raw, delivery_intent: 'swu-prebuilt' });
+    expect(screen.getByText(/Upload the finished \.swu/i)).toBeInTheDocument();
+  });
 });

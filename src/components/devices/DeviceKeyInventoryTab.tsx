@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -20,41 +20,30 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { fetchDeviceInventory, revokeKeyFromDevice } from '@/lib/device-inventory-api';
 import type { DeviceKeyBinding, BindingStatus } from '@/types/device-inventory';
 import { AssignKeyToDeviceModal } from './AssignKeyToDeviceModal';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { sileo } from '@/lib/toast';
 
 interface DeviceKeyInventoryTabProps {
   deviceId: string;
 }
 
-const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => {
-  let badgeClass = '';
-  switch (status) {
-    case 'active':
-      badgeClass = 'bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700';
-      break;
-    case 'rotating':
-      badgeClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700';
-      break;
-    case 'revoked':
-      badgeClass = 'bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700';
-      break;
-    default:
-      badgeClass = 'bg-muted text-muted-foreground border-border';
-  }
-  return (
-    <Badge variant="outline" className={cn('text-xs capitalize', badgeClass)}>
-      {status}
-    </Badge>
-  );
+const BINDING_STATUS_VARIANT: Partial<Record<BindingStatus, BadgeVariant>> = {
+  active: 'success',
+  rotating: 'warning',
+  revoked: 'destructive',
 };
+
+const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => (
+  <Badge variant={BINDING_STATUS_VARIANT[status] ?? 'muted'} dot className="capitalize">
+    {status}
+  </Badge>
+);
 
 export const DeviceKeyInventoryTab: React.FC<DeviceKeyInventoryTabProps> = ({ deviceId }) => {
   const { user, isLoading: authLoading, isLoggedIn } = useAuth();
-  const { toast } = useToast();
 
   const [bindings, setBindings] = useState<DeviceKeyBinding[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -147,16 +136,15 @@ export const DeviceKeyInventoryTab: React.FC<DeviceKeyInventoryTabProps> = ({ de
     setIsRevoking(true);
     try {
       await revokeKeyFromDevice(deviceId, bindingToRevoke.key_id);
-      toast({
+      sileo.success({
         title: 'Key Revoked',
         description: `Key "${bindingToRevoke.key_id}" has been revoked from device "${deviceId}".`,
       });
       handleRefresh();
     } catch (err: any) {
-      toast({
+      sileo.error({
         title: 'Revocation Failed',
         description: err.message || 'An error occurred while revoking the key.',
-        variant: 'destructive',
       });
     } finally {
       setIsRevoking(false);

@@ -16,7 +16,6 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { WizardLayout, WizardSection } from '@/components/iot/form-wizard';
 import type { UpdateStrategy, UpdatePack, CampaignPrecondition } from '@/types/iot';
-import { toast } from "@/hooks/use-toast";
 import {
   Zap, ShieldCheck, FlaskConical, Info, AlertTriangle, Boxes, Package, Lock, ExternalLink, Send, CalendarDays, Clock,
 } from 'lucide-react';
@@ -28,6 +27,7 @@ import { fetchWorkflows, fetchGroupDevices, fetchPackPreconditions, type WfxWork
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import { packagingMismatchNote } from '@/components/devices/WorkflowSelect';
 import { cn } from '@/lib/utils';
+import { sileo } from '@/lib/toast';
 
 const SELECT_NONE_VALUE = "_NONE_";
 
@@ -213,7 +213,7 @@ export function UpdateStrategyForm({
 
   const onSubmit = (data: StrategyFormValues) => {
     if (groupHasNoDevices) {
-      toast({ variant: 'destructive', title: 'Group has no devices', description: `"${groupName ?? groupId}" has no devices to launch to. Pick a different distribution set or add devices to the group first.` });
+      sileo.error({ title: 'Group has no devices', description: `"${groupName ?? groupId}" has no devices to launch to. Pick a different distribution set or add devices to the group first.` });
       return;
     }
     const strategyToSave: UpdateStrategy = {
@@ -229,7 +229,7 @@ export function UpdateStrategyForm({
       updatePackId: data.updatePackId === SELECT_NONE_VALUE ? undefined : data.updatePackId,
     };
     if (onStrategySavedOrUpdated) onStrategySavedOrUpdated(strategyToSave, selectedPack);
-    else toast({ title: "Strategy Form Submitted" });
+    else sileo.success({ title: "Strategy Form Submitted" });
   };
 
   const testDeviceId = form.watch('testDeviceId');

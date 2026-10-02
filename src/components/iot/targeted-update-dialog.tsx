@@ -9,10 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Rocket, Search, Package } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { fetchUpdatePackVersions, forceDeviceVersion, getGroupVersionStatus } from '@/lib/iot-api';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
+import { sileo } from '@/lib/toast';
 
 // Workflow used for UI-driven launches. Hard-coded to "direct" for now; may become selectable later.
 const LAUNCH_WORKFLOW = 'direct';
@@ -171,11 +171,11 @@ export function TargetedUpdateDialog({
     setSubmitting(false);
 
     if (failed === 0) {
-      toast({ title: 'Jobs created', description: `${ok} device(s) → ${pack.name} v${version}` });
+      sileo.success({ title: 'Jobs created', description: `${ok} device(s) → ${pack.name} v${version}` });
     } else if (ok === 0) {
-      toast({ variant: 'destructive', title: 'Launch failed', description: `All ${failed} job(s) failed to dispatch.` });
+      sileo.error({ title: 'Launch failed', description: `All ${failed} job(s) failed to dispatch.` });
     } else {
-      toast({ title: 'Partially launched', description: `${ok} dispatched, ${failed} failed.` });
+      sileo.success({ title: 'Partially launched', description: `${ok} dispatched, ${failed} failed.` });
     }
     onClose();
   };
@@ -271,15 +271,7 @@ export function TargetedUpdateDialog({
                         <TableCell className="font-mono text-xs">{d.id}</TableCell>
                         <TableCell>
                           {current ? (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'font-mono text-xs',
-                                onLatest
-                                  ? 'border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-700/30 dark:text-green-300'
-                                  : 'border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-700/30 dark:text-amber-300'
-                              )}
-                            >
+                            <Badge variant={onLatest ? 'success' : 'warning'} className="font-mono">
                               v{current}{onLatest ? ' (latest)' : ''}
                             </Badge>
                           ) : (

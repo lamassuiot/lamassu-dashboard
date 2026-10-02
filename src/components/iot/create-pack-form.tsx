@@ -16,10 +16,10 @@ import {
 import { useDms } from '@/contexts/DmsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { toast } from '@/hooks/use-toast';
 import { cn, isValidSemver } from '@/lib/utils';
 import { createUpdatePack, fetchAllSoftwareModules, fetchAllUpdatePacks } from '@/lib/iot-api';
-import type { CampaignPrecondition, ReusableSoftwareModule, SoftwareModuleType, UpdatePack } from '@/types/iot';
+import type { CampaignPrecondition, ReusableSoftwareModule, UpdatePack } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 interface CreatePackFormProps {
   // Called after the pack (repo) is created; the caller redirects to the pack's details.
@@ -36,7 +36,6 @@ interface CreatePackFormProps {
  *  plain download-and-install of the files as uploaded. */
 const DRIVER_LABEL: Record<'swu' | 'non-swu', string> = { swu: 'SWU', 'non-swu': 'Generic' };
 
-const MODULE_TYPE_LABELS: Record<SoftwareModuleType, string> = { os: 'OS / base image', application: 'Application' };
 const NO_MODULE = '__none__';
 
 // Lightweight "create an distribution set = repo" form. It only creates the pack shell; artifacts are
@@ -61,16 +60,10 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   const [candidatePacks, setCandidatePacks] = useState<UpdatePack[] | null>(null);
   const [candidateModules, setCandidateModules] = useState<ReusableSoftwareModule[] | null>(null);
 
-  // The set's first module — hawkbit only (see moduleRequired below). "Import" is the default rather
-  // than "new": hawkBit's CreateDistributionSet used to fill in an empty OS module silently when
-  // nothing was supplied, which is exactly the choice this section exists to stop making for the
-  // operator. Defaulting to inventing one anyway would just move the silent decision from the
-  // backend to here.
-  const [moduleSource, setModuleSource] = useState<'import' | 'new'>('import');
+  // The set's first module — hawkbit only (see moduleRequired below). It is always an EXISTING, BUILT
+  // module from the catalog: a set is composed of finished deliverables, so a module cannot be
+  // invented here (it would be unbuilt) — it is created and built in the Software Modules catalog first.
   const [importModuleId, setImportModuleId] = useState<string>(NO_MODULE);
-  const [newModuleType, setNewModuleType] = useState<SoftwareModuleType>('os');
-  const [newModuleName, setNewModuleName] = useState('');
-  const [newModuleVersion, setNewModuleVersion] = useState('');
 
   const groupId = showGroupSelector ? groupIdState : (defaultGroupId || selectedDms?.id || '');
   const groupName = availableDms.find((d) => d.id === groupId)?.name || selectedDms?.name;
@@ -105,41 +98,49 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   // stopped). Native has no such requirement: a module is added afterwards, and an empty pack reads
   // fine as a virtual "os" module in the meantime (see GetSoftwareModules).
   const moduleRequired = backend === 'hawkbit';
-  const newModuleNameTrimmed = newModuleName.trim();
-  const newModuleVersionTrimmed = newModuleVersion.trim();
-  const newModuleNameInvalid = newModuleNameTrimmed.length > 0 && /[/:]/.test(newModuleNameTrimmed);
-  const newModuleVersionInvalid = newModuleVersionTrimmed.length > 0 && !isValidSemver(newModuleVersionTrimmed);
-  const moduleChoiceValid = !moduleRequired || (
-    moduleSource === 'import'
-      ? importModuleId !== NO_MODULE
-      : newModuleNameTrimmed.length > 0 && !newModuleNameInvalid && !newModuleVersionInvalid
-  );
-  const selectedImportModule = (candidateModules ?? []).find((m) => m.id === importModuleId) ?? null;
+  const moduleChoiceValid = !moduleRequired || importModuleId !== NO_MODULE;
+  // Only what the backend would accept: built, addressable by id, and delivered in a way the chosen
+  // packaging allows (an SWU set takes no generic files; a generic set takes no prebuilt SWU). One
+  // entry per module, however many sets already hold it.
+  const importableModules = React.useMemo(() => {
+    const seen = new Set<string>();
+    return (candidateModules ?? []).filter((m) => {
+      if (!m.id || seen.has(m.id) || !m.built) return false;
+      if (packaging === 'swu' ? m.delivery_intent === 'raw' : m.delivery_intent === 'swu-prebuilt') return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [candidateModules, packaging]);
+  const selectedImportModule = importableModules.find((m) => m.id === importModuleId) ?? null;
+
+  // A module picked under one packaging may not be allowed under the other.
+  useEffect(() => {
+    if (importModuleId !== NO_MODULE && !importableModules.some((m) => m.id === importModuleId)) setImportModuleId(NO_MODULE);
+  }, [importableModules, importModuleId]);
 
   const handleCreate = async () => {
     if (!user?.access_token || !groupId) return;
     const trimmed = name.trim();
     if (trimmed.length < 3) {
-      toast({ title: 'Invalid name', description: 'Pack name must be at least 3 characters.', variant: 'destructive' });
+      sileo.error({ title: 'Invalid name', description: 'Pack name must be at least 3 characters.',});
       return;
     }
     if (/\s/.test(trimmed)) {
-      toast({ title: 'Invalid name', description: 'Pack name cannot contain spaces (use underscores).', variant: 'destructive' });
+      sileo.error({ title: 'Invalid name', description: 'Pack name cannot contain spaces (use underscores).',});
       return;
     }
     if (!isValidSemver(version.trim())) {
-      toast({ title: 'Invalid version', description: 'Version must be semver (x.y.z), e.g. 1.0.0.', variant: 'destructive' });
+      sileo.error({ title: 'Invalid version', description: 'Version must be semver (x.y.z), e.g. 1.0.0.',});
       return;
     }
     if (preconditionErrors) {
-      toast({ title: 'Invalid launch precondition', description: 'Each requirement needs a pack and a semver minimum version.', variant: 'destructive' });
+      sileo.error({ title: 'Invalid launch precondition', description: 'Each requirement needs a pack and a semver minimum version.',});
       return;
     }
     if (!moduleChoiceValid) {
-      toast({
+      sileo.error({
         title: 'A software module is required',
-        description: 'hawkBit needs at least one module to create a set — import an existing one, or fill in the new module’s name.',
-        variant: 'destructive',
+        description: 'hawkBit needs at least one module to create a set — pick a built module from the catalog.',
       });
       return;
     }
@@ -157,22 +158,10 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
           packaging,
           allow_previous_version_download: allowPreviousVersionDownload,
           ...(cleanedPreconditions.length > 0 ? { preconditions: cleanedPreconditions } : {}),
-          ...(moduleRequired
-            ? {
-              modules: [
-                moduleSource === 'import'
-                  ? { source_module_id: importModuleId }
-                  : {
-                    type: newModuleType,
-                    name: newModuleNameTrimmed,
-                    ...(newModuleVersionTrimmed ? { version: newModuleVersionTrimmed } : {}),
-                  },
-              ],
-            }
-            : {}),
+          ...(moduleRequired ? { modules: [{ source_module_id: importModuleId }] } : {}),
         },
       });
-      toast({
+      sileo.success({
         title: 'Distribution set created',
         description: cleanedPreconditions.length > 0
           ? `${trimmed} v${version.trim()} is ready, gated by ${cleanedPreconditions.length} precondition${cleanedPreconditions.length === 1 ? '' : 's'} — upload artifacts next.`
@@ -180,7 +169,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
       });
       onCreated?.(groupId, trimmed);
     } catch (err: any) {
-      toast({ title: 'Failed to create pack', description: err.message || 'An error occurred.', variant: 'destructive' });
+      sileo.error({ title: 'Failed to create pack', description: err.message || 'An error occurred.',});
     } finally {
       setIsCreating(false);
     }
@@ -265,7 +254,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
           packagingMismatchNote for the native-mode consequence of getting it wrong. */}
       <p className="text-xs text-muted-foreground">
         {backend === 'hawkbit'
-          ? 'hawkBit has no workflow engine of its own: packaging only decides whether this set is built and signed into one .swu before upload, or delivered as the files you upload, as-is. Whether the device installs it immediately or may postpone comes from the Direct/Phased choice at launch time — unrelated to this.'
+          ? 'hawkBit has no workflow engine of its own: packaging only decides which modules the set accepts (an SWU set takes no generic-file module, a Generic one no prebuilt SWU). The set itself is never built; it is ready once every module in it is. Whether the device installs it immediately or may postpone comes from the Direct/Phased choice at launch time — unrelated to this.'
           : 'This also decides which workflow can install this set: SWU packs need Direct/Phased, non-swu packs need Download-Install — launching with the wrong one leaves the update looking stuck even after the device finishes.'}
       </p>
     </div>
@@ -321,94 +310,27 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   // Only where it is required: native never asks, matching how it has always worked — the set is
   // created bare and a module added afterwards on its own page.
   const moduleField = moduleRequired ? (
-    <div className="space-y-3">
-      <div role="radiogroup" aria-label="Import an existing module, or define a new one?" className="grid w-full grid-cols-2 gap-2">
-        {([
-          { value: 'import' as const, icon: Boxes, label: 'Import existing' },
-          { value: 'new' as const, icon: Package, label: 'Create new' },
-        ]).map(({ value, icon: Icon, label }) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={moduleSource === value}
-            onClick={() => setModuleSource(value)}
-            className={cn(
-              'inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
-              moduleSource === value
-                ? 'border-primary bg-primary/10 text-foreground'
-                : 'border-border bg-background text-muted-foreground hover:bg-muted',
-            )}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {moduleSource === 'import' ? (
-        <div className="space-y-1.5">
-          <Label>Existing module</Label>
-          <Select value={importModuleId} onValueChange={setImportModuleId}>
-            <SelectTrigger>
-              <SelectValue placeholder={candidateModules === null ? 'Loading…' : 'Select a module to import'} />
-            </SelectTrigger>
-            <SelectContent>
-              {(candidateModules ?? []).map((m) => (
-                <SelectItem key={m.id} value={m.id!}>
-                  {m.type}:{m.name} v{m.version}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {candidateModules !== null && candidateModules.length === 0
-              ? 'The catalog is empty — create a new module instead.'
-              : selectedImportModule
-                ? 'Shared with wherever else it is used: rebuilding it, or changing its artifacts, is seen there too.'
-                : 'Composed into this set the moment it is created — no separate import step afterwards.'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="first-module-type">Module type</Label>
-            <Select value={newModuleType} onValueChange={(v) => setNewModuleType(v as SoftwareModuleType)}>
-              <SelectTrigger id="first-module-type"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="os">{MODULE_TYPE_LABELS.os}</SelectItem>
-                <SelectItem value="application">{MODULE_TYPE_LABELS.application}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="first-module-name">Module name</Label>
-            <Input
-              id="first-module-name"
-              value={newModuleName}
-              onChange={(e) => setNewModuleName(e.target.value)}
-              placeholder={name.trim() || 'e.g. gateway-os'}
-              className={cn(newModuleNameInvalid && 'border-destructive focus-visible:ring-destructive')}
-            />
-            <p className={cn('text-xs', newModuleNameInvalid ? 'text-destructive' : 'text-muted-foreground')}>
-              {newModuleNameInvalid ? 'No "/" or ":" — they are the API’s own separators.' : 'Required.'}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="first-module-version">Module version</Label>
-            <Input
-              id="first-module-version"
-              value={newModuleVersion}
-              onChange={(e) => setNewModuleVersion(e.target.value)}
-              placeholder={version.trim() || '1.0.0'}
-              className={cn(newModuleVersionInvalid && 'border-destructive focus-visible:ring-destructive')}
-            />
-            <p className={cn('text-xs', newModuleVersionInvalid ? 'text-destructive' : 'text-muted-foreground')}>
-              {newModuleVersionInvalid ? 'Must be semver (x.y.z).' : `Optional — defaults to the set's version.`}
-            </p>
-          </div>
-        </div>
-      )}
+    <div className="space-y-1.5">
+      <Label>Built module</Label>
+      <Select value={importModuleId} onValueChange={setImportModuleId}>
+        <SelectTrigger>
+          <SelectValue placeholder={candidateModules === null ? 'Loading…' : 'Select a built module'} />
+        </SelectTrigger>
+        <SelectContent>
+          {importableModules.map((m) => (
+            <SelectItem key={m.id} value={m.id!}>
+              {m.type}:{m.name} v{m.version}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {candidateModules !== null && importableModules.length === 0
+          ? 'No built module fits this driver. Create and build one in the Software Modules catalog first — only built modules can be added to a set.'
+          : selectedImportModule
+            ? 'Linked, not copied: the set and every other set holding it share one module. A linked module is frozen — unlink it to change or rebuild it.'
+            : 'Only built modules are listed. Linked into this set the moment it is created.'}
+      </p>
     </div>
   ) : null;
 
@@ -444,9 +366,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
             {moduleRequired && (
               <SummaryRow
                 label="First module"
-                value={moduleSource === 'import'
-                  ? (selectedImportModule ? `Import: ${selectedImportModule.name} v${selectedImportModule.version}` : undefined)
-                  : (newModuleNameTrimmed ? `New: ${newModuleNameTrimmed}` : undefined)}
+                value={selectedImportModule ? `${selectedImportModule.name} v${selectedImportModule.version}` : undefined}
               />
             )}
           </SummaryPanel>
@@ -475,7 +395,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
         <FormSection
           title="Driver & behaviour"
           description={backend === 'hawkbit'
-            ? 'Whether this set is built into one signed SWU or delivered as-is. Fixed once created, and each module must match it.'
+            ? 'Which modules this set accepts. Fixed once created.'
             : 'Which installer runs on the device, and therefore which workflow may launch this set. Fixed once created.'}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -491,7 +411,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
         {moduleRequired && (
           <FormSection
             title="First software module"
-            description="hawkBit needs at least one module to create a set — its type decides what the set becomes and cannot change later."
+            description="A set is composed of built software modules. Its first module decides what the set becomes (an OS/firmware module or an application) and cannot change later."
             invalid={!moduleChoiceValid}
           >
             {moduleField}

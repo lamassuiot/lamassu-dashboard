@@ -3,9 +3,9 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Package } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import { fetchSoftwareModulesVersion, downloadModuleArtifactVersion } from '@/lib/iot-api';
 import type { SoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 // The version-history counterpart to SoftwareModulesCard: download each software module INSIDE a
 // specific past version, not only the pack's current one.
@@ -65,7 +65,7 @@ export function VersionModulesPanel({
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not download the software module', description: err?.message ?? String(err) });
+      sileo.error({ title: 'Could not download the software module', description: err?.message ?? String(err) });
     } finally {
       setDownloadingKey(null);
     }

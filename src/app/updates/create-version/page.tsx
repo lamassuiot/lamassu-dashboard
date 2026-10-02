@@ -12,10 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { fetchUpdatePacks, createUpdatePackVersion } from '@/lib/iot-api';
 import { useDms } from '@/contexts/DmsContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
 import { cn, isValidSemver, compareSemver } from '@/lib/utils';
 import type { UpdatePack } from '@/types/iot';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { sileo } from '@/lib/toast';
 
 // Lightweight "create a new version of an existing pack" page. It just bumps the pack to a fresh
 // version and lands on the pack's details, where artifacts are uploaded and (for SWU packs) the SWU
@@ -88,20 +88,20 @@ export default function CreateUpdatePackVersionPage() {
   const handleCreateVersion = async () => {
     if (!selectedPack || !selectedDms || !user?.access_token) return;
     if (!versionValid) {
-      toast({ title: 'Invalid version', description: 'Version must be semver (x.y.z).', variant: 'destructive' });
+      sileo.error({ title: 'Invalid version', description: 'Version must be semver (x.y.z).',});
       return;
     }
     if (!versionGreater) {
-      toast({ title: 'Version too low', description: `New version must be greater than the current v${selectedPack.version}.`, variant: 'destructive' });
+      sileo.error({ title: 'Version too low', description: `New version must be greater than the current v${selectedPack.version}.`,});
       return;
     }
     setIsCreating(true);
     try {
       await createUpdatePackVersion({ groupId: selectedDms.id, packName: selectedPack.name, version: newVersion.trim() });
-      toast({ title: 'New version created', description: `${selectedPack.name} is now v${newVersion.trim()} — upload artifacts next.` });
+      sileo.success({ title: 'New version created', description: `${selectedPack.name} is now v${newVersion.trim()} — upload artifacts next.` });
       router.push(`/updates/pack-details?groupId=${encodeURIComponent(selectedDms.id)}&packName=${encodeURIComponent(selectedPack.name)}`);
     } catch (err: any) {
-      toast({ title: 'Failed to create version', description: err.message || 'An error occurred.', variant: 'destructive' });
+      sileo.error({ title: 'Failed to create version', description: err.message || 'An error occurred.',});
     } finally {
       setIsCreating(false);
     }

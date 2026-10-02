@@ -13,7 +13,7 @@ vi.mock('@/lib/iot-api', () => ({
   fetchAllArtifacts: fetchAllArtifactsMock,
   linkArtifactToSoftwareModule: linkArtifactToSoftwareModuleMock,
 }));
-vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@/lib/toast', () => ({ sileo: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 
 const artifacts = [
   { id: 'a1', name: 'firmware', version: '1.0.0', filename: 'fw.bin', packs: [{ distribution_set_id: 'p', distribution_set_name: 'other', distribution_set_version: '1.0.0', group_id: 'g' }] },

@@ -16,10 +16,10 @@ import {
 } from '@/components/ui/dialog';
 import { GitFork, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
 import { cn, isValidSemver, compareSemver } from '@/lib/utils';
 import { createUpdatePackVersion } from '@/lib/iot-api';
 import type { UpdatePack } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 export type PackForVersioning = Pick<UpdatePack, 'id' | 'name' | 'version'> & { groupId: string; groupName?: string };
 
@@ -60,11 +60,11 @@ export const NewPackVersionDialog: React.FC<NewPackVersionDialogProps> = ({ pack
     setIsCreating(true);
     try {
       await createUpdatePackVersion({ groupId: pack.groupId, packName: pack.name, version: newVersion.trim() });
-      toast({ title: 'New version created', description: `${pack.name} is now v${newVersion.trim()} — upload artifacts next.` });
+      sileo.success({ title: 'New version created', description: `${pack.name} is now v${newVersion.trim()} — upload artifacts next.` });
       onOpenChange(false);
       onCreated?.(pack.groupId, pack.name, newVersion.trim());
     } catch (err: any) {
-      toast({ title: 'Failed to create version', description: err.message || 'An error occurred.', variant: 'destructive' });
+      sileo.error({ title: 'Failed to create version', description: err.message || 'An error occurred.',});
     } finally {
       setIsCreating(false);
     }

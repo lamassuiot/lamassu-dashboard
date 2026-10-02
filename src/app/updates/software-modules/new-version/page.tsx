@@ -31,12 +31,12 @@ import { WizardLayout, FormSection, SummaryPanel, SummaryRow } from '@/component
 import { DELIVERY_LABELS, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { toast } from '@/hooks/use-toast';
 import { cn, isValidSemver } from '@/lib/utils';
 import {
   createStandaloneSoftwareModule, fetchCatalogModule, updateCatalogModule,
 } from '@/lib/iot-api';
 import type { SoftwareModule } from '@/types/iot';
+import { sileo } from '@/lib/toast';
 
 const CATALOG = '/updates/software-modules';
 
@@ -106,11 +106,10 @@ export default function AddSoftwareModuleVersionPage() {
           state: files, userId: user?.profile?.sub || '',
         });
       }
-      toast({ title: 'Version added', description: `${created.name} v${created.version} is in the catalog.` });
+      sileo.success({ title: 'Version added', description: `${created.name} v${created.version} is in the catalog.` });
       router.push(CATALOG);
     } catch (err) {
-      toast({
-        variant: 'destructive',
+      sileo.error({
         title: created ? 'Version created; setup incomplete' : 'Could not add the version',
         description: err instanceof Error ? err.message : String(err),
       });
@@ -143,7 +142,7 @@ export default function AddSoftwareModuleVersionPage() {
 
       <SummaryPanel
         title="New version"
-        badge={<Badge variant="outline" className="font-mono text-[10px]">v{version.trim() || '—'}</Badge>}
+        badge={<Badge variant="secondary" className="font-mono">v{version.trim() || '—'}</Badge>}
         footnote="Added as a new catalog version of this module. The existing versions are left untouched."
       >
         <SummaryRow label="Files staged" value={files.files.length || undefined} />
