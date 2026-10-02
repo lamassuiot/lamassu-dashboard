@@ -8,6 +8,7 @@ import { Download, FileUp, Loader2, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { ModuleDeliverySelect, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
+import { ModuleLinkArtifact } from '@/components/iot/module-link-artifact';
 import { deleteCatalogModuleFile, downloadCatalogModuleFile, fetchCatalogModule, fetchUpdatePacks, updateCatalogModule } from '@/lib/iot-api';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { ModuleDeliveryIntent, SoftwareModule } from '@/types/iot';
@@ -179,6 +180,17 @@ export function ModuleFileSheet({
                 <Button variant="ghost" size="icon" disabled={busy || current.locked} aria-label={`Remove ${a.filename}`} onClick={() => remove(a.id)}><Trash2 className="h-4 w-4" /></Button>
               </div>)}
             </div>}
+            {/* Only for a module inside a set: linking is addressed by (set, module key). */}
+            {!standalone && module && !current?.locked && (
+              <ModuleLinkArtifact
+                groupId={groupId}
+                packName={packName}
+                moduleKey={module.key}
+                linkedIds={(current?.artifacts ?? []).map((a) => a.id)}
+                disabled={busy}
+                onLinked={reload}
+              />
+            )}
             {!current?.locked && <ModuleFilesFields state={files} disabled={busy} versionPlaceholder={module?.version || undefined} />}
           </div>
         </div>

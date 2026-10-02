@@ -71,11 +71,11 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
     return allRows.filter((r) => {
       if (onlyOutdated && r.in_sync) return false;
       if (!term) return true;
-      return r.device_id.toLowerCase().includes(term) || r.pack_name.toLowerCase().includes(term);
+      return r.device_id.toLowerCase().includes(term) || r.distribution_set_name.toLowerCase().includes(term);
     });
   }, [allRows, filter, onlyOutdated]);
 
-  const rowKey = (r: DevicePackVersionStatus) => `${r.device_id}::${r.update_pack_id}`;
+  const rowKey = (r: DevicePackVersionStatus) => `${r.device_id}::${r.distribution_set_id}`;
 
   const handleUpdate = async (r: DevicePackVersionStatus, selectedWorkflow: string) => {
     const key = rowKey(r);
@@ -84,12 +84,12 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
     try {
       await forceDeviceVersion({
         deviceId: r.device_id,
-        updatePackId: r.update_pack_id,
+        updatePackId: r.distribution_set_id,
         version: r.latest_version,
         groupId,
         workflow: selectedWorkflow,
       });
-      toast({ title: 'Update launched', description: `${r.device_id} → ${r.pack_name} v${r.latest_version}` });
+      toast({ title: 'Update launched', description: `${r.device_id} → ${r.distribution_set_name} v${r.latest_version}` });
       await refetch();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Update failed', description: err.message });
@@ -232,7 +232,7 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
                         {r.device_id}
                       </Link>
                     </TableCell>
-                    <TableCell className="font-medium">{r.pack_name}</TableCell>
+                    <TableCell className="font-medium">{r.distribution_set_name}</TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">v{r.current_version}</TableCell>
                     <TableCell className="font-mono text-sm">v{r.latest_version}</TableCell>
                     <TableCell>
@@ -276,7 +276,7 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
               {updateTarget && (
                 <>
                   Push <span className="font-mono text-xs">{updateTarget.device_id}</span> to{' '}
-                  <span className="font-medium">{updateTarget.pack_name}</span>{' '}
+                  <span className="font-medium">{updateTarget.distribution_set_name}</span>{' '}
                   <span className="font-mono text-xs">v{updateTarget.latest_version}</span>. Choose the workflow to use.
                 </>
               )}

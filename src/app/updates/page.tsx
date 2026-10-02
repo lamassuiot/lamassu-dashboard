@@ -6,69 +6,114 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlayCircle, AlertTriangle, RefreshCw, Eye, Loader2, Package, ArrowLeft, Ban, Rocket, History, Boxes, Pause, Play, RotateCcw } from 'lucide-react';
-import type { UpdateStrategy, CampaignItem, UpdatePack, PreconditionFailure } from '@/types/iot';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format, parseISO } from 'date-fns';
-import { toast } from "@/hooks/use-toast";
-import { UpdateStrategyForm } from '@/components/iot/update-strategy-form';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  PlayCircle, AlertTriangle, RefreshCw, Loader2, ArrowLeft, Ban, Rocket, Boxes, Pause, Play, RotateCcw,
+  Plus, CalendarClock, TrendingUp, CheckCircle2, AlertCircle, PauseCircle, Circle, MoreVertical, ShieldCheck,
+  ChevronLeft, ChevronRight, FlaskConical, Eye,
+} from 'lucide-react';
+import type { CampaignItem } from '@/types/iot';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
+import { toast } from "@/hooks/use-toast";
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { Tabs, TabsList, TabsTrigger, TabsContent, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
+import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { cn } from '@/lib/utils';
 import {
-  fetchUpdatePacks,
-  fetchPackPreconditions,
-  createCampaign,
-  type CreateCampaignPayload,
-  fetchAllCampaigns,
-  pauseCampaign,
-  resumeCampaign,
-  cancelCampaign,
-  retryFailedDevices,
+  fetchUpdatePacks, fetchAllCampaigns, pauseCampaign, resumeCampaign, cancelCampaign, retryFailedDevices,
+  triggerItemRollout,
 } from '@/lib/iot-api';
-import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useDms } from '@/contexts/DmsContext';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import {
-  CampaignNameCell, CampaignStatusCell, CampaignProgressCell, CampaignErrorRateCell,
-  getTestDeviceStatus, TestDeviceBadge,
+  CampaignStatusCell, CampaignProgressCell, TestDeviceBadge, BatchProgress, getTestDeviceStatus,
+  deriveCampaignStatus, deriveBatchPlan, isScheduledCampaign, campaignAttentionReasons, campaignRolloutPolicy,
+  type CampaignDisplayStatus,
 } from '@/components/iot/campaign-cells';
+import { CampaignBatchesPanel } from '@/components/iot/campaign-batches-panel';
 
-// Extended CampaignItem with DMS information
 interface CampaignItemWithDms extends CampaignItem {
   dmsName: string;
 }
 
-const CAMPAIGN_PAGE_SIZE_OPTIONS = ['10', '25', '50'];
+type PackRef = { id: string; name: string; version: string; groupId: string };
+
+type ViewFilter = 'all' | 'active' | 'scheduled' | 'rolling' | 'attention' | 'completed' | 'history';
+
+const VIEW_LABEL: Record<ViewFilter, string> = {
+  all: 'All campaigns',
+  active: 'Active',
+  scheduled: 'Scheduled',
+  rolling: 'Rolling out',
+  attention: 'Requires attention',
+  completed: 'Completed',
+  history: 'Finished',
+};
+
+const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
+
+const STATUS_ICON: Record<CampaignDisplayStatus, { icon: React.ElementType; cls: string }> = {
+  'Rolling Out': { icon: PlayCircle, cls: 'text-primary' },
+  'Scheduled': { icon: CalendarClock, cls: 'text-violet-600 dark:text-violet-400' },
+  'Paused': { icon: PauseCircle, cls: 'text-amber-600 dark:text-amber-400' },
+  'Failed': { icon: AlertCircle, cls: 'text-destructive' },
+  'Completed': { icon: CheckCircle2, cls: 'text-emerald-600 dark:text-emerald-400' },
+  'Cancelled': { icon: Ban, cls: 'text-muted-foreground' },
+  'Not Started': { icon: Circle, cls: 'text-muted-foreground' },
+  'Partial Completed': { icon: AlertTriangle, cls: 'text-amber-600 dark:text-amber-400' },
+};
+
+const campaignKey = (c: CampaignItem) => `${c.group_id}::${c.id}`;
+const startTimeOf = (c: CampaignItem) => c.scheduled_at || c.exec_date;
+
+/** One figure in the summary strip. Framed because it is a button: it filters the table. */
+function KpiTile({
+  label, value, sub, icon: Icon, tone, active, onClick,
+}: {
+  label: string;
+  value: number;
+  sub?: React.ReactNode;
+  icon: React.ElementType;
+  tone: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'flex min-w-0 items-center gap-3 rounded-lg border bg-background px-4 py-3 text-left transition-colors hover:bg-muted/40',
+        active && 'border-primary ring-1 ring-primary/30',
+      )}
+    >
+      <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', tone)}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="block text-2xl font-semibold leading-tight">{value}</span>
+        {sub && <span className="block truncate text-xs text-muted-foreground">{sub}</span>}
+      </span>
+    </button>
+  );
+}
 
 export default function UpdatesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isStrategyDialogOpen, setIsStrategyDialogOpen] = React.useState(false);
-  const [selectedPackForCampaign, setSelectedPackForCampaign] = React.useState<string | null>(null);
-  // Confirmation dialog target for the terminal cancel action.
   const [cancelCampaignTarget, setCancelCampaignTarget] = React.useState<{ groupId: string; campaignId: string } | null>(null);
   const [executingCampaigns, setExecutingCampaigns] = React.useState<Set<string>>(new Set());
 
-  // URL params: packName narrows the page to one pack's campaigns; action=campaign deep-links the
-  // "New Campaign" dialog (e.g. the Campaign action in the Package Inventory).
   const packNameFilter = searchParams.get('packName');
   const dmsIdFilter = searchParams.get('groupId');
   const actionParam = searchParams.get('action');
@@ -79,42 +124,31 @@ export default function UpdatesPage() {
   // Campaign IDs confirmed finished by CampaignProgressCell (complements the count-based active check).
   const [completedCampaignIds, setCompletedCampaignIds] = React.useState<Set<string>>(new Set());
   const [filterDmsId, setFilterDmsId] = React.useState<string>(dmsIdFilter || "all");
-  const [activeTab, setActiveTab] = React.useState<'active' | 'history'>('active');
-
-  // Client-side pagination, consistent with the other list pages in the app.
+  const [viewFilter, setViewFilter] = React.useState<ViewFilter>('all');
   const [pageSize, setPageSize] = React.useState<string>('10');
-  const [activePage, setActivePage] = React.useState(0);
-  const [historyPage, setHistoryPage] = React.useState(0);
+  const [page, setPage] = React.useState(0);
+  const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
 
-  // Campaign precondition dry-run / confirm flow
-  const [isPreconditionDialogOpen, setIsPreconditionDialogOpen] = React.useState(false);
-  const [forceDeploy, setForceDeploy] = React.useState(false);
-  const [preconditionCheck, setPreconditionCheck] = React.useState<{ payload: CreateCampaignPayload; qualifying: string[]; failures: PreconditionFailure[] } | null>(null);
-
-  // Update filter when URL param changes
   React.useEffect(() => {
     setFilterDmsId(dmsIdFilter || "all");
   }, [dmsIdFilter]);
 
   const { user } = useAuth();
-  const { availableDms, selectedDms, setSelectedDms } = useDms();
+  const { availableDms } = useDms();
+  const { backend } = useUpdatesCapabilities();
 
-  // Deep link: open the campaign dialog with group + pack preselected, then consume the params.
+  // Old deep links (?action=campaign) opened a side sheet here; creation now has its own page.
   React.useEffect(() => {
-    if (actionParam !== 'campaign' || availableDms.length === 0) return;
-    if (dmsIdFilter) {
-      const target = availableDms.find(d => d.id === dmsIdFilter);
-      if (target && selectedDms?.id !== target.id) setSelectedDms(target);
-    }
-    setSelectedPackForCampaign(packIdParam);
-    setIsStrategyDialogOpen(true);
-    router.replace('/updates');
-  }, [actionParam, packIdParam, dmsIdFilter, availableDms, selectedDms, setSelectedDms, router]);
+    if (actionParam !== 'campaign') return;
+    const qs = new URLSearchParams();
+    if (dmsIdFilter) qs.set('groupId', dmsIdFilter);
+    if (packIdParam) qs.set('packId', packIdParam);
+    router.replace(`/updates/new${qs.toString() ? `?${qs}` : ''}`);
+  }, [actionParam, packIdParam, dmsIdFilter, router]);
 
   const updateCampaignTotal = React.useCallback((campaignId: string, total: number) => {
     setStartedCampaignTotals(prev => {
-      const current = prev.get(campaignId);
-      if (current === total) return prev; // Avoid recreating Map if nothing changed
+      if (prev.get(campaignId) === total) return prev;
       const n = new Map(prev);
       n.set(campaignId, total);
       return n;
@@ -154,175 +188,23 @@ export default function UpdatesPage() {
     });
   }, []);
 
-  // Fetch distribution sets from ALL DMSs (used to resolve names/ids when creating launches)
-  const [allDmsUpdatePacks, setAllDmsUpdatePacks] = useState<any[]>([]);
-
-  const fetchAllDmsUpdatePacks = useCallback(async () => {
+  // Distribution sets of every group, to name the set each campaign rolls out.
+  const [packsById, setPacksById] = useState<Map<string, PackRef>>(new Map());
+  const fetchAllPacks = useCallback(async () => {
     if (!user?.access_token || availableDms.length === 0) return;
-    const promises = availableDms.map(async dms => {
+    const results = await Promise.all(availableDms.map(async dms => {
       try {
         const res = await fetchUpdatePacks({ groupId: dms.id }, { pageSize: 100 });
-        return res.list.map(p => ({ ...p, groupId: dms.id, dmsName: dms.name }));
-      } catch (e) {
-        console.error(`Failed to fetch packs for DMS ${dms.id}`, e);
-        return [];
+        return res.list.map(p => ({ id: p.id, name: p.name, version: p.version, groupId: dms.id }));
+      } catch {
+        return [] as PackRef[];
       }
-    });
-    const results = await Promise.all(promises);
-    setAllDmsUpdatePacks(results.flat());
-  }, [user?.access_token, availableDms.map(d => d.id).join(',')]);
+    }));
+    setPacksById(new Map(results.flat().map(p => [`${p.groupId}::${p.id}`, p])));
+  }, [user?.access_token, availableDms.map(d => d.id).join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!user?.access_token || availableDms.length === 0) return;
-    fetchAllDmsUpdatePacks();
-  }, [fetchAllDmsUpdatePacks]);
+  useEffect(() => { fetchAllPacks(); }, [fetchAllPacks]);
 
-  // Fetch distribution sets for the launch (strategy) dialog — scoped to the selected device group
-  const [updatePacksResponse2, setUpdatePacksResponse2] = useState<{ list: UpdatePack[] } | undefined>(undefined);
-  const [isLoadingUpdatePacks, setIsLoadingUpdatePacks] = useState(false);
-
-  const fetchUpdatePacksForDialog = useCallback(async () => {
-    if (!selectedDms?.id || !user?.access_token) return;
-    setIsLoadingUpdatePacks(true);
-    try {
-      const result = await fetchUpdatePacks({ groupId: selectedDms.id }, { pageSize: 50 });
-      setUpdatePacksResponse2(result);
-    } catch (err) {
-      // ignore
-    } finally {
-      setIsLoadingUpdatePacks(false);
-    }
-  }, [selectedDms?.id, user?.access_token]);
-
-  useEffect(() => {
-    if (!selectedDms?.id || !user?.access_token) return;
-    fetchUpdatePacksForDialog();
-  }, [fetchUpdatePacksForDialog]);
-
-  // Use packs from the global cache if available for the selected DMS to avoid loading states when switching
-  const updatePacks: UpdatePack[] = React.useMemo(() => {
-    if (selectedDms && allDmsUpdatePacks.length > 0) {
-      const filtered = allDmsUpdatePacks.filter((p: any) => p.groupId === selectedDms.id);
-      if (filtered.length > 0) return filtered;
-    }
-    return updatePacksResponse2?.list || [];
-  }, [allDmsUpdatePacks, selectedDms, updatePacksResponse2?.list]);
-
-  // Campaign creation mutation - requires all strategy fields
-  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
-
-  const createCampaignMutate = async (campaignData: CreateCampaignPayload) => {
-    if (!selectedDms?.id) {
-      throw new Error('No Device Group selected');
-    }
-    setIsCreatingCampaign(true);
-    try {
-      const data = await createCampaign({
-        groupId: selectedDms.id,
-        campaignData
-      });
-      toast({ title: "Campaign Created", description: data.message || "Successfully created new campaign with configured strategy." });
-      refetchAllCampaigns();
-
-      // If the response contains a campaign ID, mark it as started for immediate polling
-      // but NOT when auto is enabled — user still needs to press Execute first
-      const newCampaignId = data.launch_id || data.launchId || data.id;
-      if (newCampaignId && !campaignData.auto) startStoredCampaign(newCampaignId);
-
-      // Refetch again after a short delay to ensure we catch the new campaign
-      setTimeout(async () => {
-        refetchAllCampaigns();
-      }, 500);
-
-      setIsStrategyDialogOpen(false);
-      setSelectedPackForCampaign(null);
-      setPreconditionCheck(null);
-    } catch (err) {
-      toast({ variant: "destructive", title: "Campaign Creation Failed", description: (err instanceof Error ? err : new Error(String(err))).message });
-    } finally {
-      setIsCreatingCampaign(false);
-    }
-  };
-
-  // Dry-run mutation: evaluate preconditions before committing the campaign.
-  const [isDryRunPending, setIsDryRunPending] = useState(false);
-
-  const dryRunMutate = async (campaignData: CreateCampaignPayload) => {
-    if (!selectedDms?.id) throw new Error('No Device Group selected');
-    setIsDryRunPending(true);
-    try {
-      const data = await createCampaign({ groupId: selectedDms.id, campaignData, dryRun: true });
-      setPreconditionCheck({ payload: campaignData, qualifying: data.qualifying_devices || [], failures: data.precondition_failures || [] });
-      setForceDeploy(false);
-      setIsPreconditionDialogOpen(true);
-    } catch (err) {
-      toast({ variant: 'destructive', title: 'Precondition check failed', description: (err instanceof Error ? err : new Error(String(err))).message });
-    } finally {
-      setIsDryRunPending(false);
-    }
-  };
-
-  const handleStrategySave = async (formDataFromForm: UpdateStrategy) => {
-    if (!formDataFromForm.updatePackId) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Please select an distribution set" });
-      return;
-    }
-
-    const selectedPack = updatePacks.find(p => p.id === formDataFromForm.updatePackId);
-    if (!selectedPack) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Selected distribution set not found" });
-      return;
-    }
-
-    // Preconditions are a single-pack read (see fetchPackPreconditions) — deliberately excluded from
-    // the fleet-wide list `updatePacks` came from, so `selectedPack.preconditions` here is never
-    // populated. Fetched fresh at submit time, not cached in list state that would go stale the
-    // moment someone edits the pack's requirement from its own page.
-    let packPreconditionCount = 0;
-    if (!selectedDms?.id) {
-      toast({ variant: "destructive", title: "Validation Error", description: "No Device Group selected" });
-      return;
-    }
-    try {
-      const fresh = await fetchPackPreconditions({ groupId: selectedDms.id, packName: selectedPack.name });
-      packPreconditionCount = fresh.preconditions?.length ?? 0;
-    } catch (err) {
-      // Best-effort: if this read fails, fall back to dry-running anyway rather than risking a
-      // silent direct-create that skips a real precondition this read just couldn't confirm.
-      packPreconditionCount = 1;
-      console.error('Could not read the pack\'s launch preconditions before submitting; dry-running to be safe:', err);
-    }
-
-    const campaignPayload: CreateCampaignPayload = {
-      update_pack_name: selectedPack.name, // Backend expects pack name
-      workflow_type: formDataFromForm.workflowType,
-      rollout_type: formDataFromForm.rolloutType,
-      rollout_value: formDataFromForm.rolloutValue,
-      // Planned start: the form holds a local <datetime-local> string; the API
-      // wants a UTC ISO 8601 timestamp. Omit when not scheduled (launch now).
-      ...(formDataFromForm.scheduledAt ? { scheduled_at: new Date(formDataFromForm.scheduledAt).toISOString() } : {}),
-      // Optional metadata: name defaults server-side to the pack name when
-      // omitted; description is free text; weight is a 0–1000 priority hint.
-      ...(formDataFromForm.name ? { name: formDataFromForm.name } : {}),
-      ...(formDataFromForm.description ? { description: formDataFromForm.description } : {}),
-      ...(formDataFromForm.weight != null ? { weight: formDataFromForm.weight } : {}),
-      test_device_id: formDataFromForm.testDeviceId || undefined,
-      auto: formDataFromForm.auto || false,
-      ...(formDataFromForm.auto && formDataFromForm.approvalThreshold != null ? { approval_threshold: formDataFromForm.approvalThreshold } : {}),
-      ...(formDataFromForm.auto && formDataFromForm.errorThreshold != null ? { error_threshold: formDataFromForm.errorThreshold } : {}),
-    };
-
-    // Preconditions now live on the PACK being launched (set on its own page, not here — see
-    // PackPreconditionsCard), so whether to dry-run first is decided by what the selected pack
-    // requires, not by anything this form collected. With none configured, create directly.
-    if (packPreconditionCount > 0) {
-      dryRunMutate(campaignPayload);
-    } else {
-      createCampaignMutate(campaignPayload);
-    }
-  };
-
-  // Fetch all campaigns from all DMS instances
   const [allCampaigns, setAllCampaigns] = useState<CampaignItemWithDms[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
   const [campaignsError, setCampaignsError] = useState<Error | null>(null);
@@ -332,45 +214,27 @@ export default function UpdatesPage() {
     setIsLoadingCampaigns(true);
     setCampaignsError(null);
     try {
-      // If filtering by DMS, only fetch from that DMS
-      const dmsToQuery = dmsIdFilter
-        ? availableDms.filter(dms => dms.id === dmsIdFilter)
-        : availableDms;
-
-      // Fetch campaigns straight from each group's launch endpoint (already sorted + paginated by
-      // the backend). This replaces the previous per-pack fan-out (fetch every pack, then the last
-      // few campaigns of each) which issued one request per pack and never returned the full set.
+      const dmsToQuery = dmsIdFilter ? availableDms.filter(dms => dms.id === dmsIdFilter) : availableDms;
       const perGroup = await Promise.all(
         dmsToQuery.map(dms =>
           fetchAllCampaigns({ groupId: dms.id })
             .then(campaigns => campaigns.map(campaign => ({ ...campaign, dmsName: dms.name })))
-            .catch(() => [] as CampaignItemWithDms[]) // Degrade gracefully per-group
+            .catch(() => [] as CampaignItemWithDms[])
         )
       );
-
       let merged = perGroup.flat();
-
-      // packName narrows the page to a single pack's campaigns (deep-link from Package Inventory).
       if (packNameFilter) {
-        merged = merged.filter(campaign =>
-          campaign.name.includes(packNameFilter) ||
-          campaign.name === packNameFilter ||
-          campaign.name.startsWith(packNameFilter)
-        );
+        merged = merged.filter(campaign => campaign.name.includes(packNameFilter));
       }
-
       setAllCampaigns(merged);
     } catch (err) {
       setCampaignsError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsLoadingCampaigns(false);
     }
-  }, [user?.access_token, availableDms.map(d => d.id).join(','), packNameFilter, dmsIdFilter]);
+  }, [user?.access_token, availableDms.map(d => d.id).join(','), packNameFilter, dmsIdFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!user?.access_token || availableDms.length === 0) return;
-    refetchAllCampaigns();
-  }, [refetchAllCampaigns]);
+  useEffect(() => { refetchAllCampaigns(); }, [refetchAllCampaigns]);
 
   useEffect(() => {
     if (startedCampaigns.size === 0) return;
@@ -378,899 +242,534 @@ export default function UpdatesPage() {
     return () => clearInterval(id);
   }, [refetchAllCampaigns, startedCampaigns.size]);
 
-  // Pause auto-deploy / Execute for a campaign (resumable). Replaces the old "switch to manual" hack.
-  const [isPausePending, setIsPausePending] = useState(false);
+  // ── Lifecycle actions ────────────────────────────────────────────────────────
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
 
-  const pauseMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
-    setIsPausePending(true);
+  const runLifecycle = async (
+    action: () => Promise<unknown>,
+    ok: { title: string; description: string },
+    failTitle: string,
+    after?: () => void,
+  ) => {
+    setLifecycleBusy(true);
     try {
-      await pauseCampaign({ groupId, campaignId });
-      toast({ title: "Campaign Paused", description: "Roll out is on hold. Resume it any time to continue." });
+      await action();
+      toast(ok);
+      after?.();
       refetchAllCampaigns();
     } catch (err) {
-      toast({ variant: "destructive", title: "Failed to Pause Campaign", description: (err instanceof Error ? err : new Error(String(err))).message });
+      toast({ variant: "destructive", title: failTitle, description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
-      setIsPausePending(false);
+      setLifecycleBusy(false);
     }
   };
 
-  // Resume a paused campaign; for auto campaigns the backend immediately rolls out pending devices.
-  const [isResumePending, setIsResumePending] = useState(false);
+  const pauseMutate = (c: CampaignItem) => runLifecycle(
+    () => pauseCampaign({ groupId: c.group_id, campaignId: c.id }),
+    { title: "Campaign Paused", description: "Roll out is on hold. Resume it any time to continue." },
+    "Failed to Pause Campaign",
+  );
 
-  const resumeMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
-    setIsResumePending(true);
-    try {
-      await resumeCampaign({ groupId, campaignId });
-      toast({ title: "Campaign Resumed", description: "Roll out has been resumed." });
-      startStoredCampaign(campaignId);
-      refetchAllCampaigns();
-    } catch (err) {
-      toast({ variant: "destructive", title: "Failed to Resume Campaign", description: (err instanceof Error ? err : new Error(String(err))).message });
-    } finally {
-      setIsResumePending(false);
-    }
-  };
+  const resumeMutate = (c: CampaignItem) => runLifecycle(
+    () => resumeCampaign({ groupId: c.group_id, campaignId: c.id }),
+    { title: "Campaign Resumed", description: "Roll out has been resumed." },
+    "Failed to Resume Campaign",
+    () => startStoredCampaign(c.id),
+  );
 
-  // Permanently cancel a campaign (terminal, not resumable).
-  const [isCancelPending, setIsCancelPending] = useState(false);
-
-  const cancelMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
-    setIsCancelPending(true);
-    try {
-      await cancelCampaign({ groupId, campaignId });
-      toast({ title: "Campaign Cancelled", description: "The campaign was stopped permanently. Pending devices will not be updated." });
-      clearStartedCampaign(campaignId);
-      refetchAllCampaigns();
-      setCancelCampaignTarget(null);
-    } catch (err) {
-      toast({ variant: "destructive", title: "Failed to Cancel Campaign", description: (err instanceof Error ? err : new Error(String(err))).message });
-      setCancelCampaignTarget(null);
-    } finally {
-      setIsCancelPending(false);
-    }
-  };
-
-  // Re-queue & roll out a campaign's failed devices again (retry a failed test device, or re-attempt
-  // the errored devices of a finished campaign).
-  const [isRetryFailedPending, setIsRetryFailedPending] = useState(false);
-
-  const retryFailedMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
-    setIsRetryFailedPending(true);
-    try {
-      await retryFailedDevices({ groupId, campaignId });
-      toast({ title: "Retrying Failed Devices", description: "The failed devices are being rolled out again." });
-      startStoredCampaign(campaignId);
+  const retryFailedMutate = (c: CampaignItem) => runLifecycle(
+    () => retryFailedDevices({ groupId: c.group_id, campaignId: c.id }),
+    { title: "Retrying Failed Devices", description: "The failed devices are being rolled out again." },
+    "Failed to Retry Devices",
+    () => {
+      startStoredCampaign(c.id);
       // A retry re-opens a finished campaign, so drop it from the locally-completed set.
-      setCompletedCampaignIds(prev => { const n = new Set(prev); n.delete(campaignId); return n; });
-      refetchAllCampaigns();
-    } catch (err) {
-      toast({ variant: "destructive", title: "Failed to Retry Devices", description: (err instanceof Error ? err : new Error(String(err))).message });
-    } finally {
-      setIsRetryFailedPending(false);
-    }
+      setCompletedCampaignIds(prev => { const n = new Set(prev); n.delete(c.id); return n; });
+    },
+  );
+
+  const cancelMutate = async (target: { groupId: string; campaignId: string }) => {
+    await runLifecycle(
+      () => cancelCampaign(target),
+      { title: "Campaign Cancelled", description: "The campaign was stopped permanently. Pending devices will not be updated." },
+      "Failed to Cancel Campaign",
+      () => clearStartedCampaign(target.campaignId),
+    );
+    setCancelCampaignTarget(null);
   };
 
-  // Trigger a rollout for a campaign (apply its strategy to the pending devices).
-  const handleCampaignExecute = async (groupId: string, campaignId: string) => {
-    const campaign = allCampaigns.find(c => c.id === campaignId);
-
-    // Optimistically mark as executing/started for instant visual feedback
-    setExecutingCampaigns(prev => new Set(prev).add(campaignId));
-    startStoredCampaign(campaignId);
-
-    // Store the total for display immediately to avoid UI dropouts
-    if (campaign) {
-      updateCampaignTotal(campaignId, campaign.total_devices || 0);
-    }
-
+  const handleCampaignExecute = async (c: CampaignItem) => {
+    setExecutingCampaigns(prev => new Set(prev).add(c.id));
+    startStoredCampaign(c.id);
+    updateCampaignTotal(c.id, c.total_devices || 0);
     try {
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${campaignId}/rollout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to execute campaign: ${response.statusText}`);
-      }
-
-      toast({
-        title: "Campaign Executed",
-        description: `Campaign ${campaignId.slice(-4)} has been successfully executed.`,
-      });
-
+      // Through triggerItemRollout's apiFetch/handleApiError, so a refusal (e.g. "launch is paused;
+      // resume it first") reaches the toast instead of a generic "Bad Request".
+      await triggerItemRollout({ groupId: c.group_id, launchId: c.id });
+      toast({ title: "Campaign Executed", description: `${c.name}: the next batch is on its way.` });
       refetchAllCampaigns();
     } catch (error) {
-      console.error('Error executing campaign:', error);
-      clearStartedCampaign(campaignId);
-      toast({
-        variant: "destructive",
-        title: "Campaign Execution Failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-      });
+      clearStartedCampaign(c.id);
+      toast({ variant: "destructive", title: "Campaign Execution Failed", description: error instanceof Error ? error.message : "An unknown error occurred" });
     } finally {
-      setExecutingCampaigns(prev => {
-        const n = new Set(prev);
-        n.delete(campaignId);
-        return n;
-      });
+      setExecutingCampaigns(prev => { const n = new Set(prev); n.delete(c.id); return n; });
     }
   };
 
-  const isLoading = isLoadingCampaigns || isLoadingUpdatePacks;
-  // Only block the whole view with a skeleton on the very first load. Background refetches and the
-  // 3s polling (active while a campaign is started) must refresh silently — otherwise the page
-  // "reloads" every few seconds and any open dialog is disrupted.
-  const showInitialSkeleton = isLoading && allCampaigns.length === 0;
+  // ── Derived views ────────────────────────────────────────────────────────────
+  const showInitialSkeleton = isLoadingCampaigns && allCampaigns.length === 0;
 
-  // Split campaigns into "still has work to do" (active) and finished (history).
-  const { activeCampaigns, historyCampaigns } = React.useMemo(() => {
-    const visible = allCampaigns
-      .filter(c => filterDmsId === 'all' || c.group_id === filterDmsId)
-      .slice()
-      .sort((a, b) => (b.exec_date ? new Date(b.exec_date).getTime() : 0) - (a.exec_date ? new Date(a.exec_date).getTime() : 0));
-    const isActive = (c: CampaignItemWithDms) => {
-      // Terminal lifecycle status (cancelled / completed) always belongs in history, regardless of
-      // the raw device buckets.
-      if (c.status === 'cancelled' || c.status === 'completed') return false;
-      // CampaignProgressCell signals completion when all devices reach a terminal state.
-      if (completedCampaignIds.has(c.id)) return false;
-      return (c.pending_count || 0) + (c.active_count || 0) > 0 || startedCampaigns.has(c.id);
-    };
-    return {
-      activeCampaigns: visible.filter(isActive),
-      historyCampaigns: visible.filter(c => !isActive(c)),
-    };
-  }, [allCampaigns, filterDmsId, startedCampaigns, completedCampaignIds]);
+  const isActive = React.useCallback((c: CampaignItem) => {
+    if (c.status === 'cancelled' || c.status === 'completed') return false;
+    if (completedCampaignIds.has(c.id)) return false;
+    return (c.pending_count || 0) + (c.active_count || 0) > 0 || startedCampaigns.has(c.id);
+  }, [completedCampaignIds, startedCampaigns]);
 
-  // Paginate each tab client-side; the full set is already in memory.
+  const visible = React.useMemo(() => allCampaigns
+    .filter(c => filterDmsId === 'all' || c.group_id === filterDmsId)
+    .slice()
+    .sort((a, b) => new Date(startTimeOf(b) || 0).getTime() - new Date(startTimeOf(a) || 0).getTime()),
+  [allCampaigns, filterDmsId]);
+
+  const groups = React.useMemo(() => {
+    const now = new Date();
+    const g: Record<ViewFilter, CampaignItemWithDms[]> = { all: visible, active: [], scheduled: [], rolling: [], attention: [], completed: [], history: [] };
+    for (const c of visible) {
+      const status = deriveCampaignStatus(c);
+      if (isActive(c)) g.active.push(c); else g.history.push(c);
+      if (isScheduledCampaign(c, now)) g.scheduled.push(c);
+      if (status === 'Rolling Out') g.rolling.push(c);
+      if (status === 'Completed' || status === 'Partial Completed') g.completed.push(c);
+      if (campaignAttentionReasons(c).length > 0) g.attention.push(c);
+    }
+    return g;
+  }, [visible, isActive]);
+
+  const kpi = React.useMemo(() => {
+    const nextStart = groups.scheduled
+      .map(c => new Date(c.scheduled_at as string))
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    const inFlight = groups.rolling.reduce((n, c) => n + (c.active_count || 0), 0);
+    const paused = groups.attention.filter(c => c.status === 'paused').length;
+    const withFailures = groups.attention.filter(c => (c.failed_count || 0) > 0).length;
+    const updatedDevices = groups.completed.reduce((n, c) => n + (c.completed_count || 0), 0);
+    return { nextStart, inFlight, paused, withFailures, updatedDevices };
+  }, [groups]);
+
+  const filtered = groups[viewFilter];
   const numericPageSize = parseInt(pageSize, 10) || 10;
-  const activePageCount = Math.max(1, Math.ceil(activeCampaigns.length / numericPageSize));
-  const historyPageCount = Math.max(1, Math.ceil(historyCampaigns.length / numericPageSize));
-  const paginatedActiveCampaigns = React.useMemo(
-    () => activeCampaigns.slice(activePage * numericPageSize, activePage * numericPageSize + numericPageSize),
-    [activeCampaigns, activePage, numericPageSize]
-  );
-  const paginatedHistoryCampaigns = React.useMemo(
-    () => historyCampaigns.slice(historyPage * numericPageSize, historyPage * numericPageSize + numericPageSize),
-    [historyCampaigns, historyPage, numericPageSize]
-  );
+  const pageCount = Math.max(1, Math.ceil(filtered.length / numericPageSize));
+  const pageRows = filtered.slice(page * numericPageSize, page * numericPageSize + numericPageSize);
 
-  // Keep page indices in range when the underlying data or page size changes.
-  React.useEffect(() => {
-    setActivePage(prev => Math.min(prev, activePageCount - 1));
-  }, [activePageCount]);
-  React.useEffect(() => {
-    setHistoryPage(prev => Math.min(prev, historyPageCount - 1));
-  }, [historyPageCount]);
-  // Reset to the first page when the group filter changes.
-  React.useEffect(() => {
-    setActivePage(0);
-    setHistoryPage(0);
-  }, [filterDmsId]);
-  const handlePageSizeChange = React.useCallback((value: string) => {
-    setPageSize(value);
-    setActivePage(0);
-    setHistoryPage(0);
-  }, []);
+  React.useEffect(() => { setPage(prev => Math.min(prev, pageCount - 1)); }, [pageCount]);
+  React.useEffect(() => { setPage(0); }, [filterDmsId, viewFilter, pageSize]);
 
-  const handleViewCampaignDetails = (campaign: CampaignItem) => {
-    router.push(`/updates/details?groupId=${campaign.group_id}&campaignId=${campaign.id}`);
+  // The panel below the table follows the selected row; until one is picked it shows the first
+  // active campaign on screen, which is the one an operator is most likely watching.
+  const selected = React.useMemo(() => {
+    const byKey = selectedKey ? visible.find(c => campaignKey(c) === selectedKey) : undefined;
+    return byKey ?? pageRows.find(isActive) ?? pageRows[0];
+  }, [selectedKey, visible, pageRows, isActive]);
+
+  const toggleView = (v: ViewFilter) => setViewFilter(prev => (prev === v ? 'all' : v));
+  const detailsHref = (c: CampaignItem) => `/updates/details?groupId=${encodeURIComponent(c.group_id)}&campaignId=${encodeURIComponent(c.id)}`;
+  const newCampaignHref = `/updates/new${filterDmsId !== 'all' ? `?groupId=${encodeURIComponent(filterDmsId)}` : ''}`;
+
+  const renderActions = (c: CampaignItemWithDms) => {
+    const status = c.status || 'running';
+    const isTerminal = status === 'cancelled' || status === 'completed';
+    const isPaused = status === 'paused';
+    const pending = (c.pending_count || 0) + (c.active_count || 0);
+    const hasFailed = (c.failed_count || 0) > 0;
+    const testStatus = getTestDeviceStatus(c);
+    const testBlocks = testStatus === 'testing' || testStatus === 'failed';
+    const isExecuting = executingCampaigns.has(c.id);
+    const autoRunning = c.auto === true && (startedCampaigns.has(c.id) || (c.active_count || 0) > 0);
+    const scheduled = isScheduledCampaign(c);
+    const neverDispatched = (c.completed_count || 0) + (c.failed_count || 0) + (c.active_count || 0) === 0;
+    // Execute releases the next batch; an automatic campaign that is already running does that
+    // itself, and a scheduled one starts at its planned time, so the menu only offers it where an
+    // operator action is actually needed.
+    const canExecute = !isTerminal && !isPaused && !scheduled && pending > 0 && !autoRunning && (c.rollout_value ?? 0) > 0;
+    // hawkBit can only pause a rollout that has started; native can also hold one before its start.
+    const canPause = !isTerminal && !isPaused && pending > 0 && !(backend === 'hawkbit' && neverDispatched);
+    const executeLabel = testStatus === 'pending' ? 'Send to test device' : 'Execute next batch';
+
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <Button variant="outline" size="sm" asChild>
+          <Link href={detailsHref(c)}>View</Link>
+        </Button>
+        {canExecute && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5"
+            disabled={lifecycleBusy || isExecuting || testBlocks}
+            onClick={() => handleCampaignExecute(c)}
+          >
+            {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            {executeLabel}
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${c.name}`} disabled={lifecycleBusy || isExecuting}>
+              {isExecuting && !canExecute ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={detailsHref(c)}><Eye className="mr-2 h-4 w-4" />Open details</Link>
+            </DropdownMenuItem>
+            {!isTerminal && (isPaused || canPause || hasFailed) && <DropdownMenuSeparator />}
+            {isPaused && (
+              <DropdownMenuItem onSelect={() => resumeMutate(c)}>
+                <Play className="mr-2 h-4 w-4" />Resume
+              </DropdownMenuItem>
+            )}
+            {canPause && (
+              <DropdownMenuItem onSelect={() => pauseMutate(c)}>
+                <Pause className="mr-2 h-4 w-4" />Pause
+              </DropdownMenuItem>
+            )}
+            {hasFailed && (
+              <DropdownMenuItem onSelect={() => retryFailedMutate(c)}>
+                <RotateCcw className="mr-2 h-4 w-4" />Retry {c.failed_count} failed
+              </DropdownMenuItem>
+            )}
+            {!isTerminal && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => setCancelCampaignTarget({ groupId: c.group_id, campaignId: c.id })}
+                >
+                  <Ban className="mr-2 h-4 w-4" />Cancel campaign
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
   };
 
-  // Prepare form initial data with defaults
-  const formInitialData: UpdateStrategy = {
-    workflowType: 'wfx.workflow.dau.direct',
-    rolloutType: 'numeric',
-    rolloutValue: 10,
-    testDeviceId: undefined,
-    updatePackId: selectedPackForCampaign || undefined,
-    auto: false,
-  };
-
-  const lifecycleBusy = isPausePending || isResumePending || isCancelPending || isRetryFailedPending;
-
-  const renderHistoryTable = (campaigns: CampaignItemWithDms[]) => (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[240px]">Pack / Campaign</TableHead>
-            <TableHead className="w-[150px]">Device Group</TableHead>
-            <TableHead className="w-[180px]">Executed</TableHead>
-            <TableHead className="w-[130px]">Status</TableHead>
-            <TableHead className="w-[200px] xl:w-[400px]">Progress</TableHead>
-            <TableHead className="w-[90px]">Errors</TableHead>
-            <TableHead className="w-[80px] text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {campaigns.map((campaign) => (
-            <TableRow
-              key={`${campaign.group_id}-${campaign.id}`}
-              className="cursor-pointer hover:bg-muted/50"
-              onClick={() => handleViewCampaignDetails(campaign)}
-            >
-              <TableCell>
-                <div className="flex flex-col gap-0.5">
-                  <CampaignNameCell campaign={campaign} groupId={campaign.group_id} accessToken={user?.access_token || null} onClick={() => handleViewCampaignDetails(campaign)} />
-                  <span className="text-xs text-muted-foreground font-mono">{campaign.id}</span>
-                </div>
-              </TableCell>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                <Link href={`/device-groups/details?groupId=${campaign.group_id}`} className="text-sm text-primary hover:underline">
-                  {campaign.dmsName}
-                </Link>
-              </TableCell>
-              <TableCell>
-                <span className="text-sm">{campaign.exec_date ? format(parseISO(campaign.exec_date), "Pp") : 'N/A'}</span>
-              </TableCell>
-              <TableCell>
-                <CampaignStatusCell
-                  campaign={campaign}
-                  groupId={campaign.group_id}
-                  accessToken={user?.access_token || null}
-                  startedCampaigns={startedCampaigns}
-                  startedCampaignTotals={startedCampaignTotals}
-                />
-              </TableCell>
-              <TableCell>
-                <CampaignProgressCell
-                  campaign={campaign}
-                  groupId={campaign.group_id}
-                  accessToken={user?.access_token || null}
-                  startedCampaigns={startedCampaigns}
-                  startedCampaignTotals={startedCampaignTotals}
-                  updateCampaignTotal={updateCampaignTotal}
-                  clearStartedCampaign={clearStartedCampaign}
-                  onCompleted={markCampaignCompleted}
-                />
-              </TableCell>
-              <TableCell>
-                <CampaignErrorRateCell campaign={campaign} groupId={campaign.group_id} accessToken={user?.access_token || null} />
-              </TableCell>
-              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-end gap-1">
-                  {(campaign.failed_count || 0) > 0 && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => retryFailedMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
-                            className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
-                            disabled={isRetryFailedPending}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Retry failed
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Re-attempt the {campaign.failed_count} failed device(s)</p></TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleViewCampaignDetails(campaign)}
-                    title="View campaign details"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
+  // Up to five page buttons, centred on the current page.
+  const windowStart = Math.max(0, Math.min(page - 2, pageCount - 5));
+  const pageWindow = Array.from({ length: Math.min(5, pageCount) }, (_, i) => windowStart + i);
+  const firstRow = filtered.length === 0 ? 0 : page * numericPageSize + 1;
+  const lastRow = Math.min(filtered.length, (page + 1) * numericPageSize);
 
   return (
     <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Campaigns' }]} className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
         {packNameFilter && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push('/updates')}
-            className="flex items-center gap-2"
-          >
+          <Button variant="ghost" size="sm" onClick={() => router.push('/updates')} className="flex items-center gap-2">
             <ArrowLeft className="h-4 w-4" />
             All Campaigns
           </Button>
         )}
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-              <Rocket className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-headline font-semibold">
-                {packNameFilter ? `Campaigns for ${packNameFilter}` : 'Campaigns'}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                {packNameFilter
-                  ? `All campaigns of the ${packNameFilter} distribution set.`
-                  : 'Roll out distribution sets to your devices'
-                }
-              </p>
-            </div>
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">
+              {packNameFilter ? `Campaigns for ${packNameFilter}` : 'Campaigns'}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {packNameFilter ? `All campaigns of the ${packNameFilter} distribution set.` : 'Create, schedule and monitor OTA rollouts.'}
+            </p>
           </div>
           {!packNameFilter && (
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="max-w-[260px]">
-                <Select value={filterDmsId} onValueChange={setFilterDmsId}>
-                  <SelectTrigger className="w-auto max-w-[260px]">
-                    <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
-                      <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <SelectValue placeholder="All Device Groups" className="truncate" />
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Device Groups</SelectItem>
-                    {availableDms.map((dms) => (
-                      <SelectItem key={dms.id} value={dms.id}>
-                        {dms.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" asChild>
-                <Link href="/package-inventory">
-                  <Package className="h-4 w-4 mr-2" />
-                  Distribution Sets
-                </Link>
-              </Button>
-              <Button onClick={() => setIsStrategyDialogOpen(true)} className="bg-primary hover:bg-primary/90">
-                <Rocket className="h-4 w-4 mr-2" />
+            <Button asChild>
+              <Link href={newCampaignHref}>
+                <Plus className="mr-2 h-4 w-4" />
                 New Campaign
-              </Button>
-            </div>
+              </Link>
+            </Button>
           )}
         </div>
       </div>
 
       {showInitialSkeleton ? (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-64" />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[76px]" />)}
+          </div>
           <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
         </div>
       ) : campaignsError ? (
-        <div className="text-center py-4">
-          <p className="text-destructive flex items-center justify-center gap-2">
+        <div className="py-4 text-center">
+          <p className="flex items-center justify-center gap-2 text-destructive">
             <AlertTriangle /> Error Loading Campaigns
           </p>
-          <p className="text-destructive-foreground mb-2">{campaignsError.message}</p>
+          <p className="mb-2 text-muted-foreground">{campaignsError.message}</p>
           <Button variant="outline" size="sm" onClick={() => refetchAllCampaigns()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Retry
           </Button>
         </div>
-      ) : activeCampaigns.length === 0 && historyCampaigns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed rounded-lg bg-muted/20">
-          <Rocket className="h-14 w-14 text-muted-foreground mb-4" />
-          <p className="text-lg font-medium text-foreground">No campaigns yet</p>
-          <p className="text-sm text-muted-foreground mb-4 max-w-md">
+      ) : allCampaigns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border bg-muted/20 py-16 text-center">
+          <Rocket className="mb-4 h-12 w-12 text-muted-foreground" />
+          <p className="text-lg font-medium">No campaigns yet</p>
+          <p className="mb-4 max-w-md text-sm text-muted-foreground">
             {packNameFilter
-              ? `No campaigns found for the "${packNameFilter}" pack.`
-              : 'Pick a distribution set and roll it out to your devices. Distribution sets are created and managed in the Distribution Sets inventory.'
-            }
+              ? `No campaigns found for the "${packNameFilter}" distribution set.`
+              : 'Pick a distribution set and roll it out to its device group in batches.'}
           </p>
           {!packNameFilter && (
-            <div className="flex items-center gap-2">
-              <Button onClick={() => setIsStrategyDialogOpen(true)}>
-                <Rocket className="mr-2 h-4 w-4" />
-                New Campaign
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/package-inventory">
-                  <Package className="mr-2 h-4 w-4" />
-                  Browse Distribution Sets
-                </Link>
-              </Button>
-            </div>
+            <Button asChild>
+              <Link href={newCampaignHref}><Plus className="mr-2 h-4 w-4" />New Campaign</Link>
+            </Button>
           )}
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'history')}>
-          <div className="border-b">
-            <TabsList className={cn(pageTabsListClass)}>
-              <TabsTrigger value="active" className={pageTabsTriggerClass}>
-                <PlayCircle className="h-4 w-4" />
-                Active
-                {activeCampaigns.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">{activeCampaigns.length}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="history" className={pageTabsTriggerClass}>
-                <History className="h-4 w-4" />
-                History
-                {historyCampaigns.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">{historyCampaigns.length}</Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+        <>
+          {/* Summary strip — each figure filters the table */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <KpiTile
+              label="Active campaigns" value={groups.active.length} icon={TrendingUp}
+              tone="bg-primary/10 text-primary"
+              sub={groups.rolling.length > 0 ? `${groups.rolling.length} rolling out` : undefined}
+              active={viewFilter === 'active'} onClick={() => toggleView('active')}
+            />
+            <KpiTile
+              label="Scheduled" value={groups.scheduled.length} icon={CalendarClock}
+              tone="bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
+              sub={kpi.nextStart ? `Next in ${formatDistanceToNowStrict(kpi.nextStart)}` : undefined}
+              active={viewFilter === 'scheduled'} onClick={() => toggleView('scheduled')}
+            />
+            <KpiTile
+              label="Rolling out" value={groups.rolling.length} icon={PlayCircle}
+              tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+              sub={kpi.inFlight > 0 ? `${kpi.inFlight} device${kpi.inFlight === 1 ? '' : 's'} updating` : undefined}
+              active={viewFilter === 'rolling'} onClick={() => toggleView('rolling')}
+            />
+            <KpiTile
+              label="Requires attention" value={groups.attention.length} icon={AlertCircle}
+              tone="bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+              sub={[kpi.paused > 0 && `${kpi.paused} paused`, kpi.withFailures > 0 && `${kpi.withFailures} with failures`].filter(Boolean).join(' · ') || undefined}
+              active={viewFilter === 'attention'} onClick={() => toggleView('attention')}
+            />
+            <KpiTile
+              label="Completed" value={groups.completed.length} icon={CheckCircle2}
+              tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+              sub={kpi.updatedDevices > 0 ? `${kpi.updatedDevices} device${kpi.updatedDevices === 1 ? '' : 's'} updated` : undefined}
+              active={viewFilter === 'completed'} onClick={() => toggleView('completed')}
+            />
           </div>
 
-          <TabsContent value="active" className="mt-0">
-            {activeCampaigns.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic border border-dashed rounded-lg px-4 py-8 text-center mt-4">
-                No active campaigns — every rollout has finished.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[240px]">Campaign</TableHead>
-                      <TableHead className="w-[150px]">Device Group</TableHead>
-                      <TableHead className="w-[170px]">Date</TableHead>
-                      <TableHead className="w-[130px]">Status</TableHead>
-                      <TableHead className="w-[200px] xl:w-[400px]">Progress</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedActiveCampaigns.map((campaign) => (
-                      <TableRow
-                        key={`${campaign.group_id}-${campaign.id}`}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleViewCampaignDetails(campaign)}
-                      >
-                        <TableCell>
-                          <CampaignNameCell
-                            campaign={campaign}
-                            groupId={campaign.group_id}
-                            accessToken={user?.access_token || null}
-                            onClick={() => handleViewCampaignDetails(campaign)}
-                          />
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Link href={`/device-groups/details?groupId=${campaign.group_id}`} className="text-sm text-primary hover:underline">
-                            {campaign.dmsName}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{campaign.exec_date ? format(parseISO(campaign.exec_date), "Pp") : 'N/A'}</span>
-                        </TableCell>
-                        <TableCell>
-                          <CampaignStatusCell
-                            campaign={campaign}
-                            groupId={campaign.group_id}
-                            accessToken={user?.access_token || null}
-                            startedCampaigns={startedCampaigns}
-                            startedCampaignTotals={startedCampaignTotals}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <CampaignProgressCell
-                            campaign={campaign}
-                            groupId={campaign.group_id}
-                            accessToken={user?.access_token || null}
-                            startedCampaigns={startedCampaigns}
-                            startedCampaignTotals={startedCampaignTotals}
-                            updateCampaignTotal={updateCampaignTotal}
-                            clearStartedCampaign={clearStartedCampaign}
-                            onCompleted={markCampaignCompleted}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
-                            <TestDeviceBadge campaign={campaign} />
-                            {(() => {
-                              const pending = (campaign.pending_count || 0) + (campaign.active_count || 0);
-                              const isAuto = campaign.auto === true;
-                              const isStarted = startedCampaigns?.has(campaign.id);
-                              const isExecuting = executingCampaigns?.has(campaign.id);
-                              const hasActive = (campaign.active_count || 0) > 0;
-                              const status = campaign.status || 'running';
-                              const isPaused = status === 'paused';
-                              const isTerminal = status === 'cancelled' || status === 'completed';
-                              const hasFailed = (campaign.failed_count || 0) > 0;
-                              // Canary gate: the test device must complete before the rest of the fleet rolls out.
-                              const testStatus = getTestDeviceStatus(campaign);
-                              const testBlocks = testStatus === 'testing' || testStatus === 'failed';
-                              const isTestPhase = testStatus === 'pending';
-
-                              // Terminal campaigns (cancelled / completed) expose no further actions.
-                              if (isTerminal) return null;
-
-                              const cancelBtn = (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setCancelCampaignTarget({ groupId: campaign.group_id, campaignId: campaign.id })}
-                                        className="gap-2 border-destructive/50 text-destructive hover:bg-destructive/10 hover:border-destructive"
-                                        disabled={lifecycleBusy}
-                                      >
-                                        <Ban className="h-4 w-4" />
-                                        Cancel
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>Stop this campaign permanently</p></TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              );
-
-                              const retryBtn = hasFailed ? (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => retryFailedMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
-                                        className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
-                                        disabled={lifecycleBusy}
-                                      >
-                                        <RotateCcw className="h-4 w-4" />
-                                        Retry failed
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>Re-attempt the {campaign.failed_count} failed device(s)</p></TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ) : null;
-
-                              // Paused: offer Resume, plus Cancel / Mark complete.
-                              if (isPaused) {
-                                return (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      onClick={() => resumeMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
-                                      className="gap-2 bg-primary hover:bg-primary/90"
-                                      disabled={lifecycleBusy}
-                                    >
-                                      <Play className="h-4 w-4" />
-                                      Resume
-                                    </Button>
-                                    {retryBtn}
-                                    {cancelBtn}
-                                  </>
-                                );
-                              }
-
-                              const pauseBtn = (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => pauseMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
-                                        className="gap-2"
-                                        disabled={lifecycleBusy}
-                                      >
-                                        <Pause className="h-4 w-4" />
-                                        Pause
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>Pause roll out (you can resume later)</p></TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              );
-
-                              // Running with pending devices: show the primary roll-out action + pause + cancel/complete.
-                              if (pending > 0) {
-                                const primary = isAuto && (isStarted || hasActive) ? (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button size="sm" variant="outline" className="gap-2 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 cursor-default pointer-events-none">
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                          Auto roll out
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent><p>{pending} device(s) pending</p></TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                ) : (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div>
-                                          <Button
-                                            size="sm"
-                                            variant={isStarted || isExecuting ? "default" : "outline"}
-                                            onClick={() => handleCampaignExecute(campaign.group_id, campaign.id)}
-                                            disabled={campaign.rollout_value === 0 || isExecuting || testBlocks}
-                                            className={`gap-2 ${isStarted || isExecuting ? "bg-primary hover:bg-primary/90" : ""}`}
-                                          >
-                                            {isExecuting || testStatus === 'testing'
-                                              ? <Loader2 className="h-4 w-4 animate-spin" />
-                                              : testStatus === 'failed'
-                                                ? <AlertTriangle className="h-4 w-4" />
-                                                : <PlayCircle className="h-4 w-4" />}
-                                            {isExecuting ? "Executing..."
-                                              : testStatus === 'testing' ? "Testing…"
-                                              : testStatus === 'failed' ? "Test failed"
-                                              : isTestPhase ? "Send to test device"
-                                              : isStarted ? "Executed" : "Execute"}
-                                          </Button>
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p className="max-w-[260px]">{
-                                          campaign.rollout_value === 0 ? "Rollout value is 0. Modify strategy to resume."
-                                          : testStatus === 'testing' ? `Test device ${campaign.test_device_id} is updating — rollout unlocks once it succeeds.`
-                                          : testStatus === 'failed' ? `Test device ${campaign.test_device_id} failed — rollout is blocked. Pause, cancel, or retry the test device.`
-                                          : isTestPhase ? `Sends the update to test device ${campaign.test_device_id} first. The full rollout (${pending} device(s)) unlocks once it succeeds.`
-                                          : `Apply to ${pending} device(s)`
-                                        }</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                );
-                                return (
-                                  <>
-                                    {primary}
-                                    {pauseBtn}
-                                    {retryBtn}
-                                    {cancelBtn}
-                                  </>
-                                );
-                              }
-
-                              // Running but nothing pending (all dispatched / in-flight): retry failures or cancel.
-                              return (
-                                <>
-                                  {retryBtn}
-                                  {cancelBtn}
-                                </>
-                              );
-                            })()}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleViewCampaignDetails(campaign)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-            {activeCampaigns.length > 0 && (
-              <div className="mt-4">
-                <CertificatePaginationControls
-                  pageSize={pageSize}
-                  onPageSizeChange={handlePageSizeChange}
-                  pageSizeOptions={CAMPAIGN_PAGE_SIZE_OPTIONS}
-                  pageSizeLabel="Campaigns per page:"
-                  pageSizeSelectId="active-campaigns-page-size"
-                  isLoading={isLoadingCampaigns}
-                  onPreviousPage={() => setActivePage(p => Math.max(0, p - 1))}
-                  onNextPage={() => setActivePage(p => Math.min(activePageCount - 1, p + 1))}
-                  canGoPrevious={activePage > 0}
-                  canGoNext={activePage < activePageCount - 1}
-                  pageIndicator={`Page ${activePage + 1} of ${activePageCount}`}
-                />
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="history" className="mt-0">
-            {historyCampaigns.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic border border-dashed rounded-lg px-4 py-8 text-center mt-4">
-                No finished campaigns yet.
-              </p>
-            ) : (
-              <>
-                {renderHistoryTable(paginatedHistoryCampaigns)}
-                <div className="mt-4">
-                  <CertificatePaginationControls
-                    pageSize={pageSize}
-                    onPageSizeChange={handlePageSizeChange}
-                    pageSizeOptions={CAMPAIGN_PAGE_SIZE_OPTIONS}
-                    pageSizeLabel="Campaigns per page:"
-                    pageSizeSelectId="history-campaigns-page-size"
-                    isLoading={isLoadingCampaigns}
-                    onPreviousPage={() => setHistoryPage(p => Math.max(0, p - 1))}
-                    onNextPage={() => setHistoryPage(p => Math.min(historyPageCount - 1, p + 1))}
-                    canGoPrevious={historyPage > 0}
-                    canGoNext={historyPage < historyPageCount - 1}
-                    pageIndicator={`Page ${historyPage + 1} of ${historyPageCount}`}
-                  />
-                </div>
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
-
-      {/* New Launch dialog: pick the device group + pack, then configure the rollout strategy */}
-      <Sheet open={isStrategyDialogOpen} onOpenChange={(open) => {
-        setIsStrategyDialogOpen(open);
-        if (!open) {
-          setSelectedPackForCampaign(null);
-        }
-      }}>
-        <SheetContent
-          side="right"
-          className={cn(
-            'flex flex-col gap-0 p-0',
-            // The base SheetContent clamps a right sheet to sm:max-w-sm; override
-            // with the same data-[side=right] modifier chain so tailwind-merge
-            // actually replaces it, giving the campaign form room to breathe.
-            // Wider again at xl, which is where UpdateStrategyForm moves its summary panel beside
-            // the fields instead of under them — at 3xl the two columns would each be too narrow.
-            'data-[side=right]:w-full data-[side=right]:sm:max-w-2xl data-[side=right]:lg:max-w-3xl data-[side=right]:xl:max-w-5xl',
-          )}
-          onInteractOutside={(e) => {
-            // Don't let a background refetch / outside focus shift dismiss the form mid-edit.
-            if (isCreatingCampaign || isDryRunPending) e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (isCreatingCampaign || isDryRunPending) e.preventDefault();
-          }}
-        >
-          <SheetHeader className="border-b p-6 pb-4 pr-12">
-            <SheetTitle className="flex items-center gap-2">
-              <Rocket className="h-5 w-5 text-primary" />
-              New Campaign
-            </SheetTitle>
-            <SheetDescription>
-              Roll out an distribution set to the devices of a group. Every campaign carries its own workflow and rollout strategy.
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="flex-1 min-h-0 overflow-y-auto px-6">
-            <div className="space-y-5 py-5">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Device Group</label>
-                <Select
-                  value={selectedDms?.id || ''}
-                  onValueChange={(v) => {
-                    const dms = availableDms.find(d => d.id === v);
-                    if (dms) {
-                      setSelectedDms(dms);
-                      setSelectedPackForCampaign(null);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <span className="flex min-w-0 flex-1 items-center gap-2">
-                      <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <SelectValue placeholder="Select a device group" className="truncate" />
-                    </span>
-                  </SelectTrigger>
+          {/* Campaigns table */}
+          <section>
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
+              <h2 className="text-base font-semibold">
+                {VIEW_LABEL[viewFilter]} <span className="font-normal text-muted-foreground">({filtered.length})</span>
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={viewFilter} onValueChange={(v) => setViewFilter(v as ViewFilter)}>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {availableDms.map((dms) => (
-                      <SelectItem key={dms.id} value={dms.id}>{dms.name}</SelectItem>
+                    {(Object.keys(VIEW_LABEL) as ViewFilter[]).map(v => (
+                      <SelectItem key={v} value={v}>{VIEW_LABEL[v]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {!packNameFilter && availableDms.length > 1 && (
+                  <Select value={filterDmsId} onValueChange={setFilterDmsId}>
+                    <SelectTrigger className="w-auto max-w-[240px]">
+                      <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                        <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <SelectValue placeholder="All device groups" className="truncate" />
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All device groups</SelectItem>
+                      {availableDms.map((dms) => <SelectItem key={dms.id} value={dms.id}>{dms.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-
-              {!selectedDms ? (
-                <p className="text-sm text-muted-foreground border border-dashed rounded-lg px-4 py-6 text-center">
-                  Select a device group to choose one of its distribution sets.
-                </p>
-              ) : (
-                <UpdateStrategyForm
-                  key={selectedDms.id}
-                  strategy={formInitialData}
-                  availableUpdatePacks={updatePacks}
-                  defaultSelectedPackId={selectedPackForCampaign || undefined}
-                  onStrategySavedOrUpdated={handleStrategySave}
-                  showSubmitButton={false}
-                  groupId={selectedDms.id}
-                  formId="campaign-strategy-form"
-                />
-              )}
             </div>
-          </div>
 
-          <SheetFooter className="border-t p-6">
-            <Button
-              type="submit"
-              form="campaign-strategy-form"
-              disabled={isCreatingCampaign || isDryRunPending || !selectedDms}
-              className="w-full sm:w-auto sm:min-w-[200px]"
-            >
-              {isCreatingCampaign || isDryRunPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isDryRunPending ? 'Checking preconditions...' : 'Creating Campaign...'}
-                </>
-              ) : (
-                <>
-                  <Rocket className="h-4 w-4 mr-2" />
-                  Create Campaign
-                </>
-              )}
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+            {filtered.length === 0 ? (
+              <p className="border-t py-10 text-center text-sm text-muted-foreground">
+                No {VIEW_LABEL[viewFilter].toLowerCase()} campaigns.{' '}
+                <button type="button" className="text-primary hover:underline" onClick={() => setViewFilter('all')}>Show all</button>
+              </p>
+            ) : (
+              <>
+                <div className="overflow-x-auto border-t">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[220px]">Campaign</TableHead>
+                        <TableHead>Distribution set</TableHead>
+                        <TableHead>Device group</TableHead>
+                        <TableHead>Start time</TableHead>
+                        <TableHead className="min-w-[160px]">Progress</TableHead>
+                        <TableHead>Batch progress</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Rollout policy</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pageRows.map((c) => {
+                        const status = deriveCampaignStatus(c);
+                        const { icon: StatusIcon, cls: statusCls } = STATUS_ICON[status];
+                        const pack = c.distribution_set_id ? packsById.get(`${c.group_id}::${c.distribution_set_id}`) : undefined;
+                        const packName = pack?.name ?? c.distribution_set_name;
+                        const plan = deriveBatchPlan(c, backend);
+                        const policy = campaignRolloutPolicy(c, backend);
+                        const start = startTimeOf(c);
+                        const startsLater = isScheduledCampaign(c);
+                        const isSelected = selected && campaignKey(selected) === campaignKey(c);
+                        return (
+                          <TableRow
+                            key={campaignKey(c)}
+                            data-state={isSelected ? 'selected' : undefined}
+                            className={cn('cursor-pointer', isSelected && 'bg-muted/50')}
+                            onClick={() => setSelectedKey(campaignKey(c))}
+                          >
+                            <TableCell>
+                              <div className="flex items-start gap-2.5">
+                                <StatusIcon className={cn('mt-0.5 h-5 w-5 shrink-0', statusCls)} aria-hidden />
+                                <div className="min-w-0">
+                                  <Link
+                                    href={detailsHref(c)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="block truncate font-medium hover:text-primary hover:underline"
+                                  >
+                                    {c.name}
+                                  </Link>
+                                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                    {c.version !== undefined && c.version !== null && c.version !== '' && <span>v{String(c.version)}</span>}
+                                    {c.test_device_id && (
+                                      <span className="inline-flex items-center gap-1"><FlaskConical className="h-3 w-3" />canary</span>
+                                    )}
+                                    {c.forced_preconditions === true && (
+                                      <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />forced</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {packName && (
+                                <Link
+                                  href={`/updates/pack-details?groupId=${encodeURIComponent(c.group_id)}&packName=${encodeURIComponent(packName)}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-sm hover:text-primary hover:underline"
+                                >
+                                  {packName}
+                                </Link>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Link
+                                href={`/device-groups/details?groupId=${encodeURIComponent(c.group_id)}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-sm hover:text-primary hover:underline"
+                              >
+                                {c.dmsName}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {start && (
+                                <div className="text-sm">
+                                  <div>{format(parseISO(start), 'PP')}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {format(parseISO(start), 'p')}{startsLater && ` · in ${formatDistanceToNowStrict(parseISO(start))}`}
+                                  </div>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <CampaignProgressCell
+                                compact
+                                campaign={c}
+                                groupId={c.group_id}
+                                accessToken={user?.access_token || null}
+                                startedCampaigns={startedCampaigns}
+                                startedCampaignTotals={startedCampaignTotals}
+                                updateCampaignTotal={updateCampaignTotal}
+                                clearStartedCampaign={clearStartedCampaign}
+                                onCompleted={markCampaignCompleted}
+                              />
+                            </TableCell>
+                            <TableCell>{plan && <BatchProgress plan={plan} />}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col items-start gap-1">
+                                <CampaignStatusCell
+                                  campaign={c}
+                                  groupId={c.group_id}
+                                  accessToken={user?.access_token || null}
+                                  startedCampaigns={startedCampaigns}
+                                  startedCampaignTotals={startedCampaignTotals}
+                                />
+                                <TestDeviceBadge campaign={c} className="text-[10px]" />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-start gap-1.5">
+                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                <div className="text-xs">
+                                  <div className="font-medium">{policy.label}</div>
+                                  {policy.details.map(d => <div key={d} className="text-muted-foreground">{d}</div>)}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              {renderActions(c)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
 
-      {/* Campaign Preconditions confirmation dialog (shown after a dry-run) */}
-      <AlertDialog
-        open={isPreconditionDialogOpen}
-        onOpenChange={(open) => {
-          setIsPreconditionDialogOpen(open);
-          if (!open) setPreconditionCheck(null);
-        }}
-      >
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Campaign Preconditions
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-1">
-                <p className="font-medium text-foreground">
-                  {preconditionCheck?.qualifying.length ?? 0} device(s) qualify / {preconditionCheck?.failures.length ?? 0} device(s) do NOT meet prerequisites
-                </p>
-                <p>Devices that do not meet the prerequisites are excluded unless you force the deployment.</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          {(preconditionCheck?.failures.length ?? 0) > 0 && (
-            <ScrollArea className="max-h-60 rounded-md border">
-              <div className="divide-y text-sm">
-                {preconditionCheck?.failures.map((f: PreconditionFailure, idx: number) => (
-                  <div key={`${f.device_id}-${f.pack_name}-${idx}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 p-2">
-                    <span className="font-mono text-xs">{f.device_id}</span>
-                    <span className="text-muted-foreground">—</span>
-                    <span className="font-medium">{f.pack_name}:</span>
-                    <span className="font-mono text-xs">{f.current_version || 'not installed'}</span>
-                    <span className="text-muted-foreground">vs</span>
-                    <span className="font-mono text-xs">{f.required}</span>
+                {/* Pagination */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
+                  <span className="text-muted-foreground">
+                    Showing {firstRow} to {lastRow} of {filtered.length} campaign{filtered.length === 1 ? '' : 's'}
+                  </span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Rows per page</span>
+                      <Select value={pageSize} onValueChange={setPageSize}>
+                        <SelectTrigger className="h-8 w-[72px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PAGE_SIZE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {pageCount > 1 && (
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(p => p - 1)} aria-label="Previous page">
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        {pageWindow.map((i) => (
+                          <Button key={i} variant={i === page ? 'default' : 'ghost'} size="sm" className="h-8 w-8 p-0" onClick={() => setPage(i)}>
+                            {i + 1}
+                          </Button>
+                        ))}
+                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page >= pageCount - 1} onClick={() => setPage(p => p + 1)} aria-label="Next page">
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
+                </div>
+              </>
+            )}
+          </section>
 
-          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700">
-            <Checkbox
-              id="force-deploy"
-              checked={forceDeploy}
-              onCheckedChange={(checked) => setForceDeploy(checked === true)}
-              className="mt-0.5"
-            />
-            <label htmlFor="force-deploy" className="text-sm font-medium cursor-pointer">
-              Warning: Force deploy to non-qualifying devices (not recommended)
-            </label>
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPreconditionCheck(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={(preconditionCheck?.qualifying.length ?? 0) === 0 && !forceDeploy}
-              onClick={() => {
-                if (!preconditionCheck) return;
-                const payload = { ...preconditionCheck.payload, force_preconditions: forceDeploy };
-                setIsPreconditionDialogOpen(false);
-                createCampaignMutate(payload);
-              }}
-              className="bg-primary hover:bg-primary/90"
-            >
-              Confirm Campaign
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {selected && <CampaignBatchesPanel key={campaignKey(selected)} campaign={selected} backend={backend} />}
+        </>
+      )}
 
       {/* Cancel Campaign Confirmation Dialog */}
       <AlertDialog open={!!cancelCampaignTarget} onOpenChange={(open) => !open && setCancelCampaignTarget(null)}>
@@ -1281,8 +780,8 @@ export default function UpdatesPage() {
               Cancel Campaign?
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p className="font-medium">This permanently stops the campaign.</p>
-              <p>No further devices will be rolled out and the campaign cannot be resumed. Devices already updating will finish their current job.</p>
+              <span className="block font-medium">This permanently stops the campaign.</span>
+              <span className="block">No further devices will be rolled out and the campaign cannot be resumed. Devices already updating will finish their current job.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1290,9 +789,9 @@ export default function UpdatesPage() {
             <AlertDialogAction
               onClick={() => { if (cancelCampaignTarget) cancelMutate(cancelCampaignTarget); }}
               className="bg-destructive hover:bg-destructive/90"
-              disabled={isCancelPending}
+              disabled={lifecycleBusy}
             >
-              {isCancelPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cancelling…</> : 'Cancel Campaign'}
+              {lifecycleBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cancelling…</> : 'Cancel Campaign'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -189,7 +189,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
                 <div key={p.id} className="rounded-lg border border-border">
                   <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-muted/30 border-b border-border">
                     <Package className="h-4 w-4 text-primary" />
-                    <span className="font-semibold">{p.pack_name}</span>
+                    <span className="font-semibold">{p.distribution_set_name}</span>
                     <Badge variant="secondary" className="font-mono text-xs">v{p.version}</Badge>
                     <PackagingBadge packaging={p.packaging} />
                     <span className="ml-auto text-xs text-muted-foreground">
@@ -265,7 +265,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
                   <TableBody>
                     {packUpdates.map((u) => (
                       <TableRow key={u.id}>
-                        <TableCell className="font-medium">{u.pack_name}</TableCell>
+                        <TableCell className="font-medium">{u.distribution_set_name}</TableCell>
                         <TableCell className="font-mono text-xs">v{u.version_from} → v{u.version_to}</TableCell>
                         <TableCell><UpdateStatusBadge status={u.status} /></TableCell>
                         <TableCell><PackagingBadge packaging={u.packaging} /></TableCell>
@@ -289,7 +289,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
                 onPageSizeChange={handleHistoryPageSizeChange}
                 pageSizeOptions={HISTORY_PAGE_SIZE_OPTIONS}
                 pageSizeLabel="Page Size:"
-                pageSizeSelectId="device-pack-updates-page-size"
+                pageSizeSelectId="device-distribution-set-updates-page-size"
                 isLoading={isLoadingHistory}
                 onPreviousPage={handleHistoryPrev}
                 onNextPage={handleHistoryNext}

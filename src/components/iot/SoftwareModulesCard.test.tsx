@@ -368,8 +368,8 @@ describe('SoftwareModulesCard', () => {
     version: '2.0.0',
     built: true,
     artifacts: [{ id: 'x', filename: 'shared-app.swu' } as never],
-    source_pack_name: 'other-pack',
-    source_pack_version: '3.1.0',
+    source_distribution_set_name: 'other-pack',
+    source_distribution_set_version: '3.1.0',
     source_group_id: 'g1',
     shared: true,
   };
@@ -432,8 +432,8 @@ describe('SoftwareModulesCard', () => {
           packName: 'gateway',
           source: {
             source_group_id: 'g1',
-            source_pack_name: 'other-pack',
-            source_pack_version: '3.1.0',
+            source_distribution_set_name: 'other-pack',
+            source_distribution_set_version: '3.1.0',
             module_key: 'application:shared-app',
           },
         }),

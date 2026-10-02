@@ -39,7 +39,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Package, CheckCircle2, CircleDashed, Lock, LockOpen, ShieldCheck, FileText, Boxes, Layers,
-  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight,
+  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -86,6 +86,7 @@ function StateChip({
 
 export function ModuleDetailPanel({
   module, lockSupported, perModuleDeliverables, onClose, onSaved, onAddArtifact, onNewVersion,
+  removalFor, onRemoveFromSet,
 }: {
   module: GroupedModule;
   /** Whether the backend reports a per-module lock at all (hawkbit does, native does not). */
@@ -101,6 +102,11 @@ export function ModuleDetailPanel({
   /** Release a new version of this module. Separate from onAddArtifact because the two are the
    *  module's two real actions: put files on THIS version, or move to a new one. */
   onNewVersion: (use: ReusableSoftwareModule) => void;
+  /** Whether this module can be taken out of the set a row names: `null` when it can, a reason when
+   *  it cannot, `undefined` when the action does not apply to that row at all. */
+  removalFor?: (use: ReusableSoftwareModule) => string | null | undefined;
+  /** Take this module out of the set a row names. The module itself is kept. */
+  onRemoveFromSet?: (use: ReusableSoftwareModule) => void;
 }) {
   // A module can be defined on SEVERAL pack versions, and release notes belong to a definition, not
   // to the identity — so everything version-specific is scoped to a chosen definition rather than
@@ -128,7 +134,7 @@ export function ModuleDetailPanel({
   useEffect(() => {
     setNotes(active?.release_notes ?? '');
     setIntent(active?.delivery_intent ?? 'undecided');
-  }, [active?.release_notes, active?.delivery_intent, active?.source_pack_name, active?.source_pack_version, module.key]);
+  }, [active?.release_notes, active?.delivery_intent, active?.source_distribution_set_name, active?.source_distribution_set_version, module.key]);
 
   // Version History groups module.uses by VERSION rather than by definition: the same version can
   // be composed into several sets at once (a shared module), and that is one row here — which sets
@@ -145,6 +151,15 @@ export function ModuleDetailPanel({
   }, [module.uses]);
   const versionCount = versionGroups.length;
 
+  // The Distribution sets tab lists real sets only. A version that is composed into none (a freshly
+  // released one, or the standalone copy of a module that has since been imported into a set) is
+  // still a version — it shows under Versions — but it is not a distribution set, and a row of
+  // "not composed into a set / —" in a table of sets read as a set that had no data.
+  const setUses = React.useMemo(
+    () => module.uses.map((u, i) => ({ u, i })).filter(({ u }) => Boolean(u.source_distribution_set_name)),
+    [module.uses],
+  );
+
   const notesDirty = notes !== (active?.release_notes ?? '');
   // Only a catalog module (one with an id) has an intent to change; a legacy pack-scoped definition
   // is addressed by key and carries notes only.
@@ -158,7 +173,7 @@ export function ModuleDetailPanel({
   // `built` blocks ONLY where the backend has no per-module deliverable — there the set's single
   // build already consumed the inputs, so the adapter refuses more. A module composed into no
   // distribution set has no address to upload against at all.
-  const hasPack = Boolean(active?.source_pack_name);
+  const hasPack = Boolean(active?.source_distribution_set_name);
   const canAddArtifacts = Boolean(active) && (hasPack || Boolean(active?.id)) && !active!.locked && !(active!.built && !perModuleDeliverables && !active!.id);
   const addBlockedReason = !active
     ? null
@@ -183,7 +198,7 @@ export function ModuleDetailPanel({
         });
       } else await setSoftwareModuleReleaseNotes({
         groupId: active.source_group_id,
-        packName: active.source_pack_name,
+        packName: active.source_distribution_set_name,
         moduleKey: module.key,
         notes,
       });
@@ -252,8 +267,10 @@ export function ModuleDetailPanel({
               </SelectTrigger>
               <SelectContent>
                 {module.uses.map((u, i) => (
-                  <SelectItem key={`${u.source_group_id}-${u.source_pack_name}-${u.source_pack_version}`} value={String(i)}>
-                    {u.source_pack_name} v{u.source_pack_version} · module v{u.version}
+                  <SelectItem key={`${u.source_group_id}-${u.source_distribution_set_name}-${u.source_distribution_set_version}-${u.version}`} value={String(i)}>
+                    {u.source_distribution_set_name
+                      ? `${u.source_distribution_set_name} v${u.source_distribution_set_version} · module v${u.version}`
+                      : `Not in a set · module v${u.version}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -272,7 +289,7 @@ export function ModuleDetailPanel({
               { v: 'versions', label: `Versions (${versionCount})`, Icon: Layers },
               { v: 'overview', label: 'Overview', Icon: Info },
               { v: 'artifacts', label: `Artifacts${artifacts.length ? ` (${artifacts.length})` : ''}`, Icon: FileText },
-              { v: 'usedby', label: `Distribution sets (${module.uses.length})`, Icon: Boxes },
+              { v: 'usedby', label: `Distribution sets (${setUses.length})`, Icon: Boxes },
               { v: 'notes', label: 'Release notes', Icon: FileText },
             ].map(({ v, label, Icon }) => (
               <TabsTrigger
@@ -315,9 +332,9 @@ export function ModuleDetailPanel({
                         <StateChip on={allBuilt} onLabel="Built" offLabel="Not built" OnIcon={CheckCircle2} OffIcon={CircleDashed} />
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {vg.defs.every((d) => !d.source_pack_name)
+                        {vg.defs.every((d) => !d.source_distribution_set_name)
                           ? 'Not composed into a set'
-                          : vg.defs.filter((d) => d.source_pack_name).map((d) => d.source_pack_name).join(', ')}
+                          : vg.defs.filter((d) => d.source_distribution_set_name).map((d) => d.source_distribution_set_name).join(', ')}
                       </span>
                     </button>
                   );
@@ -372,10 +389,18 @@ export function ModuleDetailPanel({
             {[
               ['Module version', active.version],
               ['Type', module.type],
-              ['Defined on', active.source_pack_name ? `${active.source_pack_name} v${active.source_pack_version}` : 'Module catalog'],
+              ['Defined on', active.source_distribution_set_name ? `${active.source_distribution_set_name} v${active.source_distribution_set_version}` : 'Module catalog'],
               ['Device group', active.source_group_id || '—'],
               ['Delivery intent', DELIVERY_LABELS[active.delivery_intent ?? 'undecided']],
               ['Deliverable', active.built ? 'Ready' : active.delivery_intent === 'undecided' || !active.delivery_intent ? 'Delivery not chosen' : 'Not ready'],
+              ...(perModuleDeliverables ? [
+                ['Signing', active.signature_key_id
+                  ? `${active.signature_key_id}${active.signature_alg_name ? ` (${active.signature_alg_name})` : ''}`
+                  : 'Unsigned'],
+                ['Encryption', active.encryption_mode
+                  ? `${active.encryption_key_name || active.encryption_mode}${active.encryption_alg_name ? ` (${active.encryption_alg_name})` : ''}`
+                  : 'Unencrypted'],
+              ] as [string, string][] : []),
               ...(lockSupported ? [['Content', active.locked ? 'Locked — released content' : 'Editable']] as [string, string][] : []),
               ['Artifacts', String(artifacts.length)],
               ['Reuse', module.shared ? 'Shared — one module, linked into each set' : 'Copied — independent after import'],
@@ -455,6 +480,12 @@ export function ModuleDetailPanel({
         </TabsContent>
 
         <TabsContent value="usedby" className="m-0 pt-4">
+          {setUses.length === 0 ? (
+            <div className="py-3 text-sm">
+              <p className="font-medium">Not used by any distribution set yet</p>
+              <p className="mt-1 text-muted-foreground">Import it into a set from the Distribution Set view to deliver it to devices.</p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -463,26 +494,27 @@ export function ModuleDetailPanel({
                   <TableHead>Set version</TableHead>
                   <TableHead>Module version</TableHead>
                   <TableHead>State</TableHead>
-                  <TableHead className="pr-3">Device group</TableHead>
+                  <TableHead className={cn(!onRemoveFromSet && 'pr-3')}>Device group</TableHead>
+                  {onRemoveFromSet && <TableHead className="pr-3 text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {module.uses.map((u, i) => (
+                {setUses.map(({ u, i }) => (
                   <TableRow
-                    key={`${u.source_group_id}-${u.source_pack_name}-${u.source_pack_version}`}
+                    key={`${u.source_group_id}-${u.source_distribution_set_name}-${u.source_distribution_set_version}`}
                     className={cn(i === useIdx && 'bg-muted/40')}
                   >
                     <TableCell className="pl-3 font-medium">
                       {u.source_group_id ? (
                         <Link
-                          href={`/updates/pack-details?groupId=${encodeURIComponent(u.source_group_id)}&packName=${encodeURIComponent(u.source_pack_name)}`}
+                          href={`/updates/pack-details?groupId=${encodeURIComponent(u.source_group_id)}&packName=${encodeURIComponent(u.source_distribution_set_name)}`}
                           className="text-primary hover:underline"
                         >
-                          {u.source_pack_name}
+                          {u.source_distribution_set_name}
                         </Link>
-                      ) : u.source_pack_name || <span className="text-muted-foreground italic">not composed into a set</span>}
+                      ) : u.source_distribution_set_name}
                     </TableCell>
-                    <TableCell className="tabular-nums text-xs">{u.source_pack_version || '—'}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{u.source_distribution_set_version || '—'}</TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs tabular-nums">v{u.version}</Badge></TableCell>
                     <TableCell>
                       <span className="flex flex-wrap items-center gap-1.5">
@@ -494,13 +526,37 @@ export function ModuleDetailPanel({
                         )}
                       </span>
                     </TableCell>
-                    <TableCell className="max-w-[160px] truncate pr-3 text-xs text-muted-foreground">{u.source_group_id || '—'}</TableCell>
+                    <TableCell className={cn('max-w-[160px] truncate text-xs text-muted-foreground', !onRemoveFromSet && 'pr-3')}>{u.source_group_id || '—'}</TableCell>
+                    {onRemoveFromSet && (
+                      <TableCell className="pr-3 text-right">
+                        {(() => {
+                          const reason = removalFor?.(u);
+                          if (reason === undefined) return null;
+                          return (
+                            // The reason sits on a wrapper: a disabled button gets no pointer events,
+                            // so a title on the button itself would never show.
+                            <span title={reason ?? undefined} className="inline-flex">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                disabled={reason !== null}
+                                onClick={() => onRemoveFromSet(u)}
+                              >
+                                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Remove from set
+                              </Button>
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          {module.shared && module.uses.length > 1 && (
+          )}
+          {module.shared && setUses.length > 1 && (
             <Alert className="mt-3">
               <Link2 className="h-4 w-4" />
               <AlertDescription className="text-xs">

@@ -224,10 +224,12 @@ describe('ModuleFileSheet', () => {
     expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
   });
 
-  it('never builds on a non-swu set, whatever is staged', async () => {
-    // There is no build on this backend path at all: the raw file IS what each device downloads.
+  it('never builds on a non-swu set where the backend has no per-module build (native)', async () => {
+    // Native has no per-module build step at all: the raw file IS what each device downloads,
+    // whole-set packaging or not, so this stays derived rather than asked.
+    isSupportedMock.mockImplementation((k: string) => k !== 'software_module_deliverables');
     setPackaging('non-swu');
-    renderSheet();
+    renderSheet(false);
     await awaitPackaging();
     expect(hasOutcome(/Delivered to the device exactly as uploaded/i)).toBe(true);
     expect(screen.queryByRole('radio')).toBeNull();
@@ -240,6 +242,43 @@ describe('ModuleFileSheet', () => {
     fireEvent.click(submitButton());
     await waitFor(() => expect(uploadModuleArtifactBinaryMock).toHaveBeenCalled());
     expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
+  });
+
+  it('offers a genuine build-or-deliver choice on a non-swu set that can still build per module (hawkbit)', async () => {
+    // REGRESSION: hawkBit builds (and can sign/encrypt) each module's own .swu independently of
+    // the pack's overall packaging, so a non-SWU pack still lets this ONE module opt into a real
+    // build — unlike the swu/non-swu split above, the file bytes alone cannot settle which the
+    // operator wants, so this is asked rather than derived.
+    setPackaging('non-swu');
+    renderSheet();
+    await awaitPackaging();
+    expect(screen.getByRole('radio', { name: /direct upload/i })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /build swu/i })).toBeTruthy();
+    expect(submitButton().disabled).toBe(true);
+
+    // Direct upload: delivered unchanged, no build, no signing/encryption fields.
+    chooseTab(/direct upload/i);
+    dropFile('firmware.bin');
+    await waitFor(() => expect(submitButton().disabled).toBe(false));
+    expect(submitButton().textContent).toMatch(/^upload$/i);
+    expect(screen.queryByText(/^Signing$/)).toBeNull();
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(uploadModuleArtifactBinaryMock).toHaveBeenCalled());
+    expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
+  });
+
+  it('builds and signs/encrypts a module on a non-swu set when the operator chooses to (hawkbit)', async () => {
+    setPackaging('non-swu');
+    renderSheet();
+    await awaitPackaging();
+
+    chooseTab(/build swu/i);
+    dropFile('firmware.bin');
+    await waitFor(() => expect(screen.getByText('Signing')).toBeTruthy());
+    await waitFor(() => expect(submitButton().textContent).toMatch(/upload and build/i));
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(buildSoftwareModuleMock).toHaveBeenCalled());
+    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalled();
   });
 
   it('falls back to asking when the packaging cannot be read', async () => {

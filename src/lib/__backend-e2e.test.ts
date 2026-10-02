@@ -238,7 +238,7 @@ describe.runIf(RUN)('campaign lifecycle through the dashboard API client', () =>
         const created = await createCampaign({
           groupId: backend.group,
           campaignData: {
-            update_pack_name: packName,
+            distribution_set_name: packName,
             workflow_type: 'direct',
             rollout_type: 'percentage',
             rollout_value: 100,

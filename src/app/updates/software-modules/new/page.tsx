@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Boxes, Info, Loader2, Package } from 'lucide-react';
@@ -74,6 +75,11 @@ export default function CreateSoftwareModulePage() {
   const [type, setType] = useState<SoftwareModuleType>('application');
   const [version, setVersion] = useState('1.0.0');
   const [deliveryIntent, setDeliveryIntent] = useState<ModuleDeliveryIntent>('undecided');
+  // "raw" (deliver files unchanged) still lets ONE module opt into a real, signed/encrypted build
+  // where the backend builds per module (hawkbit) — see pkg/updates.ValidateModuleCompatibility.
+  // It is a separate, opt-in question from the delivery FORMAT itself: raw files do not say whether
+  // the operator wants them processed, unlike a staged .swu which unambiguously means "prebuilt".
+  const [encryptRaw, setEncryptRaw] = useState(false);
   const [releaseNotes, setReleaseNotes] = useState('');
   const [targetPackId, setTargetPackId] = useState<string>(NO_PACK);
   const [packs, setPacks] = useState<UpdatePack[] | null>(null);
@@ -93,7 +99,13 @@ export default function CreateSoftwareModulePage() {
     [targetPackId, packs],
   );
 
-  const files = useModuleFiles({ active: true, perModuleDeliverables, standalone: true, deliveryIntent });
+  // Told "swu-build" (not the real "raw") when the operator opted a raw module into encryption/
+  // signing: that is the intent whose build-and-security machinery useModuleFiles already has, and
+  // the module's WIRE delivery_intent (sent below, and again by ModuleFilesFields' own build call)
+  // stays the real deliveryIntent state either way — this only reshapes what this hook offers here.
+  const filesDeliveryIntent: ModuleDeliveryIntent =
+    deliveryIntent === 'raw' && perModuleDeliverables && encryptRaw ? 'swu-build' : deliveryIntent;
+  const files = useModuleFiles({ active: true, perModuleDeliverables, standalone: true, deliveryIntent: filesDeliveryIntent });
 
   // '/' and ':' are the API's own separators for "<pack>/<module>" and "<type>:<name>", so a name
   // containing either could not be addressed afterwards — the backend refuses them too.
@@ -103,9 +115,17 @@ export default function CreateSoftwareModulePage() {
   const compatibilityError = targetPack && deliveryIntent !== 'undecided'
     ? backend === 'native' && deliveryIntent === 'swu-prebuilt'
       ? 'Native sets build one SWU from module inputs. Store this prebuilt SWU without a set, or upload it to a whole distribution set.'
-      : ((targetPack.packaging === 'non-swu') !== (deliveryIntent === 'raw'))
-        ? `${targetPack.name} is a ${targetPack.packaging === 'non-swu' ? 'Generic' : 'SWU'} set, which cannot deliver a module in this format. Pick a compatible set, or leave the module unassigned.`
-        : null
+      // Mirrors pkg/updates.ValidateModuleCompatibility: a Generic (non-SWU) set still lets a module
+      // opt into a real, signed/encrypted build where the backend builds per module (hawkbit) — only
+      // a PREBUILT SWU is refused there, since that intent means an already-finished image, which is
+      // what SWU packaging is for. Native has no per-module build, so it stays raw-only.
+      : targetPack.packaging === 'non-swu'
+        ? (deliveryIntent === 'swu-prebuilt' || (backend === 'native' && deliveryIntent === 'swu-build'))
+          ? `${targetPack.name} is a Generic set, which cannot deliver a module in this format. Pick a compatible set, or leave the module unassigned.`
+          : null
+        : deliveryIntent === 'raw'
+          ? `${targetPack.name} is a SWU set, which cannot deliver a module in this format. Pick a compatible set, or leave the module unassigned.`
+          : null
     : null;
 
   const disabled =
@@ -146,7 +166,7 @@ export default function CreateSoftwareModulePage() {
         await importSoftwareModule({
           groupId: targetPack.group_id!,
           packName: targetPack.name,
-          source: { source_module_id: created.id, source_pack_name: '', source_pack_version: '', module_key: created.key },
+          source: { source_module_id: created.id, source_distribution_set_name: '', source_distribution_set_version: '', module_key: created.key },
         });
       }
       toast({
@@ -190,9 +210,9 @@ export default function CreateSoftwareModulePage() {
     </>
   );
 
-  // Build & security only applies to a module that builds its own SWU, so it is dropped where it
-  // cannot do anything rather than shown inert.
-  const buildSectionApplies = perModuleDeliverables && deliveryIntent === 'swu-build';
+  // Build & security applies to a module that builds its own SWU, or to a raw module the operator
+  // opted into encryption/signing — dropped otherwise rather than shown inert.
+  const buildSectionApplies = perModuleDeliverables && (deliveryIntent === 'swu-build' || (deliveryIntent === 'raw' && encryptRaw));
 
   return (
     <BreadcrumbPage
@@ -281,7 +301,7 @@ export default function CreateSoftwareModulePage() {
               : 'How this module is consumed, and which set it joins. Native sets build one deliverable, so the set’s driver decides.'}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <ModuleDeliverySelect id="sm-delivery" value={deliveryIntent} onChange={setDeliveryIntent} />
+              <ModuleDeliverySelect id="sm-delivery" value={deliveryIntent} onChange={(v) => { setDeliveryIntent(v); if (v !== 'raw') setEncryptRaw(false); }} />
               <div className="space-y-1.5">
                 <Label htmlFor="sm-pack">Distribution set</Label>
                 <Select value={targetPackId} onValueChange={setTargetPackId}>
@@ -308,6 +328,19 @@ export default function CreateSoftwareModulePage() {
                 </p>
               </div>
             </div>
+
+            {deliveryIntent === 'raw' && perModuleDeliverables && (
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <Label htmlFor="sm-encrypt-raw" className="text-sm">Encrypt and/or sign this file</Label>
+                  <p className="text-xs text-muted-foreground">
+                    The file still reaches the device unchanged in shape — nothing is converted to a SWU — but you
+                    can still apply a shared encryption key and/or a KMS signature to it below.
+                  </p>
+                </div>
+                <Switch id="sm-encrypt-raw" checked={encryptRaw} onCheckedChange={setEncryptRaw} />
+              </div>
+            )}
 
             {compatibilityError && (
               <Alert variant="destructive">
@@ -368,7 +401,9 @@ export default function CreateSoftwareModulePage() {
           {buildSectionApplies && (
             <FormSection
           title="Build & security"
-          description="The sw-description the build reads, and the signing and encryption applied to the SWU it produces."
+          description={deliveryIntent === 'raw'
+            ? 'The shared encryption key and/or KMS signature applied to the file as uploaded — nothing is converted to a SWU.'
+            : 'The sw-description the build reads, and the signing and encryption applied to the SWU it produces.'}
           collapsible
           aside={files.buildNow ? 'builds on create' : 'stored, build later'}
           invalid={Boolean(files.fileError)}

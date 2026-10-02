@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, Download, Package, FileText, Info,
   Copy, Shield, History, Plus, Loader2, UploadCloud, Link2,
-  ChevronDown, ChevronRight, MoreVertical, Layers
+  ChevronDown, ChevronRight, MoreVertical, Layers, ShieldCheck
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import {
   fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchGroupDevices, type GroupDeviceRef,
   getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion,
-  fetchArtifactCatalog, downloadArtifact, fetchVersionSignature,
+  fetchArtifactCatalog, downloadArtifact,
   downloadVersionArtifactsArchive, fetchAllArtifacts, linkArtifactToPack,
   fetchAllDevicePackVersions, downloadCurrentBuild, deleteUpdatePackApi,
 } from '@/lib/iot-api';
@@ -36,6 +36,7 @@ import { TargetedUpdateDialog } from '@/components/iot/targeted-update-dialog';
 import { SoftwareModulesCard } from '@/components/iot/SoftwareModulesCard';
 import { PackPreconditionsCard } from '@/components/iot/pack-preconditions-card';
 import { VersionModulesPanel } from '@/components/iot/version-modules-panel';
+import { VersionManifestPanel } from '@/components/iot/version-manifest-panel';
 import { HawkbitUnsupportedFeatures } from '@/components/iot/HawkbitUnsupportedFeatures';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn, formatBytes, isValidSemver } from '@/lib/utils';
@@ -79,9 +80,9 @@ export default function UpdatePackDetailsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { availableDms } = useDms();
-  const { isSupported: isUpdatesCapabilitySupported } = useUpdatesCapabilities();
-  // GetVersionSignature / DownloadVersionArtifactsArchive are this platform's KMS-signed anti-rollback
-  // manifest pipeline (pkg/updates.CapabilityArtifactSignatures) — hawkbit mode has no equivalent.
+  const { isSupported: isUpdatesCapabilitySupported, backend } = useUpdatesCapabilities();
+  // GetVersionSignature / DownloadVersionArtifactsArchive: the version manifest (KMS-signed when a key
+  // was used) and its artifacts archive (pkg/updates.CapabilityArtifactSignatures).
   const artifactSignaturesSupported = isUpdatesCapabilitySupported('artifact_signatures');
   // GetArtifactPath (the staged-build-dir, by-filename download route behind handleDownloadArtifact
   // below) has no hawkBit translation — hawkBit artifacts are addressed by ID within a software
@@ -290,6 +291,8 @@ export default function UpdatePackDetailsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [versionActionBusy, setVersionActionBusy] = useState<string | null>(null);
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
+  // null follows the pack's current version.
+  const [manifestVersion, setManifestVersion] = useState<string | null>(null);
 
   const [isLinkOpen, setIsLinkOpen] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
@@ -361,7 +364,7 @@ export default function UpdatePackDetailsPage() {
       const name = uploadArtifactName.trim() || uploadFile.name.replace(/\.[^/.]+$/, '');
       formData.append('artifact_name', name);
       formData.append('version', uploadVersion.trim());
-      const res = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifact/upload`, {
+      const res = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifact/upload`, {
         method: 'POST', headers: { Authorization: `Bearer ${user.access_token}` }, body: formData,
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.err || `Upload failed: ${res.status}`); }
@@ -446,15 +449,9 @@ export default function UpdatePackDetailsPage() {
     } finally { setVersionActionBusy(null); }
   };
 
-  const handleDownloadSignature = async (version: string) => {
-    if (!groupId || !packName || !user?.access_token) return;
-    setVersionActionBusy(`signature:${version}`);
-    try {
-      const sig = await fetchVersionSignature({ groupId, packName, version });
-      triggerBlobDownload(new Blob([JSON.stringify(sig, null, 2)], { type: 'application/json' }), `${packName}_v${version}_signature.json`);
-    } catch (err: any) {
-      toast({ title: 'No signature', description: err.message, variant: 'destructive' });
-    } finally { setVersionActionBusy(null); }
+  const showManifest = (version: string) => {
+    setManifestVersion(version);
+    setActiveTab('manifest');
   };
 
   const handleDownload = async () => {
@@ -480,7 +477,7 @@ export default function UpdatePackDetailsPage() {
 
   const handleDownloadArtifact = async (fileName: string) => {
     try {
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifacts/${fileName}`);
+      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifacts/${fileName}`);
       if (!response.ok) throw new Error(`Failed to download ${fileName}`);
       const blob = await response.blob();
       triggerBlobDownload(blob, fileName);
@@ -666,7 +663,7 @@ export default function UpdatePackDetailsPage() {
                   {updatePack.type === 'rawfile' ? 'Raw File' : updatePack.type === 'firmware' ? 'Firmware' : updatePack.type}
                 </Badge>
                 <Badge variant="outline" className="text-xs">{isNonSwu ? 'Non-SWU' : 'SWU'}</Badge>
-                {updatePack.encryption_mode && <Badge variant="outline" className="text-xs">{updatePack.encryption_mode}</Badge>}
+                {backend !== 'hawkbit' && updatePack.encryption_mode && <Badge variant="outline" className="text-xs">{updatePack.encryption_mode}</Badge>}
               </div>
             </div>
           </div>
@@ -707,6 +704,9 @@ export default function UpdatePackDetailsPage() {
                 ? []
                 : [{ value: 'artifacts', icon: Package, label: 'Artifacts' }]),
               { value: 'contents', icon: FileText, label: 'Contents' },
+              ...(artifactSignaturesSupported
+                ? [{ value: 'manifest', icon: ShieldCheck, label: 'Manifest' }]
+                : []),
               { value: 'versions', icon: History, label: 'Version History' },
             ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
               <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
@@ -821,10 +821,19 @@ export default function UpdatePackDetailsPage() {
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>
                   <p className="font-semibold">Security Configuration</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Signing, encryption, and certificate data used for package integrity.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {backend === 'hawkbit'
+                      ? 'Signing and encryption are configured on each software module, because each module has its own SWU.'
+                      : 'Signing, encryption, and certificate data used for package integrity.'}
+                  </p>
                 </div>
                 <div className="lg:col-span-2">
-                  <div className="divide-y">
+                  {backend === 'hawkbit' ? (
+                    <div className="rounded-md border p-4 text-sm text-muted-foreground">
+                      Open <span className="font-medium text-foreground">Software Modules</span> to inspect the signing key,
+                      encryption key, and algorithms for each module&apos;s SWU.
+                    </div>
+                  ) : <div className="divide-y">
                     <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-muted-foreground">Digital Signature</p>
@@ -872,7 +881,7 @@ export default function UpdatePackDetailsPage() {
                         </pre>
                       </div>
                     )}
-                  </div>
+                  </div>}
                 </div>
               </div>
 
@@ -886,15 +895,26 @@ export default function UpdatePackDetailsPage() {
                 <div className="lg:col-span-2">
                   <div className="divide-y">
                     <div className="py-3 first:pt-0">
-                      <p className="text-xs font-medium text-muted-foreground">Package URI</p>
+                      <p className="text-xs font-medium text-muted-foreground">Download URL (device-reachable)</p>
                       <div className="mt-1 flex min-w-0 items-center gap-2">
-                        <p className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">{updatePack.uri || 'Not available'}</p>
+                        <p className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">
+                          {updatePack.uri || (isBuilt ? 'Not available' : 'Not built yet')}
+                        </p>
                         {updatePack.uri && (
                           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { navigator.clipboard.writeText(updatePack.uri || ''); toast({ title: 'Copied' }); }}>
                             <Copy className="h-3 w-3" />
                           </Button>
                         )}
                       </div>
+                      {/* hawkbit mode reports a real hawkBit DDI URL, but a device is only known once
+                          it is actually being deployed to — this is templated with a literal
+                          "{controllerId}" segment rather than a concrete one, and every device assigned
+                          this pack resolves the same URL with its own id substituted in. */}
+                      {updatePack.uri?.includes('{controllerId}') && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          <span className="font-mono">{'{controllerId}'}</span> is filled in per-device by hawkBit at deployment time.
+                        </p>
+                      )}
                     </div>
                     {(updatePack.binaryFileName || updatePack.descriptorFileName) && (
                       <div className="grid grid-cols-1 gap-4 py-3 sm:grid-cols-2">
@@ -912,11 +932,10 @@ export default function UpdatePackDetailsPage() {
                         )}
                       </div>
                     )}
-                    {/* Signed manifest + artifacts-archive downloads are tied to the native backend's
-                        KMS-signing pipeline, which hawkbit mode doesn't have (it never sets `uri`
-                        either) — checking `uri` here isn't a build-status check, it's deliberately
-                        scoping this section to backends that actually support it. */}
-                    {updatePack.uri && (
+                    {/* Gated on the capability directly, like its twin in the Version History table
+                        below — not on `updatePack.uri`, which hawkbit mode also populates (with its DDI
+                        URL) and so says nothing about whether these endpoints exist. */}
+                    {isBuilt && artifactSignaturesSupported && (
                       <div className="py-3 last:pb-0">
                         <p className="text-xs font-medium text-muted-foreground">Downloads</p>
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -924,18 +943,10 @@ export default function UpdatePackDetailsPage() {
                             {versionActionBusy === `artifacts:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Package className="mr-2 h-3.5 w-3.5" />}
                             Artifacts
                           </Button>
-                          {/* Gated on the capability like its twin in the Version History table.
-                              GetVersionSignature answers 501 where signatures are unsupported, and
-                              while the enclosing `updatePack.uri` check already keeps this block out
-                              of hawkbit mode today, that is incidental — it scopes on a URI, not on
-                              signing. Gating explicitly means a backend that populates `uri` but
-                              cannot sign still never offers a button that 501s. */}
-                          {artifactSignaturesSupported && (
-                            <Button variant="outline" size="sm" disabled={versionActionBusy === `signature:${updatePack.version}`} onClick={() => handleDownloadSignature(updatePack.version)}>
-                              {versionActionBusy === `signature:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Shield className="mr-2 h-3.5 w-3.5" />}
-                              Signature
-                            </Button>
-                          )}
+                          <Button variant="outline" size="sm" onClick={() => showManifest(updatePack.version)}>
+                            <Shield className="mr-2 h-3.5 w-3.5" />
+                            Manifest
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -981,6 +992,7 @@ export default function UpdatePackDetailsPage() {
                 packVersion={updatePack?.version}
                 packIsBuilt={isBuilt}
                 packaging={updatePack?.packaging}
+                onChanged={() => { fetchCatalogData(); fetchArtifactsData(); }}
               />
             </div>
           </TabsContent>
@@ -1325,6 +1337,22 @@ export default function UpdatePackDetailsPage() {
             </div>
           </TabsContent>
 
+          {artifactSignaturesSupported && groupId && packName && (
+            <TabsContent value="manifest" className="mt-0">
+              <VersionManifestPanel
+                groupId={groupId}
+                packName={packName}
+                versions={sortedVersions.some((v) => v.version === updatePack.version)
+                  ? sortedVersions.map((v) => v.version)
+                  : [updatePack.version, ...sortedVersions.map((v) => v.version)]}
+                currentVersion={updatePack.version}
+                version={manifestVersion ?? updatePack.version}
+                onVersionChange={setManifestVersion}
+                backend={backend}
+              />
+            </TabsContent>
+          )}
+
             {/* ── Version History ──────────────────────────────────────── */}
             <TabsContent value="versions" className="mt-0">
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10 first:pt-0">
@@ -1416,11 +1444,11 @@ export default function UpdatePackDetailsPage() {
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          disabled={!artifactSignaturesSupported || versionActionBusy === `signature:${v.version}`}
+                                          disabled={!artifactSignaturesSupported}
                                           title={!artifactSignaturesSupported ? 'Not supported by the active updates backend' : undefined}
-                                          onClick={() => handleDownloadSignature(v.version)}
+                                          onClick={() => showManifest(v.version)}
                                         >
-                                          {versionActionBusy === `signature:${v.version}` ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Signature'}
+                                          Manifest
                                         </Button>
                                         {!isNonSwu && !perDevice && (
                                           <Button variant="outline" size="sm" disabled={!downloadable} title={!downloadable ? 'Previous-version download disabled for this pack' : undefined} onClick={() => handleDownloadVersion(v.version)}>

@@ -1,13 +1,13 @@
 "use client";
 
 import React from 'react';
-import { Loader2, AlertTriangle, Check, Clock, Ban, PauseCircle, FlaskConical } from 'lucide-react';
+import { Loader2, AlertTriangle, Check, Clock, Ban, PauseCircle, FlaskConical, CalendarClock } from 'lucide-react';
 import type { CampaignItem, DeviceJob, DeviceJobWorkflowTransition } from '@/types/iot';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-export type CampaignDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Cancelled' | 'Failed' | 'Not Started' | 'Partial Completed';
+export type CampaignDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Cancelled' | 'Failed' | 'Scheduled' | 'Not Started' | 'Partial Completed';
 
 export interface WfxTransition {
   from: string;
@@ -140,17 +140,168 @@ export function deriveCampaignDeviceStats(campaign: CampaignItem): CampaignDevic
 export function deriveCampaignStatus(campaign: CampaignItem): CampaignDisplayStatus {
   // The operator-/system-driven lifecycle status takes precedence over the device-derived view.
   if (campaign.status === 'cancelled') return 'Cancelled';
-  if (campaign.status === 'completed') return 'Completed';
+  const { total, completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
+  // "completed" is the lifecycle ending — every device processed, or an operator closing it — not a
+  // verdict on how it went. Both backends set it on a campaign where every device failed, so the
+  // outcome is read from the counts: reporting such a campaign as Completed hid the worst one there is.
+  if (campaign.status === 'completed') return terminalOutcome(completed, failed);
   if (campaign.status === 'paused') return 'Paused';
 
-  const { total, completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
+  if (isScheduledCampaign(campaign)) return 'Scheduled';
   if (total === 0) return 'Not Started';
   // Nothing has been dispatched yet (all devices still pending) → the campaign hasn't started.
   if (completed + failed + active === 0) return 'Not Started';
   // Still devices executing or waiting to be dispatched → rolling out.
   if (active > 0 || pending > 0) return 'Rolling Out';
   // Everything reached a terminal state.
-  return completed > 0 ? 'Completed' : 'Failed';
+  return terminalOutcome(completed, failed);
+}
+
+function terminalOutcome(completed: number, failed: number): CampaignDisplayStatus {
+  if (failed > 0) return completed > 0 ? 'Partial Completed' : 'Failed';
+  return 'Completed';
+}
+
+/** A campaign waiting for its planned start: nothing dispatched yet and scheduled_at still ahead. */
+export function isScheduledCampaign(campaign: CampaignItem, now: Date = new Date()): boolean {
+  if (!campaign.scheduled_at) return false;
+  if (campaign.status === 'cancelled' || campaign.status === 'completed' || campaign.status === 'paused') return false;
+  const at = new Date(campaign.scheduled_at);
+  if (Number.isNaN(at.getTime()) || at <= now) return false;
+  const { completed, failed, active } = deriveCampaignDeviceStats(campaign);
+  return completed + failed + active === 0;
+}
+
+/** Why a campaign needs an operator, or an empty list when it does not. */
+export function campaignAttentionReasons(campaign: CampaignItem): string[] {
+  const reasons: string[] = [];
+  if (campaign.status === 'paused') reasons.push('Paused');
+  if (getTestDeviceStatus(campaign) === 'failed') reasons.push('Test device failed');
+  const failed = campaign.failed_count ?? 0;
+  if (failed > 0 && campaign.status !== 'cancelled') reasons.push(`${failed} device${failed === 1 ? '' : 's'} failed`);
+  return reasons;
+}
+
+/** The rollout rules a campaign runs under, as a short label plus its thresholds. Approval reads
+ *  identically on both backends: the next batch needs >= X% of the current one to SUCCEED (unset —
+ *  stored as 0 on native, 100 on hawkBit — means the whole batch). The error threshold still differs:
+ *   - hawkBit: the campaign stops when MORE than Y% of a batch fails.
+ *   - native: the campaign stops once Y% of ALL its devices have failed, counted campaign-wide. */
+export function campaignRolloutPolicy(campaign: CampaignItem, backend?: string | null): { label: string; details: string[] } {
+  if (!campaign.auto) return { label: 'Manual release', details: ['Each batch waits for Execute'] };
+  const details: string[] = [];
+  const a = campaign.approval_threshold ?? 0;
+  const e = campaign.error_threshold ?? 0;
+  details.push(a > 0 && a < 100 ? `Next batch at ${a}% succeeded` : 'Next batch when all succeed');
+  if (backend === 'hawkbit') {
+    if (e > 0 && e < 100) details.push(`Stops above ${e}% failed in a batch`);
+  } else {
+    if (e > 0 && e < 100) details.push(`Stops at ${e}% failed overall`);
+  }
+  return { label: 'Auto rollout', details };
+}
+
+// ─── Batch plan ──────────────────────────────────────────────────────────────────
+// Batches are not stored per campaign; they follow from the rollout strategy. Both backends cut the
+// fleet into equal batches with a smaller last one; they differ only in how the size reads back.
+// Native keeps what was asked (rollout_value devices, or rollout_value% of all devices, floored).
+// hawkbit mode only has hawkBit's group percentage to report, so rollout_value is the first batch's
+// share of every targeted device (test device included) rounded to a whole percent, and is rounded
+// back to a device count here. A test device is always its own first batch. The in-flight batch is
+// located from how many devices have been dispatched so far, since devices leave the pending pool in
+// batch order.
+
+export type CampaignBatchState = 'done' | 'running' | 'waiting' | 'paused' | 'failed' | 'pending' | 'skipped';
+
+export interface CampaignBatch {
+  label: string;
+  size: number;
+  state: CampaignBatchState;
+}
+
+export interface CampaignBatchPlan {
+  batches: CampaignBatch[];
+  /** 1-based index of the batch being rolled out; 0 before the first dispatch. */
+  current: number;
+}
+
+const MAX_PLANNED_BATCHES = 500;
+
+export function deriveBatchPlan(campaign: CampaignItem, backend: string | null): CampaignBatchPlan | null {
+  const { total, completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
+  const value = campaign.rollout_value ?? 0;
+  if (total <= 0 || value <= 0) return null;
+
+  const hasTest = !!campaign.test_device_id;
+  const fleet = total - (hasTest ? 1 : 0);
+  const sizes: number[] = [];
+  if (hasTest) sizes.push(1);
+  if (fleet > 0) {
+    const per = backend === 'hawkbit'
+      ? (value >= 100 ? fleet : Math.max(1, Math.round((total * value) / 100)))
+      : campaign.rollout_type === 'percentage' ? Math.max(1, Math.floor((value * total) / 100)) : value;
+    for (let left = fleet; left > 0 && sizes.length < MAX_PLANNED_BATCHES; left -= per) sizes.push(Math.min(per, left));
+  }
+
+  const dispatched = total - pending;
+  let current = 0;
+  if (dispatched > 0) {
+    let cumulative = 0;
+    current = sizes.length;
+    for (let i = 0; i < sizes.length; i++) {
+      cumulative += sizes[i];
+      if (dispatched <= cumulative) { current = i + 1; break; }
+    }
+  }
+
+  const status = deriveCampaignStatus(campaign);
+  const finished = active === 0 && pending === 0;
+  const currentState: CampaignBatchState =
+    status === 'Paused' ? 'paused'
+    : finished ? (completed === 0 && failed > 0 ? 'failed' : 'done')
+    : active > 0 ? 'running'
+    : 'waiting';
+  const laterState: CampaignBatchState = status === 'Cancelled' ? 'skipped' : 'pending';
+
+  const batches = sizes.map((size, i): CampaignBatch => {
+    const n = i + 1;
+    const label = hasTest && i === 0 ? 'Test device' : `Batch ${hasTest ? i : n}`;
+    if (hasTest && i === 0) {
+      const t = getTestDeviceStatus(campaign);
+      return { label, size, state: t === 'passed' ? 'done' : t === 'failed' ? 'failed' : t === 'testing' ? 'running' : n <= current ? currentState : laterState };
+    }
+    return { label, size, state: n < current ? 'done' : n === current ? currentState : laterState };
+  });
+  return { batches, current };
+}
+
+const BATCH_SEGMENT: Record<CampaignBatchState, string> = {
+  done: 'bg-emerald-500',
+  running: 'bg-primary',
+  waiting: 'bg-primary/40',
+  paused: 'bg-amber-400',
+  failed: 'bg-destructive',
+  pending: 'bg-muted-foreground/20',
+  skipped: 'bg-muted-foreground/10',
+};
+
+/** One segment per batch (at most 12 drawn; the label always gives the true count). */
+export function BatchProgress({ plan }: { plan: CampaignBatchPlan }) {
+  const shown = plan.batches.slice(0, 12);
+  const n = plan.batches.length;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex gap-0.5" aria-hidden>
+        {shown.map((b, i) => (
+          <span key={i} className={cn('h-3 w-3 rounded-[3px]', BATCH_SEGMENT[b.state])} title={`${b.label}: ${b.size} device${b.size === 1 ? '' : 's'}`} />
+        ))}
+        {n > shown.length && <span className="text-[10px] leading-3 text-muted-foreground">+{n - shown.length}</span>}
+      </div>
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {plan.current === 0 ? `${n} batch${n === 1 ? '' : 'es'}` : `Batch ${Math.min(plan.current, n)} of ${n}`}
+      </span>
+    </div>
+  );
 }
 
 // ─── CampaignNameCell ───────────────────────────────────────────────────────────
@@ -230,7 +381,8 @@ export function CampaignStatusCell({ campaign, startedCampaigns, startedCampaign
         status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
         status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
         status === 'Cancelled' ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-50' :
-        status === 'Paused' ? 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100' :
+        status === 'Paused' ? 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' :
+        status === 'Scheduled' ? 'bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800' :
         status === 'Partial Completed' ? 'bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-50' :
         'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
       }`}>
@@ -239,6 +391,7 @@ export function CampaignStatusCell({ campaign, startedCampaigns, startedCampaign
         {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
         {status === 'Cancelled' && <Ban className="h-3 w-3" />}
         {status === 'Paused' && <PauseCircle className="h-3 w-3" />}
+        {status === 'Scheduled' && <CalendarClock className="h-3 w-3" />}
         {status === 'Partial Completed' && <AlertTriangle className="h-3 w-3" />}
         {status === 'Partial Completed' ? `Partial (${completionPercent}%)` : status}
       </Badge>
@@ -258,10 +411,12 @@ interface CampaignProgressCellProps {
   clearStartedCampaign?: (campaignId: string) => void;
   /** Called once (from actual job data) when all devices have reached a terminal state. */
   onCompleted?: (campaignId: string) => void;
+  /** Percentage first, then a slim bar — for dense tables. */
+  compact?: boolean;
 }
 
 export function CampaignProgressCell({
-  campaign, startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign, onCompleted,
+  campaign, startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign, onCompleted, compact = false,
 }: CampaignProgressCellProps) {
   // Breakdown derived from the campaign object — no per-device job queries at the list level.
   const { total: totalDevices, completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
@@ -298,6 +453,38 @@ export function CampaignProgressCell({
 
   if (totalDevices === 0) {
     return <span className="text-xs text-muted-foreground">No devices</span>;
+  }
+
+  if (compact) {
+    const pct = Math.round(completedPercent);
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex min-w-[140px] items-center gap-2">
+              <span className="w-9 text-sm font-medium tabular-nums">{pct}%</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted-foreground/15">
+                <div className="absolute left-0 top-0 h-full bg-primary transition-all duration-700" style={{ width: `${completedPercent}%` }} />
+                {failedPercent > 0 && (
+                  <div className="absolute top-0 h-full bg-destructive transition-all duration-700" style={{ left: `${completedPercent}%`, width: `${failedPercent}%` }} />
+                )}
+                {activePercent > 0 && (
+                  <div className="absolute top-0 h-full bg-primary/40 transition-all duration-700" style={{ left: `${completedPercent + failedPercent}%`, width: `${activePercent}%` }} />
+                )}
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">
+              {cappedCompletedCount} of {displayTotal} completed
+              {cappedActiveCount > 0 && ` · ${cappedActiveCount} in progress`}
+              {cappedFailedCount > 0 && ` · ${cappedFailedCount} failed`}
+              {pendingAssignedCount > 0 && ` · ${pendingAssignedCount} pending`}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   }
 
   return (

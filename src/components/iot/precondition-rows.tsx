@@ -35,7 +35,7 @@ const SEMVER = /^\d+\.\d+\.\d+$/;
 export type PreconditionKind = 'pack' | 'module';
 
 export function emptyPreconditionRow(): CampaignPrecondition {
-  return { required_pack_name: '', min_version: '' };
+  return { required_distribution_set_name: '', min_version: '' };
 }
 
 /** A row's kind. A filled row says so by which field carries a value; an EMPTY one — just added, or
@@ -44,7 +44,7 @@ export function emptyPreconditionRow(): CampaignPrecondition {
  *  blanking both would lose which picker the row is meant to be showing. */
 export function preconditionKind(r: CampaignPrecondition): PreconditionKind {
   if (r.required_module_key) return 'module';
-  if (r.required_pack_name) return 'pack';
+  if (r.required_distribution_set_name) return 'pack';
   return r.required_module_key !== undefined ? 'module' : 'pack';
 }
 
@@ -52,10 +52,10 @@ export function preconditionKind(r: CampaignPrecondition): PreconditionKind {
  *  fields are mutually exclusive and the backend rejects a rule carrying both. */
 export function preconditionWithKind(
   kind: PreconditionKind,
-): Pick<CampaignPrecondition, 'required_pack_name' | 'required_module_key'> {
+): Pick<CampaignPrecondition, 'required_distribution_set_name' | 'required_module_key'> {
   return kind === 'module'
-    ? { required_module_key: '', required_pack_name: undefined }
-    : { required_pack_name: '', required_module_key: undefined };
+    ? { required_module_key: '', required_distribution_set_name: undefined }
+    : { required_distribution_set_name: '', required_module_key: undefined };
 }
 
 /** The same, carrying a picked target — so a picker's onValueChange writes to the field its kind
@@ -63,23 +63,23 @@ export function preconditionWithKind(
 export function preconditionWithTarget(
   kind: PreconditionKind,
   value: string,
-): Pick<CampaignPrecondition, 'required_pack_name' | 'required_module_key'> {
+): Pick<CampaignPrecondition, 'required_distribution_set_name' | 'required_module_key'> {
   return kind === 'module'
-    ? { required_module_key: value, required_pack_name: undefined }
-    : { required_pack_name: value, required_module_key: undefined };
+    ? { required_module_key: value, required_distribution_set_name: undefined }
+    : { required_distribution_set_name: value, required_module_key: undefined };
 }
 
 /** What a row currently points at, whichever kind it is — '' when nothing is picked yet. */
 export function preconditionTargetValue(r: CampaignPrecondition): string {
-  return (preconditionKind(r) === 'module' ? r.required_module_key : r.required_pack_name) || '';
+  return (preconditionKind(r) === 'module' ? r.required_module_key : r.required_distribution_set_name) || '';
 }
 
 /** How one rule's target reads in a summary or a badge: the module key when it targets a module,
  *  the set name otherwise. Every read-only rendering of a rule goes through this — printing
- *  required_pack_name directly renders BLANK for a module-targeted rule, which is the same rule
+ *  required_distribution_set_name directly renders BLANK for a module-targeted rule, which is the same rule
  *  looking like a broken one. */
 export function preconditionTargetLabel(r: CampaignPrecondition): string {
-  return (r.required_module_key || r.required_pack_name || '').trim();
+  return (r.required_module_key || r.required_distribution_set_name || '').trim();
 }
 
 /** The reason this row cannot be saved, or null. A wholly blank row is not an error — it is an add
@@ -108,7 +108,7 @@ export function cleanPreconditionRows(rows: CampaignPrecondition[]): CampaignPre
     .filter((r) => preconditionTargetValue(r) && r.min_version)
     .map((r) => (preconditionKind(r) === 'module'
       ? { required_module_key: preconditionTargetValue(r).trim(), min_version: r.min_version.trim() }
-      : { required_pack_name: preconditionTargetValue(r).trim(), min_version: r.min_version.trim() }));
+      : { required_distribution_set_name: preconditionTargetValue(r).trim(), min_version: r.min_version.trim() }));
 }
 
 const TOGGLE_GROUP_CLS = 'h-9 rounded-xl bg-muted/80 p-1';

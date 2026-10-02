@@ -31,20 +31,20 @@ interface Row {
 function mergeRows(installed: DevicePackVersion[], drifts: PackDrift[] | null): Row[] {
   const byName = new Map<string, Row>();
   for (const v of installed) {
-    byName.set(v.pack_name, { packName: v.pack_name, currentVersion: v.version, targetVersion: null, status: 'no-target' });
+    byName.set(v.distribution_set_name, { packName: v.distribution_set_name, currentVersion: v.version, targetVersion: null, status: 'no-target' });
   }
   for (const d of drifts ?? []) {
-    const existing = byName.get(d.pack_name);
+    const existing = byName.get(d.distribution_set_name);
     if (d.missing || !d.current_version) {
       // Declared as a target, but the device has never installed it — real only when the device
       // truly has no row for it; an installed row always wins (see the drift-omits-a-pack case below).
       if (!existing) {
-        byName.set(d.pack_name, { packName: d.pack_name, currentVersion: null, targetVersion: d.latest_version, status: 'missing' });
+        byName.set(d.distribution_set_name, { packName: d.distribution_set_name, currentVersion: null, targetVersion: d.latest_version, status: 'missing' });
       }
       continue;
     }
-    byName.set(d.pack_name, {
-      packName: d.pack_name,
+    byName.set(d.distribution_set_name, {
+      packName: d.distribution_set_name,
       currentVersion: d.current_version,
       targetVersion: d.latest_version,
       status: d.in_sync ? 'in-sync' : 'outdated',

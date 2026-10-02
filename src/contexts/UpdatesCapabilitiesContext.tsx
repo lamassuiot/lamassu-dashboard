@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useState, ReactNode } from 'react';
 import { fetchUpdatesCapabilities } from '@/lib/iot-api';
+import { useAuth } from '@/contexts/AuthContext';
+import { isAuthEnabled } from '@/lib/auth-session';
 import { installDebugBackendConsoleHelper } from '@/lib/debug-backend';
 import type { UpdatesCapabilities, UpdatesCapabilityKey } from '@/types/iot';
 
@@ -24,8 +26,14 @@ export const UpdatesCapabilitiesProvider = ({ children }: { children: ReactNode 
   const [capabilities, setCapabilities] = useState<UpdatesCapabilities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // The request is authenticated, so it has to wait for a session to exist. Firing it at mount meant
+  // a 401 from the gateway and a permanent fall back to "assume supported" for the rest of the page's
+  // life, since nothing retried once the user finished logging in.
+  const { user, isLoading: authLoading } = useAuth();
+  const ready = !isAuthEnabled() || (!authLoading && Boolean(user?.access_token));
 
   const load = useCallback(() => {
+    if (!ready) return undefined;
     let cancelled = false;
     setIsLoading(true);
 
@@ -50,7 +58,7 @@ export const UpdatesCapabilitiesProvider = ({ children }: { children: ReactNode 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ready]);
 
   useEffect(() => load(), [load]);
   useEffect(() => installDebugBackendConsoleHelper(), []);

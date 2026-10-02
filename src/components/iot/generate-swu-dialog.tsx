@@ -123,7 +123,10 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   const [signingKeyId, setSigningKeyId] = useState('none');
   const [signingMethod, setSigningMethod] = useState('');
   const [signingCertificate, setSigningCertificate] = useState('');
-  const { isSupported } = useUpdatesCapabilities();
+  const { isSupported, backend } = useUpdatesCapabilities();
+  // hawkBit sets contain multiple module deliverables. Security settings on this bulk build would
+  // not identify a real single artifact, so they belong exclusively to the module build dialog.
+  const distributionSetSecuritySupported = backend !== 'hawkbit';
   // Per-artifact encryption at build time has no hawkBit translation (validateBuildable rejects it
   // outright) — pkg/updates.CapabilityArtifactEncryption. Disabling the option up front avoids a
   // build that always fails once encryption is selected.
@@ -271,7 +274,7 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
       // Apply per-file encryption to the descriptor (shared mode only): mark the chosen files (or all)
       // as encrypted, then upload the resulting descriptor.
       let descriptorToUpload = descriptorContent;
-      if (encryptionMode === 'shared' && hasEncryption) {
+      if (distributionSetSecuritySupported && encryptionMode === 'shared' && hasEncryption) {
         const indices = encryptAllFiles
           ? descriptorFiles.map((_, i) => i)
           : Array.from(encryptedFileIdx).filter((i) => i < descriptorFiles.length);
@@ -282,7 +285,9 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
 
       // Build the generation payload from the selected security options.
       const payload: GenerateSwuPayload = { selected_artifact_ids: Array.from(selectedArtifactIds) };
-      if (encryptionMode === 'shared') {
+      if (!distributionSetSecuritySupported) {
+        payload.user = sub;
+      } else if (encryptionMode === 'shared') {
         payload.user = sub;
         if (selectedEncryptionKey) {
           payload.encryption_key_name = selectedEncryptionKey.id;
@@ -297,7 +302,7 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
       } else {
         payload.user = sub;
       }
-      if (hasSigning) {
+      if (distributionSetSecuritySupported && hasSigning) {
         payload.signature_key_id = signingKeyId;
         payload.signature_alg_name = signingMethod;
         const cert = keyCertificates.find((c) => c.serialNumber === signingCertificate);
@@ -441,6 +446,7 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
             )}
           </div>
 
+          {distributionSetSecuritySupported ? <>
           {/* Signing */}
           <div className="space-y-3 rounded-lg border border-border p-3">
             <Label className="text-sm font-semibold">Signing</Label>
@@ -558,6 +564,15 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
               <ShieldAlert className="h-4 w-4" />
               <AlertTitle>No security selected</AlertTitle>
               <AlertDescription>This SWU will be neither signed nor encrypted. You can still proceed.</AlertDescription>
+            </Alert>
+          )}
+          </> : (
+            <Alert>
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Security is configured per software module</AlertTitle>
+              <AlertDescription>
+                This bulk action builds any remaining modules. Open a module to select the signature and encryption keys for its own SWU.
+              </AlertDescription>
             </Alert>
           )}
           </div>

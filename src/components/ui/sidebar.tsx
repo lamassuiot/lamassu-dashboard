@@ -182,6 +182,7 @@ function Sidebar({
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
+          dismissOnOutsideClick
           dir={dir}
           data-sidebar="sidebar"
           data-slot="sidebar"

@@ -31,7 +31,11 @@ const createUserManager = (): UserManager | null => {
       silent_redirect_uri: `${window.location.origin}/silent-renew-callback`,
       post_logout_redirect_uri: `${window.location.origin}/signout-callback`,
       response_type: 'code',
-      scope: 'openid profile email', // Standard scopes
+      // 'profile' is left out deliberately: this Cognito app client's allowed OAuth scopes reject it
+      // outright (invalid_scope), bouncing straight back to signin-callback before the login page
+      // ever loads. The header falls back to profile.email when profile.name is absent, so dropping
+      // it degrades gracefully rather than breaking login. Add it back once the app client allows it.
+      scope: 'openid email',
       userStore: new WebStorageStateStore({ store: window.localStorage }), // Persist user session
       automaticSilentRenew: true, // Proactively renew tokens
       loadUserInfo: true, // Fetch userinfo endpoint to surface claims like `picture`

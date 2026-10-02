@@ -26,7 +26,7 @@ import type { CampaignPrecondition, ReusableSoftwareModule, UpdatePack } from '@
 //  - switching kind drops the other kind's target. The backend rejects a rule carrying both, so a
 //    row edited from a set to a module must not ship the abandoned set name.
 //  - cleanPreconditionRows keeps module-targeted rules. They were previously filtered out by a
-//    `required_pack_name &&` check, which silently dropped every module rule on submit.
+//    `required_distribution_set_name &&` check, which silently dropped every module rule on submit.
 
 const PACKS = [
   { id: 'p1', name: 'gateway-release', version: '2.0.0', group_id: 'g1' },
@@ -77,7 +77,7 @@ function openOptions(): string[] {
 
 describe('precondition row kind', () => {
   it('reads a filled row from whichever target field carries a value', () => {
-    expect(preconditionKind({ required_pack_name: 'gateway-release', min_version: '1.0.0' })).toBe('pack');
+    expect(preconditionKind({ required_distribution_set_name: 'gateway-release', min_version: '1.0.0' })).toBe('pack');
     expect(preconditionKind({ required_module_key: 'os:bootloader', min_version: '1.0.0' })).toBe('module');
   });
 
@@ -97,15 +97,15 @@ describe('precondition row kind', () => {
   });
 
   it('switching kind discards the other kind’s target', () => {
-    const switched = { required_pack_name: 'gateway-release', min_version: '2.0.0', ...preconditionWithKind('module') };
-    expect(switched.required_pack_name).toBeUndefined();
+    const switched = { required_distribution_set_name: 'gateway-release', min_version: '2.0.0', ...preconditionWithKind('module') };
+    expect(switched.required_distribution_set_name).toBeUndefined();
     expect(preconditionTargetValue(switched)).toBe('');
   });
 });
 
 describe('precondition validation and payload', () => {
   it('names the kind the operator still has to pick', () => {
-    expect(preconditionRowError({ required_pack_name: '', min_version: '1.0.0' }))
+    expect(preconditionRowError({ required_distribution_set_name: '', min_version: '1.0.0' }))
       .toBe('Pick the required distribution set.');
     expect(preconditionRowError({ required_module_key: '', min_version: '1.0.0' }))
       .toBe('Pick the required software module.');
@@ -117,7 +117,7 @@ describe('precondition validation and payload', () => {
   });
 
   it('requires a semver min version once a target is picked', () => {
-    expect(preconditionRowError({ required_pack_name: 'gateway-release', min_version: '' }))
+    expect(preconditionRowError({ required_distribution_set_name: 'gateway-release', min_version: '' }))
       .toBe('Min version is required.');
     expect(preconditionRowError({ required_module_key: 'os:bootloader', min_version: '2.1' }))
       .toBe('Use semver format (e.g. 1.2.0).');
@@ -126,22 +126,22 @@ describe('precondition validation and payload', () => {
 
   it('submits module-targeted rules alongside set-targeted ones', () => {
     const cleaned = cleanPreconditionRows([
-      { required_pack_name: 'gateway-release', min_version: ' 2.0.0 ' },
+      { required_distribution_set_name: 'gateway-release', min_version: ' 2.0.0 ' },
       { required_module_key: 'os:bootloader', min_version: '2.1.0' },
       emptyPreconditionRow(),
     ]);
     expect(cleaned).toEqual([
-      { required_pack_name: 'gateway-release', min_version: '2.0.0' },
+      { required_distribution_set_name: 'gateway-release', min_version: '2.0.0' },
       { required_module_key: 'os:bootloader', min_version: '2.1.0' },
     ]);
     // Never both fields on one rule — the backend rejects that.
     for (const rule of cleaned) {
-      expect(Boolean(rule.required_pack_name) && Boolean(rule.required_module_key)).toBe(false);
+      expect(Boolean(rule.required_distribution_set_name) && Boolean(rule.required_module_key)).toBe(false);
     }
   });
 
   it('labels whichever target a rule names', () => {
-    expect(preconditionTargetLabel({ required_pack_name: 'gateway-release', min_version: '1.0.0' })).toBe('gateway-release');
+    expect(preconditionTargetLabel({ required_distribution_set_name: 'gateway-release', min_version: '1.0.0' })).toBe('gateway-release');
     expect(preconditionTargetLabel({ required_module_key: 'os:bootloader', min_version: '1.0.0' })).toBe('os:bootloader');
   });
 });
@@ -173,11 +173,11 @@ describe('PreconditionRows', () => {
   });
 
   it('switching the kind clears the target already picked for the old kind', () => {
-    const { onChange } = renderRows([{ required_pack_name: 'gateway-release', min_version: '2.0.0' }]);
+    const { onChange } = renderRows([{ required_distribution_set_name: 'gateway-release', min_version: '2.0.0' }]);
     fireEvent.click(screen.getByRole('radio', { name: 'Software module' }));
     expect(onChange).toHaveBeenCalledTimes(1);
     const [next] = onChange.mock.calls[0][0] as CampaignPrecondition[];
-    expect(next.required_pack_name).toBeUndefined();
+    expect(next.required_distribution_set_name).toBeUndefined();
     expect(next.required_module_key).toBe('');
     // The version the operator already typed is theirs to keep — only the target was kind-specific.
     expect(next.min_version).toBe('2.0.0');
@@ -189,7 +189,7 @@ describe('PreconditionRows', () => {
     fireEvent.click(screen.getByRole('option', { name: 'os:bootloader' }));
     const [next] = onChange.mock.calls[0][0] as CampaignPrecondition[];
     expect(next).toMatchObject({ required_module_key: 'os:bootloader' });
-    expect(next.required_pack_name).toBeUndefined();
+    expect(next.required_distribution_set_name).toBeUndefined();
   });
 
   it('renders a stored module rule on the module kind, showing its key', () => {
@@ -200,7 +200,7 @@ describe('PreconditionRows', () => {
   });
 
   it('still offers a stored target that has since left the list', () => {
-    renderRows([{ required_pack_name: 'retired-release', min_version: '1.0.0' }]);
+    renderRows([{ required_distribution_set_name: 'retired-release', min_version: '1.0.0' }]);
     // Rendered rather than silently blank — a blank row would lose the value on the next save.
     expect(targetPicker()).toHaveTextContent('retired-release');
     expect(openOptions()).toContain('retired-release');
@@ -242,7 +242,7 @@ describe('PreconditionRows', () => {
 
   it('removes the row it is asked to remove, keeping the others', () => {
     const rows: CampaignPrecondition[] = [
-      { required_pack_name: 'gateway-release', min_version: '2.0.0' },
+      { required_distribution_set_name: 'gateway-release', min_version: '2.0.0' },
       { required_module_key: 'os:bootloader', min_version: '2.1.0' },
     ];
     const onChange = vi.fn();
@@ -276,7 +276,7 @@ describe('PreconditionRows', () => {
   });
 
   it('flags the picker, not the version box, when only the target is missing', () => {
-    renderRows([{ required_pack_name: '', min_version: '1.0.0' }]);
+    renderRows([{ required_distribution_set_name: '', min_version: '1.0.0' }]);
     expect(screen.getByText('Pick the required distribution set.')).toBeInTheDocument();
     // classList, not a substring of className: the input's base classes already mention
     // border-destructive inside an `aria-invalid:` variant, which a substring check would match.

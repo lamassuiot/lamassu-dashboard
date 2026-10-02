@@ -35,13 +35,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
   Rocket, CalendarClock, CheckCircle2, Clock, AlertCircle, RefreshCw, Boxes, Package,
-  Info, ArrowRight, Construction, TriangleAlert, Users,
+  Info, ArrowRight, Construction, TriangleAlert, Users, XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { fetchAllCampaigns, getGroupVersionStatus } from '@/lib/iot-api';
+import { fetchAllCampaigns, fetchAllUpdatePacks, getGroupVersionStatus } from '@/lib/iot-api';
 import {
   deriveCampaignStatus, deriveCampaignDeviceStats, isRolloutBlockedByTestDevice,
   type CampaignDisplayStatus,
@@ -75,6 +75,17 @@ function pct(part: number, whole: number): number {
 function fmtPct(part: number, whole: number, digits = 1): string {
   if (!whole) return '—';
   return `${pct(part, whole).toFixed(digits)}%`;
+}
+
+// A figure followed by its share in muted text — the same "12 (30%)" shape Version Distribution uses
+// for its Target column, so a count and its percentage read as one value.
+function withPct(value: number, part: number, whole: number): React.ReactNode {
+  return (
+    <>
+      <span>{value.toLocaleString()}</span>
+      {whole > 0 && <span className="text-base font-normal text-muted-foreground"> ({fmtPct(part, whole, 0)})</span>}
+    </>
+  );
 }
 
 // ── Stat figure ──────────────────────────────────────────────────────────────
@@ -265,6 +276,7 @@ const STATUS_BADGE: Record<CampaignDisplayStatus, string> = {
   Failed: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
   Cancelled: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
   'Not Started': 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+  Scheduled: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800',
 };
 
 export default function OtaDashboardPage() {
@@ -278,6 +290,8 @@ export default function OtaDashboardPage() {
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUPS);
   const [campaigns, setCampaigns] = useState<CampaignWithGroup[]>([]);
   const [versionRows, setVersionRows] = useState<DevicePackVersionStatus[]>([]);
+  // distribution_set_id -> name, to say which set each campaign rolls out.
+  const [packNames, setPackNames] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
@@ -293,7 +307,7 @@ export default function OtaDashboardPage() {
     try {
       // Degrade per group: one group failing (or a backend without compliance) must
       // not blank the whole dashboard.
-      const [campaignSets, versionSets] = await Promise.all([
+      const [campaignSets, versionSets, packs] = await Promise.all([
         Promise.all(
           groupsInScope.map((g) =>
             fetchAllCampaigns({ groupId: g.id })
@@ -310,7 +324,9 @@ export default function OtaDashboardPage() {
               ),
             )
           : Promise.resolve([] as DevicePackVersionStatus[][]),
+        fetchAllUpdatePacks({ pageSize: 500 }).then((r) => r.list).catch(() => []),
       ]);
+      setPackNames(new Map(packs.filter((p) => p.id).map((p) => [p.id, p.name])));
       setCampaigns(campaignSets.flat());
       setVersionRows(versionSets.flat());
       setLastRefreshed(new Date());
@@ -367,10 +383,10 @@ export default function OtaDashboardPage() {
       packName: string; latest: string; devices: Set<string>; inSync: Set<string>; versions: Map<string, number>;
     }>();
     for (const row of versionRows) {
-      const key = `${row.pack_name}::${row.latest_version}`;
+      const key = `${row.distribution_set_name}::${row.latest_version}`;
       let b = buckets.get(key);
       if (!b) {
-        b = { packName: row.pack_name, latest: row.latest_version, devices: new Set(), inSync: new Set(), versions: new Map() };
+        b = { packName: row.distribution_set_name, latest: row.latest_version, devices: new Set(), inSync: new Set(), versions: new Map() };
         buckets.set(key, b);
       }
       b.devices.add(row.device_id);
@@ -482,20 +498,20 @@ export default function OtaDashboardPage() {
             <>
               <StatTile
                 label="Devices up to date"
-                value={<><span>{compliance.upToDate.toLocaleString()}</span><span className="text-base font-normal text-muted-foreground"> / {compliance.tracked.toLocaleString()}</span></>}
+                value={withPct(compliance.upToDate, compliance.upToDate, compliance.tracked)}
                 sub={compliance.tracked === 0
                   ? 'No version targets declared'
-                  : `${fmtPct(compliance.upToDate, compliance.tracked)} of tracked devices`}
+                  : `of ${compliance.tracked.toLocaleString()} tracked devices`}
                 subRole="upToDate"
                 icon={CheckCircle2}
                 iconClass="text-emerald-600 dark:text-emerald-400"
               />
               <StatTile
                 label="Devices pending update"
-                value={compliance.pending.toLocaleString()}
+                value={withPct(compliance.pending, compliance.pending, compliance.tracked)}
                 sub={compliance.tracked === 0
                   ? 'No version targets declared'
-                  : `${fmtPct(compliance.pending, compliance.tracked)} of tracked devices`}
+                  : `of ${compliance.tracked.toLocaleString()} tracked devices`}
                 subRole="pending"
                 icon={Clock}
                 iconClass="text-amber-600 dark:text-amber-400"
@@ -510,8 +526,8 @@ export default function OtaDashboardPage() {
 
           <StatTile
             label="Failed update attempts"
-            value={health.failed.toLocaleString()}
-            sub={`${fmtPct(health.failed, health.total)} of assignments`}
+            value={withPct(health.failed, health.failed, health.total)}
+            sub={`of ${health.total.toLocaleString()} assignments`}
             subRole="failed"
             icon={AlertCircle}
             iconClass="text-red-600 dark:text-red-400"
@@ -569,6 +585,7 @@ export default function OtaDashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Campaign</TableHead>
+                    <TableHead>Distribution Set</TableHead>
                     <TableHead>Device Group</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Status</TableHead>
@@ -584,6 +601,11 @@ export default function OtaDashboardPage() {
                     >
                       <TableCell className="max-w-[180px] truncate font-medium text-primary">
                         {campaign.name}
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate">
+                        {(campaign.distribution_set_id && packNames.get(campaign.distribution_set_id)) || campaign.distribution_set_name || (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="max-w-[120px] truncate text-muted-foreground">{campaign.groupName}</TableCell>
                       <TableCell>
@@ -638,7 +660,7 @@ export default function OtaDashboardPage() {
                       <TableHead>Installed (devices)</TableHead>
                       <TableHead className="w-[110px]">Target</TableHead>
                       <TableHead className="w-[130px]">Up to date</TableHead>
-                      <TableHead className="w-[110px]">Pending</TableHead>
+                      <TableHead className="w-[130px]">Pending</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -663,7 +685,7 @@ export default function OtaDashboardPage() {
                           {row.upToDate.toLocaleString()} <span className="text-muted-foreground">({fmtPct(row.upToDate, row.total, 0)})</span>
                         </TableCell>
                         <TableCell className={cn('tabular-nums text-sm', STATUS.pending.text)}>
-                          {(row.total - row.upToDate).toLocaleString()}
+                          {(row.total - row.upToDate).toLocaleString()} <span className="text-muted-foreground">({fmtPct(row.total - row.upToDate, row.total, 0)})</span>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -685,11 +707,12 @@ export default function OtaDashboardPage() {
       {/* ── Quick actions + schedule ── the two short blocks, paired so neither leaves a gap ── */}
       <div className="grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-12">
       <Panel title="Quick Actions" description="Common OTA tasks." icon={Rocket} className="lg:col-span-7">
-        <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           {[
-            { href: '/updates', label: 'Create campaign', hint: 'Start a new rollout', icon: Rocket, cls: 'text-blue-600 dark:text-blue-400' },
+            { href: '/updates/new', label: 'Create campaign', hint: 'Start a new rollout', icon: Rocket, cls: 'text-blue-600 dark:text-blue-400' },
             { href: '/updates/software-modules', label: 'Software modules', hint: 'Browse the catalog', icon: Boxes, cls: 'text-emerald-600 dark:text-emerald-400' },
             { href: '/package-inventory', label: 'Distribution sets', hint: 'Define or update a set', icon: Package, cls: 'text-violet-600 dark:text-violet-400' },
+            { href: '/updates/devices?status=failed', label: 'Failed devices', hint: 'Last update attempt errored', icon: XCircle, cls: 'text-red-600 dark:text-red-400' },
           ].map((a) => (
             <Link
               key={a.href}

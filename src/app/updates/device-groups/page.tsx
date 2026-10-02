@@ -18,9 +18,13 @@
  *   getDevicesByGroup(group)         → real membership (paged to exhaustion). Also the source for
  *                                      the "Devices Covered" fleet stat's de-duplicated device set,
  *                                      since a device can belong to more than one group.
+ *   fetchUpdatePacks(group)          → the group's distribution sets themselves. This is the source of
+ *                                      WHICH sets the group has: a set whose first campaign is still
+ *                                      running has no installed version recorded anywhere yet, so the
+ *                                      compliance matrix below knows nothing about it.
  *   getGroupVersionStatus(group)     → the server-side (device, pack) compliance matrix, rolled up
- *                                      per distribution set into "latest target version" + how many
- *                                      tracked devices are behind it. Gated on `version_compliance`.
+ *                                      per distribution set into how many tracked devices are behind
+ *                                      its latest version. Gated on `version_compliance`.
  *   fetchAllCampaigns(group)         → campaigns scoped to the group, split into active (still doing
  *                                      work) vs. finished the same way the Campaigns page does.
  */
@@ -45,10 +49,10 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { getDeviceGroups, getDevicesByGroup } from '@/lib/device-groups-api';
-import { getGroupVersionStatus, fetchAllCampaigns } from '@/lib/iot-api';
+import { getGroupVersionStatus, fetchAllCampaigns, fetchUpdatePacks } from '@/lib/iot-api';
 import { fetchDeviceStats } from '@/lib/devices-api';
 import type { DeviceGroup } from '@/types/device-group';
-import type { CampaignItem } from '@/types/iot';
+import type { CampaignItem, UpdatePack } from '@/types/iot';
 
 const ALL = '__all__';
 const PAGE_SIZES = [10, 25, 50];
@@ -144,7 +148,7 @@ export default function OtaDeviceGroupsPage() {
       const [fleetStats, perGroup] = await Promise.all([
         fetchDeviceStats().catch(() => ({ total: 0 } as any)),
         Promise.all(groups.map(async (group) => {
-          const [ids, versionRows, campaigns] = await Promise.all([
+          const [ids, sets, versionRows, campaigns] = await Promise.all([
             (async () => {
               const all: string[] = [];
               let bookmark: string | undefined;
@@ -156,22 +160,38 @@ export default function OtaDeviceGroupsPage() {
               }
               return all;
             })(),
+            (async () => {
+              const all: UpdatePack[] = [];
+              let bookmark: string | undefined;
+              for (let i = 0; i < 20; i++) {
+                const res = await fetchUpdatePacks({ groupId: group.id }, { pageSize: 100, bookmark });
+                all.push(...res.list);
+                if (!res.next) break;
+                bookmark = res.next;
+              }
+              return all;
+            })().catch(() => [] as UpdatePack[]),
             targetsSupported
               ? getGroupVersionStatus({ groupId: group.id }).then((r) => r.rows ?? []).catch(() => [])
               : Promise.resolve([]),
             fetchAllCampaigns({ groupId: group.id }).catch(() => []),
           ]);
 
-          // Roll the per-(device, pack) matrix up to one row per distribution set.
+          // One row per distribution set the group has, even before any device has reported an
+          // installed version of it; the per-(device, pack) matrix then fills in the tracking counts.
           const byPack = new Map<string, PackTargetRow>();
+          for (const set of sets) {
+            byPack.set(set.name, { packName: set.name, latest: set.version, tracked: 0, outdated: 0 });
+          }
           for (const r of versionRows) {
-            const existing = byPack.get(r.pack_name);
+            const existing = byPack.get(r.distribution_set_name);
             if (existing) {
+              existing.latest = r.latest_version;
               existing.tracked += 1;
               if (!r.in_sync) existing.outdated += 1;
             } else {
-              byPack.set(r.pack_name, {
-                packName: r.pack_name,
+              byPack.set(r.distribution_set_name, {
+                packName: r.distribution_set_name,
                 latest: r.latest_version,
                 tracked: 1,
                 outdated: r.in_sync ? 0 : 1,
@@ -339,7 +359,7 @@ export default function OtaDeviceGroupsPage() {
                   <TableHead>Group Name</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Devices</TableHead>
-                  <TableHead>Current Target Version</TableHead>
+                  <TableHead>Distribution Set Number</TableHead>
                   <TableHead>Last Updated</TableHead>
                   <TableHead>Active Campaigns</TableHead>
                   <TableHead>Actions</TableHead>
@@ -380,27 +400,18 @@ export default function OtaDeviceGroupsPage() {
                           {pct && <span className="ml-1 text-xs text-muted-foreground">({pct}%)</span>}
                         </TableCell>
                         <TableCell>
-                          {!targetsSupported || row.packs.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : row.packs.length === 1 ? (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'text-xs tabular-nums',
-                                row.packs[0].outdated > 0
-                                  ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                  : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-                              )}
-                            >
-                              {row.packs[0].packName} v{row.packs[0].latest}
-                            </Badge>
+                          {row.packs.length === 0 ? (
+                            <span className="text-sm tabular-nums text-muted-foreground">0</span>
                           ) : (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className="flex w-fit cursor-help items-center gap-1.5 text-sm underline decoration-dotted">
+                                  <span className={cn(
+                                    'flex w-fit cursor-help items-center gap-1.5 text-sm tabular-nums underline decoration-dotted',
+                                    row.packs.some((p) => p.outdated > 0) && 'text-amber-700 dark:text-amber-300',
+                                  )}>
                                     <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                    {row.packs.length} sets
+                                    {row.packs.length}
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent>
@@ -446,7 +457,7 @@ export default function OtaDeviceGroupsPage() {
                               neither of those does is START one, so that's the action that earns a
                               button here. */}
                           <Button variant="ghost" size="sm" asChild onClick={(e) => e.stopPropagation()}>
-                            <Link href={`/updates?action=campaign&groupId=${encodeURIComponent(row.group.id)}`}>
+                            <Link href={`/updates/new?groupId=${encodeURIComponent(row.group.id)}`}>
                               <Rocket className="mr-1.5 h-3.5 w-3.5" /> Start Campaign
                             </Link>
                           </Button>
@@ -458,7 +469,7 @@ export default function OtaDeviceGroupsPage() {
                           <TableCell colSpan={8} className="bg-muted/30 p-0">
                             <div className="px-4 py-3">
                               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                                Distribution sets targeted at this group
+                                Distribution sets in this group
                               </p>
                               <div className="overflow-x-auto">
                                 <Table>
@@ -479,7 +490,9 @@ export default function OtaDeviceGroupsPage() {
                                         </TableCell>
                                         <TableCell className="text-sm tabular-nums">{p.tracked}</TableCell>
                                         <TableCell className="pr-3">
-                                          {p.outdated > 0 ? (
+                                          {p.tracked === 0 ? (
+                                            <span className="text-sm text-muted-foreground" title="No device has a recorded installed version of this set yet">—</span>
+                                          ) : p.outdated > 0 ? (
                                             <span className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400">
                                               <AlertTriangle className="h-3.5 w-3.5" /> {p.outdated}
                                             </span>
