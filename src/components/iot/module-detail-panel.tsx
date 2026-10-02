@@ -39,7 +39,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Package, CheckCircle2, CircleDashed, Lock, LockOpen, ShieldCheck, FileText, Boxes, Layers,
-  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2,
+  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2, PackagePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -86,7 +86,7 @@ function StateChip({
 
 export function ModuleDetailPanel({
   module, lockSupported, perModuleDeliverables, onClose, onSaved, onAddArtifact, onNewVersion,
-  removalFor, onRemoveFromSet,
+  removalFor, onRemoveFromSet, onAddToSet,
 }: {
   module: GroupedModule;
   /** Whether the backend reports a per-module lock at all (hawkbit does, native does not). */
@@ -107,6 +107,9 @@ export function ModuleDetailPanel({
   removalFor?: (use: ReusableSoftwareModule) => string | null | undefined;
   /** Take this module out of the set a row names. The module itself is kept. */
   onRemoveFromSet?: (use: ReusableSoftwareModule) => void;
+  /** Compose this module into another distribution set. Offered in the Distribution sets tab, where
+   *  the operator is already looking at which sets hold it. */
+  onAddToSet?: () => void;
 }) {
   // A module can be defined on SEVERAL pack versions, and release notes belong to a definition, not
   // to the identity — so everything version-specific is scoped to a chosen definition rather than
@@ -483,9 +486,22 @@ export function ModuleDetailPanel({
           {setUses.length === 0 ? (
             <div className="py-3 text-sm">
               <p className="font-medium">Not used by any distribution set yet</p>
-              <p className="mt-1 text-muted-foreground">Import it into a set from the Distribution Set view to deliver it to devices.</p>
+              <p className="mt-1 text-muted-foreground">Add it to a set to deliver it to devices.</p>
+              {onAddToSet && (
+                <Button size="sm" className="mt-3" onClick={onAddToSet}>
+                  <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set
+                </Button>
+              )}
             </div>
           ) : (
+          <>
+          {onAddToSet && (
+            <div className="mb-3 flex justify-end">
+              <Button variant="outline" size="sm" onClick={onAddToSet}>
+                <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set
+              </Button>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -555,6 +571,7 @@ export function ModuleDetailPanel({
               </TableBody>
             </Table>
           </div>
+          </>
           )}
           {module.shared && setUses.length > 1 && (
             <Alert className="mt-3">

@@ -714,6 +714,7 @@ export default function SoftwareModulesCatalogPage() {
           onNewVersion={(use) => router.push(`/updates/software-modules/new-version?moduleId=${encodeURIComponent(use.id ?? '')}`)}
           removalFor={removalFor}
           onRemoveFromSet={setRemoveTarget}
+          onAddToSet={() => setAddToSet({ key: selected.key, uses: selected.uses })}
         />
       )}
 
