@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from '@/components/shared/dynamic';
 import {
     Sheet,
@@ -60,7 +60,15 @@ const filterOptions = [
     { value: 'JAVASCRIPT', label: 'Javascript' },
 ];
 
-const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+// Checked by splitting rather than one regex, which backtracks badly on long malformed input.
+const isValidEmail = (value: string) => {
+    const email = value.trim();
+    if (/\s/.test(email)) return false;
+    const parts = email.split('@');
+    if (parts.length !== 2 || !parts[0]) return false;
+    const labels = parts[1].split('.');
+    return labels.length >= 2 && labels.every(label => label.length > 0);
+};
 
 const isValidWebhookUrl = (value: string) => {
     try {
@@ -69,6 +77,37 @@ const isValidWebhookUrl = (value: string) => {
     } catch {
         return false;
     }
+};
+
+const getEmailError = (value: string): string | null => {
+    if (!value.trim()) return 'Email address is required.';
+    return isValidEmail(value) ? null : 'Enter a valid email address.';
+};
+
+const getWebhookUrlError = (value: string): string | null => {
+    if (!value.trim()) return 'Webhook URL is required.';
+    return isValidWebhookUrl(value) ? null : 'Enter a valid HTTP or HTTPS webhook URL.';
+};
+
+const getFilterCondition = (
+    filterType: string,
+    values: { jsFunction: string; jsonSchema: string; filterCondition: string },
+): string => {
+    if (filterType === 'JAVASCRIPT') return values.jsFunction;
+    if (filterType === 'JSON-SCHEMA') return values.jsonSchema;
+    return values.filterCondition;
+};
+
+const getEvaluationPresentation = (result: { match: boolean; error?: boolean }) => {
+    if (result.error) return { variant: 'destructive' as const, Icon: AlertTriangle };
+    if (result.match) return { variant: 'success' as const, Icon: Check };
+    return { variant: 'warning' as const, Icon: Info };
+};
+
+const getJsonPathError = (value: string): string | null => {
+    const path = value.trim();
+    if (!path) return 'JSONPath expression is required.';
+    return path.startsWith('$') ? null : 'JSONPath expression must start with "$".';
 };
 
 
@@ -132,8 +171,22 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   const [inputEvent, setInputEvent] = useState('');
 
 
+  // Silent token renewal swaps in a new `user` object while the drawer is open. The reset
+  // below must not depend on it, or it would wipe whatever the operator is typing, so the
+  // email default is read through a ref and the reset runs once per opening.
+  const userEmailRef = useRef(user?.profile.email);
   useEffect(() => {
-    if (isOpen) {
+    userEmailRef.current = user?.profile.email;
+  }, [user]);
+  const wasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true;
       // Reset or populate state when modal opens
       if (isEditMode && subscriptionToEdit) {
           // Populate from existing subscription
@@ -162,7 +215,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
       } else {
           // Reset to default for new subscription
           setChannelType('EMAIL');
-          setEmail(user?.profile.email || '');
+          setEmail(userEmailRef.current || '');
           setWebhookUrl('');
           setTeamsName('');
           setWebhookName('');
@@ -181,7 +234,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
       setInputEvent(samplePayload ? JSON.stringify(samplePayload, null, 2) : '');
       setStep(1); // Always start at step 1
     }
-  }, [isOpen, user, samplePayload, subscriptionToEdit, isEditMode]);
+  }, [isOpen, samplePayload, subscriptionToEdit, isEditMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -270,34 +323,18 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
     };
   }, [filterType, jsFunction]);
 
-  const emailError = channelType === 'EMAIL'
-      ? !email.trim()
-          ? 'Email address is required.'
-          : !isValidEmail(email)
-              ? 'Enter a valid email address.'
-              : null
-      : null;
+  const emailError = channelType === 'EMAIL' ? getEmailError(email) : null;
   const webhookNameError = channelType === 'WEBHOOK' && !webhookName.trim()
       ? 'Webhook name is required.'
       : null;
   const teamsNameError = channelType === 'TEAMS_WEBHOOK' && !teamsName.trim()
       ? 'Microsoft Teams webhook name is required.'
       : null;
-  const webhookUrlError = channelType !== 'EMAIL'
-      ? !webhookUrl.trim()
-          ? 'Webhook URL is required.'
-          : !isValidWebhookUrl(webhookUrl)
-              ? 'Enter a valid HTTP or HTTPS webhook URL.'
-              : null
-      : null;
+  const webhookUrlError = channelType === 'EMAIL' ? null : getWebhookUrlError(webhookUrl);
 
   let filterError: string | null = null;
   if (filterType === 'JSON-PATH') {
-      filterError = !filterCondition.trim()
-          ? 'JSONPath expression is required.'
-          : !filterCondition.trim().startsWith('$')
-              ? 'JSONPath expression must start with "$".'
-              : null;
+      filterError = getJsonPathError(filterCondition);
   } else if (filterType === 'JSON-SCHEMA') {
       if (!jsonSchema.trim()) {
           filterError = 'JSON Schema is required.';
@@ -359,9 +396,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
             channelName = webhookName.trim();
         }
 
-        const currentCondition = filterType === 'JAVASCRIPT' ? jsFunction 
-                               : filterType === 'JSON-SCHEMA' ? jsonSchema
-                               : filterCondition;
+        const currentCondition = getFilterCondition(filterType, { jsFunction, jsonSchema, filterCondition });
 
         const payload: SubscriptionPayload = {
             event_type: eventType,
@@ -387,9 +422,8 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
     }
   }
   
-  const currentCondition = filterType === 'JAVASCRIPT' ? jsFunction
-                         : filterType === 'JSON-SCHEMA' ? jsonSchema
-                         : filterCondition;
+  const currentCondition = getFilterCondition(filterType, { jsFunction, jsonSchema, filterCondition });
+  const evaluationView = evaluationResult ? getEvaluationPresentation(evaluationResult) : null;
 
   const renderStepContent = () => {
     switch (step) {
@@ -510,11 +544,9 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                         </Field>
                         <div className="space-y-2">
                             <Label>Evaluation Result</Label>
-                            {evaluationResult ? (
-                                <Alert variant={evaluationResult.error ? 'destructive' : evaluationResult.match ? 'success' : 'warning'}>
-                                    {evaluationResult.error ? <AlertTriangle className="h-4 w-4" />
-                                        : evaluationResult.match ? <Check className="h-4 w-4" />
-                                        : <Info className="h-4 w-4" />}
+                            {evaluationResult && evaluationView ? (
+                                <Alert variant={evaluationView.variant}>
+                                    <evaluationView.Icon className="h-4 w-4" />
                                     <AlertDescUI>{evaluationResult.message}</AlertDescUI>
                                 </Alert>
                             ) : (

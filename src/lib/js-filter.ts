@@ -8,7 +8,8 @@
  * This limits the blast radius of a pasted filter; it is not a hardened sandbox.
  */
 
-const WORKER_SOURCE = `
+/** Exported so tests can run the real worker script; not part of the public API. */
+export const WORKER_SOURCE = `
 for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches']) {
   try { Object.defineProperty(self, name, { value: undefined, configurable: false }); } catch (e) { /* already locked */ }
 }

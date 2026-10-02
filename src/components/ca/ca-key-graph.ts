@@ -103,9 +103,9 @@ export function buildKeyGraph(cas: CA[], kmsKeys: ApiKmsKey[], engines: ApiCrypt
 export function findCrossSignedKeys(graph: KeyGraph): Set<string> {
   const signersByKey = new Map<string, Set<string>>();
   const addSigner = (keyId: string, signerId: string) => {
-    let signers = signersByKey.get(keyId);
-    if (!signers) signersByKey.set(keyId, signers = new Set());
+    const signers = signersByKey.get(keyId) ?? new Set<string>();
     signers.add(signerId);
+    signersByKey.set(keyId, signers);
   };
 
   for (const key of graph.keys) {

@@ -25,6 +25,7 @@ export interface MethodOptionGroup {
 }
 
 interface MethodChooserProps {
+  // Properties are read-only: this component never mutates what it is given.
   title: string;
   description?: React.ReactNode;
   groups: MethodOptionGroup[];
@@ -50,7 +51,7 @@ export function MethodChooser({
   onSelect,
   back,
   ariaLabel = 'Creation method',
-}: MethodChooserProps) {
+}: Readonly<MethodChooserProps>) {
   return (
     <div className="w-[80%] mx-auto space-y-5 mb-8">
       <div className="flex justify-end mb-4">
@@ -69,7 +70,8 @@ export function MethodChooser({
 
         <Card className="overflow-hidden rounded-xl shadow-sm">
           <CardContent className="p-0">
-            <div role="group" aria-label={ariaLabel} className="divide-y">
+            <fieldset className="m-0 min-w-0 divide-y border-0 p-0">
+              <legend className="sr-only">{ariaLabel}</legend>
               {groups.map(group => (
                 <React.Fragment key={group.id}>
                   <div className="bg-muted/40 px-6 py-3">
@@ -83,7 +85,7 @@ export function MethodChooser({
                   ))}
                 </React.Fragment>
               ))}
-            </div>
+            </fieldset>
           </CardContent>
         </Card>
       </div>
@@ -91,7 +93,7 @@ export function MethodChooser({
   );
 }
 
-function MethodOptionRow({ option, onSelect }: { option: MethodOption; onSelect: (id: string) => void }) {
+function MethodOptionRow({ option, onSelect }: Readonly<{ option: MethodOption; onSelect: (id: string) => void }>) {
   const Icon = option.icon;
 
   return (

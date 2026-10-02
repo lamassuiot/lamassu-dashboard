@@ -32,7 +32,7 @@ import { getEffectiveCaStatus } from '@/lib/ca-utils';
 import type { CA } from '@/lib/ca-data';
 import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { buildKeyGraph, findCrossSignedKeys, isolateKeys, isSelfSigned, pairMutualSignatures, stackMutualKeys, type GraphKey } from './ca-key-graph';
+import { buildKeyGraph, findCrossSignedKeys, isolateKeys, isSelfSigned, pairMutualSignatures, stackMutualKeys, type GraphKey, type GraphSignature, type MutualSignature } from './ca-key-graph';
 
 interface CaGraphViewProps {
   cas: CA[];
@@ -234,17 +234,9 @@ async function layoutNodes(nodes: KeyFlowNode[], edges: Edge[], stacks: string[]
   }
 }
 
-const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, router }) => {
-  const { isDarkMode } = useTheme();
-  const { fitView } = useReactFlow();
-  const graphRef = useRef<HTMLDivElement>(null);
+function useKmsKeys() {
   const [kmsKeys, setKmsKeys] = useState<ApiKmsKey[]>([]);
   const [isLoadingKeys, setIsLoadingKeys] = useState(true);
-  const [nodes, setNodes, onNodesChange] = useNodesState<KeyFlowNode>([]);
-  const [activeKeyId, setActiveKeyId] = useState<string | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [crossSignOnly, setCrossSignOnly] = useState(false);
 
   useEffect(() => {
     fetchKmsKeys(new URLSearchParams())
@@ -255,6 +247,64 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       })
       .finally(() => setIsLoadingKeys(false));
   }, []);
+
+  return { kmsKeys, isLoadingKeys };
+}
+
+function buildSignatureEdges(oneWay: GraphSignature[], mutual: MutualSignature[], stacks: string[][]): Edge[] {
+  const oneWayEdges: Edge[] = oneWay.map(sig => ({
+    id: `${sig.source}->${sig.caId}`,
+    source: sig.source,
+    target: sig.target,
+    sourceHandle: 'signs',
+    targetHandle: rowHandleId(sig.caId),
+    focusable: false,
+    markerEnd: SIGNATURE_MARKER,
+  }));
+
+  // One vertical line joins the two keys of a mutual cross-sign, upper card to lower card.
+  const stackIndex = new Map(stacks.flatMap(stack => stack.map((id, i) => [id, i] as const)));
+  const mutualEdges: Edge[] = mutual.map(({ forward, backward }) => {
+    const isForwardUpper = (stackIndex.get(forward.source) ?? 0) <= (stackIndex.get(forward.target) ?? 0);
+    return {
+      id: `${backward.caId}<->${forward.caId}`,
+      type: 'straight',
+      source: isForwardUpper ? forward.source : forward.target,
+      target: isForwardUpper ? forward.target : forward.source,
+      sourceHandle: 'mutual-bottom',
+      targetHandle: 'mutual-top',
+      focusable: false,
+      zIndex: 1,
+      markerStart: MUTUAL_MARKER,
+      markerEnd: MUTUAL_MARKER,
+      style: { stroke: MUTUAL_COLOR, strokeWidth: MUTUAL_STROKE_WIDTH },
+    };
+  });
+
+  return [...oneWayEdges, ...mutualEdges];
+}
+
+/** Hovering a key highlights the certificates it signed and the key that signed it. */
+function highlightEdges(edges: Edge[], activeKeyId: string | null): Edge[] {
+  if (!activeKeyId) return edges;
+  return edges.map(edge => {
+    const isActive = edge.source === activeKeyId || edge.target === activeKeyId;
+    let strokeWidth = isActive ? 2 : 1;
+    if (edge.markerStart) strokeWidth = MUTUAL_STROKE_WIDTH;
+    return { ...edge, zIndex: isActive ? 1 : 0, style: { ...edge.style, opacity: isActive ? 1 : 0.15, strokeWidth } };
+  });
+}
+
+const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, router }) => {
+  const { isDarkMode } = useTheme();
+  const { fitView } = useReactFlow();
+  const graphRef = useRef<HTMLDivElement>(null);
+  const { kmsKeys, isLoadingKeys } = useKmsKeys();
+  const [nodes, setNodes, onNodesChange] = useNodesState<KeyFlowNode>([]);
+  const [activeKeyId, setActiveKeyId] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [crossSignOnly, setCrossSignOnly] = useState(false);
 
   const fullGraph = useMemo(
     () => buildKeyGraph(cas, kmsKeys, allCryptoEngines),
@@ -279,38 +329,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     return signers;
   }, [graph, mutual]);
 
-  const baseEdges = useMemo<Edge[]>(() => {
-    const oneWayEdges: Edge[] = oneWay.map(sig => ({
-      id: `${sig.source}->${sig.caId}`,
-      source: sig.source,
-      target: sig.target,
-      sourceHandle: 'signs',
-      targetHandle: rowHandleId(sig.caId),
-      focusable: false,
-      markerEnd: SIGNATURE_MARKER,
-    }));
-    // One vertical line joins the two keys of a mutual cross-sign, upper card to lower card.
-    const stackIndex = new Map(stacks.flatMap(stack => stack.map((id, i) => [id, i] as const)));
-    const mutualEdges: Edge[] = mutual.map(({ forward, backward }) => {
-      const [upper, lower] = (stackIndex.get(forward.source) ?? 0) <= (stackIndex.get(forward.target) ?? 0)
-        ? [forward.source, forward.target]
-        : [forward.target, forward.source];
-      return {
-        id: `${backward.caId}<->${forward.caId}`,
-        type: 'straight',
-        source: upper,
-        target: lower,
-        sourceHandle: 'mutual-bottom',
-        targetHandle: 'mutual-top',
-        focusable: false,
-        zIndex: 1,
-        markerStart: MUTUAL_MARKER,
-        markerEnd: MUTUAL_MARKER,
-        style: { stroke: MUTUAL_COLOR, strokeWidth: MUTUAL_STROKE_WIDTH },
-      };
-    });
-    return [...oneWayEdges, ...mutualEdges];
-  }, [oneWay, mutual, stacks]);
+  const baseEdges = useMemo(() => buildSignatureEdges(oneWay, mutual, stacks), [oneWay, mutual, stacks]);
 
   const hasMutualEdges = baseEdges.some(edge => edge.markerStart);
 
@@ -338,15 +357,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     return () => { cancelled = true; };
   }, [graph, baseEdges, stacks, crossSignedKeys, mutualSigners, isLoadingKeys, onOpenCa, setNodes, fitView]);
 
-  // Hovering a key highlights the certificates it signed and the key that signed it.
-  const edges = useMemo<Edge[]>(() => {
-    if (!activeKeyId) return baseEdges;
-    return baseEdges.map(edge => {
-      const isActive = edge.source === activeKeyId || edge.target === activeKeyId;
-      const strokeWidth = edge.markerStart ? MUTUAL_STROKE_WIDTH : isActive ? 2 : 1;
-      return { ...edge, zIndex: isActive ? 1 : 0, style: { ...edge.style, opacity: isActive ? 1 : 0.15, strokeWidth } };
-    });
-  }, [baseEdges, activeKeyId]);
+  const edges = useMemo(() => highlightEdges(baseEdges, activeKeyId), [baseEdges, activeKeyId]);
 
   const handleFullscreenToggle = useCallback(() => {
     if (!graphRef.current) return;

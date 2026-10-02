@@ -112,14 +112,14 @@ export async function listPolicies(params: ListPoliciesParams = {}): Promise<Lis
 }
 
 export async function getPolicy(id: string): Promise<Policy> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${encodeURIComponent(id)}`, {
     headers: getAuthzContextHeaders(),
   });
   return handleApiError(response, `Failed to get policy ${id}`);
 }
 
 export async function updatePolicy(id: string, policy: Omit<Policy, 'id' | 'created_at' | 'updated_at'>): Promise<Policy> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: getAuthzContextHeaders(),
     body: JSON.stringify(policy),
@@ -128,7 +128,7 @@ export async function updatePolicy(id: string, policy: Omit<Policy, 'id' | 'crea
 }
 
 export async function deletePolicy(id: string): Promise<void> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: getAuthzContextHeaders(),
   });
@@ -136,7 +136,7 @@ export async function deletePolicy(id: string): Promise<void> {
 }
 
 export async function getPolicyStats(id: string): Promise<PolicyStats> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}/stats`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${encodeURIComponent(id)}/stats`, {
     headers: getAuthzContextHeaders(),
   });
   return handleApiError(response, `Failed to get policy stats for ${id}`);
@@ -175,14 +175,14 @@ export async function listPrincipals(params: ListPrincipalsParams = {}): Promise
 }
 
 export async function getPrincipal(id: string): Promise<Principal> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${encodeURIComponent(id)}`, {
     headers: getAuthzContextHeaders(),
   });
   return handleApiError(response, `Failed to get principal ${id}`);
 }
 
 export async function updatePrincipal(id: string, principal: Partial<Principal>): Promise<Principal> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: getAuthzContextHeaders(),
     body: JSON.stringify(principal),
@@ -191,7 +191,7 @@ export async function updatePrincipal(id: string, principal: Partial<Principal>)
 }
 
 export async function deletePrincipal(id: string): Promise<void> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: getAuthzContextHeaders(),
   });
@@ -199,7 +199,7 @@ export async function deletePrincipal(id: string): Promise<void> {
 }
 
 export async function getPrincipalPolicies(id: string, params: ListPrincipalPoliciesParams = {}): Promise<ListPrincipalPoliciesResponse> {
-  const url = new URL(`${get_AUTHZ_API_BASE_URL()}/principals/${id}/policies`);
+  const url = new URL(`${get_AUTHZ_API_BASE_URL()}/principals/${encodeURIComponent(id)}/policies`);
   applyPaginationAndSort(url.searchParams, params);
   const response = await apiFetch(url.toString(), {
     headers: getAuthzContextHeaders(),
@@ -208,7 +208,7 @@ export async function getPrincipalPolicies(id: string, params: ListPrincipalPoli
 }
 
 export async function grantPolicy(principal_id: string, policy_id: string, granted_by?: string): Promise<void> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principal_id}/policies`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${encodeURIComponent(principal_id)}/policies`, {
     method: 'POST',
     headers: getAuthzContextHeaders(),
     body: JSON.stringify({ policy_id, granted_by }),
@@ -217,7 +217,7 @@ export async function grantPolicy(principal_id: string, policy_id: string, grant
 }
 
 export async function revokePolicy(principal_id: string, policy_id: string): Promise<void> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principal_id}/policies/${policy_id}`, {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${encodeURIComponent(principal_id)}/policies/${encodeURIComponent(policy_id)}`, {
     method: 'DELETE',
     headers: getAuthzContextHeaders(),
   });
