@@ -187,7 +187,7 @@ export async function updateCertificateStatus({
   }
 
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiFormattedSerialNumber)}/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -203,7 +203,7 @@ export interface PatchOperation {
 
 export async function updateCertificateMetadata(serialNumber: string, patchOperations: PatchOperation[]): Promise<void> {
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiFormattedSerialNumber)}/metadata`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ patches: patchOperations }),
@@ -229,7 +229,7 @@ export async function importCertificate(payload: ImportCertificateBody): Promise
 
 export async function deleteCertificate(serialNumber: string): Promise<void> {
     const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-    const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+    const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiFormattedSerialNumber)}`, {
         method: 'DELETE',
     });
     await handleApiError(response, 'Failed to delete certificate');

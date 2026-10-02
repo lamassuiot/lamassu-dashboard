@@ -197,10 +197,10 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
               >
                 {conditions.length > 0 ? (
                   <div className="space-y-4">
-                    {conditions.map((cond, index) => {
+                    {conditions.map((cond) => {
                       const content = getConditionContent(cond.type, cond.condition);
                       return (
-                        <div key={index} className="overflow-hidden rounded-lg border">
+                        <div key={`${cond.type}:${cond.condition}`} className="overflow-hidden rounded-lg border">
                           <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1.5">
                             <span className="text-xs font-medium text-muted-foreground">{CONDITION_LABELS[cond.type] ?? cond.type}</span>
                             <CopyButton value={content} label="Copy condition" />

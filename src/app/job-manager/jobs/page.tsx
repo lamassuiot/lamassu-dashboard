@@ -27,6 +27,21 @@ import {
 } from '@/components/shared/filters/JobFilterBar';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
 
+function buildJobListParams({ pageSize, offset, sortOrder, filterValues }: {
+    pageSize: string;
+    offset: number;
+    sortOrder: ListJobsParams['sort'];
+    filterValues: JobFilterValues;
+}): ListJobsParams {
+    const params: ListJobsParams = { limit: Number(pageSize), offset, sort: sortOrder };
+    if (filterValues.clientIdFilter) params.clientId = filterValues.clientIdFilter;
+    if (filterValues.stateFilter) params.state = filterValues.stateFilter;
+    if (filterValues.groupFilter) params.group = filterValues.groupFilter;
+    if (filterValues.tagFilter.length) params.tag = filterValues.tagFilter;
+    if (filterValues.workflowFilter) params.workflow = filterValues.workflowFilter;
+    return params;
+}
+
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
 export default function JobsPage() {
@@ -80,16 +95,7 @@ export default function JobsPage() {
                 setJobs([job]);
                 setTotal(1);
             } else {
-                const params: ListJobsParams = {
-                    limit: Number(pageSize),
-                    offset: currentOffset,
-                    sort: sortOrder,
-                };
-                if (filterValues.clientIdFilter) params.clientId = filterValues.clientIdFilter;
-                if (filterValues.stateFilter) params.state = filterValues.stateFilter;
-                if (filterValues.groupFilter) params.group = filterValues.groupFilter;
-                if (filterValues.tagFilter.length) params.tag = filterValues.tagFilter;
-                if (filterValues.workflowFilter) params.workflow = filterValues.workflowFilter;
+                const params = buildJobListParams({ pageSize, offset: currentOffset, sortOrder, filterValues });
 
                 const result = await fetchJobs(params);
                 if (!isLatest()) return;

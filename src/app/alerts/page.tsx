@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AlertTriangle, Info, Loader2, RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle, BellRing, Loader2, RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,29 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
 
+
+function describeChannel(sub: ApiSubscription): string {
+  const { type, name, config } = sub.channel;
+  const webhookUrl = config.webhook_url || config.url;
+  if (type === 'EMAIL' && config.email) return `${type}: ${config.email}`;
+  if ((type === 'WEBHOOK' || type === 'TEAMS_WEBHOOK') && name) return `${type}: ${name}`;
+  if (!webhookUrl) return type;
+  try {
+    return `${type}: ${new URL(webhookUrl).hostname}`;
+  } catch {
+    return `${type}: ${webhookUrl}`;
+  }
+}
+
+function buildSubscriptionsMap(subscriptions: ApiSubscription[]): Map<string, { id: string; display: string }[]> {
+  const map = new Map<string, { id: string; display: string }[]>();
+  for (const sub of subscriptions) {
+    const entries = map.get(sub.event_type) ?? [];
+    entries.push({ id: sub.id, display: describeChannel(sub) });
+    map.set(sub.event_type, entries);
+  }
+  return map;
+}
 
 // This is the structure the UI component expects.
 export interface AlertEvent {
@@ -180,32 +203,7 @@ export default function AlertsPage() {
       
       setAllSubscriptions(apiSubscriptions);
 
-      const subscriptionsMap = new Map<string, { id: string, display: string }[]>();
-      for (const sub of apiSubscriptions) {
-        if (!subscriptionsMap.has(sub.event_type)) {
-          subscriptionsMap.set(sub.event_type, []);
-        }
-        
-        let displayValue: string = sub.channel.type;
-        const webhookUrl = sub.channel.config.webhook_url || sub.channel.config.url;
-        if (sub.channel.type === 'EMAIL' && sub.channel.config.email) {
-          displayValue = `${sub.channel.type}: ${sub.channel.config.email}`;
-        } else if ((sub.channel.type === 'WEBHOOK' || sub.channel.type === 'TEAMS_WEBHOOK') && sub.channel.name) {
-          displayValue = `${sub.channel.type}: ${sub.channel.name}`;
-        } else if (webhookUrl) {
-          try {
-            displayValue = `${sub.channel.type}: ${new URL(webhookUrl).hostname}`;
-          } catch {
-            displayValue = `${sub.channel.type}: ${webhookUrl}`;
-          }
-        }
-        
-        const subscriptionDisplay = {
-            id: sub.id,
-            display: displayValue,
-        };
-        subscriptionsMap.get(sub.event_type)?.push(subscriptionDisplay);
-      }
+      const subscriptionsMap = buildSubscriptionsMap(apiSubscriptions);
 
       const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => ({
         id: apiAlert.event_type,
@@ -318,7 +316,7 @@ export default function AlertsPage() {
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <Info className="h-8 w-8 text-primary" />
+            <BellRing className="h-8 w-8 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-headline font-semibold">Alerts</h1>
