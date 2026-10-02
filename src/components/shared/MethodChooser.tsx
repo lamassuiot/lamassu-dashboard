@@ -5,9 +5,8 @@ import { ArrowLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 export interface MethodOption {
   id: string;
@@ -29,33 +28,29 @@ interface MethodChooserProps {
   title: string;
   description?: React.ReactNode;
   groups: MethodOptionGroup[];
-  value: string;
-  onValueChange: (id: string) => void;
-  onContinue: () => void;
+  /** Called when a row is clicked; choosing a method continues straight to the next step. */
+  onSelect: (id: string) => void;
   back: { label: string; onClick: () => void };
-  /** Accessible name for the radio group. */
+  /** Accessible name for the list of methods. */
   ariaLabel?: string;
 }
 
 /**
  * "How do you want to create X?" step shown before a create/import form.
  *
- * Mirrors the form pages' layout (back row, header, label-left/controls-right
- * sections, footer) so the header stays in place when the user continues.
- * Render inside a `BreadcrumbPage` with `className="space-y-5 pb-8"`.
+ * Follows the "Chooser panel" pattern in `storybook/styles.md`: title and helper copy
+ * outside a single bordered panel, one stacked row per option (icon left, text centre,
+ * chevron right), and selection on click. Groups only add a labelled divider row inside
+ * the same panel. Render inside a `BreadcrumbPage` with `className="space-y-5 pb-8"`.
  */
 export function MethodChooser({
   title,
   description,
   groups,
-  value,
-  onValueChange,
-  onContinue,
+  onSelect,
   back,
   ariaLabel = 'Creation method',
 }: MethodChooserProps) {
-  const selected = groups.flatMap(g => g.options).find(o => o.id === value && !o.disabled);
-
   return (
     <div className="w-[80%] mx-auto space-y-5 mb-8">
       <div className="flex justify-end mb-4">
@@ -65,71 +60,69 @@ export function MethodChooser({
       </div>
 
       <div>
-        <div className="pb-8 border-b">
+        <div className="pb-8">
           <h1 className="text-2xl font-bold">{title}</h1>
           {description && (
             <div className="text-sm text-muted-foreground mt-1.5 max-w-2xl">{description}</div>
           )}
         </div>
 
-        <RadioGroup value={value} onValueChange={onValueChange} aria-label={ariaLabel} className="gap-0">
-          {groups.map(group => (
-            <div key={group.id} className="grid grid-cols-1 gap-6 py-8 lg:grid-cols-3 lg:gap-10 [&:not(:last-child)]:border-b">
-              <div>
-                <p className="font-semibold">{group.label}</p>
-                {group.description && (
-                  <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-2">
-                {group.options.map(option => (
-                  <MethodOptionCard key={option.id} option={option} />
-                ))}
-              </div>
+        <Card className="overflow-hidden rounded-xl shadow-sm">
+          <CardContent className="p-0">
+            <div role="group" aria-label={ariaLabel} className="divide-y">
+              {groups.map(group => (
+                <React.Fragment key={group.id}>
+                  <div className="bg-muted/40 px-6 py-3">
+                    <p className="text-sm font-semibold">{group.label}</p>
+                    {group.description && (
+                      <p className="text-sm text-muted-foreground mt-0.5">{group.description}</p>
+                    )}
+                  </div>
+                  {group.options.map(option => (
+                    <MethodOptionRow key={option.id} option={option} onSelect={onSelect} />
+                  ))}
+                </React.Fragment>
+              ))}
             </div>
-          ))}
-        </RadioGroup>
-
-        <Separator />
-        <div className="flex justify-end pt-6">
-          <Button type="button" disabled={!selected} onClick={onContinue}>
-            Continue
-            <ChevronRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
 
-function MethodOptionCard({ option }: { option: MethodOption }) {
+function MethodOptionRow({ option, onSelect }: { option: MethodOption; onSelect: (id: string) => void }) {
   const Icon = option.icon;
-  const itemId = `method-${option.id}`;
 
   return (
-    <Label
-      htmlFor={itemId}
-      className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal leading-normal transition-colors hover:bg-muted/50 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 has-[:disabled]:hover:bg-transparent"
+    <button
+      type="button"
+      disabled={option.disabled}
+      onClick={() => onSelect(option.id)}
+      className={cn(
+        'flex w-full items-start gap-4 px-6 py-5 text-left transition-colors',
+        'focus-visible:outline-none focus-visible:bg-muted/50',
+        option.disabled ? 'cursor-not-allowed bg-muted/20 text-muted-foreground' : 'cursor-pointer hover:bg-muted/30',
+      )}
     >
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
-        <Icon className="size-4" />
+      <div
+        className={cn(
+          'mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg border',
+          option.disabled ? 'border-border bg-muted text-muted-foreground' : 'border-primary/20 bg-primary/5 text-primary',
+        )}
+      >
+        <Icon className="size-5" />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{option.title}</span>
+          <span className={cn('text-base font-semibold', !option.disabled && 'text-foreground')}>{option.title}</span>
           {option.badge && (
             <Badge variant={option.badge.variant ?? 'secondary'}>{option.badge.label}</Badge>
           )}
         </div>
-        <p className="text-sm text-muted-foreground">{option.description}</p>
+        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{option.description}</p>
       </div>
-      {/* ui/radio-group styles the checked state via data-checked, which Radix doesn't set. */}
-      <RadioGroupItem
-        id={itemId}
-        value={option.id}
-        disabled={option.disabled}
-        className="mt-0.5 data-[state=checked]:bg-primary"
-      />
-    </Label>
+      {!option.disabled && <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground" />}
+    </button>
   );
 }

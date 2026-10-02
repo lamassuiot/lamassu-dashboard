@@ -19,6 +19,7 @@ import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { useLatestRequest } from '@/hooks/useLatestRequest';
 
 
 // This is the structure the UI component expects.
@@ -157,9 +158,12 @@ export default function AlertsPage() {
   const currentBookmark = useMemo(() => bookmarks[currentPage - 1] || '', [bookmarks, currentPage]);
 
 
+  const startRequest = useLatestRequest();
+
   const loadAlertsData = useCallback(async () => {
     if (authLoading || !isLoggedIn) return;
 
+    const isLatest = startRequest();
     setIsLoading(true);
     setError(null);
     try {
@@ -172,6 +176,7 @@ export default function AlertsPage() {
         fetchLatestAlerts(alertsQueryParams),
         fetchSystemSubscriptions(),
       ]);
+      if (!isLatest()) return;
       
       setAllSubscriptions(apiSubscriptions);
 
@@ -214,12 +219,13 @@ export default function AlertsPage() {
       setEvents(uiEvents);
       setNextBookmark(apiEventsResponse.next || '');
     } catch (e: any) {
+      if (!isLatest()) return;
       setError(e.message || "Failed to load alert events or subscriptions.");
       setNextBookmark('');
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [isLoggedIn, authLoading, pageSize, currentBookmark]);
+  }, [startRequest, isLoggedIn, authLoading, pageSize, currentBookmark]);
 
   useEffect(() => {
     loadAlertsData();
