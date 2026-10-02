@@ -12,14 +12,13 @@ import { fetchLatestAlerts, fetchSystemSubscriptions, unsubscribeFromAlert, type
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertsTable } from '@/components/alerts/AlertsTable';
 import { sileo } from '@/lib/toast';
-import { SubscribeToAlertModal } from '@/components/alerts/SubscribeToAlertModal';
-import { SubscriptionDetailsModal } from '@/components/alerts/SubscriptionDetailsModal';
+import { SubscribeToAlertDrawer } from '@/components/alerts/SubscribeToAlertDrawer';
+import { SubscriptionDetailsDrawer } from '@/components/alerts/SubscriptionDetailsDrawer';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 
 
 // This is the structure the UI component expects.
@@ -137,33 +136,10 @@ export default function AlertsPage() {
     loadAlertsData(); // Refresh data to show new subscription
   }
 
-  const handleSubscribePanelOpenChange = (isOpen: boolean) => {
-    setIsSubscribeModalOpen(isOpen);
-
-    if (!isOpen) {
-      setRightPanelMode(null);
-      setEventTypeToSubscribe(null);
-      setSamplePayloadToSubscribe(null);
-      setSubscriptionToEdit(null);
-    } else {
-      setRightPanelMode('subscribe');
-    }
-  };
-
   const handleOpenAuditUserInfo = (event: AlertEvent) => {
     setAuditEventForUserInfo(event);
     setIsSubscribeModalOpen(false);
     setRightPanelMode('audit-user');
-  };
-
-  const handleCloseRightPanel = () => {
-    setRightPanelMode(null);
-    setIsSubscribeModalOpen(false);
-    setAuditEventForUserInfo(null);
-    setSelectedSubscriptionForDetails(null);
-    setEventTypeToSubscribe(null);
-    setSamplePayloadToSubscribe(null);
-    setSubscriptionToEdit(null);
   };
 
   const handleViewSubscriptionDetails = (subscriptionId: string) => {
@@ -176,16 +152,6 @@ export default function AlertsPage() {
     } else {
       sileo.error({ title: 'Error', description: 'Could not find subscription details.'});
     }
-  };
-
-  const handleDetailsPanelOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setRightPanelMode(null);
-      setSelectedSubscriptionForDetails(null);
-      return;
-    }
-
-    setRightPanelMode('subscription-details');
   };
 
   const currentBookmark = useMemo(() => bookmarks[currentPage - 1] || '', [bookmarks, currentPage]);
@@ -399,36 +365,7 @@ export default function AlertsPage() {
           </div>
                 </div>
 
-      <SplitPanelLayout
-        isPanelOpen={rightPanelMode === 'subscribe' || rightPanelMode === 'subscription-details'}
-        onPanelOpenChange={(isOpen) => {
-          if (!isOpen) handleCloseRightPanel();
-        }}
-        mobilePanelAsDialog
-        panel={
-          rightPanelMode === 'subscribe' && isSubscribeModalOpen ? (
-            <SubscribeToAlertModal
-              isOpen={isSubscribeModalOpen}
-              onOpenChange={handleSubscribePanelOpenChange}
-              eventType={eventTypeToSubscribe}
-              samplePayload={samplePayloadToSubscribe}
-              onSuccess={handleSubscriptionSuccess}
-              subscriptionToEdit={subscriptionToEdit}
-              presentation="inline"
-            />
-          ) : rightPanelMode === 'subscription-details' ? (
-            <SubscriptionDetailsModal
-              isOpen={rightPanelMode === 'subscription-details' && !!selectedSubscriptionForDetails}
-              onOpenChange={handleDetailsPanelOpenChange}
-              subscription={selectedSubscriptionForDetails}
-              onDelete={performUnsubscribe}
-              onEdit={handleOpenEditModal}
-              isDeleting={isDeleting}
-              presentation="inline"
-            />
-          ) : null
-        }
-      >
+      <div className="min-w-0">
           {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -489,11 +426,32 @@ export default function AlertsPage() {
               </p>
             </div>
           )}
-      </SplitPanelLayout>
+      </div>
     </BreadcrumbPage>
+    <SubscribeToAlertDrawer
+      isOpen={rightPanelMode === 'subscribe' && isSubscribeModalOpen}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setIsSubscribeModalOpen(false);
+          setRightPanelMode(null);
+        }
+      }}
+      eventType={eventTypeToSubscribe}
+      samplePayload={samplePayloadToSubscribe}
+      onSuccess={handleSubscriptionSuccess}
+      subscriptionToEdit={subscriptionToEdit}
+    />
+    <SubscriptionDetailsDrawer
+      isOpen={rightPanelMode === 'subscription-details'}
+      onOpenChange={(isOpen) => { if (!isOpen) setRightPanelMode(null); }}
+      subscription={selectedSubscriptionForDetails}
+      onDelete={performUnsubscribe}
+      onEdit={handleOpenEditModal}
+      isDeleting={isDeleting}
+    />
     <AuditUserInfoPanel
       isOpen={rightPanelMode === 'audit-user'}
-      onOpenChange={(isOpen) => { if (!isOpen) handleCloseRightPanel(); }}
+      onOpenChange={(isOpen) => { if (!isOpen) setRightPanelMode(null); }}
       event={auditEventForUserInfo}
     />
     </>
