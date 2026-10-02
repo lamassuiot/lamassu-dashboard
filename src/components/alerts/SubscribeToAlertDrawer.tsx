@@ -22,6 +22,7 @@ import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updat
 import { cn } from '@/lib/utils';
 import { JSONPath } from 'jsonpath-plus';
 import { Validator } from 'jsonschema';
+import { checkJsFilterSyntax, runJsFilter } from '@/lib/js-filter';
 import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
 import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
@@ -183,6 +184,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   }, [isOpen, user, samplePayload, subscriptionToEdit, isEditMode]);
 
   useEffect(() => {
+    let cancelled = false;
     const evaluate = async () => {
         if (filterType === 'NONE' || !inputEvent) {
             setEvaluationResult(null);
@@ -204,23 +206,17 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                     setEvaluationResult({ match: false, message: 'The filter does not match this Cloud Event' });
                 }
             } else if (filterType === 'JAVASCRIPT') {
-                try {
-                    // Using Function constructor is safer than eval, but not a true sandbox.
-                    // It doesn't have access to local scope but can access globals.
-                    const userFunc = new Function('event', `return (${jsFunction})(event)`);
-                    const result = userFunc(jsonPayload);
-                    
-                    if (typeof result === 'boolean') {
-                        if (result) {
-                            setEvaluationResult({ match: true, message: 'The filter matches this Cloud Event' });
-                        } else {
-                            setEvaluationResult({ match: false, message: 'The filter does not match this Cloud Event' });
-                        }
-                    } else {
-                        setEvaluationResult({ match: false, message: `Function returned type '${typeof result}', but a boolean was expected.`, error: true });
-                    }
-                } catch (e: any) {
-                    setEvaluationResult({ match: false, message: `Evaluation error: ${e.message}`, error: true });
+                const outcome = await runJsFilter(jsFunction, jsonPayload);
+                if (cancelled) return;
+
+                if (!outcome.ok) {
+                    setEvaluationResult({ match: false, message: `Evaluation error: ${outcome.error}`, error: true });
+                } else if (outcome.returnType !== 'boolean') {
+                    setEvaluationResult({ match: false, message: `Function returned type '${outcome.returnType}', but a boolean was expected.`, error: true });
+                } else if (outcome.match) {
+                    setEvaluationResult({ match: true, message: 'The filter matches this Cloud Event' });
+                } else {
+                    setEvaluationResult({ match: false, message: 'The filter does not match this Cloud Event' });
                 }
             } else if (filterType === 'JSON-SCHEMA') {
                 try {
@@ -250,8 +246,26 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
         }
     };
     
-    evaluate();
+    void evaluate();
+    return () => { cancelled = true; };
   }, [filterCondition, jsFunction, filterType, inputEvent, jsonSchema]);
+
+  // Syntax is checked in the same worker that runs the filter, so it is asynchronous.
+  // `jsSyntaxCheck.source` records what the result belongs to; a mismatch means a check is pending.
+  const [jsSyntaxCheck, setJsSyntaxCheck] = useState<{ source: string; error: string | null } | null>(null);
+  useEffect(() => {
+    if (filterType !== 'JAVASCRIPT' || !jsFunction.trim()) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void checkJsFilterSyntax(jsFunction).then(error => {
+        if (!cancelled) setJsSyntaxCheck({ source: jsFunction, error });
+      });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [filterType, jsFunction]);
 
   const emailError = channelType === 'EMAIL'
       ? !email.trim()
@@ -294,14 +308,11 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   } else if (filterType === 'JAVASCRIPT') {
       if (!jsFunction.trim()) {
           filterError = 'Javascript function is required.';
-      } else {
-          try {
-              new Function('event', `return (${jsFunction})(event)`);
-          } catch {
-              filterError = 'Javascript filter must contain a valid function.';
-          }
+      } else if (jsSyntaxCheck?.source === jsFunction && jsSyntaxCheck.error) {
+          filterError = 'Javascript filter must contain a valid function.';
       }
   }
+  const isCheckingJsFilter = filterType === 'JAVASCRIPT' && !!jsFunction.trim() && jsSyntaxCheck?.source !== jsFunction;
 
   const channelValidationErrors = [emailError, webhookNameError, teamsNameError, webhookUrlError]
       .filter((error): error is string => Boolean(error));
@@ -322,7 +333,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   const handleBack = () => setStep(s => s - 1);
 
   const handleSubmit = async () => {
-    if (!eventType || validationErrors.length > 0) return;
+    if (!eventType || validationErrors.length > 0 || isCheckingJsFilter) return;
     
     setIsSubmitting(true);
     try {
@@ -607,7 +618,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                                 </Button>
                             )}
                             {step === 3 && (
-                                <Button onClick={handleSubmit} disabled={isSubmitting || validationErrors.length > 0}>
+                                <Button onClick={handleSubmit} disabled={isSubmitting || validationErrors.length > 0 || isCheckingJsFilter}>
                                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
                                 </Button>

@@ -25,6 +25,7 @@ import {
     type JobFilterValues,
     defaultJobFilterValues,
 } from '@/components/shared/filters/JobFilterBar';
+import { useLatestRequest } from '@/hooks/useLatestRequest';
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
@@ -66,12 +67,16 @@ export default function JobsPage() {
         setFilterValues(defaultJobFilterValues);
     }, []);
 
+    const startRequest = useLatestRequest();
+
     const load = useCallback(async (currentOffset: number) => {
+        const isLatest = startRequest();
         setIsLoading(true);
         setError(null);
         try {
             if (jobIdSearch.trim()) {
                 const job = await fetchJob(jobIdSearch.trim());
+                if (!isLatest()) return;
                 setJobs([job]);
                 setTotal(1);
             } else {
@@ -87,18 +92,20 @@ export default function JobsPage() {
                 if (filterValues.workflowFilter) params.workflow = filterValues.workflowFilter;
 
                 const result = await fetchJobs(params);
+                if (!isLatest()) return;
                 setJobs(result.content ?? []);
                 setTotal(result.pagination?.total ?? 0);
             }
         } catch (err: unknown) {
+            if (!isLatest()) return;
             const msg = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(msg);
             setJobs([]);
             setTotal(0);
         } finally {
-            setIsLoading(false);
+            if (isLatest()) setIsLoading(false);
         }
-    }, [jobIdSearch, pageSize, sortOrder, filterValues]);
+    }, [startRequest, jobIdSearch, pageSize, sortOrder, filterValues]);
 
     useEffect(() => {
         setOffset(0);

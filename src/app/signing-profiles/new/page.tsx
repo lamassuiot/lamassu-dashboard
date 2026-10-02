@@ -145,9 +145,7 @@ export default function CreateSigningProfilePage() {
               title="Create Issuance Profile"
               description="Start from a template, then customize certificate policy, validity, and cryptographic controls."
               groups={templateGroups}
-              value={selectedTemplateId}
-              onValueChange={setSelectedTemplateId}
-              onContinue={() => handleTemplateSelect(selectedTemplateId)}
+              onSelect={handleTemplateSelect}
               back={{ label: 'Back to Issuance Profiles', onClick: () => router.push('/signing-profiles') }}
               ariaLabel="Template"
             />

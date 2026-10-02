@@ -328,11 +328,13 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       position: { x: 0, y: 0 },
       data: { graphKey, isCrossSigned: crossSignedKeys.has(graphKey.id), mutualSigners, onOpenCa },
     }));
-    layoutNodes(flowNodes, baseEdges, stacks).then(layouted => {
-      if (cancelled) return;
-      setNodes(layouted);
-      window.requestAnimationFrame(() => fitView({ padding: 0.15, duration: 200 }));
-    });
+    layoutNodes(flowNodes, baseEdges, stacks)
+      .then(layouted => {
+        if (cancelled) return;
+        setNodes(layouted);
+        window.requestAnimationFrame(() => fitView({ padding: 0.15, duration: 200 }));
+      })
+      .catch(error => console.error('CA graph layout failed:', error));
     return () => { cancelled = true; };
   }, [graph, baseEdges, stacks, crossSignedKeys, mutualSigners, isLoadingKeys, onOpenCa, setNodes, fitView]);
 

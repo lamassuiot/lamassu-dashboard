@@ -80,7 +80,6 @@ export default function CreateKmsKeyPage() {
   const monacoTheme = useMonacoTheme();
   const router = useRouter();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
-  const [pendingMode, setPendingMode] = useState<string>(creationModes[0].id);
 
   const [keyName, setKeyName] = useState('');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
@@ -321,9 +320,7 @@ export default function CreateKmsKeyPage() {
           title="Add Cryptographic Key"
           description="Choose how you want to create or import your cryptographic key."
           groups={creationModeGroups}
-          value={pendingMode}
-          onValueChange={setPendingMode}
-          onContinue={() => setSelectedMode(pendingMode)}
+          onSelect={setSelectedMode}
           back={{ label: 'Back to KMS Keys', onClick: () => router.push('/kms/keys') }}
         />
       </BreadcrumbPage>

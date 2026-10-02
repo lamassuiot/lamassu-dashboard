@@ -64,6 +64,7 @@ This is the curated list of UI building blocks that should be preferred before c
 
 | Purpose | Path | Notes |
 | --- | --- | --- |
+| Creation method chooser | `src/components/shared/MethodChooser.tsx` | "How do you want to create X?" step before a create/import form: one bordered panel of stacked rows (icon, title, optional badge, description, chevron); clicking a row continues. Props: `title`, `description?`, `groups[]` (id/label/description?/options[] with id/title/description/icon/badge?/disabled?), `onSelect(id)`, `back` (label/onClick), `ariaLabel?`. Render inside `BreadcrumbPage` |
 | Card option selector | `src/components/shared/CardSelector.tsx` | Single-select from 2–4 labelled options; used for CA type, profile mode. Props: `value`, `onChange`, `options[]` (value/label/description/icon), `label?`, `columns?`, `disabled?` |
 | View mode toggle | `src/components/shared/ViewModeToggle.tsx` | Segmented icon toggle for switching between view modes (e.g. table/grid, list/timeline); active option expands to show its label. Used on CA list, signing profiles, and device timeline. Props: `value`, `onChange`, `options[]` (value/label/icon), `label?`, `ariaLabel?`, `className?` |
 
@@ -106,8 +107,8 @@ Use these pages as visual references when building similar screens:
 | KMS-style detail sections | `src/app/kms/keys/details/KmsKeyDetailsClient.tsx` |
 | Certificate detail layout | `src/app/certificates/details/CertificateDetailsClient.tsx` |
 | Device detail layout | `src/app/devices/details/DeviceDetailsClient.tsx` |
-| CA creation chooser | `src/app/certificate-authorities/new/page.tsx` |
-| KMS creation chooser | `src/app/kms/keys/new/page.tsx` |
+| CA creation chooser (`MethodChooser`) | `src/app/certificate-authorities/new/page.tsx` |
+| KMS creation chooser (`MethodChooser`) | `src/app/kms/keys/new/page.tsx` |
 | Multi-card form sections | `src/app/signing-profiles/new/page.tsx` |
 
 ## Before creating a new component
