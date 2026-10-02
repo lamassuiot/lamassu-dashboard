@@ -51,10 +51,19 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  dismissOnOutsideClick = false,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** Close when the user clicks outside. Off by default: a stray click (often just dismissing an
+   *  open select list) used to throw away everything filled in. X, Cancel and Escape still close. */
+  dismissOnOutsideClick?: boolean
 }) {
+  // A caller's plain max-w-* is meant as the dialog's width, but the base sm:max-w-md beats it from
+  // the sm breakpoint up, so "max-w-2xl" dialogs rendered 448px wide. Lift it to sm: so it wins
+  // there; below sm the base max-w-[calc(100%-2rem)] keeps the phone gutter.
+  const sized = className?.replace(/(^|\s)max-w-(\S+)/g, "$1sm:max-w-$2")
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -62,8 +71,12 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/5 duration-100 outline-none sm:max-w-md dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          sized
         )}
+        onInteractOutside={(e) => {
+          onInteractOutside?.(e)
+          if (!dismissOnOutsideClick) e.preventDefault()
+        }}
         {...props}
       >
         {children}

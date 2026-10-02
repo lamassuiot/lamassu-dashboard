@@ -43,7 +43,8 @@ import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { useDms } from '@/contexts/DmsContext';
 import { ModuleFileSheet } from '@/components/iot/module-file-sheet';
 import { DELIVERY_LABELS } from '@/components/iot/module-files';
-import { deleteSoftwareModule, fetchAllSoftwareModules } from '@/lib/iot-api';
+import { deleteSoftwareModule, fetchAllSoftwareModules, fetchAllUpdatePacks, removeSoftwareModule } from '@/lib/iot-api';
+import { moduleRemovalBlockedReason } from '@/components/iot/module-removal';
 import type { ReusableSoftwareModule, SoftwareModule } from '@/types/iot';
 
 type TypeFilter = 'all' | 'os' | 'application';
@@ -62,8 +63,8 @@ type StateFilter = 'all' | 'built' | 'unbuilt' | 'locked' | 'unlocked';
 function SetAndModuleVersion({ u }: { u: ReusableSoftwareModule }) {
   return (
     <>
-      Set v{u.source_pack_version}
-      {u.version !== u.source_pack_version && <> · module v{u.version}</>}
+      Set v{u.source_distribution_set_version}
+      {u.version !== u.source_distribution_set_version && <> · module v{u.version}</>}
     </>
   );
 }
@@ -102,7 +103,7 @@ function UsedBySetLine({
               <BuiltIcon className={cn('h-3.5 w-3.5 shrink-0', builtIconCls)} />
               <span className="truncate">{entry.packName}</span>
               <Badge variant="secondary" className="shrink-0 font-mono text-[10px] font-normal tabular-nums">
-                v{current.source_pack_version}
+                v{current.source_distribution_set_version}
               </Badge>
             </Link>
           </TooltipTrigger>
@@ -136,7 +137,7 @@ function UsedBySetLine({
           </p>
           <ul className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
             {earlier.map((u) => (
-              <li key={`${u.source_pack_version}-${u.version}`}>
+              <li key={`${u.source_distribution_set_version}-${u.version}`}>
                 <SetAndModuleVersion u={u} /> · {u.built ? 'built' : 'not built'} ·{' '}
                 {u.artifacts?.length ?? 0} artifact{(u.artifacts?.length ?? 0) === 1 ? '' : 's'}
               </li>
@@ -176,9 +177,17 @@ export default function SoftwareModulesCatalogPage() {
   // Master/detail: the selected module's key, or null for "nothing selected".
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
+  // Each set's CURRENT version and build state, keyed by group and name. A catalog row can point at
+  // an older version of a set, and only the current one can change its composition; whether that
+  // version is built decides removal on native. Best-effort: without it no Remove is offered.
+  const [packState, setPackState] = useState<Map<string, { version: string; built: boolean }>>(new Map());
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    fetchAllUpdatePacks({ pageSize: 500 })
+      .then((r) => setPackState(new Map(r.list.map((p) => [`${p.group_id ?? ''}::${p.name}`, { version: p.version, built: p.status === 'built' }]))))
+      .catch(() => setPackState(new Map()));
     try {
       setModules(await fetchAllSoftwareModules());
     } catch (err) {
@@ -231,6 +240,48 @@ export default function SoftwareModulesCatalogPage() {
     }
   }, [deleteTarget, load]);
 
+  // --- Taking a module out of one set ---
+  //
+  // The module itself stays in the catalog (and in any other set holding it); only this set's
+  // composition changes, exactly as the set's own Software Modules tab does it.
+  const removalFor = useCallback((use: ReusableSoftwareModule): string | null | undefined => {
+    if (!use.source_distribution_set_name) return undefined;
+    const pack = packState.get(`${use.source_group_id}::${use.source_distribution_set_name}`);
+    if (!pack) return undefined;
+    if (use.source_distribution_set_version && use.source_distribution_set_version !== pack.version) {
+      return `An older version of this set — only its current version (v${pack.version}) can change`;
+    }
+    return moduleRemovalBlockedReason({ type: use.type, locked: use.locked, packIsBuilt: pack.built, backend });
+  }, [packState, backend]);
+
+  const [removeTarget, setRemoveTarget] = useState<ReusableSoftwareModule | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const confirmRemove = useCallback(async () => {
+    if (!removeTarget) return;
+    setRemoving(true);
+    try {
+      await removeSoftwareModule({
+        groupId: removeTarget.source_group_id,
+        packName: removeTarget.source_distribution_set_name,
+        moduleKey: removeTarget.key,
+      });
+      toast({
+        title: 'Software module removed from the set',
+        description: `${removeTarget.key} is no longer part of ${removeTarget.source_distribution_set_name}.`,
+      });
+      setRemoveTarget(null);
+      await load();
+    } catch (err) {
+      toast({
+        title: 'Could not remove the software module',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setRemoving(false);
+    }
+  }, [removeTarget, load]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (modules ?? []).filter((m) => {
@@ -243,7 +294,7 @@ export default function SoftwareModulesCatalogPage() {
       return (
         m.name.toLowerCase().includes(q) ||
         m.key.toLowerCase().includes(q) ||
-        m.source_pack_name.toLowerCase().includes(q) ||
+        m.source_distribution_set_name.toLowerCase().includes(q) ||
         m.source_group_id.toLowerCase().includes(q)
       );
     });
@@ -270,8 +321,8 @@ export default function SoftwareModulesCatalogPage() {
         // name alone would interleave them unpredictably.
         uses: [...uses].sort(
           (a, b) =>
-            a.source_pack_name.localeCompare(b.source_pack_name) ||
-            a.source_pack_version.localeCompare(b.source_pack_version) ||
+            a.source_distribution_set_name.localeCompare(b.source_distribution_set_name) ||
+            a.source_distribution_set_version.localeCompare(b.source_distribution_set_version) ||
             a.source_group_id.localeCompare(b.source_group_id)
         ),
       }))
@@ -299,7 +350,7 @@ export default function SoftwareModulesCatalogPage() {
       unbuilt: keys.filter((u) => u.some((m) => !m.built)).length,
       locked: keys.filter((u) => u.some((m) => m.locked)).length,
       encrypted: keys.filter((u) => u.some((m) => m.encrypted)).length,
-      orphan: keys.filter((u) => u.every((m) => !m.source_pack_name)).length,
+      orphan: keys.filter((u) => u.every((m) => !m.source_distribution_set_name)).length,
     };
   }, [modules]);
 
@@ -453,7 +504,7 @@ export default function SoftwareModulesCatalogPage() {
               {grouped.map((g) => {
                 // A module identity is "built" only when every definition of it is — the same AND a
                 // pack's launchability uses.
-                const inNoSet = g.uses.every((u) => !u.source_pack_name);
+                const inNoSet = g.uses.every((u) => !u.source_distribution_set_name);
                 const allBuilt = g.uses.every((u) => u.built);
                 const anyLocked = g.uses.some((u) => u.locked);
                 // Distinct versions of this module identity, newest first. Numeric collation, or
@@ -466,14 +517,14 @@ export default function SoftwareModulesCatalogPage() {
                 const usedBySet = (() => {
                   const bySet = new Map<string, { key: string; packName: string; groupId: string; uses: typeof g.uses }>();
                   for (const u of g.uses) {
-                    if (!u.source_pack_name) continue;
-                    const key = `${u.source_group_id}::${u.source_pack_name}`;
+                    if (!u.source_distribution_set_name) continue;
+                    const key = `${u.source_group_id}::${u.source_distribution_set_name}`;
                     const entry = bySet.get(key);
                     if (entry) entry.uses.push(u);
-                    else bySet.set(key, { key, packName: u.source_pack_name, groupId: u.source_group_id, uses: [u] });
+                    else bySet.set(key, { key, packName: u.source_distribution_set_name, groupId: u.source_group_id, uses: [u] });
                   }
                   for (const entry of bySet.values()) {
-                    entry.uses.sort((a, b) => (b.source_pack_version || '').localeCompare(a.source_pack_version || '', undefined, { numeric: true }));
+                    entry.uses.sort((a, b) => (b.source_distribution_set_version || '').localeCompare(a.source_distribution_set_version || '', undefined, { numeric: true }));
                   }
                   return [...bySet.values()];
                 })();
@@ -577,7 +628,7 @@ export default function SoftwareModulesCatalogPage() {
                     {/* A module with no source pack exists but is composed into nothing — legitimate
                         in hawkbit mode, where the set↔module relation has no lower bound (one created
                         directly in hawkBit, or left behind when its only set was deleted). */}
-                    {g.uses.every((u) => !u.source_pack_name) ? (
+                    {g.uses.every((u) => !u.source_distribution_set_name) ? (
                       <span className="text-sm text-muted-foreground">
                         Not used by any distribution set yet
                         <span className="block text-xs">
@@ -621,7 +672,7 @@ export default function SoftwareModulesCatalogPage() {
                       onAddFiles={(use) =>
                         setFileTarget({
                           groupId: use.source_group_id,
-                          packName: use.source_pack_name,
+                          packName: use.source_distribution_set_name,
                           module: use,
                         })
                       }
@@ -647,11 +698,13 @@ export default function SoftwareModulesCatalogPage() {
           onAddArtifact={(use) =>
             setFileTarget({
               groupId: use.source_group_id,
-              packName: use.source_pack_name,
+              packName: use.source_distribution_set_name,
               module: use,
             })
           }
           onNewVersion={(use) => router.push(`/updates/software-modules/new-version?moduleId=${encodeURIComponent(use.id ?? '')}`)}
+          removalFor={removalFor}
+          onRemoveFromSet={setRemoveTarget}
         />
       )}
 
@@ -674,6 +727,31 @@ export default function SoftwareModulesCatalogPage() {
         perModuleDeliverables={perModuleDeliverables}
         onDone={load}
       />
+
+      <AlertDialog open={removeTarget !== null} onOpenChange={(o) => { if (!o && !removing) setRemoveTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from distribution set</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove <span className="font-mono">{removeTarget?.key}</span> from{' '}
+              <span className="font-medium">{removeTarget?.source_distribution_set_name}</span> v
+              {removeTarget?.source_distribution_set_version}? The set stops delivering it and its artifacts are
+              unlinked from the set. The module and its files stay in the catalog, and any other set holding it
+              keeps it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmRemove(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removing}
+            >
+              {removing ? 'Removing…' : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Deleting a module is not undoable and hawkBit keeps the name+version pair reserved
           afterwards for anything that was ever shipped, so the version is spelled out and that
@@ -748,8 +826,8 @@ function ModuleRowActions({
   onNewVersion: (use: ReusableSoftwareModule) => void;
   onAddFiles: (use: ReusableSoftwareModule) => void;
 }) {
-  const composed = uses.filter((u) => u.source_pack_name);
-  const addable = uses.filter((u) => (u.id || u.source_pack_name) && !u.locked && !(u.built && !perModuleDeliverables && !u.id));
+  const composed = uses.filter((u) => u.source_distribution_set_name);
+  const addable = uses.filter((u) => (u.id || u.source_distribution_set_name) && !u.locked && !(u.built && !perModuleDeliverables && !u.id));
   // A new version is cut from the NEWEST version on record, which is the one an operator means by
   // "upgrade this module". Only a catalog module can be versioned this way: it is created as a new
   // standalone module, which needs independent catalog storage.
@@ -762,7 +840,7 @@ function ModuleRowActions({
   // De-duplicated by version, since one orphaned version is one catalog entry however many rows
   // reported it.
   const orphaned = Array.from(
-    new Map(uses.filter((u) => !u.source_pack_name).map((u) => [u.version, u])).values()
+    new Map(uses.filter((u) => !u.source_distribution_set_name).map((u) => [u.version, u])).values()
   );
 
   return (
@@ -794,10 +872,10 @@ function ModuleRowActions({
             <DropdownMenuSubContent>
               {addable.map((u) => (
                 <DropdownMenuItem
-                  key={`${u.id ?? u.source_group_id}/${u.source_pack_name}/${u.source_pack_version || u.version}`}
+                  key={`${u.id ?? u.source_group_id}/${u.source_distribution_set_name}/${u.source_distribution_set_version || u.version}`}
                   onClick={() => onAddFiles(u)}
                 >
-                  {u.source_pack_name || u.name} v{u.source_pack_version || u.version}
+                  {u.source_distribution_set_name || u.name} v{u.source_distribution_set_version || u.version}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuSubContent>
@@ -820,7 +898,7 @@ function ModuleRowActions({
         {composed.length === 1 ? (
           <DropdownMenuItem asChild>
             <Link
-              href={`/updates/pack-details?groupId=${encodeURIComponent(composed[0].source_group_id)}&packName=${encodeURIComponent(composed[0].source_pack_name)}`}
+              href={`/updates/pack-details?groupId=${encodeURIComponent(composed[0].source_group_id)}&packName=${encodeURIComponent(composed[0].source_distribution_set_name)}`}
             >
               <ExternalLink className="mr-2 h-4 w-4" /> Open distribution set
             </Link>
@@ -832,11 +910,11 @@ function ModuleRowActions({
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {composed.map((u) => (
-                <DropdownMenuItem key={`open-${u.source_group_id}/${u.source_pack_name}/${u.source_pack_version}`} asChild>
+                <DropdownMenuItem key={`open-${u.source_group_id}/${u.source_distribution_set_name}/${u.source_distribution_set_version}`} asChild>
                   <Link
-                    href={`/updates/pack-details?groupId=${encodeURIComponent(u.source_group_id)}&packName=${encodeURIComponent(u.source_pack_name)}`}
+                    href={`/updates/pack-details?groupId=${encodeURIComponent(u.source_group_id)}&packName=${encodeURIComponent(u.source_distribution_set_name)}`}
                   >
-                    {u.source_pack_name} v{u.source_pack_version}
+                    {u.source_distribution_set_name} v{u.source_distribution_set_version}
                   </Link>
                 </DropdownMenuItem>
               ))}

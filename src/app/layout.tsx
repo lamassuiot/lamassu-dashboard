@@ -243,7 +243,17 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
-  const isDeveloperMode = process.env.NODE_ENV == 'development' || Boolean(process.env.NEXT_FORCE_DEV_OPTIONS);
+  // Build-time flags are baked into the bundle, so a container image could never turn this on —
+  // the runtime config (config.js, written from env by the entrypoint) is what lets a deployment
+  // enable it without a rebuild. Applied after mount because the static export prerenders with the
+  // build-time value, so reading window during render would mismatch on hydration.
+  const buildTimeDevMode = process.env.NODE_ENV == 'development' || Boolean(process.env.NEXT_FORCE_DEV_OPTIONS);
+  const [isDeveloperMode, setIsDeveloperMode] = useState(buildTimeDevMode);
+  useEffect(() => {
+    if (!buildTimeDevMode && (window as any).lamassuConfig?.LAMASSU_DEV_OPTIONS) {
+      setIsDeveloperMode(true);
+    }
+  }, [buildTimeDevMode]);
 
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
@@ -743,16 +753,21 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <ConfigProvider>
-          <UpdatesCapabilitiesProvider>
-            <AuthProvider>
+          {/* Auth outside capabilities, not the other way round: the capabilities request is
+              authenticated like every other /api/updates call, so the provider has to be able to read
+              the session and refetch once login completes. Nested the other way it fetched before a
+              token existed, got a 401 from the gateway, and then fell back to "assume supported" —
+              which silently offered hawkbit-only features on a native backend. */}
+          <AuthProvider>
+            <UpdatesCapabilitiesProvider>
               <IdentifierDisplayProvider>
                 <React.Suspense fallback={<LoadingState />}>
                   <InnerLayout>{children}</InnerLayout>
                 </React.Suspense>
                 <Toaster />
               </IdentifierDisplayProvider>
-            </AuthProvider>
-          </UpdatesCapabilitiesProvider>
+            </UpdatesCapabilitiesProvider>
+          </AuthProvider>
         </ConfigProvider>
       </body>
     </html>

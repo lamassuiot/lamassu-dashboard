@@ -18,7 +18,7 @@ export interface DeviceUpdateEvent {
 }
 
 // One requirement a device must already satisfy to qualify for a launch (API-facing, snake_case).
-// It names exactly ONE target — a distribution set (required_pack_name) or a software module
+// It names exactly ONE target — a distribution set (required_distribution_set_name) or a software module
 // (required_module_key, "<type>:<name>") — plus the minimum version of it the device must already
 // carry. The module form matters because a dependency is often finer than a whole set: "needs
 // bootloader >= 2.1" is about a module, and which set ships it changes between releases.
@@ -30,7 +30,7 @@ export interface DeviceUpdateEvent {
 // (its outcome comes back as qualifying_devices / precondition_failures) and carries no copy of the
 // requirement list.
 export interface CampaignPrecondition {
-  required_pack_name?: string;
+  required_distribution_set_name?: string;
   required_module_key?: string;
   min_version: string;
 }
@@ -41,7 +41,7 @@ export interface PreconditionFailure {
   device_id: string;
   // Whichever target was checked; module_key is also set when it was a module, so the two are
   // distinguishable without parsing the string.
-  pack_name: string;
+  distribution_set_name: string;
   module_key?: string;
   current_version: string;
   required: string;
@@ -83,6 +83,13 @@ export interface ApiCreateUpdatePackPayload {
   // and stores these as part of creating the set, so nothing is half-configured if the caller never
   // returns to the set's page.
   preconditions?: CampaignPrecondition[];
+  // The set's initial composition — hawkbit mode only, where CreateDistributionSet actually reads
+  // this (native ignores it: a module is added afterwards via addSoftwareModule). Required there,
+  // since the backend refuses an empty composition rather than filling in a module nobody asked for.
+  // Each entry is either a brand-new module (type/name/version) or, via source_module_id, a reference
+  // to one that already exists — composed into this set in the same call rather than a create-then-
+  // import round trip.
+  modules?: SoftwareModuleRef[];
 }
 
 export type EncryptionMode = '' | 'shared' | 'per-device';
@@ -90,7 +97,7 @@ export type EncryptionMode = '' | 'shared' | 'per-device';
 export interface UpdatePack {
   id: string;
   name: string;
-  group_id?: string; // owning device group; present on fleet-wide (/updatepacks) responses
+  group_id?: string; // owning device group; present on fleet-wide (/distribution-sets) responses
   version: string; // semver (x.y.z)
   type: 'rawfile' | 'firmware' | string; // Allow string for other potential types
   packaging?: 'swu' | 'non-swu' | string; // delivery mode: 'swu' builds/signs an SWU; 'non-swu' delivers raw artifacts
@@ -135,9 +142,9 @@ export interface ArtifactRef {
 
 // A reference to a pack that carries an artifact (reverse lookup of the pack<->artifact junction).
 export interface PackArtifactRef {
-  update_pack_id: string;
-  pack_name: string;
-  pack_version: string;
+  distribution_set_id: string;
+  distribution_set_name: string;
+  distribution_set_version: string;
   group_id: string;
 }
 
@@ -156,11 +163,11 @@ export interface Artifact {
   packs?: PackArtifactRef[];
 }
 
-// An immutable snapshot of an distribution set at a specific version (GET .../updatepacks/:name/versions).
+// An immutable snapshot of an distribution set at a specific version (GET .../distribution-sets/:name/versions).
 // Older versions remain downloadable when the pack has allow_previous_version_download enabled.
 export interface UpdatePackVersion {
   id: string;
-  update_pack_id: string;
+  distribution_set_id: string;
   group_id: string;
   name: string;
   version: string;
@@ -190,8 +197,8 @@ export type FirmwareUpdateSource = 'service' | 'external';
 export interface DevicePackVersion {
   id: string;
   device_id: string;
-  update_pack_id: string;
-  pack_name: string;
+  distribution_set_id: string;
+  distribution_set_name: string;
   group_id: string;
   version: string; // semver (x.y.z)
   packaging: 'swu' | 'non-swu' | string;
@@ -208,8 +215,8 @@ export interface DevicePackUpdate {
   job_id?: string;
   launch_id?: string;
   device_id: string;
-  update_pack_id: string;
-  pack_name: string;
+  distribution_set_id: string;
+  distribution_set_name: string;
   group_id: string;
   packaging: 'swu' | 'non-swu' | string;
   version_from: string;
@@ -242,16 +249,16 @@ export interface DevicePackWithArtifacts extends DevicePackVersion {
 export interface GroupLatestPack {
   id: string;
   group_id: string;
-  update_pack_id: string;
-  pack_name: string;
+  distribution_set_id: string;
+  distribution_set_name: string;
   version: string; // latest semver (x.y.z)
   updated_at: string;
 }
 
 // One pack's drift between a device's installed version and its group's latest version.
 export interface PackDrift {
-  update_pack_id: string;
-  pack_name: string;
+  distribution_set_id: string;
+  distribution_set_name: string;
   current_version: string; // '' when the device lacks the pack (missing)
   latest_version: string;
   in_sync: boolean;
@@ -282,8 +289,8 @@ export interface GroupVersionCompliance {
 // latest, with an in-sync flag. Unlike compliance, in-sync rows are included.
 export interface DevicePackVersionStatus {
   device_id: string;
-  update_pack_id: string;
-  pack_name: string;
+  distribution_set_id: string;
+  distribution_set_name: string;
   current_version: string;
   latest_version: string;
   in_sync: boolean;
@@ -304,7 +311,9 @@ export interface CampaignItem {
   id: string;
   group_id: string;
   name: string;
+  description?: string;
   exec_date: string; // ISO Date string
+  scheduled_at?: string; // ISO Date string; set when the campaign starts at a planned time
   // Operator-/system-driven lifecycle: '' (legacy == running) | 'running' | 'paused' | 'cancelled' | 'completed'
   status?: LaunchLifecycleStatus | string;
   // Scalar counts (replaces device-ID arrays for scalability)
@@ -319,11 +328,16 @@ export interface CampaignItem {
   rollout_type?: 'numeric' | 'percentage';
   rollout_value?: number;
   test_device_id?: string;
-  update_pack_id?: string; // Immutable - cannot be changed after creation
+  distribution_set_id?: string; // Immutable - cannot be changed after creation
+  // The launched set's name, where the backend reports it. hawkBit gives every VERSION of a set its own
+  // id, so looking distribution_set_id up among sets' current versions misses older campaigns.
+  distribution_set_name?: string;
   auto?: boolean; // Auto mode toggle
   approval_threshold?: number; // % of batch that must succeed before next batch (auto only)
   error_threshold?: number; // % of all devices that can fail before aborting (auto only)
-  version?: number; // Version from the distribution set
+  current_batch_size?: number; // devices dispatched in the in-flight batch (native)
+  completed_in_batch?: number; // of those, how many have SUCCEEDED (native) — failures aren't counted, see approval_threshold
+  version?: number | string; // Version from the distribution set
   // Campaign preconditions (all optional / backward-compatible)
   preconditions?: CampaignPrecondition[];
   forced_preconditions?: boolean;
@@ -341,7 +355,7 @@ export interface ApiGlobalStrategy {
   rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
   test_device_id?: string;
-  update_pack_id?: string; // This is the pack ID from the API
+  distribution_set_id?: string; // This is the pack ID from the API
   auto?: boolean; // Auto mode toggle
   approval_threshold?: number;
   error_threshold?: number;
@@ -543,6 +557,13 @@ export interface SoftwareModule {
   // built is whether this module has a deliverable. A pack is launchable only once EVERY module is
   // built, so the pack-level status is the AND over these.
   built: boolean;
+  // uri is the URL a device fetches THIS module's own finished deliverable from — set once built.
+  // Only ever populated where the backend has a per-module device-fetch path of its own (hawkbit mode:
+  // a real hawkBit DDI artifact URL, with a literal "{controllerId}" placeholder — DDI is scoped
+  // per-device and no specific device is known at this level). Native mode ships one pack-level .swu
+  // instead (see UpdatePack.uri) and never sets this, so an empty value here is not "broken" — check
+  // `software_module_deliverables` before reading its absence as a gap.
+  uri?: string;
   artifacts: Artifact[];
   // locked is hawkBit's own immutability flag, set automatically once this module's owning
   // distribution set is assigned to a target — a client can rely on it to mean "shipped to a
@@ -553,6 +574,14 @@ export interface SoftwareModule {
   // encrypted reports whether this module's artifacts are stored encrypted at rest on the backend.
   // Unrelated to encrypting the deliverable a device decrypts — see the backend model's comment.
   encrypted: boolean;
+  // In HAWKBIT mode a module is its own deliverable, so build security is recorded here rather
+  // than on the containing distribution set. They are intentionally optional for native responses.
+  encryption_mode?: EncryptionMode;
+  encryption_key_name?: string;
+  encryption_alg_name?: string;
+  sw_desc_encrypted?: boolean;
+  signature_key_id?: string;
+  signature_alg_name?: string;
   // release_notes is the operator-authored changelog for this module version — free text, markdown
   // by convention. Unlike every other field here it is METADATA rather than backend-derived state,
   // and it stays editable after the module is built and even after it is locked (both backends allow
@@ -574,19 +603,24 @@ export interface SoftwareModuleBuildPayload {
 }
 
 // POST body for adding a module to a pack's composition. version defaults to the pack's version.
+// Names a module to create as part of a distribution set, OR — via source_module_id — references
+// one that already exists to compose the set with instead (hawkbit mode only; native has no way to
+// attach an existing module at creation, so it is ignored there). The two shapes are mutually
+// exclusive: type/name/version describe a NEW module and are ignored when source_module_id is set.
 export interface SoftwareModuleRef {
   delivery_intent?: ModuleDeliveryIntent;
-  type: SoftwareModuleType;
-  name: string;
+  type?: SoftwareModuleType;
+  name?: string;
   version?: string;
+  source_module_id?: string;
 }
 
 // A module already defined on ANOTHER pack, offered as a candidate to compose this one with.
 export interface ReusableSoftwareModule extends SoftwareModule {
   // Where this module is defined today. Both are needed to address it: a pack's composition is per
   // VERSION, so the same pack can offer different modules at different versions.
-  source_pack_name: string;
-  source_pack_version: string;
+  source_distribution_set_name: string;
+  source_distribution_set_version: string;
   source_group_id: string;
   // What importing it MEANS, which differs by backend and is worth telling the operator:
   //  - true (hawkbit): the import LINKS. Both packs hold one module, so its artifacts exist once
@@ -600,8 +634,8 @@ export interface ReusableSoftwareModule extends SoftwareModule {
 export interface SoftwareModuleImport {
   source_module_id?: string;
   source_group_id?: string;
-  source_pack_name: string;
-  source_pack_version: string;
+  source_distribution_set_name: string;
+  source_distribution_set_version: string;
   module_key: string;
 }
 

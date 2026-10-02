@@ -95,22 +95,28 @@ export function useModuleFiles({
   // (models.ClaimsToBeDeliverable / isDeliverable).
   const hasDeliverable = files.some((f) => /\.(swu|tar\.gz)$/i.test(f.name));
 
-  // The build-vs-deliver question is NOT genuinely open once the packaging is known — it follows
-  // from (packaging, file type) in every case, so asking the operator to declare it invited them to
-  // contradict the system and get a silently unlaunchable set:
+  // The build-vs-deliver question is NOT genuinely open once the packaging is known, in every case
+  // EXCEPT one — so asking the operator to declare it invited them to contradict the system and get
+  // a silently unlaunchable set:
   //
-  //   non-swu             → no build exists at all, so the files ARE the deliverable.
-  //   swu + a .swu staged → that prebuilt image IS the deliverable; building from it is nonsense.
-  //   swu + only inputs   → it must be built, or nothing ever ships.
+  //   non-swu, no per-module build → no build exists at all, so the files ARE the deliverable.
+  //   non-swu, per-module build    → hawkBit builds (and can sign/encrypt) each module's own .swu
+  //                                   independently of the pack's overall packaging, so this one
+  //                                   module CAN still opt into a real build alongside others
+  //                                   delivered unchanged — the file bytes alone cannot tell which
+  //                                   the operator wants, so this is genuinely asked (see below).
+  //   swu + a .swu staged          → that prebuilt image IS the deliverable; building from it is nonsense.
+  //   swu + only inputs            → it must be built, or nothing ever ships.
   //
-  // Derived here and merely STATED in the UI. Undefined only while packaging is unknown or nothing
-  // is staged yet, where there is genuinely nothing to derive from.
+  // Derived here and merely STATED in the UI, except the one case above that is asked instead.
+  // Undefined also while packaging is unknown or nothing is staged yet, where there is genuinely
+  // nothing to derive from.
   const derivedAnswer: ModuleFileAnswer | undefined = React.useMemo(() => {
     if (!packaging) return undefined;
-    if (packaging !== 'swu') return 'as-uploaded';
+    if (packaging !== 'swu') return perModuleDeliverables ? undefined : 'as-uploaded';
     if (files.length === 0) return undefined;
     return hasDeliverable ? 'as-uploaded' : 'build';
-  }, [packaging, files.length, hasDeliverable]);
+  }, [packaging, perModuleDeliverables, files.length, hasDeliverable]);
 
   const answer = deliveryIntent !== undefined
     ? deliveryIntent === 'swu-build' ? 'build' : deliveryIntent === 'undecided' ? undefined : 'as-uploaded'
@@ -358,13 +364,15 @@ export function ModuleFilesFields({
   return (
     <div className="space-y-5">
       {state.fileError && <Alert variant="destructive"><AlertDescription>{state.fileError}</AlertDescription></Alert>}
-      {/* Where the packaging is known this is NOT a question: the answer follows from (packaging,
-          file type) in every case — non-swu has no build at all, a staged .swu already IS the
-          deliverable, and anything else on an swu set must be built. Asking invited the operator to
-          contradict the system and end up with a silently unlaunchable set, so the outcome is
-          stated instead. The selector below survives only for the create dialogs, which can be
-          open before a target set — and therefore a packaging — is known. */}
-      {deliveryIntent !== undefined ? null : packagingKnown && !answerIsDerived ? (
+      {/* Where the packaging is an SWU pack this is NOT a question: the answer follows from file
+          type alone — a staged .swu already IS the deliverable, anything else must be built.
+          Asking invited the operator to contradict the system and end up with a silently
+          unlaunchable set, so the outcome is stated instead once something is staged.
+          isSwuPack is required here (not just !answerIsDerived) because a non-SWU pack that CAN
+          build per module (see derivedAnswer) is also !answerIsDerived, but for that one the
+          question is genuinely open regardless of what is staged, so it falls through to the ask
+          radios below rather than landing on this "nothing staged yet" info panel. */}
+      {deliveryIntent !== undefined ? null : packagingKnown && !answerIsDerived && isSwuPack ? (
         // Packaging is known but nothing is staged, so state the rule rather than an outcome.
         <Alert>
           <HelpCircle className="h-4 w-4" />

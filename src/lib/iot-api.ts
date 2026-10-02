@@ -36,7 +36,11 @@ export interface UpdatePacksResponse {
  */
 export async function fetchUpdatesCapabilities(opts?: ApiCallOptions): Promise<UpdatesCapabilities> {
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/capabilities`;
-  const response = await apiFetch(url, { auth: false, signal: opts?.signal ?? undefined });
+  // Authenticated like every other /api/updates call. The service itself serves /capabilities without
+  // a token, but a deployment puts it behind the same JWT policy as the rest of the prefix, so an
+  // unauthenticated call 401s there — and a failed capabilities read degrades to "assume supported",
+  // which offers backend features that may not exist.
+  const response = await apiFetch(url, { signal: opts?.signal ?? undefined });
   return handleApiError(response, 'Failed to fetch updates backend capabilities');
 }
 
@@ -51,7 +55,7 @@ export async function fetchUpdatePacks(
   if (options?.sortBy) params.set('sort_by', options.sortBy);
   if (options?.sortMode) params.set('sort_mode', options.sortMode);
   
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets${params.toString() ? '?' + params.toString() : ''}`;
   
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
@@ -68,7 +72,7 @@ export async function fetchUpdatePacks(
  * Fetch every distribution set across all device groups (fleet-wide, not group-scoped).
  * Surfaces packs orphaned by a deleted device group or a group-ID change after a
  * lamassuiot re-run — these never appear in the per-group listing.
- * GET /v1/updatepacks
+ * GET /v1/distribution-sets
  */
 export async function fetchAllUpdatePacks(options?: FetchUpdatePacksOptions,
   opts?: ApiCallOptions
@@ -79,7 +83,7 @@ export async function fetchAllUpdatePacks(options?: FetchUpdatePacksOptions,
   if (options?.sortBy) params.set('sort_by', options.sortBy);
   if (options?.sortMode) params.set('sort_mode', options.sortMode);
 
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/updatepacks${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/distribution-sets${params.toString() ? '?' + params.toString() : ''}`;
 
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
@@ -99,7 +103,7 @@ export async function fetchUpdatePacksLegacy({ groupId }: ApiParams, opts?: ApiC
 }
 
 export async function deleteUpdatePackApi({ groupId, packName }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<any> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}`, {
     method: 'DELETE',
     signal: opts?.signal ?? undefined,
   });
@@ -109,13 +113,13 @@ export async function deleteUpdatePackApi({ groupId, packName }: ApiParams & { p
 /**
  * Create a new distribution set (the "repo"). Lightweight: just the pack metadata — artifacts are
  * uploaded and an SWU is built afterwards on the pack-details page.
- * POST /groups/:groupId/updatepacks
+ * POST /groups/:groupId/distribution-sets
  */
 export async function createUpdatePack(
   { groupId, payload }: ApiParams & { payload: ApiCreateUpdatePackPayload },
   opts?: ApiCallOptions
 ): Promise<any> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -141,13 +145,13 @@ export async function createUpdatePack(
  * List the software modules composing a pack's current version, each with its artifacts. The set is
  * assembled into ONE atomic .swu from every module's artifacts, so a module carrying nothing
  * contributes nothing to the build.
- * GET /groups/:groupId/updatepacks/:packName/modules
+ * GET /groups/:groupId/distribution-sets/:packName/modules
  */
 export async function fetchSoftwareModules(
   { groupId, packName }: ApiParams & { packName: string },
   opts?: ApiCallOptions
 ): Promise<SoftwareModule[]> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules`, {
     signal: opts?.signal ?? undefined,
   });
   const data = await handleApiError(response, `Failed to load the software modules of pack ${packName}`);
@@ -157,13 +161,13 @@ export async function fetchSoftwareModules(
 /**
  * Add a software module to a pack's composition. Fails once the pack version is built — a built
  * version's composition is immutable, so a new version is needed instead.
- * POST /groups/:groupId/updatepacks/:packName/modules
+ * POST /groups/:groupId/distribution-sets/:packName/modules
  */
 export async function addSoftwareModule(
   { groupId, packName, module }: ApiParams & { packName: string; module: SoftwareModuleRef },
   opts?: ApiCallOptions
 ): Promise<SoftwareModule> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(module),
@@ -174,14 +178,14 @@ export async function addSoftwareModule(
 
 /**
  * Remove a software module from a pack's composition. The mandatory 'os' module cannot be removed.
- * DELETE /groups/:groupId/updatepacks/:packName/modules/:moduleKey
+ * DELETE /groups/:groupId/distribution-sets/:packName/modules/:moduleKey
  */
 export async function removeSoftwareModule(
   { groupId, packName, moduleKey }: ApiParams & { packName: string; moduleKey: string },
   opts?: ApiCallOptions
 ): Promise<any> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}`,
     { method: 'DELETE', signal: opts?.signal ?? undefined }
   );
   return handleApiError(response, `Failed to remove the software module ${moduleKey}`);
@@ -201,7 +205,7 @@ export async function setSoftwareModuleReleaseNotes(
   opts?: ApiCallOptions
 ): Promise<any> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/release-notes`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/release-notes`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -222,7 +226,7 @@ export async function fetchPackPreconditions(
   opts?: ApiCallOptions
 ): Promise<UpdatePack> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/preconditions`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/preconditions`,
     { signal: opts?.signal ?? undefined }
   );
   return handleApiError(response, `Failed to load launch preconditions for pack ${packName}`);
@@ -241,7 +245,7 @@ export async function setPackPreconditions(
   opts?: ApiCallOptions
 ): Promise<UpdatePack> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/preconditions`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/preconditions`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -255,7 +259,7 @@ export async function setPackPreconditions(
 /**
  * List software modules defined on OTHER packs, offered as candidates to compose this one with, so
  * an operator can reuse a module instead of re-declaring and re-uploading it.
- * GET /groups/:groupId/updatepacks/:packName/modules/reusable
+ * GET /groups/:groupId/distribution-sets/:packName/modules/reusable
  *
  * Each candidate carries where it comes from and a `shared` flag saying what importing it MEANS,
  * which differs by backend and matters to the operator:
@@ -269,7 +273,7 @@ export async function fetchReusableSoftwareModules(
   opts?: ApiCallOptions
 ): Promise<ReusableSoftwareModule[]> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/reusable`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/reusable`,
     { signal: opts?.signal ?? undefined }
   );
   const data = await handleApiError(response, `Failed to load the modules available to import into ${packName}`);
@@ -349,14 +353,14 @@ export async function deleteSoftwareModule(
 /**
  * Compose a pack from a module that already exists on another one. Subject to the same rules as
  * addSoftwareModule (the composition must stay valid, the pack version must not be built yet).
- * POST /groups/:groupId/updatepacks/:packName/modules/import
+ * POST /groups/:groupId/distribution-sets/:packName/modules/import
  */
 export async function importSoftwareModule(
   { groupId, packName, source }: ApiParams & { packName: string; source: SoftwareModuleImport },
   opts?: ApiCallOptions
 ): Promise<SoftwareModule> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/import`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/import`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -370,14 +374,14 @@ export async function importSoftwareModule(
 /**
  * Link an already-uploaded global artifact to ONE module of a pack — the operation the flat
  * pack-level API cannot express once a pack has more than one module.
- * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/artifact/link
+ * POST /groups/:groupId/distribution-sets/:packName/modules/:moduleKey/artifact/link
  */
 export async function linkArtifactToSoftwareModule(
   { groupId, packName, moduleKey, artifactId }: ApiParams & { packName: string; moduleKey: string; artifactId: string },
   opts?: ApiCallOptions
 ): Promise<any> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/link`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/link`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -390,7 +394,7 @@ export async function linkArtifactToSoftwareModule(
 
 /**
  * Upload a binary and attach it to ONE module in a single request.
- * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/artifact/upload
+ * POST /groups/:groupId/distribution-sets/:packName/modules/:moduleKey/artifact/upload
  *
  * The pack-level upload has nowhere to say which module it meant, and linkArtifactToSoftwareModule
  * can only attach something already in the catalogue — so this is the only way to get a NEW binary
@@ -417,7 +421,7 @@ export async function uploadModuleArtifactBinary(
   form.append('artifact_name', artifactName ?? file.name.replace(/\.[^/.]+$/, ''));
   form.append('version', version ?? '');
   const response = await apiFetch(
-    moduleId ? `${catalogModuleUrl(moduleId)}/artifacts` : `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/upload`,
+    moduleId ? `${catalogModuleUrl(moduleId)}/artifacts` : `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/upload`,
     { method: 'POST', body: form, signal: opts?.signal ?? undefined }
   );
   return handleApiError(response, `Failed to upload the binary to module ${moduleKey}`);
@@ -426,7 +430,7 @@ export async function uploadModuleArtifactBinary(
 /**
  * Store one software module's own sw-description, which its build assembles from. A module without
  * one falls back to the set's.
- * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/descriptor/upload
+ * POST /groups/:groupId/distribution-sets/:packName/modules/:moduleKey/descriptor/upload
  *
  * Requires 'software_module_deliverables' — a backend whose set builds one atomic deliverable has a
  * single descriptor and answers 501 here.
@@ -438,7 +442,7 @@ export async function uploadModuleSwDescriptor(
   const form = new FormData();
   form.append('file', file);
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/descriptor/upload`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/descriptor/upload`,
     { method: 'POST', body: form, signal: opts?.signal ?? undefined }
   );
   return handleApiError(response, `Failed to store the sw-description for module ${moduleKey}`);
@@ -446,7 +450,7 @@ export async function uploadModuleSwDescriptor(
 
 /**
  * Build ONE module's deliverable from the build inputs staged on it.
- * POST /groups/:groupId/updatepacks/:packName/modules/:moduleKey/build
+ * POST /groups/:groupId/distribution-sets/:packName/modules/:moduleKey/build
  *
  * Requires 'software_module_deliverables'. In hawkbit mode each module carries its own .swu, which
  * is what a hawkBit target expects (it downloads every module's artifacts). In native mode the set
@@ -462,7 +466,7 @@ export async function buildSoftwareModule(
   opts?: ApiCallOptions
 ): Promise<any> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/build`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/build`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -475,7 +479,7 @@ export async function buildSoftwareModule(
 
 /**
  * Download ONE software module's own deliverable — the same bytes a device fetches for it.
- * GET /groups/:groupId/updatepacks/:packName/modules/:moduleKey/artifact/download
+ * GET /groups/:groupId/distribution-sets/:packName/modules/:moduleKey/artifact/download
  *
  * Requires 'software_module_deliverables': only there does a module have a deliverable of its own to
  * download (native's set builds one atomic deliverable instead — see downloadSwuVersion for that).
@@ -485,7 +489,7 @@ export async function downloadModuleArtifact(
   opts?: ApiCallOptions
 ): Promise<Blob> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/download`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/download`,
     { signal: opts?.signal ?? undefined }
   );
   if (!response.ok) {
@@ -502,14 +506,14 @@ export async function downloadModuleArtifact(
 /**
  * List the modules composing a SPECIFIC past version of a pack — the version-history counterpart to
  * fetchSoftwareModules, which only ever answers for the pack's current version.
- * GET /groups/:groupId/updatepacks/:packName/versions/:version/modules
+ * GET /groups/:groupId/distribution-sets/:packName/versions/:version/modules
  */
 export async function fetchSoftwareModulesVersion(
   { groupId, packName, version }: ApiParams & { packName: string; version: string },
   opts?: ApiCallOptions
 ): Promise<SoftwareModule[]> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions/${encodeURIComponent(version)}/modules`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/versions/${encodeURIComponent(version)}/modules`,
     { signal: opts?.signal ?? undefined }
   );
   const data = await handleApiError(response, `Failed to load the software modules of ${packName} v${version}`);
@@ -519,14 +523,14 @@ export async function fetchSoftwareModulesVersion(
 /**
  * Download one software module's deliverable from a SPECIFIC past version — the version-history
  * counterpart to downloadModuleArtifact, which only ever answers for the current version.
- * GET /groups/:groupId/updatepacks/:packName/versions/:version/modules/:moduleKey/artifact/download
+ * GET /groups/:groupId/distribution-sets/:packName/versions/:version/modules/:moduleKey/artifact/download
  */
 export async function downloadModuleArtifactVersion(
   { groupId, packName, version, moduleKey }: ApiParams & { packName: string; version: string; moduleKey: string },
   opts?: ApiCallOptions
 ): Promise<Blob> {
   const response = await apiFetch(
-    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions/${encodeURIComponent(version)}/modules/${encodeURIComponent(moduleKey)}/artifact/download`,
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/versions/${encodeURIComponent(version)}/modules/${encodeURIComponent(moduleKey)}/artifact/download`,
     { signal: opts?.signal ?? undefined }
   );
   if (!response.ok) {
@@ -542,13 +546,13 @@ export async function downloadModuleArtifactVersion(
 
 /**
  * Create a new VERSION of an existing pack (bumps the version, ready for fresh artifacts + SWU).
- * POST /groups/:groupId/updatepacks/:packName/new
+ * POST /groups/:groupId/distribution-sets/:packName/new
  */
 export async function createUpdatePackVersion(
   { groupId, packName, version }: ApiParams & { packName: string; version: string },
   opts?: ApiCallOptions
 ): Promise<any> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/new`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/new`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ version }),
@@ -559,7 +563,7 @@ export async function createUpdatePackVersion(
 
 /**
  * Build the non-SWU deliverable (.tar.gz) for a pack from the given/selected artifacts.
- * POST /groups/:groupId/updatepacks/:packName/package
+ * POST /groups/:groupId/distribution-sets/:packName/package
  */
 // Security/selection options for building a non-SWU package (subset of GenerateSwuPayload — no
 // descriptor or per-file encryption; the whole archive is signed/encrypted as one unit).
@@ -577,7 +581,7 @@ export async function generatePackage(
   { groupId, packName, payload }: ApiParams & { packName: string; payload?: GeneratePackagePayload },
   opts?: ApiCallOptions
 ): Promise<any> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/package`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/package`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
@@ -588,7 +592,7 @@ export async function generatePackage(
 
 /**
  * Upload the sw-descriptor for a pack (required before building an SWU).
- * POST /groups/:groupId/updatepacks/:packName/descriptor/upload
+ * POST /groups/:groupId/distribution-sets/:packName/descriptor/upload
  */
 export async function uploadPackDescriptor(
   { groupId, packName, file }: ApiParams & { packName: string; file: File },
@@ -596,7 +600,7 @@ export async function uploadPackDescriptor(
 ): Promise<any> {
   const fd = new FormData();
   fd.append('file', file);
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/descriptor/upload`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/descriptor/upload`, {
     method: 'POST',
     body: fd,
     signal: opts?.signal ?? undefined,
@@ -613,7 +617,7 @@ export async function uploadPackDescriptor(
  * CapabilityPrebuiltDeliverable): hawkbit mode ships no swugenerator, so "generate" cannot produce
  * a file there at all.
  *
- * POST /groups/:groupId/updatepacks/:packName/{swu,package}/upload
+ * POST /groups/:groupId/distribution-sets/:packName/{swu,package}/upload
  */
 export async function uploadPrebuiltDeliverable(
   { groupId, packName, file, isNonSwu, user }: ApiParams & { packName: string; file: File; isNonSwu?: boolean; user?: string },
@@ -625,7 +629,7 @@ export async function uploadPrebuiltDeliverable(
   // The path mirrors the build action's ("…/swu" → "…/swu/upload"); both routes reach the same
   // handler, which decides what to expect from the pack's packaging rather than from the URL.
   const kind = isNonSwu ? 'package' : 'swu';
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/${kind}/upload`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/${kind}/upload`, {
     method: 'POST',
     body: fd,
     signal: opts?.signal ?? undefined,
@@ -647,13 +651,13 @@ export interface GenerateSwuPayload {
 
 /**
  * Build the SWU for a pack with the given security options + selected artifacts.
- * POST /groups/:groupId/updatepacks/:packName/swu
+ * POST /groups/:groupId/distribution-sets/:packName/swu
  */
 export async function generateSwu(
   { groupId, packName, userId, payload }: ApiParams & { packName: string; userId: string; payload: GenerateSwuPayload },
   opts?: ApiCallOptions
 ): Promise<any> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/swu?user_id=${encodeURIComponent(userId)}`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/swu?user_id=${encodeURIComponent(userId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -663,7 +667,7 @@ export async function generateSwu(
 }
 
 export async function fetchArtifacts({ groupId, packName }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<string[]> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifacts`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifacts`, {
     signal: opts?.signal ?? undefined,
   });
 
@@ -696,7 +700,7 @@ export async function fetchArtifacts({ groupId, packName }: ApiParams & { packNa
 }
 
 export async function fetchUpdatePackDescriptor({ groupId, packName }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<string> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/descriptor`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/descriptor`, {
     signal: opts?.signal ?? undefined,
   });
 
@@ -832,7 +836,7 @@ export async function fetchAllJobsByCampaign(
 
 // Campaign creation payload - all strategy fields are now required
 export interface CreateCampaignPayload {
-  update_pack_name: string;
+  distribution_set_name: string;
   workflow_type: string;
   rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
@@ -1161,10 +1165,10 @@ export async function fetchGroupDevices(
 
 /**
  * Get the per-device SWU download URL.
- * GET /v1/dms/:dmsID/updatepacks/:name/swu/download/:deviceID
+ * GET /v1/dms/:dmsID/distribution-sets/:name/swu/download/:deviceID
  */
 export function getPerDeviceSwuDownloadUrl(groupId: string, packName: string, deviceId: string): string {
-  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/swu/download/${encodeURIComponent(deviceId)}`;
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/swu/download/${encodeURIComponent(deviceId)}`;
 }
 
 /**
@@ -1192,11 +1196,11 @@ export async function downloadPerDeviceSwu(
  * stores in the pack's own `uri` field (see internal/updates/service.go's MarkBuilt calls) — kept
  * as a fallback for backends that report a pack as built (`status === 'built'`) without populating
  * `uri` themselves, e.g. hawkbit mode, where there is no separate build step to produce one.
- * GET /groups/:groupID/updatepacks/:name/swu/download | /package/download
+ * GET /groups/:groupID/distribution-sets/:name/swu/download | /package/download
  */
 export function getCurrentBuildDownloadUrl(groupId: string, packName: string, isNonSwu: boolean): string {
   const kind = isNonSwu ? 'package' : 'swu';
-  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/${kind}/download`;
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/${kind}/download`;
 }
 
 /** Download the current build of a pack, via the pack's own `uri` when set or this route otherwise. */
@@ -1218,13 +1222,13 @@ export async function downloadCurrentBuild(
 
 /**
  * Fetch the artifacts a pack currently references (resolved through the pack<->artifact junction).
- * GET /v1/dms/:dmsID/updatepacks/:name/artifact-catalog
+ * GET /v1/dms/:dmsID/distribution-sets/:name/artifact-catalog
  */
 export async function fetchArtifactCatalog(
   { groupId, packName }: ApiParams & { packName: string },
   opts?: ApiCallOptions
 ): Promise<Artifact[]> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifact-catalog`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifact-catalog`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1234,13 +1238,13 @@ export async function fetchArtifactCatalog(
 
 /**
  * Link an already-uploaded global artifact to a pack's current version (no re-upload).
- * POST /v1/groups/:groupId/updatepacks/:packName/artifact/link
+ * POST /v1/groups/:groupId/distribution-sets/:packName/artifact/link
  */
 export async function linkArtifactToPack(
   { groupId, packName, artifactId }: ApiParams & { packName: string; artifactId: string },
   opts?: ApiCallOptions
 ): Promise<void> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifact/link`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifact/link`;
   const response = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1336,13 +1340,13 @@ export async function deleteArtifact(
 
 /**
  * Fetch the recorded version snapshots of an distribution set (newest first).
- * GET /v1/dms/:dmsID/updatepacks/:name/versions
+ * GET /v1/dms/:dmsID/distribution-sets/:name/versions
  */
 export async function fetchUpdatePackVersions(
   { groupId, packName }: ApiParams & { packName: string },
   opts?: ApiCallOptions
 ): Promise<{ list: UpdatePackVersion[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/versions`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1353,13 +1357,13 @@ export async function fetchUpdatePackVersions(
 /**
  * Fetch a pack's version snapshots by its unique ID, independent of device group. Works for
  * orphaned/empty-group packs that the group-scoped route can't address.
- * GET /v1/updatepacks/:id/versions
+ * GET /v1/distribution-sets/:id/versions
  */
 export async function fetchUpdatePackVersionsById(
   { packId }: { packId: string },
   opts?: ApiCallOptions
 ): Promise<{ list: UpdatePackVersion[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/updatepacks/${encodeURIComponent(packId)}/versions`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/distribution-sets/${encodeURIComponent(packId)}/versions`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1370,13 +1374,13 @@ export async function fetchUpdatePackVersionsById(
 /**
  * Delete a pack by its unique ID, independent of device group. The only way to remove
  * orphaned/empty-group packs (the group-scoped route collapses to /groups//...).
- * DELETE /v1/updatepacks/:id
+ * DELETE /v1/distribution-sets/:id
  */
 export async function deleteUpdatePackByIdApi(
   { packId }: { packId: string },
   opts?: ApiCallOptions
 ): Promise<any> {
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/updatepacks/${encodeURIComponent(packId)}`, {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/distribution-sets/${encodeURIComponent(packId)}`, {
     method: 'DELETE',
     signal: opts?.signal ?? undefined,
   });
@@ -1386,10 +1390,10 @@ export async function deleteUpdatePackByIdApi(
 /**
  * URL to download a specific (current or previous) version of a shared/unencrypted pack's SWU.
  * Previous versions require the pack's allow_previous_version_download flag to be enabled.
- * GET /v1/dms/:dmsID/updatepacks/:name/swu/download/version/:version
+ * GET /v1/dms/:dmsID/distribution-sets/:name/swu/download/version/:version
  */
 export function getSwuVersionDownloadUrl(groupId: string, packName: string, version: number | string): string {
-  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/swu/download/version/${encodeURIComponent(String(version))}`;
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/swu/download/version/${encodeURIComponent(String(version))}`;
 }
 
 /** Download a specific version of an distribution set's SWU. */
@@ -1422,17 +1426,60 @@ export interface VersionSignature {
   signature: string;    // base64 PKCS7/CMS over `manifest`
   signed_at?: string;
   expires_at?: string;
+  /** A signed manifest was recorded, but the set has changed since; `manifest` is then the current,
+   *  unsigned contents (hawkbit mode). */
+  stale?: boolean;
+}
+
+export interface ManifestArtifact {
+  name: string;
+  version: string;
+  filename: string;
+  sha256: string;
+  size: number;
+}
+
+export interface ManifestModule {
+  name: string;
+  type: string;
+  version: string;
+  artifacts: ManifestArtifact[];
+  encryption?: string;
+  encryption_alg?: string;
+  signature_alg?: string;
+}
+
+/** The document `VersionSignature.manifest` holds (pkg/models.VersionManifest). */
+export interface VersionManifest {
+  distribution_set: string;
+  group: string;
+  version: string;
+  packaging: string;
+  type: string;
+  created_at: string;
+  expires_at?: string;
+  artifacts: ManifestArtifact[];
+  deliverable: {
+    kind: string;
+    filename?: string;
+    sha256?: string;
+    size?: number;
+    encryption?: string;
+    encryption_alg?: string;
+  };
+  /** Only in hawkbit mode, where each module carries its own deliverable. */
+  modules?: ManifestModule[];
 }
 
 /**
  * Fetch a version's signed manifest + signature (used to verify authenticity and enforce
- * anti-rollback/anti-freeze). GET /groups/:groupId/updatepacks/:name/versions/:version/signature
+ * anti-rollback/anti-freeze). GET /groups/:groupId/distribution-sets/:name/versions/:version/signature
  */
 export async function fetchVersionSignature(
   { groupId, packName, version }: ApiParams & { packName: string; version: string },
   opts?: ApiCallOptions
 ): Promise<VersionSignature> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions/${encodeURIComponent(version)}/signature`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/versions/${encodeURIComponent(version)}/signature`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1441,7 +1488,7 @@ export async function fetchVersionSignature(
 
 /** URL to download a version's artifacts as a .tar.gz (uniform for SWU and non-SWU). */
 export function getVersionArtifactsArchiveUrl(groupId: string, packName: string, version: string): string {
-  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions/${encodeURIComponent(version)}/artifacts-archive`;
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/versions/${encodeURIComponent(version)}/artifacts-archive`;
 }
 
 /** Download a version's artifacts archive (.tar.gz of all the components that version references). */
@@ -1470,7 +1517,7 @@ export interface FleetPackVersionsOptions {
 
 /**
  * Fetch update-pack versions across ALL devices (fleet-wide), with optional filters.
- * GET /v1/devices/packs
+ * GET /v1/devices/distribution-sets
  */
 export async function fetchAllDevicePackVersions(options?: FleetPackVersionsOptions,
   opts?: ApiCallOptions
@@ -1479,10 +1526,10 @@ export async function fetchAllDevicePackVersions(options?: FleetPackVersionsOpti
   if (options?.pageSize) params.set('page_size', String(options.pageSize));
   if (options?.bookmark) params.set('bookmark', options.bookmark);
   if (options?.deviceId) params.append('filter', `device_id[ct]${options.deviceId}`);
-  if (options?.packName) params.append('filter', `pack_name[ct]${options.packName}`);
+  if (options?.packName) params.append('filter', `distribution_set_name[ct]${options.packName}`);
   if (options?.packaging) params.append('filter', `packaging[eq]${options.packaging}`);
 
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/packs${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/distribution-sets${params.toString() ? '?' + params.toString() : ''}`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1501,7 +1548,7 @@ export async function fetchDevicePackVersions(
   { deviceId }: { deviceId: string },
   opts?: ApiCallOptions
 ): Promise<{ list: DevicePackVersion[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/packs`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/distribution-sets`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1512,7 +1559,7 @@ export async function fetchDevicePackVersions(
 /**
  * Fetch a device's package inventory: each pack the device has, enriched with the artifacts that
  * pack delivers and the device's installed version of each. The consolidated device-software view.
- * GET /v1/devices/:deviceID/pack-inventory
+ * GET /v1/devices/:deviceID/distribution-set-inventory
  */
 export async function fetchDevicePackInventory(
   { deviceId, pageSize, bookmark }: { deviceId: string; pageSize?: number; bookmark?: string },
@@ -1521,7 +1568,7 @@ export async function fetchDevicePackInventory(
   const params = new URLSearchParams();
   if (pageSize) params.set('page_size', String(pageSize));
   if (bookmark) params.set('bookmark', bookmark);
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/pack-inventory${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/distribution-set-inventory${params.toString() ? '?' + params.toString() : ''}`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1552,7 +1599,7 @@ export async function fetchAllDevicePackInventory(
 
 /**
  * Fetch a device's pack-update history (newest first).
- * GET /v1/devices/:deviceID/pack-updates
+ * GET /v1/devices/:deviceID/distribution-set-updates
  */
 export async function fetchDevicePackUpdates(
   { deviceId, pageSize, bookmark }: { deviceId: string; pageSize?: number; bookmark?: string },
@@ -1561,7 +1608,7 @@ export async function fetchDevicePackUpdates(
   const params = new URLSearchParams();
   if (pageSize) params.set('page_size', String(pageSize));
   if (bookmark) params.set('bookmark', bookmark);
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/pack-updates${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/distribution-set-updates${params.toString() ? '?' + params.toString() : ''}`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1575,13 +1622,13 @@ export async function fetchDevicePackUpdates(
 
 /**
  * Fetch a group's latest pack versions (the declared "latest" target).
- * GET /v1/groups/:groupID/latest-packs
+ * GET /v1/groups/:groupID/latest-distribution-sets
  */
 export async function getGroupLatestPacks(
   { groupId }: { groupId: string },
   opts?: ApiCallOptions
 ): Promise<{ list: GroupLatestPack[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/latest-packs`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/latest-distribution-sets`;
   const response = await apiFetch(url, { signal: opts?.signal ?? undefined });
   const data = await handleApiError(response, `Failed to fetch latest packs for group ${groupId}`);
   return { list: data.list || [], next: data.next || null };
@@ -1589,13 +1636,13 @@ export async function getGroupLatestPacks(
 
 /**
  * Set a pack's latest version for a group.
- * PUT /v1/groups/:groupID/latest-packs/:packID  body: { version }
+ * PUT /v1/groups/:groupID/latest-distribution-sets/:packID  body: { version }
  */
 export async function setGroupLatestPack(
   { groupId, packId, version }: { groupId: string; packId: string; version: string },
   opts?: ApiCallOptions
 ): Promise<GroupLatestPack> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/latest-packs/${encodeURIComponent(packId)}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/latest-distribution-sets/${encodeURIComponent(packId)}`;
   const response = await apiFetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -1607,13 +1654,13 @@ export async function setGroupLatestPack(
 
 /**
  * Remove a group's latest-version record for a pack.
- * DELETE /v1/groups/:groupID/latest-packs/:packID
+ * DELETE /v1/groups/:groupID/latest-distribution-sets/:packID
  */
 export async function deleteGroupLatestPack(
   { groupId, packId }: { groupId: string; packId: string },
   opts?: ApiCallOptions
 ): Promise<void> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/latest-packs/${encodeURIComponent(packId)}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/latest-distribution-sets/${encodeURIComponent(packId)}`;
   const response = await apiFetch(url, { method: 'DELETE', signal: opts?.signal ?? undefined });
   await handleApiError(response, `Failed to remove latest version for pack ${packId}`);
 }
@@ -1635,7 +1682,7 @@ export async function getDeviceLatestDrift(
 /**
  * Force a device to match its group's latest pack versions. Jobs run asynchronously on the devices;
  * returns the pre-sync drift snapshot.
- * POST /v1/devices/:deviceID/sync-to-latest  body: { groupID?, pack_ids?, workflow? }
+ * POST /v1/devices/:deviceID/sync-to-latest  body: { groupID?, distribution_set_ids?, workflow? }
  */
 export async function syncDeviceToLatest(
   { deviceId, groupId, packIds, workflow }: { deviceId: string; groupId?: string; packIds?: string[]; workflow?: string },
@@ -1645,7 +1692,7 @@ export async function syncDeviceToLatest(
   const response = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ groupID: groupId, pack_ids: packIds, workflow }),
+    body: JSON.stringify({ groupID: groupId, distribution_set_ids: packIds, workflow }),
     signal: opts?.signal ?? undefined,
   });
   return handleApiError(response, `Failed to sync device ${deviceId} to latest versions`);
@@ -1684,17 +1731,17 @@ export async function getGroupVersionStatus(
 
 /**
  * Launch a single-device update to an exact pack version.
- * POST /v1/devices/:deviceID/force-version  body: { update_pack_id, version, group_id?, workflow? }
+ * POST /v1/devices/:deviceID/force-version  body: { distribution_set_id, version, group_id?, workflow? }
  */
 export async function forceDeviceVersion(
   { deviceId, updatePackId, version, groupId, workflow }: { deviceId: string; updatePackId: string; version: string; groupId?: string; workflow?: string },
   opts?: ApiCallOptions
-): Promise<{ status: string; device_id: string; update_pack_id: string; version: string }> {
+): Promise<{ status: string; device_id: string; distribution_set_id: string; version: string }> {
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/force-version`;
   const response = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ update_pack_id: updatePackId, version, group_id: groupId, workflow }),
+    body: JSON.stringify({ distribution_set_id: updatePackId, version, group_id: groupId, workflow }),
     signal: opts?.signal ?? undefined,
   });
   return handleApiError(response, `Failed to launch update for device ${deviceId}`);

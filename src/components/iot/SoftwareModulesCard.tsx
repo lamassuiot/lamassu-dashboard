@@ -28,8 +28,10 @@ import {
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ModuleFileSheet } from '@/components/iot/module-file-sheet';
-import { DELIVERY_LABELS, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
+import { DELIVERY_LABELS, ModuleFilesFields, moduleBuildPayload, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
+import { SwuSecurityFields, useSwuSecurity } from '@/components/iot/swu-security-fields';
 import type { ReusableSoftwareModule, SoftwareModule } from '@/types/iot';
+import { moduleRemovalBlockedReason } from '@/components/iot/module-removal';
 
 // The only module type that can be ADDED to an existing set. Every distribution set already has its
 // one mandatory 'os' module (the backend creates it with the pack), and a second is refused —
@@ -91,6 +93,7 @@ export function SoftwareModulesCard({
   packVersion,
   packIsBuilt,
   packaging,
+  onChanged,
 }: {
   groupId: string;
   packName: string;
@@ -99,8 +102,11 @@ export function SoftwareModulesCard({
   /** The set's delivery mode ('swu' | 'non-swu'). Passed down so the Add-module dialog can STATE
    *  whether staged files are build inputs or the deliverable itself, instead of asking. */
   packaging?: string;
+  /** Called after the composition or a module's files changed, so the page can refresh what it
+   *  derives from them (linked artifacts, counts, the package dialog's artifact list). */
+  onChanged?: () => void;
 }) {
-  const { isSupported, isLoading: capabilitiesLoading } = useUpdatesCapabilities();
+  const { isSupported, isLoading: capabilitiesLoading, backend } = useUpdatesCapabilities();
   const { user } = useAuth();
   // Every method behind this card returns ErrNotSupported (HTTP 501) on a backend that does not
   // implement composition — see pkg/updates.CapabilitySoftwareModuleComposition. Without this check
@@ -117,6 +123,10 @@ export function SoftwareModulesCard({
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<Error | null>(null);
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
+  // HAWKBIT delivers one SWU per module, so this is deliberately a module-scoped configuration
+  // dialog. Native keeps the existing set-level Generate SWU flow.
+  const [buildTarget, setBuildTarget] = React.useState<SoftwareModule | null>(null);
+  const moduleSecurity = useSwuSecurity(backend === 'hawkbit' && buildTarget !== null);
 
   const [addOpen, setAddOpen] = React.useState(false);
   // Filters the import candidates. The list is a fleet-wide read with no server-side query
@@ -191,6 +201,12 @@ export function SoftwareModulesCard({
     fetchData();
   }, [fetchData]);
 
+  // Reload after a mutation and tell the page. Not used for the initial load, which changes nothing.
+  const refresh = useCallback(async () => {
+    await fetchData();
+    onChanged?.();
+  }, [fetchData, onChanged]);
+
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -230,7 +246,7 @@ export function SoftwareModulesCard({
       setNewName('');
       setNewVersion('');
       newFiles.reset();
-      await fetchData();
+      await refresh();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not add the software module', description: err?.message ?? String(err) });
     } finally {
@@ -246,7 +262,7 @@ export function SoftwareModulesCard({
     const q = candidateQuery.trim().toLowerCase();
     if (!q) return candidates;
     return candidates.filter((c) =>
-      [c.name, c.type, c.version, c.source_pack_name, c.source_pack_version, c.source_group_id]
+      [c.name, c.type, c.version, c.source_distribution_set_name, c.source_distribution_set_version, c.source_group_id]
         .some((f) => String(f ?? '').toLowerCase().includes(q))
     );
   }, [candidates, candidateQuery]);
@@ -272,27 +288,27 @@ export function SoftwareModulesCard({
   };
 
   const handleImport = async (candidate: ReusableSoftwareModule) => {
-    setImporting(candidate.id || `${candidate.source_group_id}/${candidate.source_pack_name}@${candidate.source_pack_version}:${candidate.key}`);
+    setImporting(candidate.id || `${candidate.source_group_id}/${candidate.source_distribution_set_name}@${candidate.source_distribution_set_version}:${candidate.key}`);
     try {
       await importSoftwareModule({
         groupId,
         packName,
         source: {
-          ...(candidate.id && !candidate.source_pack_name ? { source_module_id: candidate.id } : {}),
+          ...(candidate.id && !candidate.source_distribution_set_name ? { source_module_id: candidate.id } : {}),
           source_group_id: candidate.source_group_id,
-          source_pack_name: candidate.source_pack_name,
-          source_pack_version: candidate.source_pack_version,
+          source_distribution_set_name: candidate.source_distribution_set_name,
+          source_distribution_set_version: candidate.source_distribution_set_version,
           module_key: candidate.key,
         },
       });
       toast({
         title: candidate.shared ? 'Software module linked' : 'Software module imported',
         description: candidate.shared
-          ? `${candidate.key} is now shared between this set and ${candidate.source_pack_name || 'the module catalog'}.`
-          : `${candidate.key} was copied from ${candidate.source_pack_name || 'the module catalog'} into this set.`,
+          ? `${candidate.key} is now shared between this set and ${candidate.source_distribution_set_name || 'the module catalog'}.`
+          : `${candidate.key} was copied from ${candidate.source_distribution_set_name || 'the module catalog'} into this set.`,
       });
       setImportOpen(false);
-      await fetchData();
+      await refresh();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not import the software module', description: err?.message ?? String(err) });
     } finally {
@@ -356,12 +372,12 @@ export function SoftwareModulesCard({
           title: 'Module removed but not re-added',
           description: `${addErr?.message ?? String(addErr)} — "${mod.name}" is no longer on this set; add it again.`,
         });
-        await fetchData();
+        await refresh();
         return;
       }
       toast({ title: 'Software module updated', description: `${mod.name} is now ${name}.` });
       setEditTarget(null);
-      await fetchData();
+      await refresh();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not update the software module', description: err?.message ?? String(err) });
     } finally {
@@ -375,7 +391,7 @@ export function SoftwareModulesCard({
       await removeSoftwareModule({ groupId, packName, moduleKey: mod.key });
       toast({ title: 'Software module removed', description: `${mod.key} is no longer part of this distribution set.` });
       setRemoveTarget(null);
-      await fetchData();
+      await refresh();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not remove the software module', description: err?.message ?? String(err) });
     } finally {
@@ -383,19 +399,31 @@ export function SoftwareModulesCard({
     }
   };
 
-  const handleBuild = async (mod: SoftwareModule) => {
+  const handleBuild = async (mod: SoftwareModule, withSecurity = false) => {
     setBusyKey(mod.key);
     try {
-      // No encryption/signing options from here: those are pack-level build settings the Generate SWU
-      // dialog owns. This is the plain "assemble this module's deliverable" action.
-      await buildSoftwareModule({ groupId, packName, moduleKey: mod.key });
+      await buildSoftwareModule({
+        groupId,
+        packName,
+        moduleKey: mod.key,
+        payload: withSecurity ? moduleBuildPayload(moduleSecurity.value, user?.profile?.sub || '') : undefined,
+      });
       toast({ title: 'Software module built', description: `${mod.key} now has its own deliverable.` });
-      await fetchData();
+      setBuildTarget(null);
+      await refresh();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not build the software module', description: err?.message ?? String(err) });
     } finally {
       setBusyKey(null);
     }
+  };
+
+  const openBuild = (mod: SoftwareModule) => {
+    if (backend === 'hawkbit') {
+      moduleSecurity.reset();
+      setBuildTarget(mod);
+    }
+    else void handleBuild(mod);
   };
 
   // If it's built, it should be downloadable. Before this, a composed pack's ONLY download action
@@ -459,7 +487,7 @@ export function SoftwareModulesCard({
         <AlertTitle>Could not load the software modules</AlertTitle>
         <AlertDescription className="flex items-center justify-between gap-4">
           <span>{error.message}</span>
-          <Button variant="outline" size="sm" onClick={fetchData}>
+          <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Retry
           </Button>
@@ -480,6 +508,9 @@ export function SoftwareModulesCard({
   // The composition is frozen once the version is built; the backend refuses edits then.
   const editable = !packIsBuilt;
   const frozenReason = 'This version is already built — create a new version to change its composition';
+  // Removal has its own rule: hawkBit allows it on a built set until the set is assigned.
+  const removalBlocked = (mod: SoftwareModule) =>
+    moduleRemovalBlockedReason({ type: mod.type, locked: mod.locked, packIsBuilt: Boolean(packIsBuilt), backend });
 
   // A set with only its mandatory os module is not "composed" of anything yet: that module IS the
   // pack. Saying "1 of 1 built" and listing the pack inside itself reads as noise, so this case gets
@@ -509,7 +540,7 @@ export function SoftwareModulesCard({
           {packVersion ? <span className="text-muted-foreground">v{packVersion}</span> : null}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchData} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
             Refresh
           </Button>
@@ -700,7 +731,7 @@ export function SoftwareModulesCard({
                           {perModuleDeliverables ? (
                             <>
                               <DropdownMenuItem
-                                onClick={() => handleBuild(mod)}
+                                onClick={() => openBuild(mod)}
                                 disabled={busy || mod.built || artifactCount === 0 || !editable}
                               >
                                 <Hammer className="mr-2 h-4 w-4" /> Build
@@ -733,7 +764,7 @@ export function SoftwareModulesCard({
                           {!isBase ? (
                             <DropdownMenuItem
                               onClick={() => setRemoveTarget(mod)}
-                              disabled={busy || !editable}
+                              disabled={busy || removalBlocked(mod) !== null}
                               className="text-destructive focus:text-destructive"
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Remove
@@ -902,8 +933,35 @@ export function SoftwareModulesCard({
         packName={packName}
         module={fileSheetTarget}
         perModuleDeliverables={perModuleDeliverables}
-        onDone={fetchData}
+        onDone={refresh}
       />
+
+      <Dialog open={buildTarget !== null} onOpenChange={(open) => !open && !busyKey && setBuildTarget(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Build {buildTarget?.key}</DialogTitle>
+            <DialogDescription>
+              Signing and encryption apply only to this module&apos;s SWU. Other modules in the distribution set keep their own build settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
+            <SwuSecurityFields
+              fields={moduleSecurity.fields}
+              disabled={Boolean(busyKey)}
+              sectionNote={<span className="text-xs font-normal text-muted-foreground">This module only</span>}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBuildTarget(null)} disabled={Boolean(busyKey)}>Cancel</Button>
+            <Button
+              onClick={() => buildTarget && void handleBuild(buildTarget, true)}
+              disabled={Boolean(busyKey) || !moduleSecurity.value.isComplete}
+            >
+              {busyKey ? 'Building…' : 'Build module'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* The details view opened by clicking a module or its "View details" menu item. Every action
           it offers calls back into the SAME handlers the row itself used to call directly, so the
@@ -914,9 +972,10 @@ export function SoftwareModulesCard({
         module={detailsTarget ? (modules?.find((m) => m.key === detailsTarget.key) ?? detailsTarget) : null}
         perModuleDeliverables={perModuleDeliverables}
         editable={editable}
+        removeBlocked={detailsTarget ? removalBlocked(detailsTarget) : null}
         busy={busyKey === detailsTarget?.key}
         onUpload={() => { setFileSheetTarget(detailsTarget); setDetailsTarget(null); }}
-        onBuild={() => detailsTarget && handleBuild(detailsTarget)}
+        onBuild={() => detailsTarget && openBuild(detailsTarget)}
         onDownload={() => detailsTarget && handleDownload(detailsTarget)}
         onRename={() => {
           if (!detailsTarget) return;
@@ -1038,7 +1097,7 @@ export function SoftwareModulesCard({
                       </TableRow>
                     ) : null}
                     {visibleCandidates!.map((c) => {
-                      const id = c.id || `${c.source_group_id}/${c.source_pack_name}@${c.source_pack_version}:${c.key}`;
+                      const id = c.id || `${c.source_group_id}/${c.source_distribution_set_name}@${c.source_distribution_set_version}:${c.key}`;
                       return (
                         <TableRow key={id}>
                           <TableCell className="font-medium">
@@ -1052,8 +1111,8 @@ export function SoftwareModulesCard({
                             </div>
                           </TableCell>
                           <TableCell className="text-sm">
-                            {c.source_pack_name || 'Module catalog'}
-                            <span className="text-muted-foreground"> v{c.source_pack_version || c.version}</span>
+                            {c.source_distribution_set_name || 'Module catalog'}
+                            <span className="text-muted-foreground"> v{c.source_distribution_set_version || c.version}</span>
                             {/* The source group is only worth showing when it differs — otherwise it
                                 is the group already in the page's own context. */}
                             {c.source_group_id && c.source_group_id !== groupId ? (

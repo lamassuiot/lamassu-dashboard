@@ -872,7 +872,7 @@ export function UpdatePackForm({
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = safeBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
-        createPackResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${basePackNameForApi}/new`, {
+        createPackResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/distribution-sets/${basePackNameForApi}/new`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -885,7 +885,7 @@ export function UpdatePackForm({
           packaging: (packDetails as any).packaging || "swu",
           allow_previous_version_download: (packDetails as any).allowPreviousVersionDownload || false,
         };
-        createPackResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks`, {
+        createPackResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/distribution-sets`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(createPayload),
@@ -920,7 +920,7 @@ export function UpdatePackForm({
         binaryFormData.append('artifact_name', meta.artifactName || defaultArtifactName(file.name));
         binaryFormData.append('version', meta.version || '');
 
-        const uploadBinaryResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
+        const uploadBinaryResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/distribution-sets/${targetPackNameForFilesAndSwu}/artifact/upload`, {
           method: 'POST',
 
           body: binaryFormData,
@@ -972,7 +972,7 @@ export function UpdatePackForm({
 
         const descriptorFormData = new FormData();
         descriptorFormData.append('file', descriptorToUpload);
-        const uploadDescriptorResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
+        const uploadDescriptorResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/distribution-sets/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
           method: 'POST',
 
           body: descriptorFormData,
@@ -1110,7 +1110,7 @@ export function UpdatePackForm({
         }
       }
 
-      const generateSwuResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
+      const generateSwuResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/distribution-sets/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(swuPayload),

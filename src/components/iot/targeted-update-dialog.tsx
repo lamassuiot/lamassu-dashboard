@@ -124,7 +124,7 @@ export function TargetedUpdateDialog({
   const currentByDevice = React.useMemo(() => {
     const m = new Map<string, string>();
     (statusData?.rows || []).forEach((r: any) => {
-      if (pack && r.update_pack_id === pack.id) m.set(r.device_id, r.current_version);
+      if (pack && r.distribution_set_id === pack.id) m.set(r.device_id, r.current_version);
     });
     return m;
   }, [statusData, pack]);

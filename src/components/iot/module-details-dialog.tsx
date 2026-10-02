@@ -1,12 +1,14 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle2, CircleDashed, Download, Hammer, Lock, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Copy, Download, Hammer, Lock, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from '@/hooks/use-toast';
 import type { SoftwareModule } from '@/types/iot';
 
 // The details view for ONE software module — everything the row's compact cells only summarise.
@@ -26,6 +28,7 @@ export function ModuleDetailsDialog({
   module: mod,
   perModuleDeliverables,
   editable,
+  removeBlocked,
   busy,
   onUpload,
   onBuild,
@@ -38,6 +41,8 @@ export function ModuleDetailsDialog({
   module: SoftwareModule | null;
   perModuleDeliverables: boolean;
   editable: boolean;
+  /** Why Remove is unavailable, or null when it is. Defaults to the built-version rule. */
+  removeBlocked?: string | null;
   busy: boolean;
   onUpload: () => void;
   onBuild: () => void;
@@ -49,6 +54,9 @@ export function ModuleDetailsDialog({
   const isBase = mod.type === 'os';
   const artifactCount = mod.artifacts?.length ?? 0;
   const contributes = perModuleDeliverables ? mod.built : artifactCount > 0;
+  const removeReason = removeBlocked !== undefined
+    ? removeBlocked
+    : !editable ? 'This pack version is already built' : null;
 
   // Once hawkBit has locked a module, it refuses ANY artifact change to it — verified live: adding
   // one to a locked module answers "LockedException: ADD_ARTIFACT is forbidden", while renaming its
@@ -111,6 +119,79 @@ export function ModuleDetailsDialog({
             </Badge>
           ) : null}
         </div>
+
+        {/* The device-facing download address for this module's own deliverable. Only ever populated
+            where the backend delivers modules independently (hawkbit mode, via a real hawkBit DDI
+            URL) — a backend that ships one atomic pack-level .swu instead (native) has no per-module
+            address of its own, so this explains that rather than reading as "not available". */}
+        {perModuleDeliverables ? (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Device download URL</p>
+            <div className="mt-1 flex min-w-0 items-center gap-2">
+              <p className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">
+                {mod.uri || (mod.built ? 'Not available' : 'Not built yet')}
+              </p>
+              {mod.uri && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => { navigator.clipboard.writeText(mod.uri || ''); toast({ title: 'Copied' }); }}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            {mod.uri?.includes('{controllerId}') && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                <span className="font-mono">{'{controllerId}'}</span> is filled in per-device by hawkBit at deployment time.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            This backend delivers the whole distribution set as a single .swu — see the pack&apos;s own
+            download URL under Package Files, rather than a separate address for this module.
+          </p>
+        )}
+
+        {perModuleDeliverables && (
+          <div className="grid grid-cols-1 gap-3 border-y py-4 sm:grid-cols-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Signature</p>
+              {mod.signature_key_id ? (
+                <>
+                  <p className="mt-1 text-sm">{mod.signature_alg_name || 'Configured'}</p>
+                  <Link
+                    href={`/kms/keys/details?keyId=${encodeURIComponent(mod.signature_key_id)}`}
+                    className="mt-1 block truncate font-mono text-xs text-primary hover:underline"
+                    title={mod.signature_key_id}
+                  >
+                    {mod.signature_key_id}
+                  </Link>
+                </>
+              ) : <p className="mt-1 text-sm text-muted-foreground">Unsigned</p>}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Encryption</p>
+              {mod.encryption_mode ? (
+                <>
+                  <p className="mt-1 text-sm">{mod.encryption_alg_name || mod.encryption_mode}</p>
+                  {mod.encryption_key_name ? (
+                    <Link
+                      href={`/kms/keys/sym-keys/details?keyId=${encodeURIComponent(mod.encryption_key_name)}`}
+                      className="mt-1 block truncate font-mono text-xs text-primary hover:underline"
+                      title={mod.encryption_key_name}
+                    >
+                      {mod.encryption_key_name}
+                    </Link>
+                  ) : <p className="mt-1 text-xs text-muted-foreground">No shared key</p>}
+                  {mod.sw_desc_encrypted && <p className="mt-1 text-xs text-muted-foreground">Descriptor encrypted</p>}
+                </>
+              ) : <p className="mt-1 text-sm text-muted-foreground">Unencrypted</p>}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -197,8 +278,8 @@ export function ModuleDetailsDialog({
             </Button>
           ) : null}
           {!isBase ? (
-            <span title={busy ? 'Working…' : !editable ? 'This pack version is already built' : undefined} className="ml-auto inline-flex">
-              <Button variant="ghost" size="sm" onClick={onRemove} disabled={busy || !editable}>
+            <span title={busy ? 'Working…' : removeReason ?? undefined} className="ml-auto inline-flex">
+              <Button variant="ghost" size="sm" onClick={onRemove} disabled={busy || removeReason !== null}>
                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
                 Remove
               </Button>

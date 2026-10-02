@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import {
-  DEFAULT_BACKEND_URLS, getDebugBackendOverride, getDebugUpdatesBaseUrl, setDebugBackend,
+  getDefaultBackendUrls, getDebugBackendOverride, getDebugUpdatesBaseUrl, setDebugBackend,
   type DebugBackend,
 } from '@/lib/debug-backend';
 
@@ -34,7 +34,7 @@ export function DebugBackendSwitch() {
 
   const applyMode = (value: string) => {
     const next = value === AUTO ? null : (value as DebugBackend);
-    setDebugBackend(next, next ? DEFAULT_BACKEND_URLS[next] : null);
+    setDebugBackend(next, next ? getDefaultBackendUrls()[next] : null);
     window.location.reload();
   };
 
@@ -70,7 +70,7 @@ export function DebugBackendSwitch() {
           onBlur={applyUrl}
           onKeyDown={(e) => { if (e.key === 'Enter') applyUrl(); }}
           className="mt-1.5 h-7 font-mono text-[11px]"
-          placeholder={DEFAULT_BACKEND_URLS[mode]}
+          placeholder={getDefaultBackendUrls()[mode]}
         />
       )}
 

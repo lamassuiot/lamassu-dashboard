@@ -132,7 +132,7 @@ export function PackDetailPanel({
       // A throwaway, minimally-valid campaign body — dry_run means none of this is ever created.
       // The workflow default mirrors the campaign form's own default so the preview reflects a
       // realistic launch rather than an arbitrary one.
-      campaignData: { update_pack_name: pack.name, workflow_type: 'wfx.workflow.dau.direct', rollout_type: 'percentage', rollout_value: 100 },
+      campaignData: { distribution_set_name: pack.name, workflow_type: 'wfx.workflow.dau.direct', rollout_type: 'percentage', rollout_value: 100 },
       dryRun: true,
     })
       .then((res) => setLiveScope({
@@ -177,7 +177,7 @@ export function PackDetailPanel({
   const activeVersion = sortedVersions.find((v) => v.version === selectedVersion) ?? sortedVersions[0];
 
   const detailsHref = `/updates/pack-details?groupId=${encodeURIComponent(pack.groupId)}&packName=${encodeURIComponent(pack.name)}`;
-  const campaignHref = `/updates?action=campaign&groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
+  const campaignHref = `/updates/new?groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
   const canStartCampaign = pack.status === 'built' && !pack.orphaned;
   const preconditionCount = pack.preconditions?.length ?? 0;
 
@@ -395,11 +395,14 @@ export function PackDetailPanel({
 
             <OverviewBox icon={Lock} title="Security &amp; delivery">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                {[
-                  ['Signing', pack.signature_key_id ? `Enabled (${pack.signature_alg_name || pack.alg_sign || 'configured'})` : 'Disabled'],
-                  ['Encryption', pack.encryption_mode ? `Enabled (${pack.encryption_mode})` : 'Disabled'],
-                  ['Previous version downloads', pack.allow_previous_version_download ? 'Enabled' : 'Disabled'],
-                ].map(([k, v]) => (
+                {(backend === 'hawkbit'
+                  ? [['Security', 'Per software module'], ['Previous version downloads', pack.allow_previous_version_download ? 'Enabled' : 'Disabled']]
+                  : [
+                    ['Signing', pack.signature_key_id ? `Enabled (${pack.signature_alg_name || pack.alg_sign || 'configured'})` : 'Disabled'],
+                    ['Encryption', pack.encryption_mode ? `Enabled (${pack.encryption_mode})` : 'Disabled'],
+                    ['Previous version downloads', pack.allow_previous_version_download ? 'Enabled' : 'Disabled'],
+                  ]
+                ).map(([k, v]) => (
                   <div key={k} className="min-w-0">
                     <dt className="text-xs text-muted-foreground">{k}</dt>
                     <dd className="mt-0.5 truncate font-medium" title={String(v)}>{v}</dd>
@@ -414,7 +417,7 @@ export function PackDetailPanel({
                     {backend === 'hawkbit'
                       ? (pack.packaging === 'non-swu'
                         ? 'Uploaded to hawkBit as raw module artifacts, unbuilt.'
-                        : 'Built and signed into one .swu before upload to hawkBit.')
+                        : 'Each software module builds, signs, and encrypts its own .swu.')
                       : (pack.packaging === 'non-swu'
                         ? 'Launch this set on the Download-Install workflow — Direct/Phased expect an SWU and will leave the update looking stuck.'
                         : 'Launch this set on Direct or Phased — Download-Install expects a raw artifact and will leave the update looking stuck.')}

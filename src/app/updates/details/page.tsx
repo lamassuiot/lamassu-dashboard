@@ -23,11 +23,10 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { fetchAllJobsByCampaign, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
+import { fetchAllJobsByCampaign, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices, triggerItemRollout } from '@/lib/iot-api';
 import type { CampaignItem, DeviceJob } from '@/types/iot';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { JobWorkflowGraph } from '@/components/devices/JobWorkflowGraph';
@@ -663,7 +662,7 @@ export default function CampaignDetailsPage() {
   const searchParams = useSearchParams();
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'devices' ? 'devices' : 'overview');
   const [copiedId, setCopiedId] = useState(false);
   const [isEditRolloutOpen, setIsEditRolloutOpen] = useState(false);
   const [rolloutTypeInput, setRolloutTypeInput] = useState<'numeric' | 'percentage'>('numeric');
@@ -805,11 +804,9 @@ export default function CampaignDetailsPage() {
     try {
       setIsExecuting(true);
       setExecutionStartTime(Date.now());
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${campaign.id}/rollout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user?.access_token}` },
-      });
-      if (!response.ok) throw new Error(`Failed to execute campaign: ${response.statusText}`);
+      // Through triggerItemRollout's apiFetch/handleApiError, so a refusal (e.g. "launch is paused;
+      // resume it first") reaches the toast instead of a generic "Bad Request".
+      await triggerItemRollout({ groupId: groupId!, launchId: campaign.id });
       toast({ title: "Campaign Executed", description: `Campaign ${campaign.name} has been successfully executed. Monitoring progress...` });
       refetchCampaign();
       setTimeout(() => { setIsExecuting(false); }, 30000);
@@ -1092,9 +1089,9 @@ export default function CampaignDetailsPage() {
                               </TableHeader>
                               <TableBody>
                                 {campaign.precondition_failures.map((f, idx) => (
-                                  <TableRow key={`${f.device_id}-${f.pack_name}-${idx}`} className="text-xs">
+                                  <TableRow key={`${f.device_id}-${f.distribution_set_name}-${idx}`} className="text-xs">
                                     <TableCell className="font-mono py-2">{f.device_id}</TableCell>
-                                    <TableCell className="py-2">{f.pack_name}</TableCell>
+                                    <TableCell className="py-2">{f.distribution_set_name}</TableCell>
                                     <TableCell className="font-mono py-2">{f.current_version || 'not installed'}</TableCell>
                                     <TableCell className="font-mono py-2">{f.required}</TableCell>
                                   </TableRow>
@@ -1188,11 +1185,11 @@ export default function CampaignDetailsPage() {
                       <AutomationBadge auto={campaign.auto} enabledLabel="Enabled" disabledLabel="Disabled" />
                     </div>
                     {/* Distribution Set ID — only if set */}
-                    {campaign.update_pack_id && (
+                    {campaign.distribution_set_id && (
                       <div className="flex items-center justify-between gap-3 py-3">
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-muted-foreground">Distribution Set ID</p>
-                          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{campaign.update_pack_id}</p>
+                          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{campaign.distribution_set_id}</p>
                         </div>
                         <Badge variant="secondary" className="shrink-0">Immutable</Badge>
                       </div>

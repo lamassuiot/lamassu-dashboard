@@ -26,10 +26,31 @@ export type DebugBackend = 'native' | 'hawkbit';
 /** Where each backend runs in this repo's local dev setup: the ports cmd/monolithic binds with its
  *  default config (native) and with config-hawkbit-demo.yml (hawkbit). A starting point only — the
  *  switch lets the URL be edited, since nothing stops either running elsewhere. */
-export const DEFAULT_BACKEND_URLS: Record<DebugBackend, string> = {
+const LOCAL_BACKEND_URLS: Record<DebugBackend, string> = {
   native: 'http://localhost:10090',
   hawkbit: 'http://localhost:10091',
 };
+
+/** Where each backend sits behind a deployment's gateway, relative to whatever host is being
+ *  browsed. The localhost ports above only exist on a developer's own machine, so on a deployed
+ *  instance they made BOTH choices unreachable — picking either one pointed the browser at a
+ *  machine-local port that isn't there. These paths are what the gateway actually routes. */
+const GATEWAY_BACKEND_PATHS: Record<DebugBackend, string> = {
+  native: '/api',
+  hawkbit: '/api/hawkbit',
+};
+
+/** Defaults for the backend switch, resolved against wherever the app is being served from: the
+ *  gateway paths when that is a real deployment, the local dev ports when it is localhost. */
+export function getDefaultBackendUrls(): Record<DebugBackend, string> {
+  if (typeof window === 'undefined') return LOCAL_BACKEND_URLS;
+  const { hostname, origin } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return LOCAL_BACKEND_URLS;
+  return {
+    native: `${origin}${GATEWAY_BACKEND_PATHS.native}`,
+    hawkbit: `${origin}${GATEWAY_BACKEND_PATHS.hawkbit}`,
+  };
+}
 
 function isDebugBackend(value: string | null): value is DebugBackend {
   return value === 'native' || value === 'hawkbit';
@@ -68,7 +89,7 @@ export function getDebugBackendUrlOverride(): string | null {
 export function getDebugUpdatesBaseUrl(): string | null {
   const mode = getDebugBackendOverride();
   if (!mode) return null;
-  return getDebugBackendUrlOverride() ?? DEFAULT_BACKEND_URLS[mode];
+  return getDebugBackendUrlOverride() ?? getDefaultBackendUrls()[mode];
 }
 
 /** Sets or clears the override. Callers should reload afterwards — this only writes storage.
@@ -83,7 +104,7 @@ export function setDebugBackend(mode: DebugBackend | null, url?: string | null):
       window.localStorage.setItem(MODE_KEY, mode);
       // Only an edited URL is stored, so a later change to the default is picked up rather than
       // pinned to whatever it was the day the switch was first used.
-      if (url && url.trim() && url.trim() !== DEFAULT_BACKEND_URLS[mode]) {
+      if (url && url.trim() && url.trim() !== getDefaultBackendUrls()[mode]) {
         window.localStorage.setItem(URL_KEY, url.trim());
       } else {
         window.localStorage.removeItem(URL_KEY);

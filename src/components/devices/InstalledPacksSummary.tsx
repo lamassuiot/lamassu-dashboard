@@ -8,8 +8,8 @@ import type { DevicePackWithArtifacts } from '@/types/iot';
 
 function PackChip({ pack }: { pack: DevicePackWithArtifacts }) {
   return (
-    <Badge variant="secondary" className="font-mono text-xs" title={`${pack.pack_name} v${pack.version}`}>
-      {pack.pack_name} v{pack.version}
+    <Badge variant="secondary" className="font-mono text-xs" title={`${pack.distribution_set_name} v${pack.version}`}>
+      {pack.distribution_set_name} v{pack.version}
     </Badge>
   );
 }
@@ -73,7 +73,7 @@ export function InstalledPacksSummary({ deviceId, inlineLimit = 1 }: { deviceId:
               <p className="mb-1 text-xs font-semibold">All installed packs ({packs.length})</p>
               <div className="flex flex-col gap-0.5">
                 {packs.map((p) => (
-                  <span key={p.id} className="font-mono text-xs">{p.pack_name} v{p.version}</span>
+                  <span key={p.id} className="font-mono text-xs">{p.distribution_set_name} v{p.version}</span>
                 ))}
               </div>
             </TooltipContent>

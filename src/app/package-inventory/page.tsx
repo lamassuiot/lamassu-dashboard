@@ -100,7 +100,7 @@ function getDetailsHref(pack: PackRow) {
 }
 
 function getCampaignHref(pack: PackRow) {
-  return `/updates?action=campaign&groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
+  return `/updates/new?groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
 }
 
 function getGroupHref(pack: PackRow) {
@@ -432,6 +432,8 @@ export default function PackageInventoryPage() {
   const { backend } = useUpdatesCapabilities();
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState<string>('all');
+  // Same three buckets as the rollup above: built / not built (draft, or no status) / build failed.
+  const [statusFilter, setStatusFilter] = useState<'all' | 'built' | 'not-built' | 'build_failed'>('all');
   const [packToVersion, setPackToVersion] = useState<PackForVersioning | null>(null);
   const [packToDelete, setPackToDelete] = useState<PackRow | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -531,6 +533,11 @@ export default function PackageInventoryPage() {
     const result = packs
       .filter((p) => groupFilter === 'all' || (groupFilter === ORPHANED_FILTER ? p.orphaned : p.groupId === groupFilter))
       .filter((p) => {
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'not-built') return p.status !== 'built' && p.status !== 'build_failed';
+        return p.status === statusFilter;
+      })
+      .filter((p) => {
         const q = search.trim().toLowerCase();
         if (!q) return true;
         return (
@@ -567,7 +574,7 @@ export default function PackageInventoryPage() {
 
       return sortConfig.direction === 'asc' ? comparison : comparison * -1;
     });
-  }, [packs, groupFilter, search, sortConfig]);
+  }, [packs, groupFilter, statusFilter, search, sortConfig]);
 
   const handleColumnToggle = (columnId: string) => {
     if (columnId === 'name') return;
@@ -632,7 +639,7 @@ export default function PackageInventoryPage() {
           )}
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[230px_minmax(240px,1fr)]">
+            <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[230px_180px_minmax(240px,1fr)]">
               <Select value={groupFilter} onValueChange={setGroupFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Device Groups" />
@@ -645,6 +652,18 @@ export default function PackageInventoryPage() {
                   {availableDms.map((dms) => (
                     <SelectItem key={dms.id} value={dms.id}>{dms.name}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="built">Built ({totals.built})</SelectItem>
+                  <SelectItem value="not-built">Not built ({totals.notBuilt})</SelectItem>
+                  <SelectItem value="build_failed">Build failed ({totals.buildFailed})</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -713,9 +732,9 @@ export default function PackageInventoryPage() {
             <div className="mt-6 rounded-lg border-2 border-dashed bg-muted/20 p-8 text-center">
               <h3 className="text-lg font-semibold text-muted-foreground">No Distribution Sets Found</h3>
               <p className="text-sm text-muted-foreground">
-                {search || groupFilter !== 'all' ? 'No packs match your filters.' : 'Create a distribution set to get started.'}
+                {search || groupFilter !== 'all' || statusFilter !== 'all' ? 'No packs match your filters.' : 'Create a distribution set to get started.'}
               </p>
-              {!search && groupFilter === 'all' && (
+              {!search && groupFilter === 'all' && statusFilter === 'all' && (
                 <Button onClick={goToCreate} className="mt-4">
                   <PackagePlus className="mr-2 h-4 w-4" />
                   New Distribution Set
