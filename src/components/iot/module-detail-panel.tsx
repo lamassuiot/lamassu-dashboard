@@ -495,13 +495,6 @@ export function ModuleDetailPanel({
             </div>
           ) : (
           <>
-          {onAddToSet && (
-            <div className="mb-3 flex justify-end">
-              <Button variant="outline" size="sm" onClick={onAddToSet}>
-                <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set
-              </Button>
-            </div>
-          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -571,6 +564,15 @@ export function ModuleDetailPanel({
               </TableBody>
             </Table>
           </div>
+          {/* Under the last row, where the next set would go: the list reads as "these sets, plus
+              one more", not as a toolbar for the table above it. */}
+          {onAddToSet && (
+            <div className="mt-2 px-3">
+              <Button variant="ghost" size="sm" className="-ml-2 text-primary" onClick={onAddToSet}>
+                <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set
+              </Button>
+            </div>
+          )}
           </>
           )}
           {module.shared && setUses.length > 1 && (
