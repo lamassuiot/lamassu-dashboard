@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, CircleDashed, ChevronDown, ChevronRight, ExternalLink, GitBranchPlus, Layers, MoreVertical, Package, Plus, RefreshCw, Search, Trash2, Upload, Lock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleDashed, ChevronDown, ChevronRight, ExternalLink, GitBranchPlus, Layers, MoreVertical, Package, PackagePlus, Plus, RefreshCw, Search, Trash2, Upload, Lock } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,7 +44,7 @@ import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { useDms } from '@/contexts/DmsContext';
 import { ModuleFileSheet } from '@/components/iot/module-file-sheet';
 import { DELIVERY_LABELS } from '@/components/iot/module-files';
-import { deleteSoftwareModule, fetchAllSoftwareModules, fetchAllUpdatePacks, removeSoftwareModule } from '@/lib/iot-api';
+import { deleteSoftwareModule, fetchAllSoftwareModules, fetchAllUpdatePacks, importSoftwareModule, removeSoftwareModule } from '@/lib/iot-api';
 import { moduleRemovalBlockedReason } from '@/components/iot/module-removal';
 import type { ReusableSoftwareModule, SoftwareModule } from '@/types/iot';
 
@@ -253,6 +254,13 @@ export default function SoftwareModulesCatalogPage() {
     }
     return moduleRemovalBlockedReason({ type: use.type, locked: use.locked, packIsBuilt: pack.built, backend });
   }, [packState, backend]);
+
+  // --- Adding a module to a distribution set, from the module's side ---
+  //
+  // The composition endpoint is set-scoped (POST …/distribution-sets/:name/modules/import), so this is
+  // the same import the set's own software modules tab does, driven from the other end: pick the module
+  // here, then the set that should hold it.
+  const [addToSet, setAddToSet] = useState<{ key: string; uses: ReusableSoftwareModule[] } | null>(null);
 
   const [removeTarget, setRemoveTarget] = useState<ReusableSoftwareModule | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -676,6 +684,7 @@ export default function SoftwareModulesCatalogPage() {
                           module: use,
                         })
                       }
+                      onAddToSet={() => setAddToSet({ key: g.key, uses: g.uses })}
                     />
                   </TableCell>
                 </TableRow>
@@ -709,12 +718,22 @@ export default function SoftwareModulesCatalogPage() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        To compose a distribution set from one of these, open the set in the{' '}
+        To compose a distribution set from these modules, use <span className="font-medium">Add to distribution set…</span> in a
+        module's menu, or open the set in the{' '}
         <Link href="/package-inventory" className="underline">
           Distribution Set
         </Link>{' '}
-        view and use its software modules card — importing is done against a target set.
+        view and use its software modules card.
       </p>
+
+      <AddToSetDialog
+        target={addToSet}
+        sets={packState}
+        groupNames={groupNames}
+        shared={backend === 'hawkbit'}
+        onOpenChange={(o) => { if (!o) setAddToSet(null); }}
+        onDone={() => { setAddToSet(null); load(); }}
+      />
 
       {/* The same sheet the distribution set's own tab opens, so "add files to a module" is one form
           with one set of rules, wherever it is reached from. */}
@@ -811,6 +830,7 @@ function ModuleRowActions({
   onDelete,
   onNewVersion,
   onAddFiles,
+  onAddToSet,
 }: {
   moduleKey: string;
   uses: ReusableSoftwareModule[];
@@ -825,6 +845,8 @@ function ModuleRowActions({
   /** Release a new version of this module — the only way to change what a built version delivers. */
   onNewVersion: (use: ReusableSoftwareModule) => void;
   onAddFiles: (use: ReusableSoftwareModule) => void;
+  /** Compose this module into a distribution set chosen in a dialog. */
+  onAddToSet: () => void;
 }) {
   const composed = uses.filter((u) => u.source_distribution_set_name);
   const addable = uses.filter((u) => (u.id || u.source_distribution_set_name) && !u.locked && !(u.built && !perModuleDeliverables && !u.id));
@@ -881,6 +903,10 @@ function ModuleRowActions({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )}
+
+        <DropdownMenuItem onClick={onAddToSet}>
+          <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set…
+        </DropdownMenuItem>
 
         {/* The counterpart to Add artifact: where a version is finished (built, or shipped and
             therefore locked) its files cannot change, and a new version is the way forward. Offered
@@ -956,5 +982,165 @@ function ModuleRowActions({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Adds one module to a distribution set — the import the set's own software modules tab performs,
+ * started from the module instead.
+ *
+ * A set's composition is per VERSION and only its CURRENT version can change, so the targets are the
+ * sets' current versions (what `sets` holds). Sets that already compose this module are left out; the
+ * backend refuses the rest that cannot take it (a built or locked version), and says why.
+ *
+ * What the import MEANS differs by backend, so the dialog says which one applies: hawkBit links (both
+ * sets share one module and its files), native copies (the two are independent from then on).
+ */
+function AddToSetDialog({
+  target,
+  sets,
+  groupNames,
+  shared,
+  onOpenChange,
+  onDone,
+}: {
+  target: { key: string; uses: ReusableSoftwareModule[] } | null;
+  /** `${groupId}::${setName}` -> the set's current version and build state. */
+  sets: Map<string, { version: string; built: boolean }>;
+  groupNames: Map<string, string>;
+  shared: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
+}) {
+  const [setKey, setSetKey] = useState('');
+  const [versionKey, setVersionKey] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // One entry per module VERSION, newest first. Several uses can report the same version (the same
+  // module composed into more than one set), and importing from any of them is equivalent.
+  const versions = useMemo(() => {
+    const byVersion = new Map<string, ReusableSoftwareModule>();
+    for (const u of target?.uses ?? []) {
+      const have = byVersion.get(u.version);
+      // A catalog entry (carries an id) is the cleanest source; fall back to a composing set's copy.
+      if (!have || (!have.id && u.id)) byVersion.set(u.version, u);
+    }
+    return [...byVersion.values()].sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }));
+  }, [target]);
+
+  const composedIn = useMemo(
+    () => new Set((target?.uses ?? []).filter((u) => u.source_distribution_set_name).map((u) => `${u.source_group_id}::${u.source_distribution_set_name}`)),
+    [target],
+  );
+
+  const options = useMemo(
+    () =>
+      [...sets.entries()]
+        .filter(([k]) => !composedIn.has(k))
+        .map(([k, v]) => {
+          const [groupId, ...rest] = k.split('::');
+          const name = rest.join('::');
+          return { key: k, groupId, name, version: v.version, built: v.built, group: groupNames.get(groupId) ?? groupId };
+        })
+        .sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name)),
+    [sets, composedIn, groupNames],
+  );
+
+  // Reset on open so a previous choice never lingers into a different module.
+  useEffect(() => {
+    if (target) {
+      setSetKey('');
+      setVersionKey(versions[0]?.version ?? '');
+    }
+  }, [target, versions]);
+
+  const chosen = options.find((o) => o.key === setKey);
+  const source = versions.find((v) => v.version === versionKey);
+
+  const submit = async () => {
+    if (!target || !chosen || !source) return;
+    setSaving(true);
+    try {
+      await importSoftwareModule({
+        groupId: chosen.groupId,
+        packName: chosen.name,
+        source: {
+          ...(source.id && !source.source_distribution_set_name ? { source_module_id: source.id } : {}),
+          source_group_id: source.source_group_id,
+          source_distribution_set_name: source.source_distribution_set_name,
+          source_distribution_set_version: source.source_distribution_set_version,
+          module_key: source.key,
+        },
+      });
+      toast({
+        title: shared ? 'Software module linked' : 'Software module added',
+        description: `${target.key} v${source.version} is now part of ${chosen.name} v${chosen.version}.`,
+      });
+      onDone();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Could not add the module to the distribution set', description: err?.message ?? String(err) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={target !== null} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add to a distribution set</DialogTitle>
+          <DialogDescription>
+            {target ? <span className="font-medium text-foreground">{target.key}</span> : null}
+            {shared
+              ? ' is linked: the set and this module share one copy of its files, so a rebuild or a change is seen by both.'
+              : ' is copied into the set with its file links, so nothing is re-uploaded and the two are independent afterwards.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {versions.length > 1 && (
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Module version</p>
+              <Select value={versionKey} onValueChange={setVersionKey}>
+                <SelectTrigger><SelectValue placeholder="Select a version" /></SelectTrigger>
+                <SelectContent>
+                  {versions.map((v) => <SelectItem key={v.version} value={v.version}>v{v.version}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Distribution set</p>
+            {options.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {sets.size === 0 ? 'No distribution sets found.' : 'Every distribution set already holds this module.'}
+              </p>
+            ) : (
+              <Select value={setKey} onValueChange={setSetKey}>
+                <SelectTrigger><SelectValue placeholder="Select a distribution set" /></SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => (
+                    <SelectItem key={o.key} value={o.key}>
+                      {o.group} · {o.name} v{o.version}{o.built ? ' (built)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Only a set's current version can change, and a built or locked version will refuse it.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={submit} disabled={!chosen || !source || saving}>
+            {saving ? 'Adding…' : 'Add to set'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
