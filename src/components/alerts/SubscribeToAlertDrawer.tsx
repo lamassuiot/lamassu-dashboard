@@ -257,9 +257,12 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
     if (filterType !== 'JAVASCRIPT' || !jsFunction.trim()) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      void checkJsFilterSyntax(jsFunction).then(error => {
-        if (!cancelled) setJsSyntaxCheck({ source: jsFunction, error });
-      });
+      // A failed check must still settle, otherwise the submit button would stay disabled.
+      void checkJsFilterSyntax(jsFunction)
+        .catch(() => null)
+        .then(error => {
+          if (!cancelled) setJsSyntaxCheck({ source: jsFunction, error });
+        });
     }, 200);
     return () => {
       cancelled = true;
