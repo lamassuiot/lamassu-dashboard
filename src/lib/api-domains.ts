@@ -5,13 +5,13 @@ const getApiBaseUrl = (): string => {
     if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_API) {
         return (window as any).lamassuConfig.LAMASSU_API;
     }
-    // 2. Fallback to the Next.js public environment variable
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-        console.log('Using NEXT_PUBLIC_API_BASE_URL from environment variables');
-        return process.env.NEXT_PUBLIC_API_BASE_URL;
+    // 2. Fallback to the Vite build-time environment variable
+    if (import.meta.env.VITE_API_BASE_URL) {
+        console.log('Using VITE_API_BASE_URL from environment variables');
+        return import.meta.env.VITE_API_BASE_URL;
     }
     // 3. Return an empty string if no configuration is found
-    console.warn('No API base URL configured. Please set LAMASSU_API in config.js or NEXT_PUBLIC_API_BASE_URL in environment variables.');
+    console.warn('No API base URL configured. Please set LAMASSU_API in config.js or VITE_API_BASE_URL in environment variables.');
     return '';
 };
 

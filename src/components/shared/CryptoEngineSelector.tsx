@@ -143,7 +143,7 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({
   return (
     <DropdownMenu open={open} onOpenChange={disabled ? undefined : setOpen}>
       <DropdownMenuTrigger asChild>
-        {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
+        { }
         <button
           type="button"
           id={id}

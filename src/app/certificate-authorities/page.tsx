@@ -2,13 +2,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Table2, UploadCloud } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Input } from '@/components/ui/input';

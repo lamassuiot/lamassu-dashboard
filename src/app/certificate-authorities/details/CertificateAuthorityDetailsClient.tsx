@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Ban, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ShieldCheck, RefreshCw, Shield } from "lucide-react";
 import { Badge, type BadgeVariant } from '@/components/ui/badge';

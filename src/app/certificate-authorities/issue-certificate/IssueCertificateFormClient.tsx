@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, CheckCircle2, Download as DownloadIcon, X as XIcon, KeyRound, FileText, ChevronRight, UploadCloud } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, CheckCircle2, Download as DownloadIcon, X as XIcon, KeyRound, FileText, UploadCloud } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
@@ -24,6 +24,7 @@ import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/l
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/shared/Stepper';
+import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
 import { formatISO, add, parseISO, isAfter, type Duration } from 'date-fns';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
@@ -65,18 +66,25 @@ const parseDurationString = (durationStr: string): Duration => {
 
 const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
-const issuanceModes = [
+const issuanceModeGroups: MethodOptionGroup[] = [
   {
-    id: 'generate' as const,
-    title: 'Generate Key & CSR In Browser',
-    description: 'Generate a new cryptographic key pair and Certificate Signing Request (CSR) directly in your browser. The private key is never sent to the server.',
-    icon: <KeyRound className="h-5 w-5" />,
-  },
-  {
-    id: 'upload' as const,
-    title: 'Upload Existing CSR',
-    description: 'Provide a Certificate Signing Request (CSR) you have already generated externally. The private key remains under your control.',
-    icon: <UploadCloud className="h-5 w-5" />,
+    id: 'request',
+    label: 'Certificate Request',
+    description: 'Where the Certificate Signing Request (CSR) comes from.',
+    options: [
+      {
+        id: 'generate',
+        title: 'Generate Key & CSR In Browser',
+        description: 'Generate a new cryptographic key pair and Certificate Signing Request (CSR) directly in your browser. The private key is never sent to the server.',
+        icon: KeyRound,
+      },
+      {
+        id: 'upload',
+        title: 'Upload Existing CSR',
+        description: 'Provide a Certificate Signing Request (CSR) you have already generated externally. The private key remains under your control.',
+        icon: UploadCloud,
+      },
+    ],
   },
 ];
 
@@ -518,123 +526,28 @@ export default function IssueCertificateFormClient() {
   // --- Mode selection screen ---
   if (!issuanceModeSelected) {
     return (
-      <div className="w-full flex flex-col gap-8 mb-12">
-        <Button
-          variant="ghost"
-         
-          className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
-          onClick={() => router.back()}
-        >
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Back to Certification Authority
-        </Button>
-
-        <div className="flex flex-col items-center gap-10 py-4">
-          {/* Header */}
-          <div className="text-center space-y-3 max-w-md">
-            <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-              Certificate Issuance
-            </p>
-            <h1 className="text-3xl font-headline font-bold tracking-tight">
-              Issue New Certificate
-            </h1>
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <span>Issuing from</span>
-              {isLoadingCa ? (
-                <Skeleton className="h-5 w-28 inline-block rounded" />
-              ) : (
-                <code className="font-mono text-foreground/90 bg-muted border border-border/60 rounded px-2 py-0.5 text-xs">
-                  {issuerCa?.name || caId.substring(0, 12) + '…'}
-                </code>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              How would you like to provide the certificate request?
-            </p>
+      <MethodChooser
+        title="Issue New Certificate"
+        description={
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Issuing from</span>
+            {isLoadingCa ? (
+              <Skeleton className="h-5 w-28 inline-block rounded" />
+            ) : (
+              <code className="font-mono text-foreground/90 bg-muted border border-border/60 rounded px-2 py-0.5 text-xs">
+                {issuerCa?.name || caId.substring(0, 12) + '…'}
+              </code>
+            )}
           </div>
-
-          {/* Option cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
-            {issuanceModes.map((mode, i) => {
-              const isSelected = issuanceMode === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setIssuanceMode(mode.id)}
-                  className={cn(
-                    "group relative flex flex-col gap-6 rounded-xl border-2 p-7 text-left",
-                    "transition-all duration-200 outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    isSelected
-                      ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
-                      : "border-border bg-card hover:border-primary/35 hover:bg-muted/20 hover:shadow-sm"
-                  )}
-                >
-                  {/* Number + check indicator */}
-                  <div className="flex items-center justify-between">
-                    <span className={cn(
-                      "font-mono text-[11px] font-bold tracking-widest transition-colors",
-                      isSelected ? "text-primary" : "text-muted-foreground/50"
-                    )}>
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <div className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200",
-                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/25"
-                    )}>
-                      {isSelected && (
-                        <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="shrink-0">
-                          <path d="M1 3L3.5 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Icon */}
-                  <div className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-xl border transition-all duration-200",
-                    isSelected
-                      ? "border-primary/20 bg-primary/10"
-                      : "border-border bg-muted/50 group-hover:border-primary/20 group-hover:bg-primary/5"
-                  )}>
-                    {React.cloneElement(mode.icon as React.ReactElement<{ className?: string }>, {
-                      className: cn(
-                        "h-6 w-6 transition-colors duration-200",
-                        isSelected ? "text-primary" : "text-muted-foreground group-hover:text-primary/70"
-                      ),
-                    })}
-                  </div>
-
-                  {/* Text */}
-                  <div className="space-y-2">
-                    <p className={cn(
-                      "font-semibold text-sm leading-snug transition-colors",
-                      isSelected ? "text-foreground" : "text-foreground/80"
-                    )}>
-                      {mode.title}
-                    </p>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {mode.description}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Continue */}
-          <Button
-            type="button"
-           
-            onClick={() => setIssuanceModeSelected(true)}
-            className="min-w-[140px]"
-          >
-            Continue
-            <ChevronRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+        groups={issuanceModeGroups}
+        onSelect={(id) => {
+          setIssuanceMode(id as 'generate' | 'upload');
+          setIssuanceModeSelected(true);
+        }}
+        back={{ label: 'Back to Certification Authority', onClick: () => router.back() }}
+        ariaLabel="Certificate request source"
+      />
     );
   }
 

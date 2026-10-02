@@ -194,10 +194,12 @@ The `Tabs` primitive is still the base, but the visual treatment should match th
 
 For "choose a creation method" screens, use a single selection card with stacked rows.
 
-Reference implementations:
+Use the shared `MethodChooser` (`src/components/shared/MethodChooser.tsx`) instead of building rows by hand. It is used by:
 
 - `src/app/kms/keys/new/page.tsx`
 - `src/app/certificate-authorities/new/page.tsx`
+- `src/app/signing-profiles/new/page.tsx`
+- `src/app/certificate-authorities/issue-certificate/IssueCertificateFormClient.tsx`
 
 Pattern:
 
@@ -206,7 +208,9 @@ Pattern:
 - each option is a row, not a mini landing card
 - icon left, text center, chevron right
 - optional badge for subtype or availability
-- selection or navigation happens on click
+- selection or navigation happens on click, so there is no radio button and no separate Continue button
+- option groups are a labelled divider row inside the same panel, not separate cards
+- disabled options stay in the list, muted, with a badge that explains why
 
 Avoid three promotional cards with duplicate buttons.
 
@@ -403,11 +407,7 @@ Use or extend:
 
 ## Current duplication risks
 
-These patterns still deserve attention because they recur in multiple places:
-
-- chooser rows are implemented more than once
-
-If you need one of these, prefer copying the existing pattern exactly or extracting a shared component instead of making a third variant.
+No duplicated patterns are currently tracked. If you notice one recurring in multiple places, prefer extracting a shared component over making a third variant.
 
 ## Recommended next extractions
 
@@ -415,8 +415,6 @@ These would reduce future drift:
 
 1. `DetailTabs`
    - one shared visual treatment for underline-style detail navigation
-2. `CreationMethodChooser`
-   - one shared row-based chooser used by KMS and CA flows
 
 ## Definition of done for new UI
 

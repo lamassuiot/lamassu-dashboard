@@ -1,5 +1,5 @@
 import React from 'react';
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import { Blocks } from 'lucide-react';
 import type { DiscoveredIntegration } from '@/lib/integrations-api';
 import AwsIcon from '@/app/aws.svg';

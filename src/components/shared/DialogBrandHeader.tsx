@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import { DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';

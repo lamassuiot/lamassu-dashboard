@@ -1,6 +1,6 @@
 
 import React, { Suspense } from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Loader2 } from 'lucide-react';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 

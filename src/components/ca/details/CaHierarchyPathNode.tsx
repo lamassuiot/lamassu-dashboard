@@ -6,7 +6,7 @@ import type { CA } from '@/lib/ca-data';
 import { Clock, CheckCircle, XCircle, ChevronDown, Landmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 

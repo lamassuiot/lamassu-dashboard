@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
