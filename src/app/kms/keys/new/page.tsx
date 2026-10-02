@@ -10,9 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, KeyRound, UploadCloud, FileText, PlusCircle, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey, importKmsKey } from '@/lib/kms-data';
@@ -23,6 +22,7 @@ import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
 
 const NEW_KEY_CRUMBS = [
   { label: 'Home', href: '/' },
@@ -36,27 +36,45 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   loading: () => <div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin"/></div>
 });
 
-const creationModes = [
+const creationModeGroups: MethodOptionGroup[] = [
   {
-    id: 'newKeyPair',
-    title: 'Create New Key Pair',
-    description: 'Generate a new cryptographic key pair (public and private key) securely managed by LamassuIoT.',
-    icon: <KeyRound className="h-8 w-8 text-primary" />,
+    id: 'create',
+    label: 'Create',
+    description: 'Generate a new key pair inside a crypto engine.',
+    options: [
+      {
+        id: 'newKeyPair',
+        title: 'Create New Key Pair',
+        description: 'Generate a new cryptographic key pair (public and private key) securely managed by LamassuIoT.',
+        icon: KeyRound,
+        badge: { label: 'Recommended', variant: 'default' },
+      },
+    ],
   },
   {
-    id: 'importKeyPair',
-    title: 'Import Existing Key Pair',
-    description: "Import an existing key pair (both public and private key components) from an external source.",
-    icon: <UploadCloud className="h-8 w-8 text-primary" />,
-  },
-  {
-    id: 'importPublicKey',
-    title: 'Import Public Key Only',
-    description: 'Import an existing public key for verification or trust purposes. The private key will not be managed.',
-    icon: <FileText className="h-8 w-8 text-primary" />,
-    badge: 'Coming Soon',
+    id: 'import',
+    label: 'Import',
+    description: 'Bring a key that was generated outside of Lamassu.',
+    options: [
+      {
+        id: 'importKeyPair',
+        title: 'Import Existing Key Pair',
+        description: 'Import an existing key pair (both public and private key components) from an external source.',
+        icon: UploadCloud,
+      },
+      {
+        id: 'importPublicKey',
+        title: 'Import Public Key Only',
+        description: 'Import an existing public key for verification or trust purposes. The private key will not be managed.',
+        icon: FileText,
+        badge: { label: 'Coming Soon' },
+        disabled: true,
+      },
+    ],
   },
 ];
+
+const creationModes = creationModeGroups.flatMap(g => g.options);
 
 export default function CreateKmsKeyPage() {
   const monacoTheme = useMonacoTheme();
@@ -298,135 +316,16 @@ export default function CreateKmsKeyPage() {
 
   if (!selectedMode) {
     return (
-      <BreadcrumbPage className="flex flex-col gap-8 mb-12" items={NEW_KEY_CRUMBS}>
-        <Button
-          variant="ghost"
-         
-          className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
-          onClick={() => router.push('/kms/keys')}
-        >
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Back to KMS Keys
-        </Button>
-
-        <div className="flex flex-col items-center gap-10 py-4">
-          {/* Header */}
-          <div className="text-center space-y-3 max-w-md">
-            <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-              Key Management
-            </p>
-            <h1 className="text-3xl font-headline font-bold tracking-tight">
-              Add Cryptographic Key
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Select how you want to create or import your cryptographic key.
-            </p>
-          </div>
-
-          {/* Option cards — single row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-7xl">
-            {creationModes.map((mode, i) => {
-              const isDisabled = !!mode.badge;
-              const isSelected = pendingMode === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => !isDisabled && setPendingMode(mode.id)}
-                  className={cn(
-                    "group relative flex flex-col gap-6 rounded-xl border-2 p-8 text-left",
-                    "transition-all duration-200 outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    isDisabled
-                      ? "cursor-not-allowed border-border bg-muted/20 opacity-60"
-                      : isSelected
-                        ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
-                        : "border-border bg-card hover:border-primary/35 hover:bg-muted/20 hover:shadow-sm"
-                  )}
-                >
-                  {/* Number + check indicator */}
-                  <div className="flex items-center justify-between">
-                    <span className={cn(
-                      "font-mono text-[11px] font-bold tracking-widest transition-colors",
-                      isDisabled ? "text-muted-foreground/30" : isSelected ? "text-primary" : "text-muted-foreground/50"
-                    )}>
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    {isDisabled ? (
-                      <Badge variant="secondary">
-                        {mode.badge}
-                      </Badge>
-                    ) : (
-                      <div className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200",
-                        isSelected ? "border-primary bg-primary" : "border-muted-foreground/25"
-                      )}>
-                        {isSelected && (
-                          <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="shrink-0">
-                            <path d="M1 3L3.5 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Icon */}
-                  <div className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-xl border transition-all duration-200",
-                    isDisabled
-                      ? "border-border bg-muted/50"
-                      : isSelected
-                        ? "border-primary/20 bg-primary/10"
-                        : "border-border bg-muted/50 group-hover:border-primary/20 group-hover:bg-primary/5"
-                  )}>
-                    {React.cloneElement(mode.icon as React.ReactElement<{ className?: string }>, {
-                      className: cn(
-                        "h-6 w-6 transition-colors duration-200",
-                        isDisabled
-                          ? "text-muted-foreground/40"
-                          : isSelected
-                            ? "text-primary"
-                            : "text-muted-foreground group-hover:text-primary/70"
-                      ),
-                    })}
-                  </div>
-
-                  {/* Text */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <p className={cn(
-                        "font-semibold text-sm leading-snug transition-colors",
-                        isDisabled ? "text-muted-foreground/50" : isSelected ? "text-foreground" : "text-foreground/80"
-                      )}>
-                        {mode.title}
-                      </p>
-                      {i === 0 && (
-                        <Badge>
-                          Recommended
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {mode.description}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Continue */}
-          <Button
-            type="button"
-           
-            onClick={() => setSelectedMode(pendingMode)}
-            className="min-w-[140px]"
-          >
-            Continue
-            <ChevronRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
+      <BreadcrumbPage className="space-y-5 pb-8" items={NEW_KEY_CRUMBS}>
+        <MethodChooser
+          title="Add Cryptographic Key"
+          description="Choose how you want to create or import your cryptographic key."
+          groups={creationModeGroups}
+          value={pendingMode}
+          onValueChange={setPendingMode}
+          onContinue={() => setSelectedMode(pendingMode)}
+          back={{ label: 'Back to KMS Keys', onClick: () => router.push('/kms/keys') }}
+        />
       </BreadcrumbPage>
     );
   }
