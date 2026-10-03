@@ -69,12 +69,32 @@ const ICON_CATEGORIES: Record<string, (keyof typeof LucideIcons)[]> = {
   'Health & Science': [
     'Stethoscope', 'Syringe', 'Pill', 'Microscope', 'FlaskConical', 'Atom', 'Orbit', 'Telescope', 'Brain', 'Dna',
   ],
+  'Identity & Cards': [
+    'IdCard', 'CreditCard', 'WalletCards', 'Contact', 'ContactRound', 'SquareUser', 'SquareUserRound', 'CircleUser',
+    'CircleUserRound', 'UserRound', 'UserCheck', 'UserRoundCheck', 'UserCog', 'Users', 'UsersRound', 'BookUser', 'FileUser',
+    'FileBadge', 'FileBadge2', 'Badge', 'BadgeCheck', 'BadgeInfo', 'Stamp', 'Signature', 'Fingerprint', 'ScanFace',
+    'ScanLine', 'ScanQrCode', 'Nfc', 'KeyRound', 'RectangleEllipsis',
+  ],
+  'Apps & Software': [
+    'AppWindow', 'AppWindowMac', 'LayoutGrid', 'LayoutDashboard', 'LayoutTemplate', 'PanelsTopLeft', 'Grid2x2', 'Grid3x3',
+    'Blocks', 'Puzzle', 'Component', 'Layers', 'SquareStack', 'Package2', 'SquareTerminal', 'Code', 'CodeXml', 'SquareCode',
+    'FileCode', 'FileJson', 'MessageCircle', 'MessagesSquare', 'Mail', 'Inbox', 'Phone', 'Calendar', 'CalendarDays',
+    'Clock', 'AlarmClock', 'Music', 'CirclePlay', 'Folder', 'FileText', 'NotebookPen', 'Calculator', 'ChartPie',
+    'ChartLine', 'SquareKanban', 'ListTodo', 'Search', 'Download', 'Settings', 'CloudCog', 'Sparkles', 'BrainCircuit',
+    'BotMessageSquare', 'TabletSmartphone',
+  ],
+  'EV Charging': [
+    'PlugZap', 'PlugZap2', 'BatteryCharging', 'BatteryMedium', 'BatteryFull', 'Cable', 'Plug', 'Plug2', 'Unplug', 'Zap',
+    'ZapOff', 'Bolt', 'Power', 'Fuel', 'UtilityPole', 'CircleGauge', 'Gauge', 'Car', 'CarFront', 'CarTaxiFront',
+    'BusFront', 'Bike', 'Leaf',
+  ],
   'Commerce & Misc': [
     'ShoppingBag', 'ShoppingCart', 'Wallet', 'Banknote', 'Coins', 'Ticket', 'Tag', 'QrCode', 'Barcode', 'MessageSquare',
     'User', 'LifeBuoy', 'BarChart2', 'ToyBrick', 'Trophy', 'AlertTriangle', 'Trash2', 'HelpCircle', 'Bug', 'Footprints',
   ],
 };
 
+// "All" lists each icon once, even when several categories include it.
 const AVAILABLE_ICONS: IconDefinition[] = (() => {
   const seen = new Set<string>();
   const result: IconDefinition[] = [];
@@ -88,6 +108,7 @@ const AVAILABLE_ICONS: IconDefinition[] = (() => {
   }
   return result;
 })();
+const ICONS_BY_NAME = new Map(AVAILABLE_ICONS.map(icon => [icon.name as string, icon]));
 
 const ALL_CATEGORIES = 'All';
 const CATEGORY_NAMES = [ALL_CATEGORIES, ...Object.keys(ICON_CATEGORIES)];
@@ -154,7 +175,7 @@ const REACT_ICONS_TO_LUCIDE_MAP: { [key: string]: keyof typeof LucideIcons } = {
   "BiSolidCreditCardFront": 'CreditCard',
   "BsSdCard": 'MemoryStick',
   "IoMdCar": 'Car',
-  "AiOutlineIdcard": 'Badge',
+  "AiOutlineIdcard": 'IdCard',
   "GiElectric": 'Zap',
   "BsHouse": 'Home',
   "BsHouseGear": 'Settings2',
@@ -254,9 +275,12 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
 
   const filteredIcons = React.useMemo(() => {
     const query = search.trim().toLowerCase();
-    return AVAILABLE_ICONS.filter(
+    // A category lists its icons in curated order, not in the order they were first registered.
+    const pool = category === ALL_CATEGORIES
+      ? AVAILABLE_ICONS
+      : ICON_CATEGORIES[category].flatMap(name => ICONS_BY_NAME.get(name) ?? []);
+    return pool.filter(
       (icon) =>
-        (category === ALL_CATEGORIES || icon.category === category) &&
         (!query || icon.name.toLowerCase().includes(query))
     );
   }, [search, category]);
@@ -271,9 +295,10 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
           <DialogDescription>Choose an icon that best represents the device type.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row gap-4">
+        {/* Below lg the whole body scrolls, so its children must not shrink (they would collapse to zero height). */}
+        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 lg:flex-row lg:overflow-hidden">
           {/* Icon browser */}
-          <div className="flex flex-col gap-3 min-h-0 lg:flex-1 lg:min-w-0">
+          <div className="flex shrink-0 flex-col gap-3 lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink">
             <div className="relative">
               <LucideIcons.Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -284,32 +309,34 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
                 aria-label="Search icons"
               />
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            {/* One swipeable row on small screens; wraps once there is room. */}
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin] md:flex-wrap md:overflow-visible md:pb-0">
               {CATEGORY_NAMES.map((name) => (
                 <Button
                   key={name}
                   type="button"
                   size="sm"
                   variant={category === name ? 'default' : 'outline'}
-                  className="h-7 px-2.5 text-xs"
+                  aria-pressed={category === name}
+                  className="h-7 shrink-0 px-2.5 text-xs"
                   onClick={() => setCategory(name)}
                 >
                   {name}
                 </Button>
               ))}
             </div>
-            <div className="border rounded-md lg:flex-1 lg:min-h-0 lg:overflow-y-auto max-h-[45vh] lg:max-h-none overflow-y-auto">
+            <div className="h-[40vh] overflow-y-auto rounded-md border sm:h-[45vh] lg:h-auto lg:min-h-0 lg:flex-1">
               {filteredIcons.length === 0 ? (
                 <p className="p-6 text-center text-sm text-muted-foreground">No icons match your search.</p>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2 p-3">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-2 p-2 sm:grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] sm:p-3">
                   {filteredIcons.map(({ name, IconComponent }) => (
                     <Button
                       key={name}
                       type="button"
                       variant="secondary"
                       className={cn(
-                        "flex flex-col items-center justify-center h-20 p-2 gap-1 text-center transition-colors",
+                        "flex h-16 flex-col items-center justify-center gap-1 p-1.5 text-center transition-colors sm:h-20 sm:p-2",
                         currentSelectedIconName === name && "ring-2 ring-primary ring-offset-2"
                       )}
                       onClick={() => handleSelect(name)}
@@ -317,7 +344,7 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
                       aria-pressed={currentSelectedIconName === name}
                       style={{ backgroundColor: initialBgColor }}
                     >
-                      <IconComponent className="h-7 w-7" style={{ color: initialIconColor }} />
+                      <IconComponent className="h-6 w-6 sm:h-7 sm:w-7" style={{ color: initialIconColor }} />
                       <span className="text-[11px] truncate w-full" style={{ color: initialIconColor }}>
                         {name}
                       </span>
@@ -330,57 +357,55 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
 
           {/* Preview + colors */}
           {onColorsChange && (
-            <aside className="lg:w-80 lg:shrink-0 lg:overflow-y-auto space-y-5 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+            <aside className="shrink-0 space-y-5 border-t pt-4 lg:w-80 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
               <div className="flex items-center gap-4">
                 <div
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border"
+                  className="flex size-14 shrink-0 items-center justify-center rounded-lg border sm:size-20"
                   style={{ backgroundColor: initialBgColor }}
                 >
-                  <PreviewIcon className="h-10 w-10" style={{ color: initialIconColor }} />
+                  <PreviewIcon className="size-7 sm:size-10" style={{ color: initialIconColor }} />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-muted-foreground">Selected icon</p>
                   <p className="text-sm font-medium truncate">{currentSelectedIconName || 'None'}</p>
                 </div>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <p className="text-sm font-medium">Customize Colors</p>
-                <Button type="button" variant="secondary" size="sm" onClick={handleInvert}>
+                <Button type="button" variant="secondary" size="sm" onClick={handleInvert} className="shrink-0" title="Swap icon and background colors">
                   <LucideIcons.ArrowLeftRight className="mr-2 h-4 w-4" />
                   Invert
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="modal-icon-color" className="font-semibold">Icon Color</Label>
-                <ColorPalette colors={ICON_PALETTE} onColorSelect={handleIconColorChange} title="Quick Select" />
-                <div className="flex items-center gap-2 pt-1">
-                  <Input
-                    id="modal-icon-color"
-                    type="color"
-                    value={initialIconColor}
-                    onChange={(e) => handleIconColorChange(e.target.value)}
-                    className="w-12 h-10 p-1"
-                    aria-label="Advanced icon color picker"
-                  />
-                  <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="space-y-2">
+                  <Label htmlFor="modal-icon-color" className="font-semibold">Icon Color</Label>
+                  <ColorPalette colors={ICON_PALETTE} onColorSelect={handleIconColorChange} title="Quick Select" />
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      id="modal-icon-color"
+                      type="color"
+                      value={initialIconColor}
+                      onChange={(e) => handleIconColorChange(e.target.value)}
+                      className="w-12 h-10 p-1"
+                      aria-label="Advanced icon color picker"
+                    />
+                    <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="modal-bg-color" className="font-semibold">Background Color</Label>
-                <ColorPalette colors={BG_PALETTE} onColorSelect={handleBgColorChange} title="Quick Select" />
-                <div className="flex items-center gap-2 pt-1">
-                  <Input
-                    id="modal-bg-color"
-                    type="color"
-                    value={initialBgColor}
-                    onChange={(e) => handleBgColorChange(e.target.value)}
-                    className="w-12 h-10 p-1"
-                    aria-label="Advanced background color picker"
-                  />
-                  <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="modal-bg-color" className="font-semibold">Background Color</Label>
+                  <ColorPalette colors={BG_PALETTE} onColorSelect={handleBgColorChange} title="Quick Select" />
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      id="modal-bg-color"
+                      type="color"
+                      value={initialBgColor}
+                      onChange={(e) => handleBgColorChange(e.target.value)}
+                      className="w-12 h-10 p-1"
+                      aria-label="Advanced background color picker"
+                    />
+                    <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
+                  </div>
                 </div>
               </div>
             </aside>

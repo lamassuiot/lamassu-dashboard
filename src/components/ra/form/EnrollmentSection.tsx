@@ -8,7 +8,7 @@ export function EnrollmentSection({ values, update, issues, deps }: RaSectionPro
   return (
     <RaFormSection
       id="enrollment"
-      title="Enrollment"
+      title="Authentication"
       description="How devices authenticate when requesting their first certificate."
       issues={listedIssues(issues, ['enrollmentAuth'])}
     >

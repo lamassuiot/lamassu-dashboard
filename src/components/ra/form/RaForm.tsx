@@ -41,21 +41,23 @@ import { EnrollmentSection } from './EnrollmentSection';
 import { IdentitySection } from './IdentitySection';
 import { IssuanceSection } from './IssuanceSection';
 import { KeygenSection } from './KeygenSection';
+import { ProtocolSection } from './ProtocolSection';
 import { RaFormHeader } from './RaFormHeader';
 import { ReenrollmentSection } from './ReenrollmentSection';
 import type { RaFormDependencies, RaSectionProps } from './types';
 
-/** EST settings shown as tabs; the remaining sections are always visible above them. */
+/** Protocol-specific settings shown as tabs; the remaining sections are always visible above them. */
 const enrollmentTabs = [
-  { id: 'enrollment', label: 'Enrollment' },
-  { id: 'reenrollment', label: 'Re-enrollment' },
-  { id: 'keygen', label: 'Server key generation' },
-  { id: 'distribution', label: 'CA distribution' },
-] as const satisfies ReadonlyArray<{ id: RaFormSectionId; label: string }>;
-type EnrollmentTabId = typeof enrollmentTabs[number]['id'];
+  { id: 'enrollment', label: 'Enrollment', sections: ['issuance', 'enrollment'] },
+  { id: 'reenrollment', label: 'Re-enrollment', sections: ['reenrollment'] },
+  { id: 'keygen', label: 'Server key generation', sections: ['keygen'] },
+  { id: 'distribution', label: 'CA distribution', sections: ['distribution'] },
+] as const satisfies ReadonlyArray<{ id: string; label: string; sections: readonly RaFormSectionId[] }>;
+type EnrollmentTab = typeof enrollmentTabs[number];
+type EnrollmentTabId = EnrollmentTab['id'];
 
-function isEnrollmentTab(section: RaFormSectionId): section is EnrollmentTabId {
-  return enrollmentTabs.some(tab => tab.id === section);
+function tabForSection(section: RaFormSectionId): EnrollmentTabId | undefined {
+  return enrollmentTabs.find(tab => (tab.sections as readonly RaFormSectionId[]).includes(section))?.id;
 }
 
 const inlineProfileDefaultValues: SigningProfileFormValues = { ...defaultFormValues, profileName: 'Inline Profile' };
@@ -181,8 +183,8 @@ export function RaForm({ raId }: { raId: string | null }) {
   const visibleIssues = allIssues.filter(issue => isIssueVisible(issue, submitAttempted, touched));
   const issuesFor = (section: RaFormSectionId) => visibleIssues.filter(issue => issue.section === section);
 
-  const countIssues = (section: RaFormSectionId) => {
-    const sectionIssues = issuesFor(section);
+  const countIssues = (tab: EnrollmentTab) => {
+    const sectionIssues = visibleIssues.filter(issue => (tab.sections as readonly RaFormSectionId[]).includes(issue.section));
     return {
       errors: sectionIssues.filter(issue => issue.severity === 'error').length,
       warnings: sectionIssues.filter(issue => issue.severity === 'warning').length,
@@ -190,7 +192,8 @@ export function RaForm({ raId }: { raId: string | null }) {
   };
 
   const goToSection = (section: RaFormSectionId) => {
-    if (isEnrollmentTab(section)) setActiveTab(section);
+    const tab = tabForSection(section);
+    if (tab) setActiveTab(tab);
     // Wait for the tab panel to mount before scrolling to it.
     requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
@@ -230,7 +233,7 @@ export function RaForm({ raId }: { raId: string | null }) {
 
   if (raLoadError) {
     return (
-      <Alert variant="destructive" className="mx-auto w-[80%]">
+      <Alert variant="destructive" className="mx-auto w-full lg:w-[80%]">
         <AlertTriangle className="size-4" />
         <AlertTitle>Could not load Registration Authority</AlertTitle>
         <AlertDescription>{raLoadError}</AlertDescription>
@@ -252,7 +255,7 @@ export function RaForm({ raId }: { raId: string | null }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="mx-auto w-[80%]">
+      <div className="mx-auto w-full lg:w-[80%]">
         <RaFormHeader values={values} isEditMode={isEditMode} enrollmentCaName={enrollmentCa?.name} onEditIcon={() => setIsIconModalOpen(true)} />
 
         {deps.error && (
@@ -267,25 +270,34 @@ export function RaForm({ raId }: { raId: string | null }) {
         )}
 
         <IdentitySection {...sectionProps('identity')} isEditMode={isEditMode} />
-        <IssuanceSection
-          {...sectionProps('issuance')}
-          inlineProfileForm={inlineProfileForm}
-          enrollmentCaDefaultProfile={enrollmentCaDefaultProfile}
-        />
         <DevicesSection {...sectionProps('devices')} onOpenIconPicker={() => setIsIconModalOpen(true)} />
+        <ProtocolSection {...sectionProps('protocol')} />
 
         <Tabs value={activeTab} onValueChange={tab => setActiveTab(tab as EnrollmentTabId)} className="w-full">
           <div className="overflow-x-auto overflow-y-hidden border-b bg-primary/5">
             <TabsList className={pageTabsListClass}>
               {enrollmentTabs.map(tab => (
-                <TabsTrigger key={tab.id} value={tab.id} className={pageTabsTriggerClass}>
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className={pageTabsTriggerClass}
+                  // The tab row scrolls sideways on narrow screens; keep the chosen tab fully visible.
+                  onFocus={event => event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+                >
                   {tab.label}
-                  <IssueMarker {...countIssues(tab.id)} />
+                  <IssueMarker {...countIssues(tab)} />
                 </TabsTrigger>
               ))}
             </TabsList>
           </div>
-          <TabsContent value="enrollment"><EnrollmentSection {...sectionProps('enrollment')} /></TabsContent>
+          <TabsContent value="enrollment">
+            <IssuanceSection
+              {...sectionProps('issuance')}
+              inlineProfileForm={inlineProfileForm}
+              enrollmentCaDefaultProfile={enrollmentCaDefaultProfile}
+            />
+            <EnrollmentSection {...sectionProps('enrollment')} />
+          </TabsContent>
           <TabsContent value="reenrollment"><ReenrollmentSection {...sectionProps('reenrollment')} effectiveProfile={effectiveProfile} /></TabsContent>
           <TabsContent value="keygen"><KeygenSection {...sectionProps('keygen')} /></TabsContent>
           <TabsContent value="distribution"><DistributionSection {...sectionProps('distribution')} /></TabsContent>
@@ -293,7 +305,7 @@ export function RaForm({ raId }: { raId: string | null }) {
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6">
-        <div className="mx-auto flex w-[80%] items-center justify-between gap-4">
+        <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 lg:w-[80%]">
           <FooterStatus
             errorCount={errorCount}
             pendingCount={allIssues.filter(issue => issue.severity === 'error').length}
@@ -302,7 +314,7 @@ export function RaForm({ raId }: { raId: string | null }) {
             firstErrorSection={visibleIssues.find(issue => issue.severity === 'error')?.section}
             isEditMode={isEditMode}
           />
-          <div className="flex shrink-0 gap-2">
+          <div className="ml-auto flex shrink-0 gap-2">
             <Button type="button" variant="secondary" onClick={() => router.back()} disabled={isSubmitting}>Cancel</Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}

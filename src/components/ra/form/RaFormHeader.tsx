@@ -5,7 +5,7 @@ import { KeyRound, Pencil, ShieldCheck } from 'lucide-react';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { Badge } from '@/components/ui/badge';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
-import type { RaFormValues } from '@/lib/ra-form';
+import { protocolLabels, type RaFormValues } from '@/lib/ra-form';
 import { cn } from '@/lib/utils';
 
 const authModeLabels: Record<ApiRaEstSettings['auth_mode'], string> = {
@@ -53,7 +53,7 @@ export function RaFormHeader({ values, isEditMode, enrollmentCaName, onEditIcon 
           {values.id && <code className="mt-1 inline-block rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">{values.id}</code>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Badge variant="secondary">EST · RFC 7030</Badge>
+          <Badge variant="secondary">{protocolLabels[values.protocol]}</Badge>
           <Badge variant="secondary">{values.registrationMode === 'JITP' ? 'JITP' : 'Pre-registration'}</Badge>
           <Badge variant="secondary">{authModeLabels[values.enrollmentAuth.auth_mode]}</Badge>
           {enrollmentCaName && <Badge variant="secondary"><ShieldCheck /> {enrollmentCaName}</Badge>}
