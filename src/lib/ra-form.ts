@@ -10,6 +10,10 @@ import {
 } from '@/lib/dms-form';
 
 export type RegistrationMode = 'JITP' | 'PRE_REGISTRATION';
+/** Enrollment protocols the RA can expose. EST is the only one the DMS supports today. */
+export const RA_PROTOCOLS = ['EST_RFC7030'] as const;
+export type RaProtocol = typeof RA_PROTOCOLS[number];
+export const protocolLabels: Record<RaProtocol, string> = { EST_RFC7030: 'EST · RFC 7030' };
 export type IssuanceProfileMode = 'default' | 'existing' | 'inline';
 export type ServerKeygenType = 'RSA' | 'ECDSA';
 
@@ -17,6 +21,7 @@ export interface RaFormValues {
   name: string;
   id: string;
   registrationMode: RegistrationMode;
+  protocol: RaProtocol;
   tags: string[];
   deviceMetadataJson: string;
   deviceIcon: { name: string | null; color: string; bgColor: string };
@@ -43,6 +48,7 @@ export const RA_FORM_SECTIONS = [
   'identity',
   'issuance',
   'devices',
+  'protocol',
   'enrollment',
   'reenrollment',
   'keygen',
@@ -119,6 +125,7 @@ export function createDefaultRaFormValues(hue = Math.floor(Math.random() * 360))
     name: '',
     id: '',
     registrationMode: 'JITP',
+    protocol: 'EST_RFC7030',
     tags: ['iot'],
     deviceMetadataJson: '{}',
     deviceIcon: { name: 'Router', color: hslToHex(hue, 80, 50), bgColor: hslToHex(hue, 80, 92) },
@@ -160,6 +167,7 @@ export function raFormValuesFromApi(ra: ApiRaItem): { values: RaFormValues; inli
       name: ra.name,
       id: ra.id,
       registrationMode: enrollment.registration_mode === 'PRE_REGISTRATION' ? 'PRE_REGISTRATION' : 'JITP',
+      protocol: RA_PROTOCOLS.find(protocol => protocol === enrollment.protocol) ?? 'EST_RFC7030',
       tags: provisioning.tags ?? [],
       deviceMetadataJson: JSON.stringify(provisioning.metadata || {}, null, 2),
       deviceIcon: {
@@ -217,7 +225,7 @@ export function buildRaPayload(
         : {}),
       enrollment_settings: {
         enrollment_ca: values.enrollmentCaId ?? '',
-        protocol: 'EST_RFC7030',
+        protocol: values.protocol,
         registration_mode: values.registrationMode,
         enable_replaceable_enrollment: values.allowReplaceableEnrollment,
         verify_csr_signature: values.verifyCsrSignature,

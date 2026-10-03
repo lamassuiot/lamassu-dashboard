@@ -33,7 +33,7 @@ export function ReenrollmentSection({ values, update, issues, deps, effectivePro
       />
 
       <RaFieldGroup title="Renewal timing">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 xl:grid-cols-3">
           <DurationInput
             id="reenrollmentDelta"
             label="Re-enrollment window"
