@@ -1,119 +1,153 @@
-
-
 'use client';
 
-import React from 'react'; 
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type Edge,
+  type Node,
+  type NodeProps,
+  Handle,
+  MarkerType,
+  Position,
+  useNodesState,
+} from '@xyflow/react';
+import { format, parseISO } from 'date-fns';
+import { Landmark, Network } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { getEffectiveCaStatus } from '@/lib/ca-utils';
 import type { CA } from '@/lib/ca-data';
-import { Tree, TreeNode } from 'react-organizational-chart';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-// cn import is not strictly needed here anymore unless more complex styling is added
-// import { cn } from '@/lib/utils'; 
+import { CaFlowCanvas } from './CaFlowCanvas';
+import { EngineIconBox } from './EngineIconBox';
+import { layoutTree } from './ca-tree-layout';
 
 interface CaHierarchyViewProps {
   cas: CA[];
-  router: ReturnType<typeof import('@/lib/router').useRouter>;
-  allCAs: CA[];
   allCryptoEngines: ApiCryptoEngine[];
+  router: ReturnType<typeof import('@/lib/router').useRouter>;
 }
 
-export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, allCAs, allCryptoEngines }) => {
-  if (cas.length === 0) {
-    return (
-      <p className="text-muted-foreground text-center p-4">No Certification Authorities to display in hierarchy view.</p>
-    );
+const NODE_WIDTH = 380;
+const NODE_HEIGHT = 72;
+const TREE_LAYOUT = { nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT, gapX: 32, gapY: 72, rootGapX: 96 };
+const ARROW = { type: MarkerType.ArrowClosed, width: 16, height: 16 };
+
+interface CaNodeData extends Record<string, unknown> {
+  ca: CA;
+  engine?: ApiCryptoEngine;
+  onOpenCa: (caId: string) => void;
+}
+
+type CaFlowNode = Node<CaNodeData, 'ca'>;
+
+const formatExpiry = (expires: string): string => {
+  try {
+    return format(parseISO(expires), 'yyyy-MM-dd');
+  } catch {
+    return expires;
   }
+};
 
-  const renderTreeNodes = (ca: CA, currentRouter: ReturnType<typeof import('@/lib/router').useRouter>, currentAllCAs: CA[], currentAllCryptoEngines: ApiCryptoEngine[]): React.ReactNode => {
-    const handleNodeClick = (selectedCa: CA) => {
-      currentRouter.push(`/certificate-authorities/details?caId=${selectedCa.id}`); // Updated navigation
-    };
-
-    return (
-      <TreeNode
-        key={ca.id}
-        label={
-          <CaVisualizerCard
-            ca={ca}
-            onClick={handleNodeClick}
-            className="mx-auto w-auto min-w-[330px] max-w-[380px] border-2 border-primary"
-            allCryptoEngines={currentAllCryptoEngines} 
-          />
-        }
-      >
-        {ca.children && ca.children.map(child => renderTreeNodes(child, currentRouter, currentAllCAs, currentAllCryptoEngines))}
-      </TreeNode>
-    );
-  };
-
-  const handleRootNodeClick = (selectedCa: CA) => {
-    router.push(`/certificate-authorities/details?caId=${selectedCa.id}`); // Updated navigation
-  };
+const CaNode = ({ data }: NodeProps<CaFlowNode>) => {
+  const { ca, engine, onOpenCa } = data;
+  const isRoot = ca.issuer === 'Self-signed';
 
   return (
-    <div className="w-full h-[calc(100vh-200px)] border rounded-md relative overflow-hidden flex flex-col">
-      {/* Fix for react-organizational-chart pseudo-element lines with Tailwind v4 reset */}
-      <style>{`
-        .ca-hierarchy-tree ul::before,
-        .ca-hierarchy-tree li::before,
-        .ca-hierarchy-tree li::after {
-          content: '' !important;
-          position: absolute !important;
-        }
-      `}</style>
-      <div className="flex-grow relative">
-        <TransformWrapper
-          initialScale={1}
-          minScale={0.2}
-          maxScale={3}
-          centerOnInit
-          limitToBounds={false}
-        >
-          {({ zoomIn, zoomOut, resetTransform }) => (
-            <>
-              <div className="absolute top-2 left-2 z-10 space-x-1">
-                <Button variant="secondary" size="icon" onClick={() => zoomIn()} title="Zoom In">
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-                <Button variant="secondary" size="icon" onClick={() => zoomOut()} title="Zoom Out">
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-                <Button variant="secondary" size="icon" onClick={() => resetTransform()} title="Reset View">
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </div>
-              <TransformComponent
-                wrapperStyle={{ width: '100%', height: '100%' }}
-                contentStyle={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '60px 20px 20px 20px' }}
-              >
-                <div className="ca-hierarchy-tree flex flex-row items-start gap-20 px-10">
-                  {cas.map((rootCa) => (
-                    <Tree
-                      key={rootCa.id}
-                      lineWidth={'3px'}
-                      lineColor={'var(--color-primary)'}
-                      lineBorderRadius={'5px'}
-                      label={
-                        <CaVisualizerCard
-                          ca={rootCa}
-                          onClick={handleRootNodeClick}
-                          className="mx-auto w-auto min-w-[330px] max-w-[380px] border-2 border-primary"
-                          allCryptoEngines={allCryptoEngines} 
-                        />
-                      }
-                    >
-                      {rootCa.children && rootCa.children.map(child => renderTreeNodes(child, router, allCAs, allCryptoEngines))}
-                    </Tree>
-                  ))}
-                </div>
-              </TransformComponent>
-            </>
-          )}
-        </TransformWrapper>
+    <button
+      type="button"
+      onClick={() => onOpenCa(ca.id)}
+      title={`Open ${ca.name}`}
+      className="flex items-center gap-3 rounded-lg border bg-card px-3 text-left text-card-foreground shadow-xs transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
+      style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}
+    >
+      <Handle type="target" position={Position.Top} className="opacity-0" isConnectable={false} />
+      <EngineIconBox engine={engine} fallback={Landmark} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium leading-tight">{ca.name}</p>
+        <p className="truncate text-xs text-muted-foreground" title={`Expires ${formatExpiry(ca.expires)}`}>
+          {ca.keyAlgorithm} · exp. {formatExpiry(ca.expires)}
+        </p>
       </div>
-    </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <ApiStatusBadge status={getEffectiveCaStatus(ca)} />
+        <Badge variant="secondary">{isRoot ? 'Root' : 'Intermediate'}</Badge>
+      </div>
+      <Handle type="source" position={Position.Bottom} className="opacity-0" isConnectable={false} />
+    </button>
+  );
+};
+
+const nodeTypes = { ca: CaNode };
+
+function flattenCas(cas: CA[], parentId?: string, out: { ca: CA; parentId?: string }[] = []) {
+  for (const ca of cas) {
+    out.push({ ca, parentId });
+    flattenCas(ca.children ?? [], ca.id, out);
+  }
+  return out;
+}
+
+export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, allCryptoEngines, router }) => {
+  const [nodes, setNodes, onNodesChange] = useNodesState<CaFlowNode>([]);
+  const [layoutVersion, setLayoutVersion] = useState(0);
+
+  const onOpenCa = useCallback(
+    (caId: string) => router.push(`/certificate-authorities/details?caId=${caId}`),
+    [router],
+  );
+
+  const entries = useMemo(() => flattenCas(cas), [cas]);
+  const positions = useMemo(() => layoutTree(cas, TREE_LAYOUT), [cas]);
+
+  const edges = useMemo<Edge[]>(
+    () => entries
+      .filter(entry => entry.parentId)
+      .map(({ ca, parentId }) => ({
+        id: `${parentId}->${ca.id}`,
+        type: 'smoothstep',
+        source: parentId!,
+        target: ca.id,
+        focusable: false,
+        markerEnd: ARROW,
+      })),
+    [entries],
+  );
+
+  useEffect(() => {
+    const enginesById = new Map(allCryptoEngines.map(engine => [engine.id, engine]));
+    setNodes(entries.map(({ ca }) => ({
+      id: ca.id,
+      type: 'ca',
+      position: positions.get(ca.id) ?? { x: 0, y: 0 },
+      data: { ca, engine: ca.kmsKeyId ? enginesById.get(ca.kmsKeyId) : undefined, onOpenCa },
+    })));
+    setLayoutVersion(version => version + 1);
+  }, [entries, positions, allCryptoEngines, onOpenCa, setNodes]);
+
+  return (
+    <CaFlowCanvas
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      onNodesChange={onNodesChange}
+      fitSignal={layoutVersion || null}
+      downloadName="ca-hierarchy"
+      legend={
+        <>
+          <p className="mb-1.5 font-medium text-foreground">How to read this hierarchy</p>
+          <p className="flex items-start gap-2">
+            <Network className="mt-0.5 size-3.5 shrink-0" />
+            <span>Each card is a certification authority. Click one to open it.</span>
+          </p>
+          <p className="mt-1 flex items-start gap-2">
+            <svg className="mt-1.5 h-2 w-3.5 shrink-0 overflow-visible" aria-hidden>
+              <line x1="0" y1="4" x2="10" y2="4" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10 1 L14 4 L10 7 Z" fill="currentColor" />
+            </svg>
+            <span>Arrows point from an issuer to the CAs it issued. Hover a CA to trace its connections.</span>
+          </p>
+        </>
+      }
+    />
   );
 };
