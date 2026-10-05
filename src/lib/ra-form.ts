@@ -125,7 +125,14 @@ export function slugifyRaId(name: string): string {
   return slug.slice(start, end);
 }
 
-export function createDefaultRaFormValues(hue = crypto.getRandomValues(new Uint32Array(1))[0] % 360): RaFormValues {
+/** 16 evenly spaced hues; a power-of-two count lets a bit mask pick one without modulo bias. */
+const ICON_HUES = Array.from({ length: 16 }, (_, i) => i * 22.5);
+
+function randomIconHue(): number {
+  return ICON_HUES[crypto.getRandomValues(new Uint8Array(1))[0] & 15];
+}
+
+export function createDefaultRaFormValues(hue = randomIconHue()): RaFormValues {
   return {
     name: '',
     id: '',
