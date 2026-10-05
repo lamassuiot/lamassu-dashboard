@@ -102,7 +102,18 @@ function useRaFormDependencies(): RaFormDependencies {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const casById = useMemo(() => new Map(cas.map(ca => [ca.id, ca])), [cas]);
+  // `cas` is a hierarchy of roots; index their descendants too so intermediate CAs resolve.
+  const casById = useMemo(() => {
+    const byId = new Map<string, CA>();
+    const add = (nodes: CA[]) => {
+      for (const ca of nodes) {
+        byId.set(ca.id, ca);
+        add(ca.children ?? []);
+      }
+    };
+    add(cas);
+    return byId;
+  }, [cas]);
   return { cas, casById, cryptoEngines, profiles, isLoading, error, reload };
 }
 

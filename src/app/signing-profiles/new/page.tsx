@@ -50,8 +50,8 @@ export default function CreateSigningProfilePage() {
   const router = useRouter();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [view, setView] = useState<'template' | 'form'>('template');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('blank');
+  const [view, setView] = useState<'template' | 'form'>('template');
   const [initialFormValues, setInitialFormValues] = useState<SigningProfileFormValues | null>(defaultFormValues);
   
   const form = useForm<SigningProfileFormValues>({
@@ -145,9 +145,7 @@ export default function CreateSigningProfilePage() {
               title="Create Issuance Profile"
               description="Start from a template, then customize certificate policy, validity, and cryptographic controls."
               groups={templateGroups}
-              value={selectedTemplateId}
-              onValueChange={setSelectedTemplateId}
-              onContinue={() => handleTemplateSelect(selectedTemplateId)}
+              onSelect={handleTemplateSelect}
               back={{ label: 'Back to Issuance Profiles', onClick: () => router.push('/signing-profiles') }}
               ariaLabel="Template"
             />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from '@/lib/router';
 import { FileBadge, FileKey, KeyRound, KeySquare } from "lucide-react";
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -61,9 +61,6 @@ const allOptions = optionGroups.flatMap(g => g.options);
 
 export default function CreateCaHubPage() {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string>(allOptions[0].id);
-
-  const selectedOption = allOptions.find(o => o.id === selectedId);
 
   return (
     <BreadcrumbPage className="space-y-5 pb-8" items={[ {label:'Home',href:'/'}, {label:'Certificate Authorities',href:'/certificate-authorities'}, {label:'New'} ]}>
@@ -71,9 +68,10 @@ export default function CreateCaHubPage() {
         title="Add Certification Authority"
         description="Choose how you want to create or import your Certification Authority."
         groups={optionGroups}
-        value={selectedId}
-        onValueChange={setSelectedId}
-        onContinue={() => selectedOption && router.push(selectedOption.href)}
+        onSelect={(id) => {
+          const option = allOptions.find(o => o.id === id);
+          if (option) router.push(option.href);
+        }}
         back={{ label: 'Back to Certification Authorities', onClick: () => router.push('/certificate-authorities') }}
       />
     </BreadcrumbPage>
