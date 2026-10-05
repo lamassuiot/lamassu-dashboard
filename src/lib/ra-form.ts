@@ -112,15 +112,20 @@ export function hslToHex(h: number, s: number, l: number): string {
 
 /** Derives a URL-safe RA ID from a display name ("Main IoT RA" → "main-iot-ra"). */
 export function slugifyRaId(name: string): string {
-  return name
+  const slug = name
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[^a-z0-9]+/g, '-');
+  // Trim edge dashes without a backtracking-prone regex.
+  let start = 0;
+  let end = slug.length;
+  while (start < end && slug[start] === '-') start++;
+  while (end > start && slug[end - 1] === '-') end--;
+  return slug.slice(start, end);
 }
 
-export function createDefaultRaFormValues(hue = Math.floor(Math.random() * 360)): RaFormValues {
+export function createDefaultRaFormValues(hue = crypto.getRandomValues(new Uint32Array(1))[0] % 360): RaFormValues {
   return {
     name: '',
     id: '',

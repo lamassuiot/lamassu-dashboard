@@ -53,7 +53,6 @@ export function DevicesSection({ values, update, issues, onOpenIconPicker }: RaS
               id="deviceIconButton"
               type="button"
               onClick={onOpenIconPicker}
-              aria-invalid={!!iconError}
               aria-describedby={iconError ? 'deviceIcon-error' : undefined}
               className={cn(
                 'flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30',
