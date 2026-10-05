@@ -125,14 +125,23 @@ export function slugifyRaId(name: string): string {
   return slug.slice(start, end);
 }
 
-/** 16 evenly spaced hues; a power-of-two count lets a bit mask pick one without modulo bias. */
-const ICON_HUES = Array.from({ length: 16 }, (_, i) => i * 22.5);
-
-function randomIconHue(): number {
-  return ICON_HUES[crypto.getRandomValues(new Uint8Array(1))[0] & 15];
+function iconColorsForHue(hue: number): { color: string; bgColor: string } {
+  return { color: hslToHex(hue, 80, 50), bgColor: hslToHex(hue, 80, 92) };
 }
 
-export function createDefaultRaFormValues(hue = randomIconHue()): RaFormValues {
+/**
+ * 16 evenly spaced icon colours, computed up front so a random value only selects an entry
+ * and never feeds colour arithmetic. A power-of-two count lets a bit mask pick one without bias.
+ */
+const ICON_COLORS = Array.from({ length: 16 }, (_, i) => iconColorsForHue(i * 22.5));
+
+function randomIconColors(): { color: string; bgColor: string } {
+  return ICON_COLORS[crypto.getRandomValues(new Uint8Array(1))[0] & 15];
+}
+
+/** Pass `hue` for a deterministic icon colour (e.g. in tests); otherwise one is picked at random. */
+export function createDefaultRaFormValues(hue?: number): RaFormValues {
+  const iconColors = hue === undefined ? randomIconColors() : iconColorsForHue(hue);
   return {
     name: '',
     id: '',
@@ -140,7 +149,7 @@ export function createDefaultRaFormValues(hue = randomIconHue()): RaFormValues {
     protocol: 'EST_RFC7030',
     tags: ['iot'],
     deviceMetadataJson: '{}',
-    deviceIcon: { name: 'Router', color: hslToHex(hue, 80, 50), bgColor: hslToHex(hue, 80, 92) },
+    deviceIcon: { name: 'Router', ...iconColors },
     enrollmentCaId: null,
     issuanceProfileMode: 'default',
     issuanceProfileId: null,
