@@ -88,7 +88,7 @@ function CaFlowCanvasInner<N extends Node>({
   const handleFullscreenToggle = useCallback(() => {
     if (!frameRef.current) return;
     if (document.fullscreenElement) {
-      document.exitFullscreen();
+      void document.exitFullscreen();
     } else {
       frameRef.current.requestFullscreen().catch(err => console.error(`Fullscreen failed: ${err.message}`));
     }
