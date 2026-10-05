@@ -5,9 +5,6 @@ import { ArrowLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Separator } from '@/components/ui/separator';
 
 export interface MethodOption {
   id: string;
@@ -29,33 +26,27 @@ interface MethodChooserProps {
   title: string;
   description?: React.ReactNode;
   groups: MethodOptionGroup[];
-  value: string;
-  onValueChange: (id: string) => void;
-  onContinue: () => void;
+  /** Called when an enabled option row is clicked. */
+  onSelect: (id: string) => void;
   back: { label: string; onClick: () => void };
-  /** Accessible name for the radio group. */
+  /** Accessible name for the option list. */
   ariaLabel?: string;
 }
 
 /**
  * "How do you want to create X?" step shown before a create/import form.
  *
- * Mirrors the form pages' layout (back row, header, label-left/controls-right
- * sections, footer) so the header stays in place when the user continues.
- * Render inside a `BreadcrumbPage` with `className="space-y-5 pb-8"`.
+ * One bordered panel of stacked rows; clicking a row continues. Option groups are
+ * labelled divider rows inside the same panel. Render inside a `BreadcrumbPage` with `className="space-y-5 pb-8"`.
  */
 export function MethodChooser({
   title,
   description,
   groups,
-  value,
-  onValueChange,
-  onContinue,
+  onSelect,
   back,
   ariaLabel = 'Creation method',
 }: MethodChooserProps) {
-  const selected = groups.flatMap(g => g.options).find(o => o.id === value && !o.disabled);
-
   return (
     <div className="w-[80%] mx-auto space-y-5 mb-8">
       <div className="flex justify-end mb-4">
@@ -65,56 +56,47 @@ export function MethodChooser({
       </div>
 
       <div>
-        <div className="pb-8 border-b">
-          <h1 className="text-2xl font-bold">{title}</h1>
-          {description && (
-            <div className="text-sm text-muted-foreground mt-1.5 max-w-2xl">{description}</div>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold">{title}</h1>
+        {description && (
+          <div className="text-sm text-muted-foreground mt-1.5 max-w-2xl">{description}</div>
+        )}
+      </div>
 
-        <RadioGroup value={value} onValueChange={onValueChange} aria-label={ariaLabel} className="gap-0">
-          {groups.map(group => (
-            <div key={group.id} className="grid grid-cols-1 gap-6 py-8 lg:grid-cols-3 lg:gap-10 [&:not(:last-child)]:border-b">
-              <div>
-                <p className="font-semibold">{group.label}</p>
-                {group.description && (
-                  <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-2">
-                {group.options.map(option => (
-                  <MethodOptionCard key={option.id} option={option} />
-                ))}
-              </div>
+      <div role="group" aria-label={ariaLabel} className="rounded-lg border bg-card overflow-hidden">
+        {groups.map(group => (
+          <div key={group.id} className="[&:not(:first-child)]:border-t">
+            <div className="bg-muted/40 px-5 py-3 border-b">
+              <p className="text-sm font-semibold">{group.label}</p>
+              {group.description && (
+                <p className="text-xs text-muted-foreground mt-0.5">{group.description}</p>
+              )}
             </div>
-          ))}
-        </RadioGroup>
-
-        <Separator />
-        <div className="flex justify-end pt-6">
-          <Button type="button" disabled={!selected} onClick={onContinue}>
-            Continue
-            <ChevronRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
+            <div className="divide-y">
+              {group.options.map(option => (
+                <MethodOptionRow key={option.id} option={option} onSelect={onSelect} />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function MethodOptionCard({ option }: { option: MethodOption }) {
+function MethodOptionRow({ option, onSelect }: { option: MethodOption; onSelect: (id: string) => void }) {
   const Icon = option.icon;
-  const itemId = `method-${option.id}`;
 
   return (
-    <Label
-      htmlFor={itemId}
-      className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal leading-normal transition-colors hover:bg-muted/50 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 has-[:disabled]:hover:bg-transparent"
+    <button
+      type="button"
+      disabled={option.disabled}
+      onClick={() => onSelect(option.id)}
+      className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
     >
       <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
         <Icon className="size-4" />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{option.title}</span>
           {option.badge && (
@@ -123,13 +105,7 @@ function MethodOptionCard({ option }: { option: MethodOption }) {
         </div>
         <p className="text-sm text-muted-foreground">{option.description}</p>
       </div>
-      {/* ui/radio-group styles the checked state via data-checked, which Radix doesn't set. */}
-      <RadioGroupItem
-        id={itemId}
-        value={option.id}
-        disabled={option.disabled}
-        className="mt-0.5 data-[state=checked]:bg-primary"
-      />
-    </Label>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </button>
   );
 }

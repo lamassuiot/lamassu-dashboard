@@ -541,9 +541,10 @@ export default function IssueCertificateFormClient() {
           </div>
         }
         groups={issuanceModeGroups}
-        value={issuanceMode}
-        onValueChange={(id) => setIssuanceMode(id as 'generate' | 'upload')}
-        onContinue={() => setIssuanceModeSelected(true)}
+        onSelect={(id) => {
+          setIssuanceMode(id as 'generate' | 'upload');
+          setIssuanceModeSelected(true);
+        }}
         back={{ label: 'Back to Certification Authority', onClick: () => router.back() }}
         ariaLabel="Certificate request source"
       />

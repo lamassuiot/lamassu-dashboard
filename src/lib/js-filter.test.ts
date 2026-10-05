@@ -53,22 +53,22 @@ describe('js-filter when the worker cannot run', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:test')
   })
 
-  it('skips the syntax check instead of flagging valid code when no worker can start', async () => {
+  it('reports the syntax check as unchecked, not valid, when no worker can start', async () => {
     vi.stubGlobal('Worker', ThrowingWorker)
 
-    await expect(checkJsFilterSyntax('function () { return true; }')).resolves.toBeNull()
+    await expect(checkJsFilterSyntax('function () { return true; }')).resolves.toEqual({ status: 'unchecked' })
   })
 
   it('treats a worker script that fails to load as unavailable, not as a syntax error', async () => {
     vi.stubGlobal('Worker', FailingWorker)
 
-    await expect(checkJsFilterSyntax('function () { return true; }')).resolves.toBeNull()
+    await expect(checkJsFilterSyntax('function () { return true; }')).resolves.toEqual({ status: 'unchecked' })
   })
 
-  it('skips the syntax check when Web Workers are not defined at all', async () => {
+  it('reports the syntax check as unchecked when Web Workers are not defined at all', async () => {
     vi.stubGlobal('Worker', undefined)
 
-    await expect(checkJsFilterSyntax('function () { return true; }')).resolves.toBeNull()
+    await expect(checkJsFilterSyntax('function () { return true; }')).resolves.toEqual({ status: 'unchecked' })
   })
 
   it('reports a timeout for a filter that never answers and terminates the worker', async () => {
@@ -154,8 +154,8 @@ describe('js-filter worker script', () => {
   })
 
   it('reports a syntax error from the check without running the filter', async () => {
-    await expect(checkJsFilterSyntax('function (e) { return ; ]')).resolves.toEqual(expect.any(String))
-    await expect(checkJsFilterSyntax('function (e) { return true; }')).resolves.toBeNull()
+    await expect(checkJsFilterSyntax('function (e) { return ; ]')).resolves.toEqual({ status: 'invalid', error: expect.any(String) })
+    await expect(checkJsFilterSyntax('function (e) { return true; }')).resolves.toEqual({ status: 'valid' })
   })
 
   it('removes network and storage APIs from the worker scope', async () => {

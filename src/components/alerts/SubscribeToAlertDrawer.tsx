@@ -22,7 +22,7 @@ import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updat
 import { cn } from '@/lib/utils';
 import { JSONPath } from 'jsonpath-plus';
 import { Validator } from 'jsonschema';
-import { checkJsFilterSyntax, runJsFilter } from '@/lib/js-filter';
+import { checkJsFilterSyntax, runJsFilter, type JsSyntaxCheck } from '@/lib/js-filter';
 import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
 import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
@@ -305,16 +305,16 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
 
   // Syntax is checked in the same worker that runs the filter, so it is asynchronous.
   // `jsSyntaxCheck.source` records what the result belongs to; a mismatch means a check is pending.
-  const [jsSyntaxCheck, setJsSyntaxCheck] = useState<{ source: string; error: string | null } | null>(null);
+  const [jsSyntaxCheck, setJsSyntaxCheck] = useState<{ source: string; result: JsSyntaxCheck } | null>(null);
   useEffect(() => {
     if (filterType !== 'JAVASCRIPT' || !jsFunction.trim()) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       // A failed check must still settle, otherwise the submit button would stay disabled.
       void checkJsFilterSyntax(jsFunction)
-        .catch(() => null)
-        .then(error => {
-          if (!cancelled) setJsSyntaxCheck({ source: jsFunction, error });
+        .catch((): JsSyntaxCheck => ({ status: 'unchecked' }))
+        .then(result => {
+          if (!cancelled) setJsSyntaxCheck({ source: jsFunction, result });
         });
     }, 200);
     return () => {
@@ -348,10 +348,11 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   } else if (filterType === 'JAVASCRIPT') {
       if (!jsFunction.trim()) {
           filterError = 'Javascript function is required.';
-      } else if (jsSyntaxCheck?.source === jsFunction && jsSyntaxCheck.error) {
+      } else if (jsSyntaxCheck?.source === jsFunction && jsSyntaxCheck.result.status === 'invalid') {
           filterError = 'Javascript filter must contain a valid function.';
       }
   }
+  const isJsFilterUnchecked = filterType === 'JAVASCRIPT' && jsSyntaxCheck?.source === jsFunction && jsSyntaxCheck.result.status === 'unchecked';
   const isCheckingJsFilter = filterType === 'JAVASCRIPT' && !!jsFunction.trim() && jsSyntaxCheck?.source !== jsFunction;
 
   const channelValidationErrors = [emailError, webhookNameError, teamsNameError, webhookUrlError]
@@ -512,6 +513,11 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                                 options={editorOptions}
                             />
                         </EditorBox>
+                        {isJsFilterUnchecked && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                                This filter could not be checked in the browser (Web Workers are unavailable). It has not been validated and will only be checked by the server.
+                            </p>
+                        )}
                     </Field>
                 )}
                 {filterType === 'JSON-SCHEMA' && (

@@ -101,13 +101,20 @@ export async function runJsFilter(source: string, event: unknown, timeoutMs = DE
   return { ok: true, returnType: reply.returnType ?? 'undefined', match: reply.match === true };
 }
 
+export type JsSyntaxCheck =
+  | { status: 'valid' }
+  | { status: 'invalid'; error: string }
+  /** No worker could be started, so the filter was not checked at all. */
+  | { status: 'unchecked' };
+
 /**
- * Compiles the filter without calling it. Resolves to an error message, or null when it is
- * valid. When no worker can be started the filter cannot be checked here, so it resolves to
- * null rather than reporting a problem with code that may be fine; the backend still validates it.
+ * Compiles the filter without calling it. When no worker can be started the filter cannot be
+ * checked here, so the result is `unchecked` (not `valid`, and not an error in the code itself);
+ * callers should tell the operator that only the backend will validate it.
  */
-export async function checkJsFilterSyntax(source: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<string | null> {
+export async function checkJsFilterSyntax(source: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<JsSyntaxCheck> {
   const reply = await callWorker({ mode: 'check', source }, timeoutMs);
-  if (reply.ok || reply.unavailable) return null;
-  return reply.error;
+  if (reply.ok) return { status: 'valid' };
+  if (reply.unavailable) return { status: 'unchecked' };
+  return { status: 'invalid', error: reply.error };
 }
