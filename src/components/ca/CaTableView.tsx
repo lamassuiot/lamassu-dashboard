@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { format, formatDistanceStrict, parseISO } from 'date-fns';
-import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, MoreVertical, ShieldAlert, UploadCloud } from 'lucide-react';
+import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, LockKeyhole, MoreVertical, ShieldAlert, Signature, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
 import { caMatchesFilters, getEffectiveCaStatus, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
+import { getCrossSignBlocker } from '@/lib/ca-cross-sign';
 import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
 import { useSortState } from '@/hooks/useSortState';
@@ -72,6 +73,8 @@ interface CaTableViewProps {
    */
   onSelect?: (ca: CA) => void;
   selectedCaId?: string | null;
+  /** Picker only: why a CA cannot be selected, or null when it can. Unselectable rows are blurred. */
+  getDisabledReason?: (ca: CA) => string | null;
 }
 
 const NO_FILTERS: CaFilterOptions = {};
@@ -178,6 +181,7 @@ function CaActionsMenu({ ca, status }: Readonly<{ ca: CA; status: DisplayStatus 
   const canIssue = status !== 'REVOKED' && ca.caType !== 'EXTERNAL_PUBLIC';
   // Mirrors the parent checks on the create CA page.
   const canCreateSubCa = status === 'ACTIVE' && ca.caType !== 'EXTERNAL_PUBLIC';
+  const canCrossSign = getCrossSignBlocker(ca, 'signer') === null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -199,6 +203,11 @@ function CaActionsMenu({ ca, status }: Readonly<{ ca: CA; status: DisplayStatus 
         <DropdownMenuItem asChild disabled={!canCreateSubCa}>
           <Link href={`/certificate-authorities/new/generate?parentCaId=${ca.id}`}>
             <GitBranchPlus className="mr-2 h-4 w-4" /> Create Sub-CA
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild disabled={!canCrossSign}>
+          <Link href={`/certificate-authorities/cross-sign?signerCaId=${ca.id}`}>
+            <Signature className="mr-2 h-4 w-4" /> Cross-sign a CA
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -255,22 +264,36 @@ interface CaTableRowProps {
   onToggle: (caId: string) => void;
   onSelect?: (ca: CA) => void;
   isSelected: boolean;
+  disabledReason?: string | null;
 }
 
-function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isCollapsed, onToggle, onSelect, isSelected }: Readonly<CaTableRowProps>) {
+function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isCollapsed, onToggle, onSelect, isSelected, disabledReason }: Readonly<CaTableRowProps>) {
   const { node: ca, level, matches, hasVisibleChildren } = row;
   const status = getDisplayStatus(ca);
   const isPicker = Boolean(onSelect);
+  const isDisabled = isPicker && Boolean(disabledReason);
+  const select = onSelect && !isDisabled ? () => onSelect(ca) : undefined;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
-    if (onSelect && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+    if (select && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
-      onSelect(ca);
+      select();
     }
   };
 
   let lastCell: React.ReactNode = <CaActionsMenu ca={ca} status={status} />;
-  if (isPicker) {
+  if (isDisabled) {
+    lastCell = (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="ml-auto inline-flex cursor-help" role="img" aria-label={disabledReason ?? undefined}>
+            <LockKeyhole className="h-4 w-4 text-muted-foreground" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{disabledReason}</TooltipContent>
+      </Tooltip>
+    );
+  } else if (isPicker) {
     lastCell = isSelected ? <Check className="ml-auto h-4 w-4 text-primary" aria-label="Selected" /> : null;
   }
 
@@ -282,11 +305,14 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
         !matches && 'opacity-60',
         isPicker && 'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
         isSelected && 'bg-primary/10 hover:bg-primary/15 has-aria-expanded:bg-primary/10',
+        // Keep the lock cell sharp so the row still says why it is unavailable.
+        isDisabled && 'cursor-not-allowed select-none hover:bg-transparent [&>td:not(:last-child)]:opacity-60 [&>td:not(:last-child)]:blur-[1.5px]',
       )}
-      onClick={onSelect ? () => onSelect(ca) : undefined}
+      onClick={select}
       onKeyDown={isPicker ? handleKeyDown : undefined}
       tabIndex={isPicker ? 0 : undefined}
       aria-selected={isPicker ? isSelected : undefined}
+      aria-disabled={isDisabled || undefined}
     >
       <TableCell>
         <TreeNodeCell
@@ -330,7 +356,7 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
   );
 }
 
-export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSelect, selectedCaId }: Readonly<CaTableViewProps>) {
+export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSelect, selectedCaId, getDisabledReason }: Readonly<CaTableViewProps>) {
   const isPicker = Boolean(onSelect);
   const { sortColumn, sortDirection, requestSort } = useSortState<SortableColumn>('name', ['expires']);
   const parentIds = useMemo(() => collectParentIds(cas, CA_TREE), [cas]);
@@ -403,6 +429,7 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
                 onToggle={toggle}
                 onSelect={onSelect}
                 isSelected={isPicker && row.node.id === selectedCaId}
+                disabledReason={isPicker ? getDisabledReason?.(row.node) : null}
               />
             ))}
           </TableBody>

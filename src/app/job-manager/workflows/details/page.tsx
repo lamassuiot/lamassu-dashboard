@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import { useSearchParams } from '@/lib/router';
+import dynamic from '@/components/shared/dynamic';
 import { AlertTriangle, FileText, Info, Loader2, Workflow } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';

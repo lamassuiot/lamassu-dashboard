@@ -4,7 +4,6 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import * as LucideIcons from 'lucide-react';
 import { Label } from '../ui/label';
@@ -24,101 +23,95 @@ interface DeviceIconSelectorModalProps {
 interface IconDefinition {
   name: keyof typeof LucideIcons; // Ensures names are valid Lucide icon names
   IconComponent: React.ElementType;
+  category: string;
 }
 
-// Curated list of Lucide icons for IoT devices
-const AVAILABLE_ICONS: IconDefinition[] = [
-  { name: 'Router', IconComponent: LucideIcons.Router },
-  { name: 'Smartphone', IconComponent: LucideIcons.Smartphone },
-  { name: 'Tablet', IconComponent: LucideIcons.Tablet },
-  { name: 'Laptop', IconComponent: LucideIcons.Laptop },
-  { name: 'Monitor', IconComponent: LucideIcons.Monitor },
-  { name: 'HardDrive', IconComponent: LucideIcons.HardDrive },
-  { name: 'Server', IconComponent: LucideIcons.Server },
-  { name: 'Cpu', IconComponent: LucideIcons.Cpu },
-  { name: 'MemoryStick', IconComponent: LucideIcons.MemoryStick },
-  { name: 'Radio', IconComponent: LucideIcons.Radio },
-  { name: 'Wifi', IconComponent: LucideIcons.Wifi },
-  { name: 'Bluetooth', IconComponent: LucideIcons.Bluetooth },
-  { name: 'Signal', IconComponent: LucideIcons.Signal },
-  { name: 'BatteryFull', IconComponent: LucideIcons.BatteryFull },
-  { name: 'Thermometer', IconComponent: LucideIcons.Thermometer },
-  { name: 'Lightbulb', IconComponent: LucideIcons.Lightbulb },
-  { name: 'Fan', IconComponent: LucideIcons.Fan },
-  { name: 'Lock', IconComponent: LucideIcons.Lock },
-  { name: 'KeyRound', IconComponent: LucideIcons.KeyRound },
-  { name: 'Camera', IconComponent: LucideIcons.Camera },
-  { name: 'Video', IconComponent: LucideIcons.Video },
-  { name: 'Settings2', IconComponent: LucideIcons.Settings2 },
-  { name: 'Power', IconComponent: LucideIcons.Power },
-  { name: 'Plug', IconComponent: LucideIcons.Plug },
-  { name: 'Volume2', IconComponent: LucideIcons.Volume2 },
-  { name: 'Printer', IconComponent: LucideIcons.Printer },
-  { name: 'Cloud', IconComponent: LucideIcons.Cloud },
-  { name: 'Database', IconComponent: LucideIcons.Database },
-  { name: 'Disc3', IconComponent: LucideIcons.Disc3 },
-  { name: 'CircuitBoard', IconComponent: LucideIcons.CircuitBoard },
-  { name: 'Activity', IconComponent: LucideIcons.Activity },
-  { name: 'AirVent', IconComponent: LucideIcons.AirVent },
-  { name: 'AlertTriangle', IconComponent: LucideIcons.AlertTriangle },
-  { name: 'Archive', IconComponent: LucideIcons.Archive },
-  { name: 'AppWindow', IconComponent: LucideIcons.AppWindow },
-  { name: 'BadgeAlert', IconComponent: LucideIcons.BadgeAlert },
-  { name: 'Box', IconComponent: LucideIcons.Box },
-  { name: 'Briefcase', IconComponent: LucideIcons.Briefcase },
-  { name: 'Cable', IconComponent: LucideIcons.Cable },
-  { name: 'Container', IconComponent: LucideIcons.Container },
-  { name: 'DiscAlbum', IconComponent: LucideIcons.DiscAlbum },
-  { name: 'Gauge', IconComponent: LucideIcons.Gauge },
-  { name: 'Globe', IconComponent: LucideIcons.Globe },
-  { name: 'Home', IconComponent: LucideIcons.Home },
-  { name: 'Image', IconComponent: LucideIcons.Image },
-  { name: 'LifeBuoy', IconComponent: LucideIcons.LifeBuoy },
-  { name: 'Link', IconComponent: LucideIcons.Link },
-  { name: 'MapPin', IconComponent: LucideIcons.MapPin },
-  { name: 'MessageSquare', IconComponent: LucideIcons.MessageSquare },
-  { name: 'Mic', IconComponent: LucideIcons.Mic },
-  { name: 'Navigation', IconComponent: LucideIcons.Navigation },
-  { name: 'Network', IconComponent: LucideIcons.Network },
-  { name: 'Package', IconComponent: LucideIcons.Package },
-  { name: 'QrCode', IconComponent: LucideIcons.QrCode },
-  { name: 'SatelliteDish', IconComponent: LucideIcons.SatelliteDish },
-  { name: 'Save', IconComponent: LucideIcons.Save },
-  { name: 'Shield', IconComponent: LucideIcons.Shield },
-  { name: 'ShoppingBag', IconComponent: LucideIcons.ShoppingBag },
-  { name: 'Siren', IconComponent: LucideIcons.Siren },
-  { name: 'SlidersHorizontal', IconComponent: LucideIcons.SlidersHorizontal },
-  { name: 'ToyBrick', IconComponent: LucideIcons.ToyBrick },
-  { name: 'Trash2', IconComponent: LucideIcons.Trash2 },
-  { name: 'UploadCloud', IconComponent: LucideIcons.UploadCloud },
-  { name: 'User', IconComponent: LucideIcons.User },
-  { name: 'Wallet', IconComponent: LucideIcons.Wallet },
-  { name: 'Webhook', IconComponent: LucideIcons.Webhook },
-  { name: 'Zap', IconComponent: LucideIcons.Zap },
-  // Adding icons needed for the mapping from react-icons
-  { name: 'Car', IconComponent: LucideIcons.Car },
-  { name: 'Truck', IconComponent: LucideIcons.Truck },
-  { name: 'Warehouse', IconComponent: LucideIcons.Warehouse },
-  { name: 'Factory', IconComponent: LucideIcons.Factory },
-  { name: 'Building2', IconComponent: LucideIcons.Building2 },
-  { name: 'TowerControl', IconComponent: LucideIcons.TowerControl },
-  { name: 'HelpCircle', IconComponent: LucideIcons.HelpCircle },
-  { name: 'GitFork', IconComponent: LucideIcons.GitFork },
-  { name: 'BarChart2', IconComponent: LucideIcons.BarChart2 },
-  // Adding icons based on new mapping request
-  { name: 'Bike', IconComponent: LucideIcons.Bike },
-  { name: 'PlugZap', IconComponent: LucideIcons.PlugZap },
-  { name: 'TrainFront', IconComponent: LucideIcons.TrainFront },
-  { name: 'Heater', IconComponent: LucideIcons.Heater },
-  { name: 'CookingPot', IconComponent: LucideIcons.CookingPot },
-  { name: 'WashingMachine', IconComponent: LucideIcons.WashingMachine },
-  { name: 'SmartphoneNfc', IconComponent: LucideIcons.SmartphoneNfc },
-  { name: 'CreditCard', IconComponent: LucideIcons.CreditCard },
-  { name: 'Refrigerator', IconComponent: LucideIcons.Refrigerator },
-  { name: 'Badge', IconComponent: LucideIcons.Badge },
-  { name: 'Construction', IconComponent: LucideIcons.Construction },
-  { name: 'ArrowUpDown', IconComponent: LucideIcons.ArrowUpDown },
-];
+// Curated list of Lucide icons for IoT devices, grouped by category
+const ICON_CATEGORIES: Record<string, (keyof typeof LucideIcons)[]> = {
+  'Computing': [
+    'Router', 'Smartphone', 'Tablet', 'Laptop', 'Monitor', 'HardDrive', 'Server', 'ServerCog', 'Cpu', 'MemoryStick',
+    'CircuitBoard', 'PcCase', 'Keyboard', 'Mouse', 'Usb', 'Terminal', 'Binary', 'Braces', 'Bot', 'Cable',
+    'MonitorSmartphone', 'AppWindow', 'Webcam', 'Database', 'Disc3', 'DiscAlbum', 'Save', 'Boxes', 'Container',
+  ],
+  'Network': [
+    'Radio', 'Wifi', 'WifiOff', 'Bluetooth', 'BluetoothConnected', 'Signal', 'Nfc', 'Network', 'Cloud', 'UploadCloud',
+    'Globe', 'Link', 'Webhook', 'GitFork', 'Waypoints', 'Workflow', 'Rss', 'Podcast', 'Cast', 'Airplay',
+    'SatelliteDish', 'Satellite', 'Antenna', 'RadioTower', 'TowerControl', 'Radar',
+  ],
+  'Security': [
+    'Lock', 'LockKeyhole', 'LockOpen', 'KeyRound', 'Key', 'KeySquare', 'Shield', 'ShieldCheck', 'ShieldAlert',
+    'Fingerprint', 'ScanFace', 'ScanEye', 'ScanBarcode', 'Vault', 'Eye', 'Cctv', 'Siren', 'BadgeAlert', 'Badge', 'CreditCard',
+  ],
+  'Sensors & Energy': [
+    'Thermometer', 'ThermometerSun', 'ThermometerSnowflake', 'Gauge', 'Activity', 'HeartPulse', 'Timer', 'Droplet',
+    'Droplets', 'Flame', 'Wind', 'Sun', 'Moon', 'Snowflake', 'CloudRain', 'Radiation', 'Magnet', 'Zap', 'PlugZap',
+    'BatteryFull', 'BatteryCharging', 'BatteryLow', 'Power', 'CirclePower', 'Plug', 'Unplug', 'Scale', 'Ruler',
+  ],
+  'Media & Audio': [
+    'Camera', 'CameraOff', 'Video', 'VideoOff', 'Mic', 'MicOff', 'Volume2', 'Speaker', 'Headphones', 'Tv',
+    'Projector', 'Presentation', 'MonitorSpeaker', 'Image', 'Gamepad2', 'Joystick', 'Printer', 'Watch', 'Glasses',
+  ],
+  'Home & Appliances': [
+    'Home', 'Lightbulb', 'LightbulbOff', 'Lamp', 'LampDesk', 'Flashlight', 'Fan', 'AirVent', 'Heater', 'CookingPot',
+    'Microwave', 'Refrigerator', 'WashingMachine', 'Coffee', 'Utensils', 'Sofa', 'BedDouble', 'ShowerHead', 'Blinds',
+    'DoorOpen', 'DoorClosed', 'Fence', 'ToggleLeft', 'Bell', 'BellRing',
+  ],
+  'Transport & Mobility': [
+    'Car', 'CarFront', 'Truck', 'Bus', 'Bike', 'TrainFront', 'Train', 'TramFront', 'Plane', 'Ship', 'Sailboat', 'Anchor',
+    'Rocket', 'Ambulance', 'Caravan', 'Forklift', 'Tractor', 'Fuel', 'ParkingMeter', 'TrafficCone', 'Signpost',
+    'MapPin', 'Map', 'Compass', 'Navigation', 'ArrowUpDown',
+  ],
+  'Industry & Infrastructure': [
+    'Factory', 'Warehouse', 'Building', 'Building2', 'Landmark', 'Hospital', 'School', 'Store', 'Construction', 'Wrench',
+    'Hammer', 'Drill', 'Pickaxe', 'Shovel', 'Cog', 'Settings2', 'SlidersHorizontal', 'Recycle', 'Sprout', 'Leaf',
+    'Package', 'PackageCheck', 'PackageOpen', 'Box', 'Archive', 'Briefcase', 'Weight',
+  ],
+  'Health & Science': [
+    'Stethoscope', 'Syringe', 'Pill', 'Microscope', 'FlaskConical', 'Atom', 'Orbit', 'Telescope', 'Brain', 'Dna',
+  ],
+  'Identity & Cards': [
+    'IdCard', 'CreditCard', 'WalletCards', 'Contact', 'ContactRound', 'SquareUser', 'SquareUserRound', 'CircleUser',
+    'CircleUserRound', 'UserRound', 'UserCheck', 'UserRoundCheck', 'UserCog', 'Users', 'UsersRound', 'BookUser', 'FileUser',
+    'FileBadge', 'FileBadge2', 'Badge', 'BadgeCheck', 'BadgeInfo', 'Stamp', 'Signature', 'Fingerprint', 'ScanFace',
+    'ScanLine', 'ScanQrCode', 'Nfc', 'KeyRound', 'RectangleEllipsis',
+  ],
+  'Apps & Software': [
+    'AppWindow', 'AppWindowMac', 'LayoutGrid', 'LayoutDashboard', 'LayoutTemplate', 'PanelsTopLeft', 'Grid2x2', 'Grid3x3',
+    'Blocks', 'Puzzle', 'Component', 'Layers', 'SquareStack', 'Package2', 'SquareTerminal', 'Code', 'CodeXml', 'SquareCode',
+    'FileCode', 'FileJson', 'MessageCircle', 'MessagesSquare', 'Mail', 'Inbox', 'Phone', 'Calendar', 'CalendarDays',
+    'Clock', 'AlarmClock', 'Music', 'CirclePlay', 'Folder', 'FileText', 'NotebookPen', 'Calculator', 'ChartPie',
+    'ChartLine', 'SquareKanban', 'ListTodo', 'Search', 'Download', 'Settings', 'CloudCog', 'Sparkles', 'BrainCircuit',
+    'BotMessageSquare', 'TabletSmartphone',
+  ],
+  'EV Charging': [
+    'PlugZap', 'PlugZap2', 'BatteryCharging', 'BatteryMedium', 'BatteryFull', 'Cable', 'Plug', 'Plug2', 'Unplug', 'Zap',
+    'ZapOff', 'Bolt', 'Power', 'Fuel', 'UtilityPole', 'CircleGauge', 'Gauge', 'Car', 'CarFront', 'CarTaxiFront',
+    'BusFront', 'Bike', 'Leaf',
+  ],
+  'Commerce & Misc': [
+    'ShoppingBag', 'ShoppingCart', 'Wallet', 'Banknote', 'Coins', 'Ticket', 'Tag', 'QrCode', 'Barcode', 'MessageSquare',
+    'User', 'LifeBuoy', 'BarChart2', 'ToyBrick', 'Trophy', 'AlertTriangle', 'Trash2', 'HelpCircle', 'Bug', 'Footprints',
+  ],
+};
+
+// "All" lists each icon once, even when several categories include it.
+const AVAILABLE_ICONS: IconDefinition[] = (() => {
+  const seen = new Set<string>();
+  const result: IconDefinition[] = [];
+  for (const [category, names] of Object.entries(ICON_CATEGORIES)) {
+    for (const name of names) {
+      const IconComponent = LucideIcons[name] as unknown as React.ElementType | undefined;
+      if (!IconComponent || seen.has(name)) continue;
+      seen.add(name);
+      result.push({ name, IconComponent, category });
+    }
+  }
+  return result;
+})();
+const ICONS_BY_NAME = new Map(AVAILABLE_ICONS.map(icon => [icon.name as string, icon]));
+
+const ALL_CATEGORIES = 'All';
+const CATEGORY_NAMES = [ALL_CATEGORIES, ...Object.keys(ICON_CATEGORIES)];
 
 
 // Mapping from old react-icon names to new lucide-react names for backward compatibility
@@ -182,7 +175,7 @@ const REACT_ICONS_TO_LUCIDE_MAP: { [key: string]: keyof typeof LucideIcons } = {
   "BiSolidCreditCardFront": 'CreditCard',
   "BsSdCard": 'MemoryStick',
   "IoMdCar": 'Car',
-  "AiOutlineIdcard": 'Badge',
+  "AiOutlineIdcard": 'IdCard',
   "GiElectric": 'Zap',
   "BsHouse": 'Home',
   "BsHouseGear": 'Settings2',
@@ -246,6 +239,8 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
   initialBgColor,
   onColorsChange,
 }) => {
+  const [search, setSearch] = React.useState('');
+  const [category, setCategory] = React.useState(ALL_CATEGORIES);
 
   const handleSelect = (iconName: string) => {
     onIconSelected(iconName);
@@ -278,104 +273,144 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
     }
   }, [initialIconColor, initialBgColor, onColorsChange]);
 
+  const filteredIcons = React.useMemo(() => {
+    const query = search.trim().toLowerCase();
+    // A category lists its icons in curated order, not in the order they were first registered.
+    const pool = category === ALL_CATEGORIES
+      ? AVAILABLE_ICONS
+      : ICON_CATEGORIES[category].flatMap(name => ICONS_BY_NAME.get(name) ?? []);
+    return pool.filter(
+      (icon) =>
+        (!query || icon.name.toLowerCase().includes(query))
+    );
+  }, [search, category]);
+
+  const PreviewIcon = getLucideIconByName(currentSelectedIconName ?? null);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="sm:max-w-3xl lg:max-w-6xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Select Device Icon</DialogTitle>
           <DialogDescription>Choose an icon that best represents the device type.</DialogDescription>
         </DialogHeader>
-        
-        <div className="flex-grow my-4 overflow-hidden border rounded-md overflow-y-auto">
-          <ScrollArea className="h-full">
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 p-4">
-              {AVAILABLE_ICONS.map(({ name, IconComponent }) => (
+
+        {/* Below lg the whole body scrolls, so its children must not shrink (they would collapse to zero height). */}
+        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 lg:flex-row lg:overflow-hidden">
+          {/* Icon browser */}
+          <div className="flex shrink-0 flex-col gap-3 lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink">
+            <div className="relative">
+              <LucideIcons.Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search icons..."
+                className="pl-9"
+                aria-label="Search icons"
+              />
+            </div>
+            {/* One swipeable row on small screens; wraps once there is room. */}
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin] md:flex-wrap md:overflow-visible md:pb-0">
+              {CATEGORY_NAMES.map((name) => (
                 <Button
                   key={name}
-                  variant="secondary"
-                  className={cn(
-                    "flex flex-col items-center justify-center h-24 p-2 space-y-1 text-center transition-colors",
-                    currentSelectedIconName === name && "ring-2 ring-primary ring-offset-2"
-                  )}
-                  onClick={() => handleSelect(name)}
-                  title={name}
-                  style={{ backgroundColor: initialBgColor }}
+                  type="button"
+                  size="sm"
+                  variant={category === name ? 'default' : 'outline'}
+                  aria-pressed={category === name}
+                  className="h-7 shrink-0 px-2.5 text-xs"
+                  onClick={() => setCategory(name)}
                 >
-                  <IconComponent
-                    className="h-8 w-8 mb-1"
-                    style={{ color: initialIconColor }}
-                  />
-                  <span
-                    className="text-xs truncate w-full"
-                    style={{ color: initialIconColor }}
-                  >
-                    {name}
-                  </span>
+                  {name}
                 </Button>
               ))}
             </div>
-          </ScrollArea>
-        </div>
-        
-        {onColorsChange && (
-            <div className="pt-4 mt-2 border-t">
-                 <div className="flex justify-between items-center mb-3">
-                    <p className="text-sm font-medium">Customize Colors</p>
+            <div className="h-[40vh] overflow-y-auto rounded-md border sm:h-[45vh] lg:h-auto lg:min-h-0 lg:flex-1">
+              {filteredIcons.length === 0 ? (
+                <p className="p-6 text-center text-sm text-muted-foreground">No icons match your search.</p>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-2 p-2 sm:grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] sm:p-3">
+                  {filteredIcons.map(({ name, IconComponent }) => (
                     <Button
-                        type="button"
-                        variant="secondary"
-                       
-                        onClick={handleInvert}
+                      key={name}
+                      type="button"
+                      variant="secondary"
+                      className={cn(
+                        "flex h-16 flex-col items-center justify-center gap-1 p-1.5 text-center transition-colors sm:h-20 sm:p-2",
+                        currentSelectedIconName === name && "ring-2 ring-primary ring-offset-2"
+                      )}
+                      onClick={() => handleSelect(name)}
+                      title={name}
+                      aria-pressed={currentSelectedIconName === name}
+                      style={{ backgroundColor: initialBgColor }}
                     >
-                        <LucideIcons.ArrowLeftRight className="mr-2 h-4 w-4" />
-                        Invert
+                      <IconComponent className="h-6 w-6 sm:h-7 sm:w-7" style={{ color: initialIconColor }} />
+                      <span className="text-[11px] truncate w-full" style={{ color: initialIconColor }}>
+                        {name}
+                      </span>
                     </Button>
+                  ))}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Icon Color Section */}
-                    <div className="space-y-2">
-                        <Label htmlFor="modal-icon-color" className="font-semibold">Icon Color</Label>
-                        <ColorPalette
-                          colors={ICON_PALETTE}
-                          onColorSelect={handleIconColorChange}
-                          title="Quick Select"
-                        />
-                        <div className="flex items-center gap-2 pt-2">
-                           <Input
-                                id="modal-icon-color"
-                                type="color"
-                                value={initialIconColor}
-                                onChange={(e) => handleIconColorChange(e.target.value)}
-                                className="w-12 h-10 p-1"
-                                aria-label="Advanced icon color picker"
-                            />
-                            <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
-                        </div>
-                    </div>
-                    {/* Background Color Section */}
-                    <div className="space-y-2">
-                        <Label htmlFor="modal-bg-color" className="font-semibold">Background Color</Label>
-                         <ColorPalette
-                          colors={BG_PALETTE}
-                          onColorSelect={handleBgColorChange}
-                          title="Quick Select"
-                        />
-                         <div className="flex items-center gap-2 pt-2">
-                           <Input
-                                id="modal-bg-color"
-                                type="color"
-                                value={initialBgColor}
-                                onChange={(e) => handleBgColorChange(e.target.value)}
-                                className="w-12 h-10 p-1"
-                                aria-label="Advanced background color picker"
-                            />
-                            <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
-                        </div>
-                    </div>
-                </div>
+              )}
             </div>
-        )}
+          </div>
+
+          {/* Preview + colors */}
+          {onColorsChange && (
+            <aside className="shrink-0 space-y-5 border-t pt-4 lg:w-80 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+              <div className="flex items-center gap-4">
+                <div
+                  className="flex size-14 shrink-0 items-center justify-center rounded-lg border sm:size-20"
+                  style={{ backgroundColor: initialBgColor }}
+                >
+                  <PreviewIcon className="size-7 sm:size-10" style={{ color: initialIconColor }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">Selected icon</p>
+                  <p className="text-sm font-medium truncate">{currentSelectedIconName || 'None'}</p>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={handleInvert} className="shrink-0" title="Swap icon and background colors">
+                  <LucideIcons.ArrowLeftRight className="mr-2 h-4 w-4" />
+                  Invert
+                </Button>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="space-y-2">
+                  <Label htmlFor="modal-icon-color" className="font-semibold">Icon Color</Label>
+                  <ColorPalette colors={ICON_PALETTE} onColorSelect={handleIconColorChange} title="Quick Select" />
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      id="modal-icon-color"
+                      type="color"
+                      value={initialIconColor}
+                      onChange={(e) => handleIconColorChange(e.target.value)}
+                      className="w-12 h-10 p-1"
+                      aria-label="Advanced icon color picker"
+                    />
+                    <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modal-bg-color" className="font-semibold">Background Color</Label>
+                  <ColorPalette colors={BG_PALETTE} onColorSelect={handleBgColorChange} title="Quick Select" />
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      id="modal-bg-color"
+                      type="color"
+                      value={initialBgColor}
+                      onChange={(e) => handleBgColorChange(e.target.value)}
+                      className="w-12 h-10 p-1"
+                      aria-label="Advanced background color picker"
+                    />
+                    <p className="text-xs text-muted-foreground">Or use the advanced color picker.</p>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          )}
+        </div>
 
         <DialogFooter>
           <DialogClose asChild>

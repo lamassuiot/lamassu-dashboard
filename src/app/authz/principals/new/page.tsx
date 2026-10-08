@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { createPrincipal } from '@/lib/authz-api';
 
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { CertificateList } from '@/components/CertificateList';
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
 import { CertificateDetailPanel } from '@/components/shared/CertificateDetailPanel';

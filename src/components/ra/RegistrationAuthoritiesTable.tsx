@@ -12,7 +12,7 @@ import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortDirection } from '@/app/registration-authorities/page';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';

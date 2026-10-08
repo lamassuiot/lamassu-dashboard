@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {

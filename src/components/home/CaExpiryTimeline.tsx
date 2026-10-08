@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import type { CA } from '@/lib/ca-data';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { DataSet } from "vis-data/esnext";
 import { Timeline } from "vis-timeline/esnext";
 import 'vis-timeline/styles/vis-timeline-graph2d.css';
@@ -125,7 +125,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       });
     };
 
-    let rafId = requestAnimationFrame(paintLines);
+    const rafId = requestAnimationFrame(paintLines);
     tl.on('rangechanged', paintLines);
 
     return () => {
@@ -148,9 +148,10 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
 
   const handleFullscreen = () => {
     if (!cardRef.current) return;
-    document.fullscreenElement
+    const fullscreenAction = document.fullscreenElement
       ? document.exitFullscreen()
       : cardRef.current.requestFullscreen();
+    void fullscreenAction.catch(error => console.error('Failed to toggle fullscreen:', error));
   };
 
   return (

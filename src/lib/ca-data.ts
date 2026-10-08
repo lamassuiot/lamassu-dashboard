@@ -302,7 +302,7 @@ export interface CreateCaPayload {
   profile_id: string;
   subject: {
     country?: string;
-    state_province?: string;
+    state?: string;
     locality?: string;
     organization?: string;
     organization_unit?: string;

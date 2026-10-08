@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { formatISO } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

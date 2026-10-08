@@ -5,7 +5,7 @@ import React from 'react';
 import { ShieldQuestion, FolderKey } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import AWSKMSLogo from "./crypto-engine-icons/AWS-KMS.png"
 import AWSSMLogo from "./crypto-engine-icons/AWS-SM.png"
 import PKCS11Logo from "./crypto-engine-icons/PKCS11.png"

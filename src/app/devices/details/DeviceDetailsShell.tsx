@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2 } from 'lucide-react';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';

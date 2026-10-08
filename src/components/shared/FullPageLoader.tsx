@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import LogoFullBlue from '@/app/lamassu_full_blue.svg';
 import LogoFullWhite from '@/app/lamassu_full_white.svg';
 

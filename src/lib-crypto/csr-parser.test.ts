@@ -149,7 +149,7 @@ INVALID!!!BASE64@@@
         const dnsEntries = result.sans.filter(san => san.startsWith('DNS:'))
         expect(dnsEntries.length).toBeGreaterThan(0)
         // Check for specific DNS names from the fixture
-        expect(result.sans.some(san => san.includes('example.com'))).toBe(true)
+        expect(dnsEntries.some(san => san === 'DNS:example.com' || san.endsWith('.example.com'))).toBe(true)
       } else {
         // SANs may be empty if extension wasn't in the CSR
         expect(result.sans).toEqual([])

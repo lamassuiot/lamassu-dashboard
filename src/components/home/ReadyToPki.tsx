@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import LogoBlue from '@/app/lamassu_logo_blue.svg';
 
 export const ReadyToPki: React.FC = () => {

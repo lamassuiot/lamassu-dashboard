@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -63,7 +63,7 @@ import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { PolicyFilterBar, defaultPolicyDateFilterValue } from '@/components/shared/filters/PolicyFilterBar';
 import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 

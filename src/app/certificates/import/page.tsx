@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
 import { parseCertificatePemDetails } from '@/lib/ca-data';
 import { format as formatDate } from 'date-fns';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { cn } from '@/lib/utils';

@@ -1,38 +1,25 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, PlusCircle, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, PlusCircle, Loader2 } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
-import { parseCertificatePemDetails, initPkijsEngine } from "@/lib-crypto";
+import { initPkijsEngine } from "@/lib-crypto";
 import { sileo } from '@/lib/toast';
-import { format as formatDate } from 'date-fns';
-import { DetailItem } from '@/components/shared/DetailItem';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import { Alert } from '@/components/ui/alert';
+import { DecodedCertificateSections, decodeCertificatePem, type DecodedCertInfo } from '@/components/ca/DecodedCertificateSections';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
-
-interface DecodedImportedCertInfo {
-  subject?: string;
-  issuer?: string;
-  serialNumber?: string;
-  validFrom?: string;
-  validTo?: string;
-  isCa?: boolean;
-  error?: string;
-}
 
 export default function CreateCaImportFullPage() {
   const router = useRouter();
@@ -42,7 +29,7 @@ export default function CreateCaImportFullPage() {
 
   const [importedCaCertPem, setImportedCaCertPem] = useState('');
   const [importedPrivateKeyPem, setImportedPrivateKeyPem] = useState('');
-  const [decodedImportedCertInfo, setDecodedImportedCertInfo] = useState<DecodedImportedCertInfo | null>(null);
+  const [decodedImportedCertInfo, setDecodedImportedCertInfo] = useState<DecodedCertInfo | null>(null);
 
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
   const [caChainPem, setCaChainPem] = useState('');
@@ -119,29 +106,13 @@ export default function CreateCaImportFullPage() {
     setExtendedKeyUsages(prev => checked ? [...prev, option] : prev.filter(u => u !== option));
   };
 
-  const parseCertificatePem = async (pem: string) => {
-    try {
-      const parsed = await parseCertificatePemDetails(pem);
-      setDecodedImportedCertInfo({
-        subject: parsed.subject,
-        issuer: parsed.issuer,
-        serialNumber: parsed.serialNumber,
-        validFrom: parsed.validFrom ? formatDate(new Date(parsed.validFrom), "PPpp") : 'N/A',
-        validTo: parsed.validTo ? formatDate(new Date(parsed.validTo), "PPpp") : 'N/A',
-        isCa: parsed.isCa ?? false,
-      });
-    } catch (e: any) {
-      setDecodedImportedCertInfo({ error: `Failed to parse certificate: ${e.message}` });
-    }
-  };
-
   const handleImportedCertPemChange = (pem: string) => {
     setImportedCaCertPem(pem);
     if (!pem.trim()) {
       setDecodedImportedCertInfo(null);
       return;
     }
-    parseCertificatePem(pem);
+    decodeCertificatePem(pem).then(setDecodedImportedCertInfo);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -181,7 +152,7 @@ export default function CreateCaImportFullPage() {
       await importCa(payload);
       sileo.success({
         title: "Certification Authority Import Successful",
-        description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
+        description: `Certification Authority "${decodedImportedCertInfo?.commonName || 'imported certificate'}" has been imported.`
       });
       router.push('/certificate-authorities');
     } catch (error: any) {
@@ -281,29 +252,8 @@ export default function CreateCaImportFullPage() {
                 )}
                 <p className="text-xs text-muted-foreground">The public certificate of the Certification Authority you are importing.</p>
               </div>
-              {decodedImportedCertInfo && (
-                <div className="rounded-lg border bg-muted/30 p-4">
-                  <h4 className="mb-3 text-sm font-semibold">Decoded Certificate Information</h4>
-                  <div className="space-y-2 text-sm">
-                    {decodedImportedCertInfo.error ? (
-                      <Alert variant="destructive">{decodedImportedCertInfo.error}</Alert>
-                    ) : (
-                      <>
-                        <DetailItem label="Subject" value={decodedImportedCertInfo.subject} isMono />
-                        <DetailItem label="Issuer" value={decodedImportedCertInfo.issuer} isMono />
-                        <DetailItem label="Serial Number" value={<IdentifierDisplay value={decodedImportedCertInfo.serialNumber || ''} />} />
-                        <DetailItem label="Is CA" value={<Badge variant={decodedImportedCertInfo.isCa ? "default" : "secondary"}>{decodedImportedCertInfo.isCa ? 'Yes' : 'No'}</Badge>} />
-                        {!decodedImportedCertInfo.isCa && (
-                          <Alert variant="warning" className="mt-2">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertTitle>Not a CA Certificate</AlertTitle>
-                            <AlertDescription>This certificate does not have the `isCA` basic constraint set to `TRUE`. It cannot be used to issue other certificates.</AlertDescription>
-                          </Alert>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+              {decodedImportedCertInfo?.error && (
+                <Alert variant="destructive">{decodedImportedCertInfo.error}</Alert>
               )}
               <div className="space-y-1.5">
                 <Label htmlFor="importedCaKeyPem">Certification Authority Private Key (PEM)</Label>
@@ -342,6 +292,10 @@ export default function CreateCaImportFullPage() {
               </div>
             </div>
           </div>
+
+          {decodedImportedCertInfo && !decodedImportedCertInfo.error && (
+            <DecodedCertificateSections info={decodedImportedCertInfo} />
+          )}
 
           <Separator />
 

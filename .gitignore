@@ -14,11 +14,10 @@
 # testing
 /coverage
 
-# next.js
+# production
 /.next/
 /out/
-
-# production
+/dist/
 /build
 
 # misc
@@ -36,7 +35,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 .genkit/*
 .env*
