@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildKeyGraph, findCrossSignedKeys, graphKeyId, isolateKeys, pairMutualSignatures, stackMutualKeys } from './ca-key-graph'
+import { buildKeyGraph, findCrossCertificates, findCrossSignedKeys, graphKeyId, isolateKeys, pairMutualSignatures, stackMutualKeys } from './ca-key-graph'
 import type { CA } from '@/lib/ca-data'
 import type { ApiKmsKey } from '@/lib/kms-data'
 
@@ -84,6 +84,36 @@ describe('findCrossSignedKeys', () => {
 
     expect(findCrossSignedKeys(graph).size).toBe(0)
   })
+
+  it('does not flag a key reused under a different subject by another signer', () => {
+    const rootDn = { common_name: 'Root' } as CA['subjectDN']
+    const named = { ...root, subjectDN: rootDn }
+    const otherSubject = makeCa({ id: 'root-x', issuer: 'other', subjectKeyId: 'k-root', authorityKeyId: 'k-other', subjectDN: { common_name: 'Another Root' } as CA['subjectDN'] })
+    const graph = buildKeyGraph([named, otherRoot, otherSubject], [], [])
+
+    expect(findCrossSignedKeys(graph).size).toBe(0)
+    expect(findCrossCertificates(graph).size).toBe(0)
+  })
+
+  it('matches subjects ignoring case and repeated whitespace', () => {
+    const named = { ...root, subjectDN: { common_name: 'Root  CA', organization: 'Acme' } as CA['subjectDN'] }
+    const crossCert = makeCa({ id: 'root-x', issuer: 'other', subjectKeyId: 'k-root', authorityKeyId: 'k-other', subjectDN: { common_name: 'root ca', organization: 'ACME' } as CA['subjectDN'] })
+    const graph = buildKeyGraph([named, otherRoot, crossCert], [], [])
+
+    expect(findCrossCertificates(graph)).toEqual(new Set(['root', 'root-x']))
+  })
+})
+
+describe('subjectGroups', () => {
+  it('splits a key\'s certificates by subject, newest group first, and keeps certificates in group order', () => {
+    const a1 = makeCa({ id: 'a1', subjectKeyId: 'k', authorityKeyId: 'k', name: 'A', expires: '2030-01-01T00:00:00Z' })
+    const b1 = makeCa({ id: 'b1', subjectKeyId: 'k', authorityKeyId: 'k', name: 'B', expires: '2040-01-01T00:00:00Z' })
+    const a2 = makeCa({ id: 'a2', subjectKeyId: 'k', authorityKeyId: 'k', name: 'A', expires: '2035-01-01T00:00:00Z' })
+    const [key] = buildKeyGraph([a1, b1, a2], [], []).keys
+
+    expect(key.subjectGroups.map(group => group.map(ca => ca.id))).toEqual([['b1'], ['a2', 'a1']])
+    expect(key.certificates.map(ca => ca.id)).toEqual(['b1', 'a2', 'a1'])
+  })
 })
 
 describe('isolateKeys', () => {
@@ -113,6 +143,18 @@ describe('pairMutualSignatures', () => {
     expect(mutual).toHaveLength(1)
     expect([mutual[0].forward.caId, mutual[0].backward.caId].sort()).toEqual(['other-x', 'root-x'])
     expect(mutual[0].forward.source).toBe(mutual[0].backward.target)
+  })
+
+  it('keeps signatures one-way when their certificate is not a cross-certificate', () => {
+    const otherRoot = makeCa({ id: 'other', subjectKeyId: 'k-other', authorityKeyId: 'k-other', name: 'Other' })
+    const rootByOther = makeCa({ id: 'root-x', issuer: 'other', subjectKeyId: 'k-root', authorityKeyId: 'k-other', name: 'Renamed Root' })
+    const otherByRoot = makeCa({ id: 'other-x', issuer: 'root', subjectKeyId: 'k-other', authorityKeyId: 'k-root', name: 'Other' })
+    const graph = buildKeyGraph([root, otherRoot, rootByOther, otherByRoot], [], [])
+
+    const { oneWay, mutual } = pairMutualSignatures(graph.signatures, findCrossCertificates(graph))
+
+    expect(mutual).toHaveLength(0)
+    expect(oneWay.map(s => s.caId).sort()).toEqual(['other-x', 'root-x'])
   })
 })
 

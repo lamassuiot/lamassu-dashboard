@@ -251,8 +251,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <DetailInfoRows>
               <DetailInfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
               <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
-              <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'} />
-              <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'} className="last:pb-0" />
+              <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} /> : 'N/A'} />
+              <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} /> : 'N/A'} className="last:pb-0" />
             </DetailInfoRows>
           </div>
         </div>

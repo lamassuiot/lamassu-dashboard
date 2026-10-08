@@ -11,19 +11,19 @@ import {
   useNodesState,
 } from '@xyflow/react';
 import ELK from 'elkjs/lib/elk.bundled.js';
-import { ArrowDownUp, FileBadge, GitMerge, KeyRound, X } from 'lucide-react';
+import { ArrowDownUp, FileBadge, GitMerge, KeyRound, SeparatorHorizontal, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { cn } from '@/lib/utils';
-import { getEffectiveCaStatus } from '@/lib/ca-utils';
+import { formatCaSubject, getEffectiveCaStatus } from '@/lib/ca-utils';
 import type { CA } from '@/lib/ca-data';
 import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaFlowCanvas } from './CaFlowCanvas';
 import { EngineIconBox } from './EngineIconBox';
-import { buildKeyGraph, findCrossSignedKeys, isolateKeys, isSelfSigned, pairMutualSignatures, stackMutualKeys, type GraphKey, type GraphSignature, type MutualSignature } from './ca-key-graph';
+import { buildKeyGraph, findCrossCertificates, findCrossSignedKeys, isolateKeys, isSelfSigned, pairMutualSignatures, stackMutualKeys, type GraphKey, type GraphSignature, type MutualSignature } from './ca-key-graph';
 
 interface CaGraphViewProps {
   cas: CA[];
@@ -35,9 +35,32 @@ interface CaGraphViewProps {
 const NODE_WIDTH = 360;
 const HEADER_HEIGHT = 56;
 const ROW_HEIGHT = 40;
+// Heads each subject group when a key is attested under more than one subject.
+const SUBJECT_STRIP_HEIGHT = 24;
 const BORDER = 1;
 
-const nodeHeight = (rows: number) => HEADER_HEIGHT + Math.max(rows, 1) * ROW_HEIGHT + BORDER * 2;
+const hasSubjectStrips = (graphKey: GraphKey) => graphKey.subjectGroups.length > 1;
+
+const nodeHeight = (graphKey: GraphKey) =>
+  HEADER_HEIGHT
+  + Math.max(graphKey.certificates.length, 1) * ROW_HEIGHT
+  + (hasSubjectStrips(graphKey) ? graphKey.subjectGroups.length * SUBJECT_STRIP_HEIGHT : 0)
+  + BORDER * 2;
+
+/** Vertical centre of each certificate row, below the header, in `certificates` order. */
+function rowCentres(graphKey: GraphKey): number[] {
+  const strip = hasSubjectStrips(graphKey) ? SUBJECT_STRIP_HEIGHT : 0;
+  const centres: number[] = [];
+  let y = HEADER_HEIGHT;
+  for (const group of graphKey.subjectGroups) {
+    y += strip;
+    for (let i = 0; i < group.length; i++) {
+      centres.push(y + ROW_HEIGHT / 2);
+      y += ROW_HEIGHT;
+    }
+  }
+  return centres;
+}
 const rowHandleId = (caId: string) => `cert-${caId}`;
 // Keys that cross-signed each other are stacked vertically and joined top-to-bottom.
 const STACK_GAP = 72;
@@ -70,9 +93,45 @@ const keyTitle = (graphKey: GraphKey): string => {
   return graphKey.certificates.length === 0 ? 'External key' : 'Key not in KMS';
 };
 
+function CertificateRow({ ca, mutualSigner, onOpenCa }: Readonly<{ ca: CA; mutualSigner?: string; onOpenCa: (caId: string) => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenCa(ca.id)}
+      className="nodrag relative flex w-full items-center gap-2 px-3 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none last:rounded-b-lg"
+      style={{ height: ROW_HEIGHT }}
+      title={mutualSigner ? `Open ${ca.name} · cross-signed by ${mutualSigner}` : `Open ${ca.name}`}
+    >
+      <Handle type="target" position={Position.Left} id={rowHandleId(ca.id)} className="opacity-0" isConnectable={false} />
+      {mutualSigner
+        ? <ArrowDownUp className="size-4 shrink-0 text-primary" />
+        : <FileBadge className="size-4 shrink-0 text-muted-foreground" />}
+      <span className="min-w-0 flex-1 truncate text-sm">{ca.name}</span>
+      {isSelfSigned(ca) && <Badge variant="secondary">Self-signed</Badge>}
+      <ApiStatusBadge status={getEffectiveCaStatus(ca)} />
+    </button>
+  );
+}
+
+/** Labels a subject group; every group after the first is set off by a divider. */
+function SubjectStrip({ ca, isFirst }: Readonly<{ ca: CA; isFirst: boolean }>) {
+  const subject = formatCaSubject(ca);
+  return (
+    <div
+      className={cn('flex items-center gap-1.5 bg-muted/40 px-3 text-[11px] text-muted-foreground', !isFirst && 'border-t-2 border-border')}
+      style={{ height: SUBJECT_STRIP_HEIGHT }}
+      title={`Subject: ${subject}`}
+    >
+      <span className="shrink-0 font-medium uppercase tracking-wide">Subject</span>
+      <span className="min-w-0 truncate">{subject}</span>
+    </div>
+  );
+}
+
 const KeyNode = ({ data }: NodeProps<KeyFlowNode>) => {
   const { graphKey, isCrossSigned, mutualSigners, onOpenCa } = data;
   const isExternal = graphKey.certificates.length === 0;
+  const showSubjects = hasSubjectStrips(graphKey);
   const algorithm = formatAlgorithm(graphKey);
   const title = keyTitle(graphKey);
 
@@ -96,7 +155,7 @@ const KeyNode = ({ data }: NodeProps<KeyFlowNode>) => {
           </p>
         </div>
         {isCrossSigned && (
-          <Badge variant="info" title="Certificates for this key were signed by more than one key">
+          <Badge variant="info" title="Certificates with this key and the same subject were signed by more than one key">
             <GitMerge />
             Cross-signed
           </Badge>
@@ -111,27 +170,14 @@ const KeyNode = ({ data }: NodeProps<KeyFlowNode>) => {
           </span>
         </div>
       ) : (
-        graphKey.certificates.map(ca => {
-          const mutualSigner = mutualSigners[ca.id];
-          return (
-          <button
-            key={ca.id}
-            type="button"
-            onClick={() => onOpenCa(ca.id)}
-            className="nodrag relative flex w-full items-center gap-2 px-3 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none last:rounded-b-lg"
-            style={{ height: ROW_HEIGHT }}
-            title={mutualSigner ? `Open ${ca.name} · cross-signed by ${mutualSigner}` : `Open ${ca.name}`}
-          >
-            <Handle type="target" position={Position.Left} id={rowHandleId(ca.id)} className="opacity-0" isConnectable={false} />
-            {mutualSigner
-              ? <ArrowDownUp className="size-4 shrink-0 text-primary" />
-              : <FileBadge className="size-4 shrink-0 text-muted-foreground" />}
-            <span className="min-w-0 flex-1 truncate text-sm">{ca.name}</span>
-            {isSelfSigned(ca) && <Badge variant="secondary">Self-signed</Badge>}
-            <ApiStatusBadge status={getEffectiveCaStatus(ca)} />
-          </button>
-          );
-        })
+        graphKey.subjectGroups.map((group, groupIndex) => (
+          <React.Fragment key={group[0].id}>
+            {showSubjects && <SubjectStrip ca={group[0]} isFirst={groupIndex === 0} />}
+            {group.map(ca => (
+              <CertificateRow key={ca.id} ca={ca} mutualSigner={mutualSigners[ca.id]} onOpenCa={onOpenCa} />
+            ))}
+          </React.Fragment>
+        ))
       )}
     </div>
   );
@@ -156,15 +202,15 @@ const layoutOptions = {
 
 const elkPorts = (node: KeyFlowNode, yOffset: number) => [
   { id: `${node.id}::signs`, x: NODE_WIDTH, y: yOffset + HEADER_HEIGHT / 2, layoutOptions: { 'elk.port.side': 'EAST' } },
-  ...node.data.graphKey.certificates.map((ca, i) => ({
-    id: `${node.id}::${rowHandleId(ca.id)}`,
+  ...rowCentres(node.data.graphKey).map((centre, i) => ({
+    id: `${node.id}::${rowHandleId(node.data.graphKey.certificates[i].id)}`,
     x: 0,
-    y: yOffset + HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2,
+    y: yOffset + centre,
     layoutOptions: { 'elk.port.side': 'WEST' },
   })),
 ];
 
-const flowNodeHeight = (node: KeyFlowNode) => nodeHeight(node.data.graphKey.certificates.length);
+const flowNodeHeight = (node: KeyFlowNode) => nodeHeight(node.data.graphKey);
 
 /**
  * Lays out nodes with ELK. Each stack is handed to ELK as one tall node so its members
@@ -294,13 +340,14 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     () => buildKeyGraph(cas, kmsKeys, allCryptoEngines),
     [cas, kmsKeys, allCryptoEngines],
   );
+  const crossCertificates = useMemo(() => findCrossCertificates(fullGraph), [fullGraph]);
   const crossSignedKeys = useMemo(() => findCrossSignedKeys(fullGraph), [fullGraph]);
   const graph = useMemo(
     () => (crossSignOnly ? isolateKeys(fullGraph, crossSignedKeys) : fullGraph),
     [fullGraph, crossSignedKeys, crossSignOnly],
   );
 
-  const { oneWay, mutual } = useMemo(() => pairMutualSignatures(graph.signatures), [graph]);
+  const { oneWay, mutual } = useMemo(() => pairMutualSignatures(graph.signatures, crossCertificates), [graph, crossCertificates]);
   const stacks = useMemo(() => stackMutualKeys(mutual), [mutual]);
 
   const mutualSigners = useMemo(() => {
@@ -316,6 +363,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
   const baseEdges = useMemo(() => buildSignatureEdges(oneWay, mutual, stacks), [oneWay, mutual, stacks]);
 
   const hasMutualEdges = baseEdges.some(edge => edge.markerStart);
+  const hasSplitSubjects = graph.keys.some(hasSubjectStrips);
 
   const onOpenCa = useCallback(
     (caId: string) => router.push(`/certificate-authorities/details?caId=${caId}`),
@@ -385,12 +433,18 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               <span>Keys that cross-signed each other are stacked and joined vertically. Marked rows are the cross-certificates.</span>
             </p>
           )}
+          {hasSplitSubjects && (
+            <p className="mt-1 flex items-start gap-2">
+              <SeparatorHorizontal className="mt-0.5 size-3.5 shrink-0" />
+              <span>A divider separates certificates of the same key with different subjects. Cross-signing needs the same subject, so only certificates within one group can be cross-signed.</span>
+            </p>
+          )}
           {crossSignOnly && (
             <p className="mt-1 flex items-start gap-2">
               <GitMerge className="mt-0.5 size-3.5 shrink-0" />
               <span>
                 Showing {crossSignedKeys.size} cross-signed {crossSignedKeys.size === 1 ? 'key' : 'keys'}, whose
-                certificates were signed by more than one key, plus the keys that signed them.
+                certificates with the same subject were signed by more than one key, plus the keys that signed them.
               </span>
             </p>
           )}

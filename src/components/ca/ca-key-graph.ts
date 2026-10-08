@@ -1,4 +1,5 @@
 import type { CA } from '@/lib/ca-data';
+import { caSubjectKey } from '@/lib/ca-utils';
 import type { ApiKmsKey } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
@@ -9,8 +10,16 @@ export interface GraphKey {
   keyId?: string;
   kmsKey?: ApiKmsKey;
   engine?: ApiCryptoEngine;
-  /** Certificates attesting this key. Empty for keys that only appear as signers. */
+  /**
+   * Certificates attesting this key, ordered group by group as in `subjectGroups`. Empty for
+   * keys that only appear as signers.
+   */
   certificates: CA[];
+  /**
+   * `certificates` split by subject, newest group first. Only certificates in the same group
+   * can cross-sign: a different subject is a different CA identity that happens to reuse the key.
+   */
+  subjectGroups: CA[][];
   /** Issuer CN of a certificate signed by this key, used to label keys outside the view. */
   issuerHint?: string;
 }
@@ -60,6 +69,7 @@ export function buildKeyGraph(cas: CA[], kmsKeys: ApiKmsKey[], engines: ApiCrypt
         kmsKey,
         engine: kmsKey ? enginesById.get(kmsKey.engine_id) : undefined,
         certificates: [],
+        subjectGroups: [],
       };
       keys.set(id, key);
     }
@@ -70,7 +80,7 @@ export function buildKeyGraph(cas: CA[], kmsKeys: ApiKmsKey[], engines: ApiCrypt
     if (ca.subjectKeyId) {
       ensureKey(ca.subjectKeyId).certificates.push(ca);
     } else {
-      keys.set(`cert:${ca.id}`, { id: `cert:${ca.id}`, certificates: [ca] });
+      keys.set(`cert:${ca.id}`, { id: `cert:${ca.id}`, certificates: [ca], subjectGroups: [[ca]] });
     }
   }
 
@@ -90,30 +100,50 @@ export function buildKeyGraph(cas: CA[], kmsKeys: ApiKmsKey[], engines: ApiCrypt
 
   for (const key of keys.values()) {
     key.certificates.sort((a, b) => b.expires.localeCompare(a.expires));
+    key.subjectGroups = groupBySubject(key.certificates);
+    key.certificates = key.subjectGroups.flat();
   }
 
   return { keys: [...keys.values()], signatures };
 }
 
-/**
- * Keys attested by certificates from two or more distinct signing keys. A self-signed
- * certificate counts as signed by the key itself, so a root that is also certified by
- * another root is cross-signed, while re-issuing under the same signer is not.
- */
-export function findCrossSignedKeys(graph: KeyGraph): Set<string> {
-  const signersByKey = new Map<string, Set<string>>();
-  const addSigner = (keyId: string, signerId: string) => {
-    const signers = signersByKey.get(keyId) ?? new Set<string>();
-    signers.add(signerId);
-    signersByKey.set(keyId, signers);
-  };
-
-  for (const key of graph.keys) {
-    if (key.certificates.some(isSelfSigned)) addSigner(key.id, key.id);
+/** Splits certificates (already sorted) by subject, keeping their order within and across groups. */
+function groupBySubject(certificates: CA[]): CA[][] {
+  const groups = new Map<string, CA[]>();
+  for (const ca of certificates) {
+    const subject = caSubjectKey(ca);
+    groups.set(subject, [...(groups.get(subject) ?? []), ca]);
   }
-  for (const sig of graph.signatures) addSigner(sig.target, sig.source);
+  return [...groups.values()];
+}
 
-  return new Set([...signersByKey].filter(([, signers]) => signers.size > 1).map(([keyId]) => keyId));
+/**
+ * Cross-certificates: certificates whose key and subject are also attested by a certificate
+ * from another signing key. A self-signed certificate counts as signed by the key itself, so
+ * a root also certified by another root under the same subject is cross-signed, while
+ * re-issuing under the same signer, or reusing the key under another subject, is not.
+ */
+export function findCrossCertificates(graph: KeyGraph): Set<string> {
+  const signerOf = new Map<string, string>();
+  for (const key of graph.keys) {
+    for (const ca of key.certificates) if (isSelfSigned(ca)) signerOf.set(ca.id, key.id);
+  }
+  for (const sig of graph.signatures) signerOf.set(sig.caId, sig.source);
+
+  const crossCertificates = new Set<string>();
+  for (const key of graph.keys) {
+    for (const group of key.subjectGroups) {
+      const signers = new Set(group.map(ca => signerOf.get(ca.id)).filter(Boolean));
+      if (signers.size > 1) group.forEach(ca => crossCertificates.add(ca.id));
+    }
+  }
+  return crossCertificates;
+}
+
+/** Keys with at least one subject attested by certificates from two or more signing keys. */
+export function findCrossSignedKeys(graph: KeyGraph): Set<string> {
+  const crossCertificates = findCrossCertificates(graph);
+  return new Set(graph.keys.filter(key => key.certificates.some(ca => crossCertificates.has(ca.id))).map(key => key.id));
 }
 
 /**
@@ -125,8 +155,11 @@ export interface MutualSignature {
   backward: GraphSignature;
 }
 
-/** Splits signatures into one-way ones and bidirectional cross-sign pairs. */
-export function pairMutualSignatures(signatures: GraphSignature[]): {
+/**
+ * Splits signatures into one-way ones and bidirectional cross-sign pairs. When `crossCertificates`
+ * is given, only signatures of those certificates can pair up; the rest stay one-way.
+ */
+export function pairMutualSignatures(signatures: GraphSignature[], crossCertificates?: ReadonlySet<string>): {
   oneWay: GraphSignature[];
   mutual: MutualSignature[];
 } {
@@ -136,6 +169,10 @@ export function pairMutualSignatures(signatures: GraphSignature[]): {
   const pairKey = (source: string, target: string) => `${source}\u0000${target}`;
 
   for (const sig of signatures) {
+    if (crossCertificates && !crossCertificates.has(sig.caId)) {
+      oneWay.push(sig);
+      continue;
+    }
     const reverse = pending.get(pairKey(sig.target, sig.source));
     if (reverse?.length) {
       mutual.push({ forward: reverse.shift()!, backward: sig });
