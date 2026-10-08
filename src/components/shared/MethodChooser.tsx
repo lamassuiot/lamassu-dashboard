@@ -65,7 +65,7 @@ export function MethodChooser({
       <div role="group" aria-label={ariaLabel} className="rounded-lg border bg-card overflow-hidden">
         {groups.map(group => (
           <div key={group.id} className="[&:not(:first-child)]:border-t">
-            <div className="bg-muted/40 px-5 py-3 border-b">
+            <div className="bg-muted px-5 py-3 border-b">
               <p className="text-sm font-semibold">{group.label}</p>
               {group.description && (
                 <p className="text-xs text-muted-foreground mt-0.5">{group.description}</p>

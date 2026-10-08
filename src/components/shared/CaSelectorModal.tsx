@@ -30,6 +30,8 @@ interface CaSelectorModalProps {
   onCaSelected: (ca: CA) => void;
   currentSelectedCaId?: string | null;
   allCryptoEngines?: ApiCryptoEngine[];
+  /** Why a CA cannot be picked, or null when it can. Unpickable CAs stay listed but blurred. */
+  getDisabledReason?: (ca: CA) => string | null;
 }
 
 export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
@@ -44,6 +46,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
   onCaSelected,
   currentSelectedCaId,
   allCryptoEngines,
+  getDisabledReason,
 }) => {
   const [filterText, setFilterText] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>([]);
@@ -98,6 +101,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
         filters={filters}
         onSelect={onCaSelected}
         selectedCaId={currentSelectedCaId}
+        getDisabledReason={getDisabledReason}
       />
     </CaDrawer>
   );

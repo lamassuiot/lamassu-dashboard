@@ -14,7 +14,6 @@ import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
-import { formatISO } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
@@ -33,8 +32,8 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
+import { INDEFINITE_CA_EXPIRATION, toApiCaExpiration } from '@/lib/ca-utils';
 
-const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
 export default function CreateCaExistingKeyPage() {
   const router = useRouter();
@@ -252,12 +251,6 @@ export default function CreateCaExistingKeyPage() {
     setIsParentCaModalOpen(false);
   };
 
-  const formatExpirationForApi = (config: ExpirationConfig): { type: "Duration" | "Date"; duration?: string; time?: string } => {
-    if (config.type === "Duration") return { type: "Duration", duration: config.durationValue };
-    if (config.type === "Date" && config.dateValue) return { type: "Date", time: formatISO(config.dateValue) };
-    if (config.type === "Indefinite") return { type: "Date", time: INDEFINITE_DATE_API_VALUE };
-    return { type: "Duration", duration: "1y" };
-  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -304,7 +297,7 @@ export default function CreateCaExistingKeyPage() {
       engine_id: selectedKeyData.engine_id,
       subject: {
         country: country || undefined,
-        state_province: stateProvince || undefined,
+        state: stateProvince || undefined,
         locality: locality || undefined,
         organization: organization || undefined,
         organization_unit: organizationalUnit || undefined,
@@ -313,7 +306,7 @@ export default function CreateCaExistingKeyPage() {
       key_metadata: {
         key_id: selectedKeyId,
       },
-      ca_expiration: formatExpirationForApi(caExpiration),
+      ca_expiration: toApiCaExpiration(caExpiration),
       profile_id: selectedProfileId!,
       ca_type: "MANAGED",
     };
@@ -328,7 +321,7 @@ export default function CreateCaExistingKeyPage() {
       } else if (formData.validity.type === 'Date' && formData.validity.dateValue) {
         validityPayload = { type: 'Date', time: formData.validity.dateValue.toISOString() };
       } else if (formData.validity.type === 'Indefinite') {
-        validityPayload = { type: 'Date', time: INDEFINITE_DATE_API_VALUE };
+        validityPayload = { type: 'Date', time: INDEFINITE_CA_EXPIRATION };
       }
       const inlineProfile: CreateSigningProfilePayload = {
         name: `Inline CA Profile - ${caId}`,
