@@ -19,9 +19,10 @@ const UPDATE_STATUS_VARIANT: Record<string, BadgeVariant> = {
   running: 'info',
   pending: 'muted',
   failed: 'destructive',
+  cancelled: 'muted',
 };
 
-const UpdateStatusBadge: React.FC<{ status: FirmwareUpdateStatus }> = ({ status }) => (
+export const UpdateStatusBadge: React.FC<{ status: FirmwareUpdateStatus }> = ({ status }) => (
   <Badge variant={UPDATE_STATUS_VARIANT[status] ?? 'muted'} dot className="capitalize">
     {status}
   </Badge>
@@ -251,8 +252,11 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
                   <TableBody>
                     {packUpdates.map((u) => (
                       <TableRow key={u.id}>
-                        <TableCell className="font-medium">{u.distribution_set_name}</TableCell>
-                        <TableCell className="font-mono text-xs">v{u.version_from} → v{u.version_to}</TableCell>
+                        <TableCell className="font-medium">{u.distribution_set_name || '—'}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {/* No "from" is a first install of that set, not a missing value. */}
+                          {u.version_from ? `v${u.version_from}` : 'none'} → {u.version_to ? `v${u.version_to}` : '—'}
+                        </TableCell>
                         <TableCell><UpdateStatusBadge status={u.status} /></TableCell>
                         <TableCell><PackagingBadge packaging={u.packaging} /></TableCell>
                         <TableCell className="text-sm text-muted-foreground">

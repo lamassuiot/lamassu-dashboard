@@ -228,7 +228,10 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
     tl.on('rangechanged', paintLines);
 
     return () => {
-      roots.forEach(r => r.unmount());
+      // Deferred: this cleanup runs while React is rendering the parent, and unmounting a root
+      // synchronously from there is what React warns about ("Attempted to synchronously unmount a
+      // root while React was already rendering").
+      setTimeout(() => roots.forEach(r => r.unmount()));
       clearTimeout(restackTimer);
       cancelAnimationFrame(rafId);
       tl.off('rangechanged', paintLines);

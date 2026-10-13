@@ -52,6 +52,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -64,6 +65,7 @@ import {
   Info, Package, Loader2, XCircle, HelpCircle, Rocket, Clock, PackageCheck, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
@@ -73,6 +75,7 @@ import {
 } from '@/lib/iot-api';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
 import { deriveCampaignDeviceStats } from '@/components/iot/campaign-cells';
+import { LaunchGroupUpdateDialog } from '@/components/device-groups/LaunchGroupUpdateDialog';
 import type { DevicePackVersion, DevicePackUpdate } from '@/types/iot';
 
 const ALL = '__all__';
@@ -213,6 +216,23 @@ interface DeviceRow {
   lastActivity: string;
 }
 
+// Compliance, independent of any job: every set at its latest target, or at least one behind it.
+function isCompliant(d: DeviceRow, status: 'up-to-date' | 'outdated'): boolean {
+  if (d.sets.length === 0) return false;
+  return status === 'up-to-date'
+    ? d.sets.every((x) => x.status === 'up-to-date')
+    : d.sets.some((x) => x.status === 'outdated');
+}
+
+// The status filter. "Up to date" and "Outdated" are compliance questions, answered like the tiles
+// that count them; the rest match the row's own (job-first) status. Matching every filter against
+// the row status listed nobody as up to date or outdated whenever their last job had finished,
+// because a finished job makes the row read "Installed" — while the tiles above said 1 and 7.
+function matchesStatusFilter(d: DeviceRow, filter: string): boolean {
+  if (filter === 'up-to-date' || filter === 'outdated') return isCompliant(d, filter);
+  return d.status === filter;
+}
+
 // What one distribution set's row SHOWS. A job in flight (or a failed attempt) outranks the version
 // comparison: it is the fresher fact and the actionable one. A FINISHED job deliberately does not —
 // "the attempt succeeded" and "the device now matches the target" are different claims, and only
@@ -343,13 +363,22 @@ export default function OtaDevicesPage() {
   const [packFilters, setPackFilters] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  // Multi-select for a bulk update. The update is dispatched through ONE device group, so it is only
+  // offered while every selected device shares a group.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [launchOpen, setLaunchOpen] = useState(false);
 
   const groupIdsKey = availableDms.map((g) => g.id).join(',');
 
-  const load = useCallback(async () => {
+  // silent: a background refresh — no spinner (which also resets the per-device history cache) and no
+  // error state, so the table updates in place. An options object, so a click event can't read as silent.
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.access_token || availableDms.length === 0) return;
-    setIsLoading(true);
-    setLoadError(null);
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setIsLoading(true);
+      setLoadError(null);
+    }
     try {
       const [membership, packPages, targetPages, campaignPages, allPacks] = await Promise.all([
         // 1. The real fleet, by group. Paged; a device may appear under several groups.
@@ -521,14 +550,18 @@ export default function OtaDevicesPage() {
 
       setDevices(rows);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err));
+      if (!silent) setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.access_token, groupIdsKey, targetsSupported]);
 
   useEffect(() => { load(); }, [load]);
+
+  // The fleet's live state while an update is moving: refresh whenever a device is queued or installing.
+  const updateInFlight = devices.some((d) => d.status === 'queued' || d.status === 'installing');
+  useAutoRefresh(() => load({ silent: true }), updateInFlight, 8000);
 
   const packOptions = useMemo(
     () => [...new Set(devices.flatMap((d) => d.sets.map((s) => s.packName)))].filter(Boolean).sort(),
@@ -543,14 +576,15 @@ export default function OtaDevicesPage() {
   // which is why a compliant-but-downloading device reads "Installing" there.
   const counts = useMemo(() => {
     const withSets = devices.filter((d) => d.sets.length > 0);
+    // isCompliant is shared with the status filter, so clicking a tile lists exactly what it counts.
     const byJob = (s: DeviceStatus) => devices.filter((d) => d.job && d.status === s).length;
     const queued = byJob('queued');
     const installing = byJob('installing');
     return {
       total: devices.length,
       // Compliance — installed versions vs the declared target, ignoring job state.
-      upToDate: withSets.filter((d) => d.sets.every((x) => x.status === 'up-to-date')).length,
-      outdated: withSets.filter((d) => d.sets.some((x) => x.status === 'outdated')).length,
+      upToDate: withSets.filter((d) => isCompliant(d, 'up-to-date')).length,
+      outdated: withSets.filter((d) => isCompliant(d, 'outdated')).length,
       // Live activity — from the most recent update job.
       queued,
       installing,
@@ -564,7 +598,7 @@ export default function OtaDevicesPage() {
     return devices.filter((d) => {
       if (q && !d.deviceId.toLowerCase().includes(q)) return false;
       if (groupFilters.length > 0 && !d.groupIds.some((id) => groupFilters.includes(id))) return false;
-      if (statusFilter !== ALL && d.status !== statusFilter) return false;
+      if (statusFilter !== ALL && !matchesStatusFilter(d, statusFilter)) return false;
       if (packFilters.length > 0 && !d.sets.some((s) => packFilters.includes(s.packName))) return false;
       return true;
     });
@@ -575,6 +609,17 @@ export default function OtaDevicesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  // A group every selected device belongs to; undefined when they share none.
+  const selectedDevices = devices.filter((d) => selectedIds.has(d.deviceId));
+  const bulkGroupId = selectedDevices.length === 0
+    ? undefined
+    : selectedDevices.map((d) => d.groupIds).reduce((common, ids) => common.filter((g) => ids.includes(g)))[0];
 
   // Update history (version_from → version_to) per device, fetched for the rows on screen only:
   // there is no fleet-wide history endpoint, so loading every device up front would be N requests.
@@ -610,7 +655,7 @@ export default function OtaDevicesPage() {
             Installed distribution-set versions and live update state across every managed device.
           </p>
         </div>
-        <Button variant="outline" onClick={load} disabled={isLoading}>
+        <Button variant="outline" onClick={() => load()} disabled={isLoading}>
           <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
           Refresh
         </Button>
@@ -733,6 +778,21 @@ export default function OtaDevicesPage() {
               : 'No devices match these filters.'}
           </p>
         ) : (
+          <>
+          {selectedIds.size > 0 && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
+              <span className="text-sm font-medium">
+                {selectedIds.size} device{selectedIds.size === 1 ? '' : 's'} selected
+                {!bulkGroupId && <span className="ml-2 text-xs font-normal text-muted-foreground">Select devices from one common device group to update them together.</span>}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+                <Button size="sm" disabled={!bulkGroupId} onClick={() => setLaunchOpen(true)}>
+                  <Rocket className="mr-2 h-4 w-4" /> Update
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <Table>
               {/* One row per DISTRIBUTION SET, grouped under the device that has it: the device owns
@@ -760,6 +820,12 @@ export default function OtaDevicesPage() {
                   // The device cell, rendered once and spanning this device's set rows.
                   const deviceCell = (
                     <TableCell rowSpan={Math.max(dev.sets.length, 1)} className="border-t-2 align-top">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedIds.has(dev.deviceId)}
+                          onCheckedChange={() => toggleSelect(dev.deviceId)}
+                          aria-label={`Select ${dev.deviceId}`}
+                        />
                       <button
                         type="button"
                         className="flex max-w-full items-center gap-1.5 text-left font-medium text-primary hover:underline"
@@ -771,6 +837,7 @@ export default function OtaDevicesPage() {
                         <RouterIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="truncate">{dev.deviceId}</span>
                       </button>
+                      </div>
 
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <StatusBadge status={dev.status} spin />
@@ -876,7 +943,16 @@ export default function OtaDevicesPage() {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
+
+        <LaunchGroupUpdateDialog
+          open={launchOpen}
+          groupId={bulkGroupId ?? ''}
+          deviceIds={selectedDevices.map((d) => d.deviceId)}
+          onClose={() => setLaunchOpen(false)}
+          onLaunched={() => setSelectedIds(new Set())}
+        />
 
         {filtered.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">

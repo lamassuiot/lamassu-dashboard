@@ -372,6 +372,27 @@ export async function importSoftwareModule(
 }
 
 /**
+ * Swap one module of a pack's current (not yet sent) version for another built version of the same
+ * module. Works for the os module too. Gated by the 'software_module_replace' capability.
+ * PUT /groups/:groupId/distribution-sets/:packName/modules/:moduleKey  body: { source_module_id }
+ */
+export async function replaceSoftwareModule(
+  { groupId, packName, moduleKey, sourceModuleId }: ApiParams & { packName: string; moduleKey: string; sourceModuleId: string },
+  opts?: ApiCallOptions
+): Promise<SoftwareModule> {
+  const response = await apiFetch(
+    `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_module_id: sourceModuleId }),
+      signal: opts?.signal ?? undefined,
+    }
+  );
+  return handleApiError(response, `Failed to change the version of ${moduleKey} in ${packName}`);
+}
+
+/**
  * Link an already-uploaded global artifact to ONE module of a pack — the operation the flat
  * pack-level API cannot express once a pack has more than one module.
  * POST /groups/:groupId/distribution-sets/:packName/modules/:moduleKey/artifact/link
@@ -1509,7 +1530,10 @@ export async function downloadVersionArtifactsArchive(
 
 export interface FleetPackVersionsOptions {
   deviceId?: string;
+  // Exact set name. Not a substring: "panel" must not count devices running "panel-firmware".
   packName?: string;
+  // A set's name is only unique within its device group, so a per-set count needs both.
+  groupId?: string;
   packaging?: string;
   pageSize?: number;
   bookmark?: string;
@@ -1526,7 +1550,8 @@ export async function fetchAllDevicePackVersions(options?: FleetPackVersionsOpti
   if (options?.pageSize) params.set('page_size', String(options.pageSize));
   if (options?.bookmark) params.set('bookmark', options.bookmark);
   if (options?.deviceId) params.append('filter', `device_id[ct]${options.deviceId}`);
-  if (options?.packName) params.append('filter', `distribution_set_name[ct]${options.packName}`);
+  if (options?.packName) params.append('filter', `distribution_set_name[eq]${options.packName}`);
+  if (options?.groupId) params.append('filter', `group_id[eq]${options.groupId}`);
   if (options?.packaging) params.append('filter', `packaging[eq]${options.packaging}`);
 
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/distribution-sets${params.toString() ? '?' + params.toString() : ''}`;

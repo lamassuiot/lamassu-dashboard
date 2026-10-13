@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, CircleDashed, ChevronDown, ChevronRight, ExternalLink, GitBranchPlus, Layers, MoreVertical, Package, PackagePlus, Plus, RefreshCw, Search, Trash2, Upload, Lock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleDashed, ChevronDown, ChevronRight, ExternalLink, GitBranchPlus, Hammer, Layers, MoreVertical, Package, PackagePlus, Plus, RefreshCw, Search, Trash2, Upload, Lock } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -206,7 +206,7 @@ export default function SoftwareModulesCatalogPage() {
   }, [authLoading, user?.access_token, composition, load]);
 
   // Catalog IDs address files independently; older pack-scoped definitions retain their existing route.
-  const [fileTarget, setFileTarget] = useState<{ groupId: string; packName: string; module: SoftwareModule } | null>(null);
+  const [fileTarget, setFileTarget] = useState<{ groupId: string; packName: string; module: SoftwareModule; buildNow?: boolean } | null>(null);
 
   // --- Deleting a module from the catalog ---
   //
@@ -252,7 +252,7 @@ export default function SoftwareModulesCatalogPage() {
     if (use.source_distribution_set_version && use.source_distribution_set_version !== pack.version) {
       return `An older version of this set — only its current version (v${pack.version}) can change`;
     }
-    return moduleRemovalBlockedReason({ type: use.type, locked: use.locked, packIsBuilt: pack.built, backend });
+    return moduleRemovalBlockedReason({ type: use.type, locked: use.locked, packLocked: pack.locked, packIsBuilt: pack.built, backend });
   }, [packState, backend]);
 
   // --- Adding a module to a distribution set, from the module's side ---
@@ -676,11 +676,12 @@ export default function SoftwareModulesCatalogPage() {
                       canDelete={canCreateStandalone}
                       onDelete={(version) => setDeleteTarget({ key: g.key, version })}
                       onNewVersion={(use) => router.push(`/updates/software-modules/new-version?moduleId=${encodeURIComponent(use.id ?? '')}`)}
-                      onAddFiles={(use) =>
+                      onAddFiles={(use, buildNow) =>
                         setFileTarget({
                           groupId: use.source_group_id,
                           packName: use.source_distribution_set_name,
                           module: use,
+                          buildNow,
                         })
                       }
                       onAddToSet={() => setAddToSet({ key: g.key, uses: g.uses })}
@@ -746,6 +747,7 @@ export default function SoftwareModulesCatalogPage() {
         packName={fileTarget?.packName ?? ''}
         module={fileTarget?.module ?? null}
         perModuleDeliverables={perModuleDeliverables}
+        buildNow={fileTarget?.buildNow}
         onDone={load}
       />
 
@@ -846,7 +848,8 @@ function ModuleRowActions({
   onDelete: (version: string) => void;
   /** Release a new version of this module — the only way to change what a built version delivers. */
   onNewVersion: (use: ReusableSoftwareModule) => void;
-  onAddFiles: (use: ReusableSoftwareModule) => void;
+  /** `buildNow` is the build-now/later choice made in the menu (hawkbit); undefined asks in the form. */
+  onAddFiles: (use: ReusableSoftwareModule, buildNow?: boolean) => void;
   /** Compose this module into a distribution set chosen in a dialog. */
   onAddToSet: () => void;
 }) {
@@ -873,6 +876,28 @@ function ModuleRowActions({
     new Map(uses.filter((u) => !u.source_distribution_set_name).map((u) => [u.version, u])).values()
   );
 
+  // What an unlinked module can do with files: build what it has, or add more and build now or later.
+  // A built module has nothing left to build: a prebuilt SWU is replaced by uploading, anything else is
+  // reopened first (its inputs were consumed by the build).
+  const fileActions = (u: ReusableSoftwareModule) => (
+    <>
+      {!u.built && (
+        <DropdownMenuItem onClick={() => onAddFiles(u, true)}>
+          <Hammer className="mr-2 h-4 w-4" /> {u.artifacts?.length ? 'Build now' : 'Add files and build now'}
+        </DropdownMenuItem>
+      )}
+      {!u.built && u.artifacts?.length ? (
+        <DropdownMenuItem onClick={() => onAddFiles(u, true)}>
+          <Upload className="mr-2 h-4 w-4" /> Add files and build now
+        </DropdownMenuItem>
+      ) : null}
+      <DropdownMenuItem onClick={() => onAddFiles(u, false)}>
+        <Upload className="mr-2 h-4 w-4" />
+        {!u.built ? 'Add files, build later' : u.delivery_intent === 'swu-prebuilt' ? 'Replace the SWU' : 'Edit files — reopens the module'}
+      </DropdownMenuItem>
+    </>
+  );
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -894,14 +919,38 @@ function ModuleRowActions({
                   ? 'Files — version is locked'
                   : 'Add files — already built'}
           </DropdownMenuItem>
+        ) : perModuleDeliverables ? (
+          // Build now or later is chosen here, not in the form, so the form only asks for files.
+          addable.length === 1 ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Upload className="mr-2 h-4 w-4" /> Files and build
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>{fileActions(addable[0])}</DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Upload className="mr-2 h-4 w-4" /> Files and build
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {addable.map((u) => (
+                  <DropdownMenuSub key={`${u.id}/${u.version}`}>
+                    <DropdownMenuSubTrigger>v{u.version}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>{fileActions(u)}</DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )
         ) : addable.length === 1 ? (
           <DropdownMenuItem onClick={() => onAddFiles(addable[0])}>
-            <Upload className="mr-2 h-4 w-4" /> {perModuleDeliverables ? 'Files and build' : 'Add artifact'}
+            <Upload className="mr-2 h-4 w-4" /> Add artifact
           </DropdownMenuItem>
         ) : (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <Upload className="mr-2 h-4 w-4" /> {perModuleDeliverables ? 'Files and build' : 'Add files'}
+              <Upload className="mr-2 h-4 w-4" /> Add files
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {addable.map((u) => (
@@ -1109,7 +1158,7 @@ function AddToSetDialog({
 
   return (
     <Dialog open={target !== null} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add to a distribution set</DialogTitle>
           <DialogDescription>
@@ -1146,17 +1195,38 @@ function AddToSetDialog({
             {options.length === 0 ? (
               <p className="text-sm text-muted-foreground">No distribution sets found.</p>
             ) : (
-              <Select value={setKey} onValueChange={setSetKey}>
-                <SelectTrigger><SelectValue placeholder="Select a distribution set" /></SelectTrigger>
-                <SelectContent>
-                  {options.map((o) => (
-                    <SelectItem key={o.key} value={o.key} disabled={o.blocked !== null} className={cn(o.blocked !== null && 'text-muted-foreground')}>
-                      {o.group} · {o.name} v{o.version}
-                      {o.blocked !== null && <span className="ml-2 text-xs italic">— {o.blocked}</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div role="radiogroup" aria-label="Distribution set" className="max-h-72 divide-y overflow-y-auto rounded-md border">
+                {options.map((o) => {
+                  const disabled = o.blocked !== null;
+                  const selected = o.key === setKey;
+                  return (
+                    <button
+                      key={o.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={disabled}
+                      onClick={() => setSetKey(o.key)}
+                      className={cn(
+                        'flex w-full items-start gap-3 px-3 py-2 text-left text-sm transition-colors',
+                        !disabled && 'hover:bg-muted/60',
+                        selected && 'bg-primary/10',
+                        disabled && 'cursor-not-allowed text-muted-foreground',
+                      )}
+                    >
+                      <span className={cn('mt-1 h-3.5 w-3.5 shrink-0 rounded-full border', selected ? 'border-primary bg-primary' : 'border-muted-foreground/50')} />
+                      <span className="min-w-0 flex-1">
+                        <span className="break-words font-medium">{o.name}</span>
+                        <span className="ml-1.5 text-muted-foreground">v{o.version}</span>
+                        <span className="block break-words text-xs text-muted-foreground">
+                          {o.group}
+                          {disabled && <span className="italic"> — {o.blocked}</span>}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
             {options.length > 0 && addable.length === 0 && (
               <p className="text-xs text-amber-700 dark:text-amber-400">

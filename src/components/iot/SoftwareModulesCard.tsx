@@ -10,18 +10,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Download, Hammer, Layers, Link2, Lock, MoreVertical, Package, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, CheckCircle2, CircleDashed, CircleSlash, Download, Hammer, Layers, Link2, Lock, MoreVertical, Package, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ModuleDetailsDialog } from '@/components/iot/module-details-dialog';
-import { cn } from '@/lib/utils';
+import { ModuleCandidateTable, moduleCandidateId } from '@/components/iot/module-candidate-table';
+import { cn, compareSemver } from '@/lib/utils';
 import {
   addSoftwareModule,
   buildSoftwareModule,
   downloadModuleArtifact,
+  fetchAllSoftwareModules,
   fetchReusableSoftwareModules,
   fetchSoftwareModules,
   importSoftwareModule,
   removeSoftwareModule,
+  replaceSoftwareModule,
   setSoftwareModuleReleaseNotes,
   updateCatalogModule,
 } from '@/lib/iot-api';
@@ -93,6 +96,7 @@ export function SoftwareModulesCard({
   packName,
   packVersion,
   packIsBuilt,
+  packLocked,
   packaging,
   onChanged,
 }: {
@@ -100,6 +104,8 @@ export function SoftwareModulesCard({
   packName: string;
   packVersion?: string;
   packIsBuilt?: boolean;
+  /** hawkBit's lock on this set version (UpdatePack.locked): set once it is sent to devices. */
+  packLocked?: boolean;
   /** The set's delivery mode ('swu' | 'non-swu'). Passed down so the Add-module dialog can STATE
    *  whether staged files are build inputs or the deliverable itself, instead of asking. */
   packaging?: string;
@@ -133,10 +139,6 @@ export function SoftwareModulesCard({
   const moduleSecurity = useSwuSecurity(backend === 'hawkbit' && buildTarget !== null);
 
   const [addOpen, setAddOpen] = React.useState(false);
-  // Filters the import candidates. The list is a fleet-wide read with no server-side query
-  // (GET .../modules/reusable takes no parameters), so a mature installation returns hundreds of
-  // modules as one flat table — unusable without narrowing it here.
-  const [candidateQuery, setCandidateQuery] = React.useState('');
   // A module with no files contributes nothing to a build, so declaring one and giving it its files
   // are really a single operation. Offering them here saves the operator a second trip through the
   // table, and leaving them out is still valid — the module is just not buildable yet. The same
@@ -211,6 +213,59 @@ export function SoftwareModulesCard({
     onChanged?.();
   }, [fetchData, onChanged]);
 
+  // --- Changing a module's version ---
+  //
+  // How a hawkbit-mode set gets a new version of a module it already holds: a new set version links
+  // the previous version's modules, so the operator creates the set version and then moves the module
+  // it should ship forward (or back). The os module included — it is the reason this exists, since it
+  // can never be unlinked. Only other BUILT versions of the same module (type and name) are offered;
+  // the catalog is where a version is added and built.
+  const canChangeVersion = hawkbit && isSupported('software_module_replace');
+  const [versionTarget, setVersionTarget] = React.useState<SoftwareModule | null>(null);
+  const [versionOptions, setVersionOptions] = React.useState<ReusableSoftwareModule[] | undefined>(undefined);
+  const [versionError, setVersionError] = React.useState<string | null>(null);
+  const [chosenVersionId, setChosenVersionId] = React.useState<string | null>(null);
+  const [changingVersion, setChangingVersion] = React.useState(false);
+
+  const openChangeVersion = async (mod: SoftwareModule) => {
+    setVersionTarget(mod);
+    setVersionOptions(undefined);
+    setVersionError(null);
+    setChosenVersionId(null);
+    try {
+      const seen = new Set<string>();
+      const options = (await fetchAllSoftwareModules())
+        .filter((m) => m.id && m.type === mod.type && m.name === mod.name && m.id !== mod.id)
+        .filter((m) => (seen.has(m.id!) ? false : (seen.add(m.id!), true)))
+        .sort((a, b) => compareSemver(b.version, a.version));
+      setVersionOptions(options);
+      // Preselect the newest built version above the current one: that is what a release usually wants.
+      const next = options.find((m) => m.built && compareSemver(m.version, mod.version) > 0);
+      setChosenVersionId(next?.id ?? null);
+    } catch (err: any) {
+      setVersionError(err?.message ?? String(err));
+    }
+  };
+
+  const handleChangeVersion = async () => {
+    if (!versionTarget || !chosenVersionId) return;
+    const chosen = versionOptions?.find((m) => m.id === chosenVersionId);
+    setChangingVersion(true);
+    try {
+      await replaceSoftwareModule({ groupId, packName, moduleKey: versionTarget.key, sourceModuleId: chosenVersionId });
+      sileo.success({
+        title: 'Module version changed',
+        description: `${versionTarget.name} is now v${chosen?.version} in ${packName}${packVersion ? ` v${packVersion}` : ''} (was v${versionTarget.version}).`,
+      });
+      setVersionTarget(null);
+      await refresh();
+    } catch (err: any) {
+      sileo.error({ title: 'Could not change the module version', description: err?.message ?? String(err) });
+    } finally {
+      setChangingVersion(false);
+    }
+  };
+
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -257,28 +312,28 @@ export function SoftwareModulesCard({
     }
   };
 
-  // Narrowed client-side because the endpoint offers no query of its own. Matching the SOURCE PACK
-  // as well as the module's own name/type matters: an operator usually remembers where a module came
-  // from ("the one from water-panel") rather than its exact name.
-  const visibleCandidates = React.useMemo(() => {
-    if (!candidates) return candidates;
-    const q = candidateQuery.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter((c) =>
-      [c.name, c.type, c.version, c.source_distribution_set_name, c.source_distribution_set_version, c.source_group_id]
-        .some((f) => String(f ?? '').toLowerCase().includes(q))
-    );
-  }, [candidates, candidateQuery]);
-
   // Loaded when the dialog opens rather than with the card: it is a fleet-wide read that most
   // visits to this page never need.
   const loadCandidates = useCallback(async () => {
     setCandidates(undefined);
     setCandidatesError(null);
-    // Cleared on open: a query left over from last time would silently hide most of the list.
-    setCandidateQuery('');
     try {
-      setCandidates(await fetchReusableSoftwareModules({ groupId, packName }));
+      // One row per module. In hawkbit mode a module is shared, so the endpoint lists it once for every
+      // set that holds it — the same module three times, under the same id (and React key). The
+      // catalog's own entry is kept when there is one, since a shared module belongs to no one set.
+      const list = await fetchReusableSoftwareModules({ groupId, packName });
+      const byId = new Map<string, ReusableSoftwareModule>();
+      const unique: ReusableSoftwareModule[] = [];
+      for (const c of list) {
+        if (!c.id) { unique.push(c); continue; }
+        const seen = byId.get(c.id);
+        if (!seen) { byId.set(c.id, c); unique.push(c); }
+        else if (seen.source_distribution_set_name && !c.source_distribution_set_name) {
+          unique[unique.indexOf(seen)] = c;
+          byId.set(c.id, c);
+        }
+      }
+      setCandidates(unique);
     } catch (err: any) {
       console.error(err);
       setCandidatesError(err);
@@ -291,7 +346,7 @@ export function SoftwareModulesCard({
   };
 
   const handleImport = async (candidate: ReusableSoftwareModule) => {
-    setImporting(candidate.id || `${candidate.source_group_id}/${candidate.source_distribution_set_name}@${candidate.source_distribution_set_version}:${candidate.key}`);
+    setImporting(moduleCandidateId(candidate));
     try {
       await importSoftwareModule({
         groupId,
@@ -509,12 +564,15 @@ export function SoftwareModulesCard({
   const allReady = rows.length > 0 && readyCount === rows.length;
   // The composition is frozen once the version is built; the backend refuses edits then.
   // hawkBit does not freeze a built set — only one already assigned to devices, which hawkBit itself
-  // locks and the backend refuses with its own reason.
-  const editable = hawkbit ? true : !packIsBuilt;
-  const frozenReason = 'This version is already built — create a new version to change its composition';
+  // locks. Offering Link there only ended in the backend's refusal ("already been assigned to
+  // devices"), so the lock is honoured here too.
+  const editable = hawkbit ? !packLocked : !packIsBuilt;
+  const frozenReason = hawkbit
+    ? 'This version was already sent to devices — create a new version to change its composition'
+    : 'This version is already built — create a new version to change its composition';
   // Removal has its own rule: hawkBit allows it on a built set until the set is assigned.
   const removalBlocked = (mod: SoftwareModule) =>
-    moduleRemovalBlockedReason({ type: mod.type, locked: mod.locked, packIsBuilt: Boolean(packIsBuilt), backend });
+    moduleRemovalBlockedReason({ type: mod.type, locked: mod.locked, packLocked, packIsBuilt: Boolean(packIsBuilt), backend });
 
   // A set with only its mandatory os module is not "composed" of anything yet: that module IS the
   // pack. Saying "1 of 1 built" and listing the pack inside itself reads as noise, so this case gets
@@ -737,6 +795,11 @@ export function SoftwareModulesCard({
                               <DropdownMenuItem onClick={() => handleDownload(mod)} disabled={busy || !mod.built}>
                                 <Download className="mr-2 h-4 w-4" /> Download
                               </DropdownMenuItem>
+                              {canChangeVersion ? (
+                                <DropdownMenuItem onClick={() => openChangeVersion(mod)} disabled={busy || !editable}>
+                                  <ArrowUpDown className="mr-2 h-4 w-4" /> Change version…
+                                </DropdownMenuItem>
+                              ) : null}
                             </>
                           ) : (
                             <>
@@ -1015,7 +1078,7 @@ export function SoftwareModulesCard({
           re-declaring it and re-uploading its binaries. This is what makes the set↔module relation
           usable as the many-to-many one it is. */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{hawkbit ? 'Link a built software module' : 'Import a software module'}</DialogTitle>
             <DialogDescription>
@@ -1097,91 +1160,107 @@ export function SoftwareModulesCard({
                 </AlertDescription>
               </Alert>
 
-              <div className="flex items-center gap-2">
-                <Input
-                  value={candidateQuery}
-                  onChange={(e) => setCandidateQuery(e.target.value)}
-                  placeholder="Filter by module, type, version or source set…"
-                  aria-label="Filter importable software modules"
-                />
-                <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
-                  {visibleCandidates!.length === candidates.length
-                    ? `${candidates.length} available`
-                    : `${visibleCandidates!.length} of ${candidates.length}`}
-                </span>
-              </div>
-
-              <div className="max-h-80 overflow-y-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Module</TableHead>
-                      <TableHead>Defined on</TableHead>
-                      <TableHead>Artifacts</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visibleCandidates!.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="h-20 text-center text-sm text-muted-foreground">
-                          No module matches “{candidateQuery}”.
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                    {visibleCandidates!.map((c) => {
-                      const id = c.id || `${c.source_group_id}/${c.source_distribution_set_name}@${c.source_distribution_set_version}:${c.key}`;
-                      return (
-                        <TableRow key={id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              <span>{c.name}</span>
-                              <Badge variant="secondary" className="font-mono text-xs">
-                                {c.type}
-                              </Badge>
-                              <span className="font-mono text-xs text-muted-foreground">v{c.version}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {c.source_distribution_set_name || 'Module catalog'}
-                            <span className="text-muted-foreground"> v{c.source_distribution_set_version || c.version}</span>
-                            {/* The source group is only worth showing when it differs — otherwise it
-                                is the group already in the page's own context. */}
-                            {c.source_group_id && c.source_group_id !== groupId ? (
-                              <div className="text-xs text-muted-foreground">group {c.source_group_id}</div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {(c.artifacts?.length ?? 0) === 0 ? (
-                              <span className="text-muted-foreground">None</span>
-                            ) : (
-                              c.artifacts.length
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <ActionButton
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleImport(c)}
-                              disabledReason={importing !== null && importing !== id ? 'Working…' : undefined}
-                            >
-                              <Link2 className={cn('mr-2 h-4 w-4', importing === id && 'animate-pulse')} />
-                              {importing === id ? 'Importing…' : c.shared ? 'Link' : 'Copy'}
-                            </ActionButton>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <ModuleCandidateTable
+                candidates={candidates}
+                groupId={groupId}
+                renderAction={(c, id) => (
+                  <ActionButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleImport(c)}
+                    disabledReason={importing !== null && importing !== id ? 'Working…' : undefined}
+                  >
+                    <Link2 className={cn('mr-2 h-4 w-4', importing === id && 'animate-pulse')} />
+                    {importing === id ? 'Importing…' : c.shared ? 'Link' : 'Copy'}
+                  </ActionButton>
+                )}
+              />
             </>
           )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing !== null}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={versionTarget !== null} onOpenChange={(open) => !open && !changingVersion && setVersionTarget(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Change version of {versionTarget?.name}</DialogTitle>
+            <DialogDescription>
+              {packName}{packVersion ? ` v${packVersion}` : ''} holds v{versionTarget?.version}. Pick the version this set
+              version should ship instead. Devices receive it through a campaign of this set version.
+            </DialogDescription>
+          </DialogHeader>
+          {versionError ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Could not load the module&apos;s versions</AlertTitle>
+              <AlertDescription>{versionError}</AlertDescription>
+            </Alert>
+          ) : versionOptions === undefined ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : versionOptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              There is no other version of {versionTarget?.name} yet. Add one in the{' '}
+              <Link href="/updates/software-modules" className="text-primary hover:underline">Software Modules catalog</Link>{' '}
+              (Add version), then come back.
+            </p>
+          ) : (
+            <div role="radiogroup" aria-label="Module versions" className="max-h-72 divide-y overflow-y-auto rounded-md border">
+              {versionOptions.map((m) => {
+                const selected = m.id === chosenVersionId;
+                const blocked = !m.built;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={blocked}
+                    title={blocked ? 'Not built yet — build it in the catalog first' : undefined}
+                    onClick={() => setChosenVersionId(m.id!)}
+                    className={cn(
+                      'flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm',
+                      selected && 'bg-muted',
+                      blocked ? 'cursor-not-allowed opacity-50' : 'hover:bg-muted/60',
+                    )}
+                  >
+                    <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', selected ? 'border-primary' : 'border-muted-foreground/50')}>
+                      {selected && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono font-medium">v{m.version}</span>
+                        {compareSemver(m.version, versionTarget?.version ?? '') > 0 ? (
+                          <Badge variant="secondary" className="text-[10px]">newer</Badge>
+                        ) : (
+                          <Badge variant="muted" className="text-[10px]">older</Badge>
+                        )}
+                        {blocked && <Badge variant="muted" className="text-[10px]">not built</Badge>}
+                      </span>
+                      {m.release_notes ? (
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{m.release_notes.split('\n')[0]}</span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVersionTarget(null)} disabled={changingVersion}>Cancel</Button>
+            <Button onClick={handleChangeVersion} disabled={!chosenVersionId || changingVersion}>
+              {changingVersion ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ArrowUpDown className="mr-2 h-4 w-4" />}
+              {chosenVersionId
+                ? `Use v${versionOptions?.find((m) => m.id === chosenVersionId)?.version ?? ''}`
+                : 'Choose a version'}
             </Button>
           </DialogFooter>
         </DialogContent>

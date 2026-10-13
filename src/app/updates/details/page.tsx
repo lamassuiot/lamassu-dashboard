@@ -314,9 +314,12 @@ interface DeviceJobStatusRowProps {
   jobs: DeviceJob[] | undefined;
   isDeviceActive: boolean;
   onJobsChanged: () => void;
+  /** What the job delivers when its own definition names no artifact: hawkbit-mode jobs carry no WFX
+   *  definition, and the campaign's distribution set is what they install. */
+  deliversLabel?: string;
 }
 
-function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActive, onJobsChanged }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActive, onJobsChanged, deliversLabel }: DeviceJobStatusRowProps) {
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   // jobs is already scoped to this campaign server-side; match on clientId to pick this device's row.
@@ -455,7 +458,7 @@ function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActi
           )}
         </div>
       </TableCell>
-      <TableCell className="py-2 truncate w-[200px]">{relevantJob.definition?.artifacts[0]?.name || 'N/A'}</TableCell>
+      <TableCell className="py-2 truncate w-[200px]">{relevantJob.definition?.artifacts?.[0]?.name || deliversLabel || 'N/A'}</TableCell>
       <TableCell className="font-mono text-xs py-2">
         <span className="block truncate" title={relevantJob.id}>{relevantJob.id}</span>
       </TableCell>
@@ -603,7 +606,7 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
                 <TableHead className="w-[140px]">Device ID</TableHead>
                 <TableHead className="w-[100px]">Status</TableHead>
                 <TableHead className="w-[180px]">Job State</TableHead>
-                <TableHead className="w-[180px]">Artifact</TableHead>
+                <TableHead className="w-[180px]">{(jobs ?? []).some(j => j.definition?.artifacts?.length) ? 'Artifact' : 'Distribution set'}</TableHead>
                 <TableHead className="w-[140px]">Job ID</TableHead>
                 <TableHead className="w-[120px]">Started</TableHead>
                 <TableHead className="w-[120px]">Last Update</TableHead>
@@ -637,6 +640,7 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
                     jobs={jobs}
                     isDeviceActive={false}
                     onJobsChanged={refreshDeviceJobs}
+                    deliversLabel={campaign.distribution_set_name ? `${campaign.distribution_set_name}${campaign.version ? ` v${campaign.version}` : ''}` : undefined}
                   />
                 );
               })}
@@ -853,7 +857,11 @@ export default function CampaignDetailsPage() {
     );
   }
 
-  const hasPendingDevices = (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
+  // A finished or cancelled campaign has nothing left to execute or retry, whatever its counts say:
+  // the backend refuses both (hawkBit answers "Rollout is not in running state"), so offering them
+  // only produced an error. Same rule as the campaign list's row menu.
+  const isTerminal = campaign.status === 'cancelled' || campaign.status === 'completed';
+  const hasPendingDevices = !isTerminal && (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
   const isPaused = campaign.status === 'paused';
   // Auto mode manages rollouts automatically — manual execution must be blocked while it is active.
   // Paused is blocked too, but for a backend-specific reason worth calling out at the call site:
@@ -963,7 +971,7 @@ export default function CampaignDetailsPage() {
                 </Button>
               )
             )}
-            {(campaign.failed_count || 0) > 0 && (
+            {(campaign.failed_count || 0) > 0 && campaign.status !== 'cancelled' && (
               <Button
                 variant="outline"
                 size="sm"

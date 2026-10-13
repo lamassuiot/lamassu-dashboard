@@ -192,7 +192,8 @@ export interface UpdatePackVersion {
 
 // --- Device package inventory (pack-level) ---
 
-export type FirmwareUpdateStatus = 'pending' | 'running' | 'success' | 'failed';
+// 'cancelled': withdrawn before it finished (hawkbit mode) — distinct from an install that failed.
+export type FirmwareUpdateStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
 export type FirmwareUpdateSource = 'service' | 'external';
 
 // The current version of an distribution set installed on a device. A device can hold many packs, each
@@ -296,7 +297,11 @@ export interface DevicePackVersionStatus {
   distribution_set_id: string;
   distribution_set_name: string;
   current_version: string;
+  // The version the group has RELEASED. In hawkbit mode that is its declared latest — advanced when a
+  // campaign for a newer version finishes with every device successful, or set by hand — which can lag a
+  // newer version that exists; newest_version then names that one. Absent when they are the same.
   latest_version: string;
+  newest_version?: string;
   in_sync: boolean;
 }
 
@@ -326,7 +331,7 @@ export interface CampaignItem {
   active_count?: number;
   completed_count?: number;
   failed_count?: number;
-  test_device_status?: string; // assignment status of the test/canary device: 'pending'|'active'|'completed'|'failed'
+  test_device_status?: string; // assignment status of the test/canary device: 'pending'|'active'|'completed'|'failed'|'cancelled' (hawkbit: cancelled before it finished)
   // Campaign-level strategy configuration (added per campaign, not per DMS)
   workflow_type?: string;
   rollout_type?: 'numeric' | 'percentage';
@@ -538,7 +543,11 @@ export type UpdatesCapabilityKey =
   // backend's storage model, not of composition: hawkbit has it (a SoftwareModule is a first-class
   // entity owned by nothing), native does not yet (a module row is keyed by its owning pack version).
   // Where absent, modules are still created — by adding one to a distribution set.
-  | 'standalone_software_modules';
+  | 'standalone_software_modules'
+  // Whether one module of an unsent set version can be swapped for another version of itself — how a
+  // hawkbit-mode set gets new firmware: a new set version links the previous version's modules, and
+  // the os module can never be unlinked. Native changes a new version's modules in place instead.
+  | 'software_module_replace';
 
 // --- Software module composition (gated by the 'software_module_composition' capability) ---
 //

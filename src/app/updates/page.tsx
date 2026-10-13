@@ -22,7 +22,6 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { cn } from '@/lib/utils';
@@ -34,11 +33,12 @@ import { useDms } from '@/contexts/DmsContext';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
   CampaignStatusCell, CampaignProgressCell, TestDeviceBadge, BatchProgress, getTestDeviceStatus,
-  deriveCampaignStatus, deriveBatchPlan, isScheduledCampaign, campaignAttentionReasons, campaignRolloutPolicy,
+  deriveCampaignStatus, deriveBatchPlan, isScheduledCampaign, isActiveCampaign, campaignAttentionReasons, campaignRolloutPolicy,
   type CampaignDisplayStatus,
 } from '@/components/iot/campaign-cells';
 import { CampaignBatchesPanel } from '@/components/iot/campaign-batches-panel';
 import { sileo } from '@/lib/toast';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 
 interface CampaignItemWithDms extends CampaignItem {
   dmsName: string;
@@ -209,10 +209,16 @@ export default function UpdatesPage() {
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
   const [campaignsError, setCampaignsError] = useState<Error | null>(null);
 
-  const refetchAllCampaigns = useCallback(async () => {
+  // silent: a background refresh (useAutoRefresh) — no spinner and no error state, so the table updates
+  // in place and a failed tick leaves what is on screen. An options object rather than a boolean so a
+  // click event passed by an onClick={refetchAllCampaigns} can never read as "silent".
+  const refetchAllCampaigns = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.access_token || availableDms.length === 0) return;
-    setIsLoadingCampaigns(true);
-    setCampaignsError(null);
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setIsLoadingCampaigns(true);
+      setCampaignsError(null);
+    }
     try {
       const dmsToQuery = dmsIdFilter ? availableDms.filter(dms => dms.id === dmsIdFilter) : availableDms;
       const perGroup = await Promise.all(
@@ -228,19 +234,20 @@ export default function UpdatesPage() {
       }
       setAllCampaigns(merged);
     } catch (err) {
-      setCampaignsError(err instanceof Error ? err : new Error(String(err)));
+      if (!silent) setCampaignsError(err instanceof Error ? err : new Error(String(err)));
     } finally {
-      setIsLoadingCampaigns(false);
+      if (!silent) setIsLoadingCampaigns(false);
     }
   }, [user?.access_token, availableDms.map(d => d.id).join(','), packNameFilter, dmsIdFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { refetchAllCampaigns(); }, [refetchAllCampaigns]);
 
-  useEffect(() => {
-    if (startedCampaigns.size === 0) return;
-    const id = setInterval(refetchAllCampaigns, 3000);
-    return () => clearInterval(id);
-  }, [refetchAllCampaigns, startedCampaigns.size]);
+  // Watch a running campaign without reloading: refresh while any campaign is still moving (or one was
+  // just started here and the next poll has not caught up yet), and go quiet once everything is done.
+  const anyCampaignMoving = allCampaigns.some(
+    (c) => c.status !== 'cancelled' && c.status !== 'completed' && ((c.pending_count || 0) + (c.active_count || 0)) > 0,
+  );
+  useAutoRefresh(() => refetchAllCampaigns({ silent: true }), anyCampaignMoving || startedCampaigns.size > 0, 4000);
 
   // ── Lifecycle actions ────────────────────────────────────────────────────────
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
@@ -319,10 +326,12 @@ export default function UpdatesPage() {
   // ── Derived views ────────────────────────────────────────────────────────────
   const showInitialSkeleton = isLoadingCampaigns && allCampaigns.length === 0;
 
+  // isActiveCampaign, adjusted for what this session has just done and the next poll has not caught
+  // up with yet.
   const isActive = React.useCallback((c: CampaignItem) => {
-    if (c.status === 'cancelled' || c.status === 'completed') return false;
     if (completedCampaignIds.has(c.id)) return false;
-    return (c.pending_count || 0) + (c.active_count || 0) > 0 || startedCampaigns.has(c.id);
+    if (c.status === 'cancelled' || c.status === 'completed') return false;
+    return isActiveCampaign(c) || startedCampaigns.has(c.id);
   }, [completedCampaignIds, startedCampaigns]);
 
   const visible = React.useMemo(() => allCampaigns
@@ -380,7 +389,9 @@ export default function UpdatesPage() {
     const isTerminal = status === 'cancelled' || status === 'completed';
     const isPaused = status === 'paused';
     const pending = (c.pending_count || 0) + (c.active_count || 0);
-    const hasFailed = (c.failed_count || 0) > 0;
+    // Retrying re-sends the update to devices whose install failed. A cancelled campaign was stopped on
+    // purpose, so re-sending its update behind the operator's back is not a retry of anything.
+    const hasFailed = (c.failed_count || 0) > 0 && status !== 'cancelled';
     const testStatus = getTestDeviceStatus(c);
     const testBlocks = testStatus === 'testing' || testStatus === 'failed';
     const isExecuting = executingCampaigns.has(c.id);

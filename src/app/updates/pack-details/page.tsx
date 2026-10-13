@@ -23,7 +23,7 @@ import {
   getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion,
   fetchArtifactCatalog, downloadArtifact,
   downloadVersionArtifactsArchive, fetchAllArtifacts, linkArtifactToPack,
-  fetchAllDevicePackVersions, downloadCurrentBuild, deleteUpdatePackApi,
+  fetchAllDevicePackVersions, downloadCurrentBuild, deleteUpdatePackApi, fetchSoftwareModulesVersion,
 } from '@/lib/iot-api';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -41,7 +41,7 @@ import { HawkbitUnsupportedFeatures } from '@/components/iot/HawkbitUnsupportedF
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { cn, formatBytes, isValidSemver } from '@/lib/utils';
-import type { DeviceListApiResponse, UpdatePackVersion, Artifact, ArtifactRef } from '@/types/iot';
+import type { UpdatePackVersion, Artifact, ArtifactRef } from '@/types/iot';
 import type { UpdatePacksResponse } from '@/lib/iot-api';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { format } from 'date-fns';
@@ -238,15 +238,39 @@ export default function UpdatePackDetailsPage() {
 
   const packVersions: UpdatePackVersion[] = versionsResponse?.list || [];
 
+  // How many files each version delivers. In hawkbit mode a version's own artifact list is always empty
+  // (the files belong to its modules), which made every row read "Artifacts 0" — so the count comes from
+  // the version's modules instead. Absent until read, and for a version that could not be read.
+  const [moduleFileCounts, setModuleFileCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!hawkbit || !groupId || !packName || packVersions.length === 0) return;
+    let cancelled = false;
+    Promise.allSettled(
+      packVersions.map((v) =>
+        fetchSoftwareModulesVersion({ groupId, packName, version: v.version })
+          .then((mods) => [v.version, mods.reduce((n, m) => n + (m.artifacts?.length ?? 0), 0)] as const),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, number> = {};
+      for (const r of results) if (r.status === 'fulfilled') next[r.value[0]] = r.value[1];
+      setModuleFileCounts(next);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hawkbit, groupId, packName, versionsResponse]);
+  const artifactCountOf = (v: UpdatePackVersion): string =>
+    hawkbit ? (moduleFileCounts[v.version] !== undefined ? String(moduleFileCounts[v.version]) : '…') : String(v.artifacts?.length || 0);
+
   const fetchDevicePackData = useCallback(async () => {
-    if (!packName || !user?.access_token) return;
+    if (!packName || !groupId || !user?.access_token) return;
     try {
-      const result = await fetchAllDevicePackVersions({ packName, pageSize: 500 });
+      const result = await fetchAllDevicePackVersions({ packName, groupId, pageSize: 500 });
       setDevicePackData(result);
     } catch (err) {
       console.error(err);
     }
-  }, [packName, user?.access_token]);
+  }, [packName, groupId, user?.access_token]);
 
   useEffect(() => { fetchDevicePackData(); }, [fetchDevicePackData]);
 
@@ -596,11 +620,11 @@ export default function UpdatePackDetailsPage() {
       <DetailHero
         icon={Package}
         title={updatePack.name}
-        badges={
+        badges={hawkbit ? undefined : (
           <Badge variant={isBuilt ? 'success' : buildError ? 'destructive' : 'muted'} dot>
             {isBuilt ? 'Built' : buildError ? 'Build failed' : 'Not built'}
           </Badge>
-        }
+        )}
         idLabel="Distribution set ID"
         id={updatePack.id}
         meta={
@@ -759,11 +783,13 @@ export default function UpdatePackDetailsPage() {
 
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>
-                  <p className="font-semibold">Build Status</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Current generated artifact state for device deployment.</p>
+                  <p className="font-semibold">{hawkbit ? 'Version' : 'Build Status'}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{hawkbit ? 'The version devices are offered.' : 'Current generated artifact state for device deployment.'}</p>
                 </div>
                 <div className="lg:col-span-2">
                   <div className="divide-y">
+                    {/* hawkBit never builds a set: each module is built on its own, so there is no set-level status. */}
+                    {!hawkbit && (
                     <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Status</p>
@@ -774,6 +800,7 @@ export default function UpdatePackDetailsPage() {
                         {isBuilt ? 'Built' : buildError ? 'Failed' : 'Pending'}
                       </Badge>
                     </div>
+                    )}
                     <div className="grid grid-cols-1 gap-4 py-3 last:pb-0 sm:grid-cols-2">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Current Version</p>
@@ -983,6 +1010,8 @@ export default function UpdatePackDetailsPage() {
                 packName={packName ?? ''}
                 packVersion={updatePack?.version}
                 packIsBuilt={isBuilt}
+                // The API omits `locked` when false: once the set is loaded, absent means unlocked.
+                packLocked={updatePack ? updatePack.locked === true : undefined}
                 packaging={updatePack?.packaging}
                 onChanged={() => { fetchCatalogData(); fetchArtifactsData(); }}
               />
@@ -1418,8 +1447,9 @@ export default function UpdatePackDetailsPage() {
                                       </button>
                                       {isCurrent && <p className="mt-1 text-xs text-muted-foreground">Current</p>}
                                     </TableCell>
-                                    <TableCell>{v.created_at ? format(new Date(v.created_at), 'PP') : 'N/A'}</TableCell>
-                                    <TableCell>{v.artifacts?.length || 0}</TableCell>
+                                    {/* The backend sends year 1 for "no date recorded" (hawkbit versions carry none), which is not a date. */}
+                                    <TableCell>{v.created_at && new Date(v.created_at).getFullYear() > 1970 ? format(new Date(v.created_at), 'PP') : 'N/A'}</TableCell>
+                                    <TableCell>{artifactCountOf(v)}</TableCell>
                                     <TableCell>{deviceCount ?? 0}</TableCell>
                                     <TableCell>{changeSummary}</TableCell>
                                     <TableCell className="text-right">
@@ -1442,7 +1472,10 @@ export default function UpdatePackDetailsPage() {
                                         >
                                           Manifest
                                         </Button>
-                                        {!isNonSwu && !perDevice && (
+                                        {/* No set-level .swu where each module is its own deliverable: the backend
+                                            refuses it for any set of more than one module ("download each module's
+                                            deliverable individually"), so the button only ever failed there. */}
+                                        {!isNonSwu && !perDevice && !perModuleDeliverables && (
                                           <Button variant="outline" size="sm" disabled={!downloadable} title={!downloadable ? 'Previous-version download disabled for this pack' : undefined} onClick={() => handleDownloadVersion(v.version)}>
                                             .swu
                                           </Button>
@@ -1492,7 +1525,7 @@ export default function UpdatePackDetailsPage() {
                                               <p className="text-xs font-medium text-muted-foreground">Snapshot Metadata</p>
                                               <div className="mt-2 space-y-1.5 text-sm">
                                                 <p>Version: v{v.version}</p>
-                                                <p>Artifacts: {v.artifacts?.length || 0}</p>
+                                                <p>Artifacts: {artifactCountOf(v)}</p>
                                                 <p>Installed devices: {deviceCount ?? 0}</p>
                                                 {v.encryption_mode && <p>Encryption: {v.encryption_mode}</p>}
                                                 {v.checksum && <p className="break-all font-mono text-xs text-muted-foreground">SHA-256: {v.checksum}</p>}

@@ -112,7 +112,7 @@ export function FormSection({
     <div className="min-w-0 text-left">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold">
         {title}
-        {invalid && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label="Needs attention" />}
+        {invalid && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Needs attention" />}
       </h3>
       {description && <p className="text-xs text-muted-foreground">{description}</p>}
     </div>

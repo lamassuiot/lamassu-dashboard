@@ -8,11 +8,10 @@ import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, Loader2, Search, Eye, MoreVertical, TerminalSquare, HelpCircle, X, MonitorSmartphone, Rocket } from 'lucide-react';
+import { AlertCircle, Loader2, Search, Eye, MoreVertical, TerminalSquare, HelpCircle, X, MonitorSmartphone } from 'lucide-react';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { BookmarkPaginationFooter } from '@/components/shared/BookmarkPaginationFooter';
@@ -22,7 +21,6 @@ import { cn } from '@/lib/utils';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
-import { LaunchGroupUpdateDialog } from '@/components/device-groups/LaunchGroupUpdateDialog';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
@@ -69,10 +67,6 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [bookmarkHistory, setBookmarkHistory] = useState<(string | undefined)[]>([undefined]);
   const [nextBookmark, setNextBookmark] = useState<string | null>(null);
-
-  // Multi-select + bulk "launch update" for selected devices.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [launchOpen, setLaunchOpen] = useState(false);
 
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [raForEnrollModal, setRaForEnrollModal] = useState<ApiRaItem | null>(null);
@@ -175,21 +169,6 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
 
   const statusSegments = stats ? getStatusSegments(stats) : [];
 
-  const pageIds = devices.map((d) => d.id);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
-  const somePageSelected = pageIds.some((id) => selectedIds.has(id));
-  const toggleSelect = (id: string) => setSelectedIds((prev) => {
-    const n = new Set(prev);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
-  });
-  const toggleSelectAllPage = () => setSelectedIds((prev) => {
-    const n = new Set(prev);
-    if (allPageSelected) pageIds.forEach((id) => n.delete(id));
-    else pageIds.forEach((id) => n.add(id));
-    return n;
-  });
-
   return (
     <div className={cn('space-y-4', className)}>
       {/* Status quick filters */}
@@ -267,28 +246,10 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
         </Alert>
       ) : devices.length > 0 ? (
         <>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
-              <span className="text-sm font-medium">{selectedIds.size} device{selectedIds.size === 1 ? '' : 's'} selected</span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
-                <Button size="sm" onClick={() => setLaunchOpen(true)}>
-                  <Rocket className="mr-2 h-4 w-4" /> Update
-                </Button>
-              </div>
-            </div>
-          )}
           <div className={cn('overflow-x-auto transition-opacity duration-300', isLoading && 'pointer-events-none opacity-50')}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40px]">
-                    <Checkbox
-                      checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                      onCheckedChange={toggleSelectAllPage}
-                      aria-label="Select all devices on this page"
-                    />
-                  </TableHead>
                   <SortableTableHead column="id" title="Device" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="min-w-[240px]" />
                   <SortableTableHead column="status" title="Status" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="w-[160px]" />
                   <TableHead>Tags</TableHead>
@@ -301,14 +262,7 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
                   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
                   const detailsHref = `/devices/details?deviceId=${encodeURIComponent(device.id)}`;
                   return (
-                    <TableRow key={device.id} data-state={selectedIds.has(device.id) ? 'selected' : undefined}>
-                      <TableCell className="w-[40px]">
-                        <Checkbox
-                          checked={selectedIds.has(device.id)}
-                          onCheckedChange={() => toggleSelect(device.id)}
-                          aria-label={`Select ${device.id}`}
-                        />
-                      </TableCell>
+                    <TableRow key={device.id}>
                       <TableCell>
                         <div className="flex min-w-0 items-center gap-3">
                           <DeviceIcon type={device.icon || 'HelpCircle'} iconColor={iconColor} bgColor={bgColor} />
@@ -386,14 +340,6 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
         onOpenChange={setIsEnrollModalOpen}
         ra={raForEnrollModal}
         initialDeviceId={deviceForEnrollModal?.id}
-      />
-
-      <LaunchGroupUpdateDialog
-        open={launchOpen}
-        groupId={groupId}
-        deviceIds={Array.from(selectedIds)}
-        onClose={() => setLaunchOpen(false)}
-        onLaunched={() => setSelectedIds(new Set())}
       />
     </div>
   );

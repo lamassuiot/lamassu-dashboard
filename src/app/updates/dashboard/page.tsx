@@ -5,13 +5,8 @@
  * OTA Dashboard — a fleet-wide read-only overview of rollout state.
  *
  * Every number here is derived from data the updates API already returns; nothing
- * is synthesised. The two panels the backend has no read side for are rendered as
- * explicit "not implemented" placeholders rather than as zeros, so an empty value
- * is never mistaken for "nothing scheduled":
- *
- *   - Scheduled campaigns / Upcoming schedule. POST .../launch accepts a
- *     `scheduled_at`, but no endpoint reads schedules back and CampaignItem
- *     carries no scheduled_at, so there is nothing to count or list yet.
+ * is synthesised. Active, scheduled and requires-attention use the same helpers as
+ * the campaign list (campaign-cells.tsx), so the two pages always agree.
  *
  * Data sources:
  *   - fetchAllCampaigns(group)      → campaign scalar counts (total/pending/active/
@@ -38,13 +33,15 @@ import {
   Info, ArrowRight, Construction, TriangleAlert, Users, XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { fetchAllCampaigns, fetchAllUpdatePacks, getGroupVersionStatus } from '@/lib/iot-api';
+import { formatDistanceToNowStrict } from 'date-fns';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import {
-  deriveCampaignStatus, deriveCampaignDeviceStats, isRolloutBlockedByTestDevice,
-  type CampaignDisplayStatus,
+  deriveCampaignStatus, deriveCampaignDeviceStats, isActiveCampaign, isScheduledCampaign, campaignAttentionReasons,
   CAMPAIGN_STATUS_VARIANT,
 } from '@/components/iot/campaign-cells';
 import type { CampaignItem, DevicePackVersionStatus } from '@/types/iot';
@@ -292,9 +289,10 @@ export default function OtaDashboardPage() {
   );
   const scopeKey = groupsInScope.map((g) => g.id).join(',');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.access_token || groupsInScope.length === 0) return;
-    setIsLoading(true);
+    const silent = opts?.silent === true;
+    if (!silent) setIsLoading(true);
     try {
       // Degrade per group: one group failing (or a backend without compliance) must
       // not blank the whole dashboard.
@@ -322,12 +320,13 @@ export default function OtaDashboardPage() {
       setVersionRows(versionSets.flat());
       setLastRefreshed(new Date());
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.access_token, scopeKey, complianceSupported]);
 
   useEffect(() => { load(); }, [load]);
+
 
   // ── Derived metrics ────────────────────────────────────────────────────────
   const campaignStats = useMemo(() => campaigns.map((c) => ({
@@ -337,9 +336,24 @@ export default function OtaDashboardPage() {
   })), [campaigns]);
 
   const activeCampaigns = useMemo(
-    () => campaignStats.filter((c) => c.status === 'Rolling Out'),
+    () => campaignStats.filter((c) => isActiveCampaign(c.campaign)),
     [campaignStats],
   );
+
+  // The overview of a rollout that is running: refresh while any campaign still has devices to update.
+  useAutoRefresh(() => load({ silent: true }), activeCampaigns.length > 0, 10000);
+
+  // Soonest first. Every scheduled campaign counts in the tile; the panel lists the next 7 days.
+  const scheduledCampaigns = useMemo(() => {
+    const now = new Date();
+    return campaigns
+      .filter((c) => isScheduledCampaign(c, now))
+      .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime());
+  }, [campaigns]);
+  const upcomingWeek = useMemo(() => {
+    const horizon = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    return scheduledCampaigns.filter((c) => new Date(c.scheduled_at!).getTime() <= horizon);
+  }, [scheduledCampaigns]);
 
   // Part-to-whole over every campaign device assignment. Terminal + in-flight are
   // all included, which keeps the four segments a true partition of one total.
@@ -396,23 +410,13 @@ export default function OtaDashboardPage() {
       .sort((a, b) => b.total - a.total);
   }, [versionRows]);
 
-  // Campaigns needing an operator decision, most severe first.
+  // Campaigns needing an operator decision — exactly the campaign list's "Requires attention" set
+  // (campaignAttentionReasons) — most severe first: failures, then a failed canary, then the rest.
   const attention = useMemo(() => {
     const scored = campaignStats.flatMap(({ campaign, status, stats }) => {
-      const reasons: string[] = [];
-      let severity = 0;
-      if (status === 'Failed') { reasons.push('All devices failed'); severity = Math.max(severity, 4); }
-      else if (stats.failed > 0) { reasons.push(`${stats.failed} device${stats.failed === 1 ? '' : 's'} failed`); severity = Math.max(severity, 3); }
-      if (status === 'Paused') { reasons.push('Paused — awaiting resume'); severity = Math.max(severity, 2); }
-      if (isRolloutBlockedByTestDevice(campaign)) { reasons.push('Blocked by canary device'); severity = Math.max(severity, 3); }
-      if ((campaign.precondition_failures?.length ?? 0) > 0) {
-        reasons.push(`${campaign.precondition_failures!.length} precondition failure${campaign.precondition_failures!.length === 1 ? '' : 's'}`);
-        severity = Math.max(severity, 2);
-      }
-      if (status === 'Rolling Out' && stats.total > 0 && stats.completed + stats.failed + stats.active === 0) {
-        reasons.push('Rolling out but nothing dispatched'); severity = Math.max(severity, 1);
-      }
+      const reasons = campaignAttentionReasons(campaign);
       if (reasons.length === 0) return [];
+      const severity = status === 'Failed' ? 4 : stats.failed > 0 ? 3 : reasons.includes('Test device failed') ? 3 : 1;
       return [{ campaign, status, stats, reasons, severity }];
     });
     return scored.sort((a, b) => b.severity - a.severity || b.stats.failed - a.stats.failed);
@@ -445,7 +449,7 @@ export default function OtaDashboardPage() {
               {availableDms.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={load} disabled={isLoading}>
+          <Button variant="outline" onClick={() => load()} disabled={isLoading}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
             Refresh
           </Button>
@@ -478,11 +482,15 @@ export default function OtaDashboardPage() {
             iconClass="text-blue-600 dark:text-blue-400"
           />
 
-          {/* No read side for schedules yet — see the file header. */}
-          <UnavailableTile
+          <StatTile
             label="Scheduled campaigns"
+            value={scheduledCampaigns.length.toLocaleString()}
+            sub={scheduledCampaigns.length > 0
+              ? `Next in ${formatDistanceToNowStrict(new Date(scheduledCampaigns[0].scheduled_at!))}`
+              : 'None planned'}
+            subRole="neutral"
             icon={CalendarClock}
-            reason="No schedule read API yet"
+            iconClass="text-muted-foreground"
           />
 
           {complianceSupported ? (
@@ -721,14 +729,40 @@ export default function OtaDashboardPage() {
         </div>
       </Panel>
 
-        {/* Per the schedule note in the file header. */}
-        <UnavailablePanel
+        <Panel
           title="Upcoming Schedule"
           icon={CalendarClock}
           className="lg:col-span-5"
-          what="Campaigns scheduled to start in the next 7 days."
-          why="Campaign creation accepts a planned start (scheduled_at), but the API has no endpoint to read schedules back and campaigns carry no scheduled_at field — so there is nothing to list yet."
-        />
+          description="Campaigns scheduled to start in the next 7 days."
+        >
+          {showSkeleton ? <Skeleton className="h-[120px]" /> : upcomingWeek.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {scheduledCampaigns.length === 0
+                ? 'No campaigns are scheduled.'
+                : `Nothing starts this week — the next campaign starts in ${formatDistanceToNowStrict(new Date(scheduledCampaigns[0].scheduled_at!))}.`}
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {upcomingWeek.map((c) => (
+                <li key={`${c.group_id}-${c.id}`}>
+                  <Link
+                    href={`/updates/details?groupId=${encodeURIComponent(c.group_id)}&campaignId=${encodeURIComponent(c.id)}`}
+                    className="flex items-center justify-between gap-3 py-2 hover:text-primary"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{c.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{c.groupName}</span>
+                    </span>
+                    <span className="shrink-0 text-right text-xs text-muted-foreground">
+                      <DateDisplay date={c.scheduled_at!} showRelative={false} />
+                      <span className="block">in {formatDistanceToNowStrict(new Date(c.scheduled_at!))}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
 
       {/* ── Footer summary ── */}

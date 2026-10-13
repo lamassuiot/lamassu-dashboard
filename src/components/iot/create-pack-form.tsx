@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Boxes, Loader2, Package, ShieldCheck } from 'lucide-react';
 import { WizardLayout, FormSection, SummaryPanel, SummaryRow } from '@/components/iot/form-wizard';
+import { ModuleCandidateTable } from '@/components/iot/module-candidate-table';
 import {
   AddPreconditionButton, PreconditionRows, cleanPreconditionRows, emptyPreconditionRow, hasPreconditionErrors,
 } from '@/components/iot/precondition-rows';
@@ -36,8 +38,6 @@ interface CreatePackFormProps {
  *  plain download-and-install of the files as uploaded. */
 const DRIVER_LABEL: Record<'swu' | 'non-swu', string> = { swu: 'SWU', 'non-swu': 'Generic' };
 
-const NO_MODULE = '__none__';
-
 // Lightweight "create an distribution set = repo" form. It only creates the pack shell; artifacts are
 // uploaded afterwards on the pack-details page, and (for SWU packs) the SWU is built there too.
 export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defaultGroupId, showGroupSelector = false }) => {
@@ -60,10 +60,11 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   const [candidatePacks, setCandidatePacks] = useState<UpdatePack[] | null>(null);
   const [candidateModules, setCandidateModules] = useState<ReusableSoftwareModule[] | null>(null);
 
-  // The set's first module — hawkbit only (see moduleRequired below). It is always an EXISTING, BUILT
-  // module from the catalog: a set is composed of finished deliverables, so a module cannot be
-  // invented here (it would be unbuilt) — it is created and built in the Software Modules catalog first.
-  const [importModuleId, setImportModuleId] = useState<string>(NO_MODULE);
+  // The set's modules — hawkbit only (see moduleRequired below). Each is an EXISTING, BUILT module from
+  // the catalog: a set is composed of finished deliverables, so a module cannot be invented here (it
+  // would be unbuilt) — it is created and built in the Software Modules catalog first. Kept in the
+  // order they were checked, which is the order they are sent in.
+  const [moduleIds, setModuleIds] = useState<string[]>([]);
 
   const groupId = showGroupSelector ? groupIdState : (defaultGroupId || selectedDms?.id || '');
   const groupName = availableDms.find((d) => d.id === groupId)?.name || selectedDms?.name;
@@ -98,7 +99,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   // stopped). Native has no such requirement: a module is added afterwards, and an empty pack reads
   // fine as a virtual "os" module in the meantime (see GetSoftwareModules).
   const moduleRequired = backend === 'hawkbit';
-  const moduleChoiceValid = !moduleRequired || importModuleId !== NO_MODULE;
+  const moduleChoiceValid = !moduleRequired || moduleIds.length > 0;
   // Only what the backend would accept: built, addressable by id, and delivered in a way the chosen
   // packaging allows (an SWU set takes no generic files; a generic set takes no prebuilt SWU). One
   // entry per module, however many sets already hold it.
@@ -111,12 +112,30 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
       return true;
     });
   }, [candidateModules, packaging]);
-  const selectedImportModule = importableModules.find((m) => m.id === importModuleId) ?? null;
+  const selectedModules = React.useMemo(
+    () => moduleIds.map((id) => importableModules.find((m) => m.id === id)).filter((m): m is ReusableSoftwareModule => Boolean(m)),
+    [moduleIds, importableModules]
+  );
+  const checkedModuleIds = React.useMemo(() => new Set(moduleIds), [moduleIds]);
 
   // A module picked under one packaging may not be allowed under the other.
   useEffect(() => {
-    if (importModuleId !== NO_MODULE && !importableModules.some((m) => m.id === importModuleId)) setImportModuleId(NO_MODULE);
-  }, [importableModules, importModuleId]);
+    if (selectedModules.length !== moduleIds.length) setModuleIds(selectedModules.map((m) => m.id!));
+  }, [selectedModules, moduleIds]);
+
+  const toggleModule = (m: ReusableSoftwareModule) =>
+    setModuleIds((ids) => (ids.includes(m.id!) ? ids.filter((id) => id !== m.id) : [...ids, m.id!]));
+
+  // The backend's composition rules (DistributionSetTypeFor, validateUniqueModuleKeys), checked as the
+  // operator ticks rather than reported by a failed create: at most one OS module, and no two modules
+  // under one "<type>:<name>" key — two versions of the same module cannot share a set.
+  const moduleBlockedReason = (m: ReusableSoftwareModule): string | undefined => {
+    const os = selectedModules.find((s) => s.type === 'os');
+    if (m.type === 'os' && os) return `A set holds at most one OS module — ${os.name} v${os.version} is already checked`;
+    const sameKey = selectedModules.find((s) => s.type === m.type && s.name === m.name);
+    if (sameKey) return `${sameKey.name} v${sameKey.version} is already checked — a set holds one version of each module`;
+    return undefined;
+  };
 
   const handleCreate = async () => {
     if (!user?.access_token || !groupId) return;
@@ -140,7 +159,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
     if (!moduleChoiceValid) {
       sileo.error({
         title: 'A software module is required',
-        description: 'hawkBit needs at least one module to create a set — pick a built module from the catalog.',
+        description: 'hawkBit needs at least one module to create a set — check a built module from the catalog.',
       });
       return;
     }
@@ -158,7 +177,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
           packaging,
           allow_previous_version_download: allowPreviousVersionDownload,
           ...(cleanedPreconditions.length > 0 ? { preconditions: cleanedPreconditions } : {}),
-          ...(moduleRequired ? { modules: [{ source_module_id: importModuleId }] } : {}),
+          ...(moduleRequired ? { modules: moduleIds.map((id) => ({ source_module_id: id })) } : {}),
         },
       });
       sileo.success({
@@ -241,22 +260,31 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
         {/* Label only: a Radix trigger renders the selected item's children, so a two-line option
             description ends up clipped inside the closed select. The explanation lives below. */}
         <SelectContent>
-          <SelectItem value="swu">SWU — build one signed image</SelectItem>
-          <SelectItem value="non-swu">Generic — deliver files as they are</SelectItem>
+          <SelectItem value="swu">{backend === 'hawkbit' ? 'SWU — SWU modules only' : 'SWU — build one signed image'}</SelectItem>
+          <SelectItem value="non-swu">{backend === 'hawkbit' ? 'Generic — binaries and other files' : 'Generic — deliver files as they are'}</SelectItem>
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground">
-        {packaging === 'swu'
-          ? 'Every module\u2019s artifacts plus a sw-description are built and signed into one .swu. An already-built .swu can be uploaded instead and ships as-is.'
-          : 'Whatever you upload is what each device downloads and installs — a binary, an archive or a prebuilt image. Nothing is built.'}
-      </p>
-      {/* What this choice actually drives differs by backend — see WorkflowSelect's
-          packagingMismatchNote for the native-mode consequence of getting it wrong. */}
-      <p className="text-xs text-muted-foreground">
-        {backend === 'hawkbit'
-          ? 'hawkBit has no workflow engine of its own: packaging only decides which modules the set accepts (an SWU set takes no generic-file module, a Generic one no prebuilt SWU). The set itself is never built; it is ready once every module in it is. Whether the device installs it immediately or may postpone comes from the Direct/Phased choice at launch time — unrelated to this.'
-          : 'This also decides which workflow can install this set: SWU packs need Direct/Phased, non-swu packs need Download-Install — launching with the wrong one leaves the update looking stuck even after the device finishes.'}
-      </p>
+      {backend === 'hawkbit' ? (
+        // hawkBit never builds a set, so the driver only decides which modules it accepts.
+        <p className="text-xs text-muted-foreground">
+          {packaging === 'swu'
+            ? 'SWU: accepts only SWU modules — built from inputs or uploaded as a finished .swu.'
+            : 'Generic: accepts binaries, archives and any other file type, delivered as they are (optionally encrypted and/or signed). No SWU modules.'}
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {packaging === 'swu'
+              ? 'Every module\u2019s artifacts plus a sw-description are built and signed into one .swu. An already-built .swu can be uploaded instead and ships as-is.'
+              : 'Whatever you upload is what each device downloads and installs — a binary, an archive or a prebuilt image. Nothing is built.'}
+          </p>
+          {/* What this choice drives on native — see WorkflowSelect's packagingMismatchNote for the
+              consequence of getting it wrong. */}
+          <p className="text-xs text-muted-foreground">
+            This also decides which workflow can install this set: SWU packs need Direct/Phased, non-swu packs need Download-Install — launching with the wrong one leaves the update looking stuck even after the device finishes.
+          </p>
+        </>
+      )}
     </div>
   );
 
@@ -310,26 +338,28 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   // Only where it is required: native never asks, matching how it has always worked — the set is
   // created bare and a module added afterwards on its own page.
   const moduleField = moduleRequired ? (
-    <div className="space-y-1.5">
-      <Label>Built module</Label>
-      <Select value={importModuleId} onValueChange={setImportModuleId}>
-        <SelectTrigger>
-          <SelectValue placeholder={candidateModules === null ? 'Loading…' : 'Select a built module'} />
-        </SelectTrigger>
-        <SelectContent>
-          {importableModules.map((m) => (
-            <SelectItem key={m.id} value={m.id!}>
-              {m.type}:{m.name} v{m.version}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="space-y-2">
+      {candidateModules === null ? (
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      ) : importableModules.length > 0 ? (
+        <ModuleCandidateTable
+          candidates={importableModules}
+          groupId={groupId}
+          checkedIds={checkedModuleIds}
+          onToggle={toggleModule}
+          checkDisabledReason={moduleBlockedReason}
+        />
+      ) : null}
       <p className="text-xs text-muted-foreground">
         {candidateModules !== null && importableModules.length === 0
           ? 'No built module fits this driver. Create and build one in the Software Modules catalog first — only built modules can be added to a set.'
-          : selectedImportModule
-            ? 'Linked, not copied: the set and every other set holding it share one module. A linked module is frozen — unlink it to change or rebuild it.'
-            : 'Only built modules are listed. Linked into this set the moment it is created.'}
+          : selectedModules.length > 0
+            ? 'Linked, not copied: the set and every other set holding a module share it. A linked module is frozen — unlink it to change or rebuild it.'
+            : 'Only built modules are listed. Check every module the set ships — at most one OS module. They are linked the moment it is created.'}
       </p>
     </div>
   ) : null;
@@ -365,8 +395,14 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
             />
             {moduleRequired && (
               <SummaryRow
-                label="First module"
-                value={selectedImportModule ? `${selectedImportModule.name} v${selectedImportModule.version}` : undefined}
+                label={selectedModules.length > 1 ? `Modules (${selectedModules.length})` : 'Module'}
+                value={selectedModules.length ? (
+                  <span className="flex flex-col">
+                    {selectedModules.map((m) => (
+                      <span key={m.id} className="truncate" title={`${m.name} v${m.version}`}>{m.name} v{m.version}</span>
+                    ))}
+                  </span>
+                ) : undefined}
               />
             )}
           </SummaryPanel>
@@ -410,8 +446,8 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
             this replaces. Native never shows this: a module is added afterwards on the set's page. */}
         {moduleRequired && (
           <FormSection
-            title="First software module"
-            description="A set is composed of built software modules. Its first module decides what the set becomes (an OS/firmware module or an application) and cannot change later."
+            title="Software modules"
+            description="A set is composed of built software modules. With an OS module it is a firmware set, without one an application-only set — and that cannot change later."
             invalid={!moduleChoiceValid}
           >
             {moduleField}

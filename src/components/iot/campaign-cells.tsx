@@ -44,7 +44,7 @@ export const isDirectWorkflow = (workflowType?: string): boolean =>
 // dispatches that device as the first batch and records its outcome in the campaign's
 // device lists; the status below is derived purely from those lists (no extra fetch).
 
-export type TestDeviceGateStatus = 'none' | 'pending' | 'testing' | 'passed' | 'failed';
+export type TestDeviceGateStatus = 'none' | 'pending' | 'testing' | 'passed' | 'failed' | 'cancelled';
 
 // Map the backend's assignment status for the test device to the UI gate status.
 export function getTestDeviceStatus(campaign: CampaignItem): TestDeviceGateStatus {
@@ -53,6 +53,8 @@ export function getTestDeviceStatus(campaign: CampaignItem): TestDeviceGateStatu
   if (s === 'failed') return 'failed';
   if (s === 'completed') return 'passed';
   if (s === 'active') return 'testing';
+  // The campaign was cancelled before the test device finished: it neither passed nor is it waiting.
+  if (s === 'cancelled') return 'cancelled';
   return 'pending';
 }
 
@@ -67,6 +69,7 @@ const TEST_DEVICE_BADGE: Record<Exclude<TestDeviceGateStatus, 'none'>, { label: 
   testing: { label: 'Testing…', variant: 'warning' },
   passed: { label: 'Test passed', variant: 'success' },
   failed: { label: 'Test failed', variant: 'destructive' },
+  cancelled: { label: 'Test cancelled', variant: 'muted' },
 };
 
 // Small badge summarising the canary status. Renders nothing when the campaign has no test
@@ -79,6 +82,7 @@ export function TestDeviceBadge({ campaign, className }: { campaign: CampaignIte
     status === 'pending' ? `Test device ${campaign.test_device_id} updates first — the full rollout unlocks once it succeeds.` :
     status === 'testing' ? `Test device ${campaign.test_device_id} is updating — the rollout unlocks once it succeeds.` :
     status === 'passed' ? `Test device ${campaign.test_device_id} updated successfully — the rollout is unlocked.` :
+    status === 'cancelled' ? `The campaign was cancelled before test device ${campaign.test_device_id} finished — it was never tested.` :
     `Test device ${campaign.test_device_id} failed — the rollout is blocked.`;
   return (
     <TooltipProvider>
@@ -184,13 +188,25 @@ export function isScheduledCampaign(campaign: CampaignItem, now: Date = new Date
   return completed + failed + active === 0;
 }
 
-/** Why a campaign needs an operator, or an empty list when it does not. */
+/** Whether a campaign is still live: not finished or cancelled, with devices left to update. The
+ *  campaign list and the OTA dashboard both count "active" with this, so the two never disagree. */
+export function isActiveCampaign(campaign: CampaignItem): boolean {
+  if (campaign.status === 'cancelled' || campaign.status === 'completed') return false;
+  return (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
+}
+
+/** Why a campaign needs an operator, or an empty list when it does not. The single definition of
+ *  "requires attention" — the campaign list's filter and the OTA dashboard's panel both use it. */
 export function campaignAttentionReasons(campaign: CampaignItem): string[] {
   const reasons: string[] = [];
   if (campaign.status === 'paused') reasons.push('Paused');
   if (getTestDeviceStatus(campaign) === 'failed') reasons.push('Test device failed');
   const failed = campaign.failed_count ?? 0;
   if (failed > 0 && campaign.status !== 'cancelled') reasons.push(`${failed} device${failed === 1 ? '' : 's'} failed`);
+  const skipped = campaign.precondition_failures?.length ?? 0;
+  if (skipped > 0 && campaign.status !== 'cancelled') {
+    reasons.push(`${skipped} device${skipped === 1 ? '' : 's'} failed preconditions`);
+  }
   return reasons;
 }
 

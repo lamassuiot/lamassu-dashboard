@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, RefreshCw, ArrowRight, AlertTriangle, Search, CircleSlash } from 'lucide-react';
+import { CheckCircle2, RefreshCw, ArrowRight, AlertTriangle, Search, CircleSlash, Package, Router as RouterIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { getGroupVersionStatus, forceDeviceVersion } from '@/lib/iot-api';
@@ -18,8 +18,9 @@ import type { DevicePackVersionStatus } from '@/types/iot';
 import { sileo } from '@/lib/toast';
 
 // GroupLatestVersionsCard shows, for every tracked device in a group, which version of each pack it
-// is on versus the pack's latest version — compliant devices included. Outdated rows can be pushed
-// to the latest from here. "Latest" is the pack's current version.
+// is on versus the version the group has RELEASED — compliant devices included. Outdated rows can be
+// pushed to the released version from here. "Released" is the version the group's latest successful
+// campaign rolled out (see the backend's reconcileReleasedVersions), not the newest version that exists.
 export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
   const { isSupported, isLoading: capabilitiesLoading } = useUpdatesCapabilities();
   // GetGroupVersionStatus (the data this whole card is built on) has no hawkBit translation — see
@@ -29,7 +30,7 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
   const [updating, setUpdating] = React.useState<Set<string>>(new Set());
   const [filter, setFilter] = React.useState('');
   const [onlyOutdated, setOnlyOutdated] = React.useState(false);
-  // Row pending an "update to latest" — opens the workflow picker dialog before dispatching.
+  // Row pending an "update to released version" — opens the workflow picker dialog before dispatching.
   const [updateTarget, setUpdateTarget] = React.useState<DevicePackVersionStatus | null>(null);
   const [workflow, setWorkflow] = React.useState(DEFAULT_LAUNCH_WORKFLOW);
 
@@ -64,16 +65,34 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
 
   const allRows: DevicePackVersionStatus[] = React.useMemo(() => data?.rows || [], [data]);
 
-  const outdatedCount = React.useMemo(() => allRows.filter((r) => !r.in_sync).length, [allRows]);
+  // The API answers one row per (device, set). Listed flat, a device holding two sets appeared twice and
+  // read as duplicated, so rows are grouped per DEVICE, with a sub-row for each of its sets.
+  const setNames = React.useMemo(
+    () => Array.from(new Set(allRows.map((r) => r.distribution_set_name))).sort(),
+    [allRows],
+  );
+  const devices = React.useMemo(() => {
+    const byDevice = new Map<string, DevicePackVersionStatus[]>();
+    for (const r of allRows) byDevice.set(r.device_id, [...(byDevice.get(r.device_id) ?? []), r]);
+    // Natural order: AMR-2 before AMR-10.
+    return Array.from(byDevice.entries())
+      .map(([deviceId, sets]) => ({
+        deviceId,
+        sets: sets.sort((a, b) => a.distribution_set_name.localeCompare(b.distribution_set_name)),
+        outdated: sets.filter((r) => !r.in_sync).length,
+      }))
+      .sort((a, b) => a.deviceId.localeCompare(b.deviceId, undefined, { numeric: true }));
+  }, [allRows]);
+  const outdatedDevices = devices.filter((d) => d.outdated > 0).length;
 
-  const rows = React.useMemo(() => {
+  const visibleDevices = React.useMemo(() => {
     const term = filter.trim().toLowerCase();
-    return allRows.filter((r) => {
-      if (onlyOutdated && r.in_sync) return false;
+    return devices.filter((d) => {
+      if (onlyOutdated && d.outdated === 0) return false;
       if (!term) return true;
-      return r.device_id.toLowerCase().includes(term) || r.distribution_set_name.toLowerCase().includes(term);
+      return d.deviceId.toLowerCase().includes(term) || d.sets.some((r) => r.distribution_set_name.toLowerCase().includes(term));
     });
-  }, [allRows, filter, onlyOutdated]);
+  }, [devices, filter, onlyOutdated]);
 
   const rowKey = (r: DevicePackVersionStatus) => `${r.device_id}::${r.distribution_set_id}`;
 
@@ -89,7 +108,9 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
         groupId,
         workflow: selectedWorkflow,
       });
-      sileo.success({ title: 'Update launched', description: `${r.device_id} → ${r.distribution_set_name} v${r.latest_version}` });
+      // Sent, not done: the device still has to download and install it, and may refuse (the
+      // campaign and device pages show how it went).
+      sileo.success({ title: 'Update sent', description: `${r.device_id} → ${r.distribution_set_name} v${r.latest_version}; follow it in the device's Update Status` });
       await refetch();
     } catch (err: any) {
       sileo.error({ title: 'Update failed', description: err.message });
@@ -169,11 +190,13 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {allRows.length} tracked pack version(s) across this group&apos;s devices —{' '}
-          {outdatedCount === 0 ? (
-            <span className="font-medium text-green-600">all on the latest</span>
+          {devices.length} device{devices.length === 1 ? '' : 's'}, {setNames.length} distribution set{setNames.length === 1 ? '' : 's'} —{' '}
+          {outdatedDevices === 0 ? (
+            <span className="font-medium text-green-600">all on the released version</span>
           ) : (
-            <span className="font-medium text-amber-600">{outdatedCount} behind the latest</span>
+            <span className="font-medium text-amber-600">
+              {outdatedDevices} device{outdatedDevices === 1 ? '' : 's'} behind the released version
+            </span>
           )}
           .
         </p>
@@ -183,7 +206,7 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
             <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter device or pack…"
+              placeholder="Filter device or set…"
               className="h-9 w-56 pl-8"
             />
           </div>
@@ -200,77 +223,110 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto">
         <Table>
+          {/* Same layout as Updates → Devices: one row per distribution set, grouped under the device
+              that has it. The device cell spans its own sets, so each device is read once down the
+              left edge while every set keeps its own row of real columns. */}
           <TableHeader>
             <TableRow>
-              <TableHead>Device</TableHead>
-              <TableHead>Pack</TableHead>
-              <TableHead>Installed version</TableHead>
-              <TableHead>Latest version</TableHead>
+              <TableHead className="w-[220px]">Device</TableHead>
+              <TableHead>Distribution Set</TableHead>
+              <TableHead>Current Version</TableHead>
+              <TableHead title="The version the group's latest successful campaign rolled out">Released Version</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 ? (
+            {visibleDevices.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                  No rows match the current filter.
+                  No devices match the current filter.
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((r) => {
-                const busy = updating.has(rowKey(r));
-                return (
-                  <TableRow key={rowKey(r)}>
-                    <TableCell>
-                      <Link
-                        href={`/devices/details/information?deviceId=${encodeURIComponent(r.device_id)}`}
-                        className="font-mono text-xs text-primary hover:underline"
-                      >
-                        {r.device_id}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-medium">{r.distribution_set_name}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">v{r.current_version}</TableCell>
-                    <TableCell className="font-mono text-sm">v{r.latest_version}</TableCell>
-                    <TableCell>
-                      {r.in_sync ? (
-                        <Badge variant="success">
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> Up to date
-                        </Badge>
-                      ) : (
-                        <Badge variant="warning">
-                          <ArrowRight className="mr-1 h-3 w-3" /> Outdated
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.in_sync ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : (
-                        <Button variant="outline" size="sm" disabled={busy} onClick={() => openUpdateDialog(r)}>
-                          <RefreshCw className={cn('mr-2 h-3.5 w-3.5', busy && 'animate-spin')} />
-                          Update to latest
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              visibleDevices.map((d) => (
+                <React.Fragment key={d.deviceId}>
+                  {d.sets.map((r, i) => {
+                    // Only the FIRST set row carries the device cell; the rest sit under its rowSpan.
+                    // The heavier top border marks where one device ends and the next begins.
+                    const firstOfDevice = i === 0;
+                    const edge = firstOfDevice ? 'border-t-2' : undefined;
+                    const busy = updating.has(rowKey(r));
+                    return (
+                      <TableRow key={rowKey(r)}>
+                        {firstOfDevice && (
+                          <TableCell rowSpan={d.sets.length} className="border-t-2 align-top">
+                            <Link
+                              href={`/devices/details/information?deviceId=${encodeURIComponent(d.deviceId)}`}
+                              className="flex max-w-full items-center gap-1.5 font-medium text-primary hover:underline"
+                            >
+                              <RouterIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{d.deviceId}</span>
+                            </Link>
+                            {d.sets.length > 1 && d.outdated > 0 && (
+                              <p className="mt-1 text-[11px] text-muted-foreground">{d.outdated} of {d.sets.length} sets outdated</p>
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell className={cn('max-w-[260px]', edge)}>
+                          <span className="flex items-center gap-1.5">
+                            <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate font-medium" title={r.distribution_set_name}>{r.distribution_set_name}</span>
+                          </span>
+                        </TableCell>
+                        <TableCell className={edge}>
+                          <Badge variant={r.in_sync ? 'secondary' : 'warning'} className="tabular-nums">
+                            v{r.current_version}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className={edge}>
+                          <Badge variant="success" className="tabular-nums">v{r.latest_version}</Badge>
+                        </TableCell>
+                        <TableCell className={edge}>
+                          {r.in_sync ? (
+                            <Badge variant="success">
+                              <CheckCircle2 className="mr-1 h-3 w-3" /> Up to date
+                            </Badge>
+                          ) : (
+                            <Badge variant="warning">
+                              <ArrowRight className="mr-1 h-3 w-3" /> Outdated
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className={cn('text-right', edge)}>
+                          {!r.in_sync && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              disabled={busy}
+                              onClick={() => openUpdateDialog(r)}
+                              title={`Update ${r.device_id} to ${r.distribution_set_name} v${r.latest_version}`}
+                            >
+                              <RefreshCw className={cn('mr-1 h-3 w-3', busy && 'animate-spin')} />
+                              Update to v{r.latest_version}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </React.Fragment>
+              ))
             )}
           </TableBody>
         </Table>
       </div>
 
-      {/* Workflow picker for "Update to latest" */}
+      {/* Workflow picker for "Update to released" */}
       <Dialog open={updateTarget !== null} onOpenChange={(o) => !o && setUpdateTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-primary" />
-              Update to latest
+              Update to released
             </DialogTitle>
             <DialogDescription>
               {updateTarget && (

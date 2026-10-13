@@ -16,7 +16,14 @@ describe('moduleRemovalBlockedReason', () => {
     expect(moduleRemovalBlockedReason({ type: 'application', packIsBuilt: true, backend: 'native' })).toMatch(/already built/);
   });
 
-  it('hawkbit: allowed on a built set until it is assigned (its modules locked)', () => {
+  it('hawkbit: the set version\'s lock decides, not the module\'s', () => {
+    // A new version still linking last release's module: the module is locked (an older version was
+    // assigned), the new set version is not — swapping that module is exactly what it is for.
+    expect(moduleRemovalBlockedReason({ type: 'application', packIsBuilt: true, locked: true, packLocked: false, backend: 'hawkbit' })).toBeNull();
+    expect(moduleRemovalBlockedReason({ type: 'application', packIsBuilt: true, locked: false, packLocked: true, backend: 'hawkbit' })).toMatch(/assigned/);
+  });
+
+  it('hawkbit without the set state: falls back to the module lock', () => {
     expect(moduleRemovalBlockedReason({ type: 'application', packIsBuilt: true, locked: false, backend: 'hawkbit' })).toBeNull();
     expect(moduleRemovalBlockedReason({ type: 'application', packIsBuilt: true, locked: true, backend: 'hawkbit' })).toMatch(/assigned/);
   });

@@ -353,6 +353,7 @@ export function ModuleFilesFields({
   compact = false,
   versionPlaceholder,
   only,
+  buildChoice,
 }: {
   state: ModuleFilesController;
   disabled: boolean;
@@ -363,6 +364,9 @@ export function ModuleFilesFields({
    *  module ships, 'build' is how it is packaged (sw-description, build switch, signing and
    *  encryption). Omitted renders both, which is what a single-panel caller wants. */
   only?: 'files' | 'build';
+  /** Set when the build-now/later choice was already made elsewhere (the module's actions menu): the
+   *  switch is not asked again, and the build options show only when that choice was "now". */
+  buildChoice?: boolean;
 }) {
   const { perModuleDeliverables, answer, files, packaging, answerIsDerived, deliveryIntent, standalone } = state;
   const showFiles = only !== 'build';
@@ -522,13 +526,14 @@ export function ModuleFilesFields({
                   onContentChange={state.setDescriptorContent}
                   onNameChange={state.setDescriptorName}
                   disabled={disabled}
-                  height={compact ? '140px' : '180px'}
+                  height={compact ? '280px' : '380px'}
                 />
                 {/* The check the build itself cannot do late: what the recipe names, against what
                     will actually be in the image. */}
                 <DescriptorFileChecklist check={state.descriptorCheck} />
               </div>
 
+              {buildChoice === undefined && (
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
                 <div>
                   <Label htmlFor="module-build-now" className="text-sm font-semibold">
@@ -546,6 +551,7 @@ export function ModuleFilesFields({
                   disabled={disabled}
                 />
               </div>
+              )}
 
               {/* Signing and encryption apply to the BUILD, which is why they appear only here. */}
               {state.buildNow ? (
@@ -576,6 +582,7 @@ export function ModuleFilesFields({
 
           {showBuild && state.secureFiles ? (
             <>
+              {buildChoice === undefined && (
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
                 <div>
                   <Label htmlFor="module-build-now" className="text-sm font-semibold">
@@ -593,6 +600,7 @@ export function ModuleFilesFields({
                   disabled={disabled}
                 />
               </div>
+              )}
               {state.buildNow ? (
                 <>
                   <SwuSecurityFields fields={state.security.fields} disabled={disabled} forFiles />
@@ -809,7 +817,7 @@ export function ModuleDescriptorEditor({
   onContentChange,
   onNameChange,
   disabled,
-  height = '180px',
+  height = '380px',
 }: {
   content: string;
   onContentChange: (v: string) => void;
@@ -825,9 +833,13 @@ export function ModuleDescriptorEditor({
   return (
     <div className="space-y-2">
       <FileUpload label="Drag & drop the sw-description here, or click to load (then edit below)" onFileUpload={handleLoad} />
-      <div className="overflow-hidden rounded-md border border-border">
+      {/* Drag the bottom-right corner to resize; Monaco's automaticLayout follows the box. */}
+      <div
+        className="min-h-[160px] max-h-[85vh] resize-y overflow-hidden rounded-md border border-border"
+        style={{ height }}
+      >
         <Editor
-          height={height}
+          height="100%"
           language={descriptorLanguage(content)}
           value={content}
           onChange={(v) => onContentChange(v ?? '')}

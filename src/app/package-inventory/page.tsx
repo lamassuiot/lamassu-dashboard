@@ -449,7 +449,7 @@ export default function PackageInventoryPage() {
   useEffect(() => {
     if (backend === 'hawkbit' && !appliedHawkbitColumnDefaultRef.current) {
       appliedHawkbitColumnDefaultRef.current = true;
-      setColumnVisibility((v) => ({ ...v, packaging: false }));
+      setColumnVisibility((v) => ({ ...v, packaging: false, status: false }));
     }
   }, [backend]);
 
@@ -621,9 +621,12 @@ export default function PackageInventoryPage() {
             <div className="flex flex-wrap gap-x-12 gap-y-5 border-b pb-5">
               {([
                 { label: 'Total distribution sets', value: totals.total, sub: 'Across every device group', Icon: PackagePlus, tint: 'text-blue-600 dark:text-blue-400' },
+                // hawkBit never builds a set (each module is built on its own), so the set has no build state to roll up.
+                ...(backend === 'hawkbit' ? [] : [
                 { label: 'Built', value: totals.built, sub: 'Has a deliverable devices can install', Icon: CheckCircle2, tint: 'text-emerald-600 dark:text-emerald-400' },
                 { label: 'Not built', value: totals.notBuilt, sub: 'Needs composing, artifacts, or a build', Icon: CircleDashed, tint: 'text-amber-600 dark:text-amber-400' },
                 { label: 'Build failed', value: totals.buildFailed, sub: 'Last build attempt broke', Icon: AlertTriangle, tint: 'text-destructive' },
+                ]),
               ]).map(({ label, value, sub, Icon, tint }) => (
                 <div key={label} className="min-w-0">
                   <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -654,17 +657,19 @@ export default function PackageInventoryPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="built">Built ({totals.built})</SelectItem>
-                  <SelectItem value="not-built">Not built ({totals.notBuilt})</SelectItem>
-                  <SelectItem value="build_failed">Build failed ({totals.buildFailed})</SelectItem>
-                </SelectContent>
-              </Select>
+              {backend !== 'hawkbit' && (
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="built">Built ({totals.built})</SelectItem>
+                    <SelectItem value="not-built">Not built ({totals.notBuilt})</SelectItem>
+                    <SelectItem value="build_failed">Build failed ({totals.buildFailed})</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -692,7 +697,7 @@ export default function PackageInventoryPage() {
                   { id: 'type', label: 'Type', visible: columnVisibility.type },
                   { id: 'compatibility', label: 'Compatibility', visible: columnVisibility.compatibility },
                   { id: 'security', label: 'Security', visible: columnVisibility.security },
-                  { id: 'status', label: 'Status', visible: columnVisibility.status },
+                  ...(backend === 'hawkbit' ? [] : [{ id: 'status' as const, label: 'Status', visible: columnVisibility.status }]),
                 ]}
                 onColumnToggle={handleColumnToggle}
                 align="end"

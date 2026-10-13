@@ -11,6 +11,7 @@ import {
   fetchDmsStats,
   updateRaMetadata,
   deleteRaIntegration,
+  normalizeRaItem,
   type ApiRaListResponse,
   type ApiRaItem,
   type RaCreationPayload,
@@ -887,5 +888,45 @@ describe('dms-api', () => {
         deleteRaIntegration('ra-123', 'nonexistent')
       ).rejects.toThrow('Integration key not found')
     })
+  })
+})
+
+// The newer backend (lamassuiot feat/cmp) nests settings per protocol. Every reader expects the
+// older shape, so these views crashed on it ("reading 'device_provisioning_profile'").
+describe('normalizeRaItem', () => {
+  const auth = { auth_mode: 'CLIENT_CERTIFICATE', client_certificate_settings: { validation_cas: ['ca-1'], chain_level_validation: -1, allow_expired: false } }
+  const nested = {
+    id: 'ra-1', name: 'RA', creation_ts: '', metadata: {},
+    settings: {
+      protocol: 'EST_RFC7030',
+      est_settings: {
+        enrollment_settings: { ...auth, enrollment_ca: 'ca-1', registration_mode: 'JITP', enable_replaceable_enrollment: false,
+          device_provisioning_profile: { icon: 'Cpu', icon_color: '#000-#fff', metadata: {}, tags: ['ota'] } },
+        reenrollment_settings: { ...auth, reenrollment_delta: '1h', additional_validation_cas: [], revoke_on_reenrollment: false,
+          enable_expired_renewal: false, preventive_delta: '0s', critical_delta: '0s' },
+        server_keygen_settings: { enabled: false },
+        ca_distribution_settings: { include_enrollment_ca: true, include_system_ca: true, managed_cas: [] },
+        issuance_profile_id: 'p-1',
+      },
+      cmp_settings: null,
+    },
+  } as unknown as ApiRaItem
+
+  it('maps the protocol-nested shape onto the one the views read', () => {
+    const ra = normalizeRaItem(nested)
+    expect(ra.settings.enrollment_settings.protocol).toBe('EST_RFC7030')
+    expect(ra.settings.enrollment_settings.enrollment_ca).toBe('ca-1')
+    expect(ra.settings.enrollment_settings.registration_mode).toBe('JITP')
+    expect(ra.settings.enrollment_settings.device_provisioning_profile.tags).toEqual(['ota'])
+    expect(ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode).toBe('CLIENT_CERTIFICATE')
+    expect(ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas).toEqual(['ca-1'])
+    expect(ra.settings.reenrollment_settings.reenrollment_delta).toBe('1h')
+    expect(ra.settings.ca_distribution_settings.include_enrollment_ca).toBe(true)
+    expect(ra.settings.issuance_profile_id).toBe('p-1')
+  })
+
+  it('leaves an RA already in the expected shape untouched', () => {
+    const flat = normalizeRaItem(nested)
+    expect(normalizeRaItem(flat)).toBe(flat)
   })
 })

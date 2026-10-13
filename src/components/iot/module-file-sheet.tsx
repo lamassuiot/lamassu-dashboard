@@ -40,6 +40,7 @@ export function ModuleFileSheet({
   packName,
   module,
   perModuleDeliverables,
+  buildNow,
   onDone,
 }: {
   open: boolean;
@@ -50,6 +51,8 @@ export function ModuleFileSheet({
   /** Whether a module builds its OWN deliverable. Where it does not, the set builds one from every
    *  module's inputs, so there is nothing here to sign or encrypt per module. */
   perModuleDeliverables: boolean;
+  /** The build-now/later choice made in the module's actions menu. Undefined asks in the form. */
+  buildNow?: boolean;
   onDone: () => void;
 }) {
   const { user } = useAuth();
@@ -68,6 +71,20 @@ export function ModuleFileSheet({
     setBusy(true); setError(null);
     try { await deleteCatalogModuleFile(current.id, artifactId); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  // A built swu-build / generic module has consumed its inputs, so changing it means going back: the
+  // built file is removed (which is what takes the module back to Not built) and the inputs are
+  // uploaded again. A prebuilt SWU needs none of this — a new upload replaces its file.
+  const [confirmReopen, setConfirmReopen] = React.useState(false);
+  const reopen = async () => {
+    if (!current?.id) return;
+    setBusy(true); setError(null);
+    try {
+      for (const a of current.artifacts) await deleteCatalogModuleFile(current.id, a.id);
+      setConfirmReopen(false);
+      await reload();
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); await reload().catch(() => {}); }
     finally { setBusy(false); }
   };
   const download = async (artifactId: string, filename: string) => {
@@ -116,7 +133,7 @@ export function ModuleFileSheet({
   // guess this form exists to avoid. The next files are not necessarily the same kind as the last.
   React.useEffect(() => {
     if (open) {
-      files.reset(); setCurrent(module); setIntent(module?.delivery_intent ?? 'undecided'); setError(null);
+      setConfirmReopen(false); files.reset(); if (buildNow !== undefined) files.setBuildNow(buildNow); setCurrent(module); setIntent(module?.delivery_intent ?? 'undecided'); setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, module?.id, module?.key]);
@@ -188,9 +205,25 @@ export function ModuleFileSheet({
               <Alert>
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 <AlertTitle>Built</AlertTitle>
-                <AlertDescription>
-                  This module can be added to a distribution set. To change it, remove its file{(current?.artifacts.length ?? 0) === 1 ? '' : 's'} below
-                  and build it again — and if a distribution set holds it, remove it from that set first.
+                <AlertDescription className="space-y-2">
+                  <p>
+                    This module can be added to a distribution set. If a set holds it, remove it from that set before changing it.
+                    {intent === 'swu-prebuilt'
+                      ? ' Uploading a new .swu below replaces the current one.'
+                      : ' Its inputs were consumed by the build, so changing it means reopening it: the built file is removed, the module goes back to Not built, and you upload the inputs again (and can edit the sw-description) before building.'}
+                  </p>
+                  {intent !== 'swu-prebuilt' && !current?.locked && (
+                    confirmReopen ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button size="sm" variant="destructive" disabled={busy} onClick={reopen}>
+                          Remove the built file{(current?.artifacts.length ?? 0) === 1 ? '' : 's'} and reopen
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmReopen(false)}>Keep it built</Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirmReopen(true)}>Reopen for editing</Button>
+                    )
+                  )}
                 </AlertDescription>
               </Alert>
             ) : (
@@ -227,7 +260,7 @@ export function ModuleFileSheet({
                 onLinked={reload}
               />
             )}
-            {!current?.locked && !(perModuleDeliverables && current?.built) && <ModuleFilesFields state={files} disabled={busy} versionPlaceholder={module?.version || undefined} />}
+            {!current?.locked && !(perModuleDeliverables && current?.built && intent !== 'swu-prebuilt') && <ModuleFilesFields state={files} disabled={busy} versionPlaceholder={module?.version || undefined} buildChoice={buildNow} />}
           </div>
         </div>
 

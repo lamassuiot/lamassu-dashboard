@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SoftwareModulesCard } from '@/components/iot/SoftwareModulesCard';
 import { PackPreconditionsCard } from '@/components/iot/pack-preconditions-card';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
-import { createCampaign, fetchPackPreconditions, fetchSoftwareModules, fetchUpdatePackVersions } from '@/lib/iot-api';
+import { createCampaign, fetchPackPreconditions, fetchSoftwareModules, fetchSoftwareModulesVersion, fetchUpdatePackVersions } from '@/lib/iot-api';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { cn, compareSemver } from '@/lib/utils';
 import type { CampaignPrecondition, SoftwareModule, UpdatePack, UpdatePackVersion } from '@/types/iot';
@@ -90,6 +90,11 @@ export function PackDetailPanel({
   const [versionsError, setVersionsError] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState(pack.version);
   const { backend } = useUpdatesCapabilities();
+  // Each version's modules, by version. In hawkbit mode a set carries no files of its own — they belong
+  // to its modules — so the version's own artifact list is always empty there ("0 artifacts" on every
+  // row); what a version delivers is its modules and their files. A version whose modules could not be
+  // read is absent from the map and shows nothing rather than a false "no files".
+  const [versionModules, setVersionModules] = useState<Record<string, SoftwareModule[]>>({});
 
   // Independently fetched rather than read off `pack`: the list row it comes from carries no
   // composition at all, and its preconditions are a snapshot from whenever the page last listed —
@@ -141,6 +146,7 @@ export function PackDetailPanel({
   useEffect(() => {
     setPanelTab('versions');
     setSelectedVersion(pack.version);
+    setVersionModules({});
     setVersions(null);
     setVersionsError(null);
     setModules(null);
@@ -159,6 +165,24 @@ export function PackDetailPanel({
       .catch(() => { if (!cancelled) setPreconditions([]); });
     return () => { cancelled = true; };
   }, [pack.groupId, pack.name, pack.version]);
+
+  // The modules of every version, once the version list is known: a handful of small reads, in parallel,
+  // so the history can show what each version delivers without opening it.
+  useEffect(() => {
+    if (backend !== 'hawkbit' || !versions || !pack.groupId) return;
+    let cancelled = false;
+    Promise.allSettled(
+      versions.map((v) =>
+        fetchSoftwareModulesVersion({ groupId: pack.groupId, packName: pack.name, version: v.version }).then((mods) => [v.version, mods] as const),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, SoftwareModule[]> = {};
+      for (const r of results) if (r.status === 'fulfilled') next[r.value[0]] = r.value[1];
+      setVersionModules(next);
+    });
+    return () => { cancelled = true; };
+  }, [backend, versions, pack.groupId, pack.name]);
 
   // Fetched lazily, on first visit to Overview, rather than for every selected row — a dry run still
   // touches the backend (it evaluates real device state), so it should only run when actually looked at.
@@ -186,11 +210,14 @@ export function PackDetailPanel({
             <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold">
               <span className="truncate">{pack.name}</span>
               <Badge variant="secondary" className="font-mono text-[11px]">v{pack.version}</Badge>
-              <StateChip
-                on={pack.status === 'built'} onLabel="Built" offLabel="Not built"
-                OnIcon={CheckCircle2} OffIcon={CircleDashed}
-              />
-              {pack.status === 'build_failed' && (
+              {/* hawkBit never builds a set: each module is built on its own, so the set has no build state. */}
+              {backend !== 'hawkbit' && (
+                <StateChip
+                  on={pack.status === 'built'} onLabel="Built" offLabel="Not built"
+                  OnIcon={CheckCircle2} OffIcon={CircleDashed}
+                />
+              )}
+              {backend !== 'hawkbit' && pack.status === 'build_failed' && (
                 <Badge variant="destructive">
                   <AlertTriangle className="h-3 w-3" /> Build failed
                 </Badge>
@@ -211,7 +238,7 @@ export function PackDetailPanel({
             <GitBranchPlus className="mr-2 h-4 w-4" /> New version
           </Button>
           <Button variant="outline" size="sm" disabled={!canStartCampaign} asChild={canStartCampaign}
-            title={canStartCampaign ? undefined : 'Build this distribution set before starting a campaign'}>
+            title={canStartCampaign ? undefined : (backend === 'hawkbit' ? 'Every linked module must be built before starting a campaign' : 'Build this distribution set before starting a campaign')}>
             {canStartCampaign ? (
               <Link href={campaignHref}><Rocket className="mr-2 h-4 w-4" /> Start campaign</Link>
             ) : (
@@ -278,12 +305,26 @@ export function PackDetailPanel({
                             <span className="flex items-center gap-1.5 font-medium tabular-nums">
                               v{v.version} {isCurrent && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
                             </span>
-                            <StateChip on={Boolean(v.uri)} onLabel="Built" offLabel="Not built" OnIcon={CheckCircle2} OffIcon={CircleDashed} />
+                            {backend !== 'hawkbit' && <StateChip on={Boolean(v.uri)} onLabel="Built" offLabel="Not built" OnIcon={CheckCircle2} OffIcon={CircleDashed} />}
                           </span>
                           <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {v.artifacts?.length ?? 0} artifact{(v.artifacts?.length ?? 0) === 1 ? '' : 's'}
+                            {(() => {
+                              const mods = versionModules[v.version];
+                              if (backend === 'hawkbit') {
+                                if (!mods) return 'Modules…';
+                                const files = mods.reduce((n, m) => n + (m.artifacts?.length ?? 0), 0);
+                                return `${mods.length} module${mods.length === 1 ? '' : 's'} · ${files} file${files === 1 ? '' : 's'}`;
+                              }
+                              return `${v.artifacts?.length ?? 0} artifact${(v.artifacts?.length ?? 0) === 1 ? '' : 's'}`;
+                            })()}
                             {formatVersionDate(v.created_at) ? ` · ${formatVersionDate(v.created_at)}` : ''}
                           </span>
+                          {backend === 'hawkbit' && versionModules[v.version] && versionModules[v.version].length > 0 && (
+                            <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground"
+                              title={versionModules[v.version].map((m) => `${m.name} ${m.version}`).join(', ')}>
+                              {versionModules[v.version].map((m) => `${m.name} ${m.version}`).join(' · ')}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -294,13 +335,43 @@ export function PackDetailPanel({
               <div className="space-y-4 lg:col-span-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Artifacts — v{activeVersion?.version ?? pack.version}
+                    {backend === 'hawkbit' ? 'Modules' : 'Artifacts'} — v{activeVersion?.version ?? pack.version}
                   </p>
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" asChild>
                     <Link href={detailsHref}>Full view <ArrowRight className="ml-1 h-3 w-3" /></Link>
                   </Button>
                 </div>
-                {!activeVersion || (activeVersion.artifacts?.length ?? 0) === 0 ? (
+                {backend === 'hawkbit' ? (
+                  !activeVersion || !versionModules[activeVersion.version] ? (
+                    <p className="text-xs text-muted-foreground">Loading this version&apos;s modules…</p>
+                  ) : versionModules[activeVersion.version].length === 0 ? (
+                    <p className="text-xs italic text-muted-foreground">This version has no modules.</p>
+                  ) : (
+                    <ul className="divide-y rounded-md border text-sm">
+                      {versionModules[activeVersion.version].map((m) => (
+                        <li key={m.key} className="space-y-1 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate font-medium">{m.name}</span>
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              <Badge variant="secondary" className="font-mono text-[10px]">{m.type}</Badge>
+                              <span className="font-mono text-xs text-muted-foreground">v{m.version}</span>
+                            </span>
+                          </div>
+                          {(m.artifacts?.length ?? 0) === 0 ? (
+                            <p className="text-xs italic text-muted-foreground">No files</p>
+                          ) : (
+                            m.artifacts.map((a) => (
+                              <p key={a.id || a.filename} className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
+                                <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
+                                {typeof a.size === 'number' && <span className="shrink-0">{a.size < 1024 ? `${a.size} B` : a.size < 1048576 ? `${(a.size / 1024).toFixed(1)} KB` : `${(a.size / 1048576).toFixed(1)} MB`}</span>}
+                              </p>
+                            ))
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : !activeVersion || (activeVersion.artifacts?.length ?? 0) === 0 ? (
                   <p className="text-xs text-muted-foreground italic">No artifacts on this version yet.</p>
                 ) : (
                   <ul className="divide-y rounded-md border text-sm">
@@ -428,7 +499,11 @@ export function PackDetailPanel({
               </Button>
             }>
               {pack.status !== 'built' ? (
-                <p className="text-xs text-muted-foreground italic">Build this distribution set to preview device compatibility.</p>
+                <p className="text-xs text-muted-foreground italic">
+                  {backend === 'hawkbit'
+                    ? 'Link built modules to preview device compatibility.'
+                    : 'Build this distribution set to preview device compatibility.'}
+                </p>
               ) : pack.orphaned ? (
                 <p className="text-xs text-muted-foreground italic">Device group no longer exists — nothing to evaluate.</p>
               ) : liveScope === null || liveScope === 'loading' ? (
@@ -465,6 +540,7 @@ export function PackDetailPanel({
             packName={pack.name}
             packVersion={pack.version}
             packIsBuilt={pack.status === 'built'}
+            packLocked={pack.locked === true}
             packaging={pack.packaging}
           />
         </TabsContent>

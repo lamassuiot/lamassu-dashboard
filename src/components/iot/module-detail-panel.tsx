@@ -41,7 +41,7 @@ import {
   Package, CheckCircle2, CircleDashed, Lock, LockOpen, ShieldCheck, FileText, Boxes, Layers,
   Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2, PackagePlus, Hammer,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, compareSemver } from '@/lib/utils';
 import { setSoftwareModuleReleaseNotes } from '@/lib/iot-api';
 import type { ModuleDeliveryIntent, ReusableSoftwareModule } from '@/types/iot';
 import { sileo } from '@/lib/toast';
@@ -53,6 +53,14 @@ export interface GroupedModule {
   name: string;
   shared: boolean;
   uses: ReusableSoftwareModule[];
+}
+
+/** Index of the newest version's first definition: what the panel opens on. Opening on whichever
+ *  definition happened to come first showed the OLDEST version's files for a module with several. */
+function newestUseIndex(uses: ReusableSoftwareModule[]): number {
+  let best = 0;
+  uses.forEach((u, i) => { if (compareSemver(u.version, uses[best].version) > 0) best = i; });
+  return best;
 }
 
 function fmtSize(bytes?: number): string {
@@ -110,7 +118,7 @@ export function ModuleDetailPanel({
   // A module can be defined on SEVERAL pack versions, and release notes belong to a definition, not
   // to the identity — so everything version-specific is scoped to a chosen definition rather than
   // silently showing the first one's data as if it were the module's.
-  const [useIdx, setUseIdx] = useState(0);
+  const [useIdx, setUseIdx] = useState(() => newestUseIndex(module.uses));
   const active = module.uses[Math.min(useIdx, module.uses.length - 1)];
   // Which tab is showing. Controlled (rather than Tabs' own defaultValue) so a row in "Versions"
   // can both select a definition AND jump straight to its Artifacts or Release notes — the two
@@ -127,8 +135,10 @@ export function ModuleDetailPanel({
 
   // Reset when the selection changes, or an edit to one definition would leak into the next.
   useEffect(() => {
-    setUseIdx(0);
+    setUseIdx(newestUseIndex(module.uses));
     setPanelTab('versions');
+    // Only when another module is selected: a refresh of this one must not move the version being read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module.key]);
   useEffect(() => {
     setNotes(active?.release_notes ?? '');
@@ -167,6 +177,8 @@ export function ModuleDetailPanel({
   const dirty = notesDirty || intentDirty;
 
   const artifacts = active?.artifacts ?? [];
+  // The definitions of the version being read, for the "Defined on" choice.
+  const activeDefs = module.uses.map((u, i) => ({ u, i })).filter(({ u }) => u.version === active?.version);
 
   // Mirrors the pack-scoped software modules card's own rule: `locked` (shipped) always blocks, and
   // `built` blocks ONLY where the backend has no per-module deliverable — there the set's single
@@ -277,17 +289,41 @@ export function ModuleDetailPanel({
             title={active.id ? undefined : 'Needs independent catalog storage'}>
             <GitBranchPlus className="mr-2 h-4 w-4" /> Upgrade to a new version
           </Button>
-          {module.uses.length > 1 && (
-            <Select value={String(useIdx)} onValueChange={(v) => setUseIdx(Number(v))}>
-              <SelectTrigger className="h-8 w-[290px]">
+          {/* Which version of the module every tab below shows: its files, release notes, delivery and
+              the sets that hold it. Newest first, opened on the newest. */}
+          {versionGroups.length > 1 && (
+            <Select
+              value={active.version}
+              onValueChange={(v) => {
+                const vg = versionGroups.find((g) => g.version === v);
+                if (vg) setUseIdx(vg.firstUseIdx);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[170px]" aria-label="Module version">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {module.uses.map((u, i) => (
+                {versionGroups.map((vg, i) => (
+                  <SelectItem key={vg.version} value={vg.version}>
+                    v{vg.version}{i === 0 ? ' · latest' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {/* A version defined on several sets (a copy per set, where modules are copied rather than
+              shared) has a definition to pick; a shared module is one entity and has nothing to pick. */}
+          {activeDefs.length > 1 && (
+            <Select value={String(useIdx)} onValueChange={(v) => setUseIdx(Number(v))}>
+              <SelectTrigger className="h-8 w-[230px]" aria-label="Defined on">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {activeDefs.map(({ u, i }) => (
                   <SelectItem key={`${u.source_group_id}-${u.source_distribution_set_name}-${u.source_distribution_set_version}-${u.version}`} value={String(i)}>
                     {u.source_distribution_set_name
-                      ? `${u.source_distribution_set_name} v${u.source_distribution_set_version} · module v${u.version}`
-                      : `Not in a set · module v${u.version}`}
+                      ? `${u.source_distribution_set_name} v${u.source_distribution_set_version}`
+                      : 'Not in a set'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -351,8 +387,19 @@ export function ModuleDetailPanel({
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                         {vg.defs.every((d) => !d.source_distribution_set_name)
                           ? 'Not composed into a set'
-                          : vg.defs.filter((d) => d.source_distribution_set_name).map((d) => d.source_distribution_set_name).join(', ')}
+                          : Array.from(new Set(vg.defs.filter((d) => d.source_distribution_set_name).map((d) => d.source_distribution_set_name))).join(', ')}
                       </span>
+                      {/* The version's files, so they can be compared down the list without opening each. */}
+                      {(() => {
+                        const files = vg.defs.find((d) => (d.artifacts?.length ?? 0) > 0)?.artifacts ?? [];
+                        if (files.length === 0) return <span className="mt-0.5 block text-xs italic text-muted-foreground">No files</span>;
+                        return (
+                          <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground" title={files.map((f) => f.filename).join(', ')}>
+                            {files.length === 1 ? files[0].filename : `${files.length} files: ${files.map((f) => f.filename).join(', ')}`}
+                            {' · '}{fmtSize(files.reduce((n, f) => n + (f.size ?? 0), 0))}
+                          </span>
+                        );
+                      })()}
                     </button>
                   );
                 })}
@@ -515,12 +562,24 @@ export function ModuleDetailPanel({
             </div>
           ) : (
           <>
+          {/* The button sits above the table, next to the count, so it's visible without scrolling
+              past a table that's often wider than this panel — matching the pack-side toolbar
+              (SoftwareModulesCard) rather than trailing the list as an afterthought. */}
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">
+              {setUses.length} distribution set{setUses.length === 1 ? '' : 's'}
+            </span>
+            {onAddToSet && (
+              <Button variant="outline" size="sm" onClick={onAddToSet}>
+                <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set
+              </Button>
+            )}
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="pl-3">Distribution set</TableHead>
-                  <TableHead>Set version</TableHead>
                   <TableHead>Module version</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead className={cn(!onRemoveFromSet && 'pr-3')}>Device group</TableHead>
@@ -542,8 +601,12 @@ export function ModuleDetailPanel({
                           {u.source_distribution_set_name}
                         </Link>
                       ) : u.source_distribution_set_name}
+                      {/* Merged with the set's version, which used to be its own column — there was
+                          no room for it next to Module version, State, Device group and Actions. */}
+                      <span className="ml-1.5 text-xs font-normal tabular-nums text-muted-foreground">
+                        v{u.source_distribution_set_version || '—'}
+                      </span>
                     </TableCell>
-                    <TableCell className="tabular-nums text-xs">{u.source_distribution_set_version || '—'}</TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs tabular-nums">v{u.version}</Badge></TableCell>
                     <TableCell>
                       <span className="flex flex-wrap items-center gap-1.5">
@@ -584,15 +647,6 @@ export function ModuleDetailPanel({
               </TableBody>
             </Table>
           </div>
-          {/* Under the last row, where the next set would go: the list reads as "these sets, plus
-              one more", not as a toolbar for the table above it. */}
-          {onAddToSet && (
-            <div className="mt-2 px-3">
-              <Button variant="ghost" size="sm" className="-ml-2 text-primary" onClick={onAddToSet}>
-                <PackagePlus className="mr-2 h-4 w-4" /> Add to distribution set
-              </Button>
-            </div>
-          )}
           </>
           )}
           {module.shared && setUses.length > 1 && (

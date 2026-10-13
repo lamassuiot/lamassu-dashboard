@@ -41,6 +41,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { GroupLatestVersionsCard } from '@/components/device-groups/GroupLatestVersionsCard';
 import {
   Layers, CheckCircle2, AlertTriangle, RefreshCw, Search, ChevronRight, ChevronDown,
   Info, Package, Rocket, Users,
@@ -456,7 +457,7 @@ export default function OtaDeviceGroupsPage() {
                         </TableCell>
                       </TableRow>
 
-                      {isOpen && row.packs.length > 0 && (
+                      {isOpen && (
                         <TableRow className="hover:bg-transparent">
                           <TableCell colSpan={8} className="bg-muted/30 p-0">
                             <div className="px-4 py-3">
@@ -468,7 +469,7 @@ export default function OtaDeviceGroupsPage() {
                                   <TableHeader>
                                     <TableRow>
                                       <TableHead className="pl-3">Distribution Set</TableHead>
-                                      <TableHead>Target Version</TableHead>
+                                      <TableHead title="The version of the group's latest successful campaign">Released version</TableHead>
                                       <TableHead>Devices Tracked</TableHead>
                                       <TableHead className="pr-3">Outdated</TableHead>
                                     </TableRow>
@@ -499,6 +500,10 @@ export default function OtaDeviceGroupsPage() {
                                   </TableBody>
                                 </Table>
                               </div>
+                              <p className="mb-2 mt-5 text-xs font-medium text-muted-foreground">
+                                Versions per device — update any outdated device to the released version from here
+                              </p>
+                              <GroupLatestVersionsCard groupId={row.group.id} />
                             </div>
                           </TableCell>
                         </TableRow>
