@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseCertificatePemDetails, abToHex, parseDistinguishedName } from '@/lib-crypto'
-import { VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
+import { parseCertificatePemDetails, abToHex, parseDistinguishedName, parseCertificateSubjectRdns } from '@/lib-crypto'
+import { OPENSSL_COMMA_SUBJECT_PEM, OPENSSL_EC_CA_PEM, VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('cert-parser', () => {
   it('should parse a valid certificate and populate fields', async () => {
@@ -34,5 +34,20 @@ describe('cert-parser', () => {
       { label: 'CN', value: 'Root CA' },
     ])
     expect(parseDistinguishedName('')).toEqual([])
+  })
+
+  it('should read subject RDNs in encoded order with their string types', () => {
+    expect(parseCertificateSubjectRdns(OPENSSL_EC_CA_PEM)).toEqual([
+      [{ type: '2.5.4.3', value: 'External Root CA', tag: 12 }],
+      [{ type: '2.5.4.10', value: 'Acme', tag: 12 }],
+    ])
+    expect(parseCertificateSubjectRdns('not a certificate')).toBeNull()
+  })
+
+  it('should keep commas inside attribute values in the parsed DN fields', async () => {
+    const parsed = await parseCertificatePemDetails(OPENSSL_COMMA_SUBJECT_PEM)
+    const expected = { cn: 'Comma Root', c: 'ES', st: '', l: '', o: 'Acme, Inc.', ou: 'PKI, Ops' }
+    expect(parsed.subjectFields).toEqual(expected)
+    expect(parsed.issuerFields).toEqual(expected)
   })
 })

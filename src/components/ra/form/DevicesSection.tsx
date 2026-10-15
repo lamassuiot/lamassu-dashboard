@@ -25,7 +25,7 @@ const registrationModeOptions = [
   },
 ];
 
-export function DevicesSection({ values, update, issues, onOpenIconPicker }: RaSectionProps & { onOpenIconPicker: () => void }) {
+export function DevicesSection({ values, update, issues, isIconPickerOpen, onOpenIconPicker }: RaSectionProps & { isIconPickerOpen: boolean; onOpenIconPicker: () => void }) {
   const metadataError = fieldError(issues, 'deviceMetadata');
   const iconError = fieldError(issues, 'deviceIcon');
   const DeviceIcon = getLucideIconByName(values.deviceIcon.name);
@@ -53,6 +53,10 @@ export function DevicesSection({ values, update, issues, onOpenIconPicker }: RaS
               id="deviceIconButton"
               type="button"
               onClick={onOpenIconPicker}
+              role="combobox"
+              aria-haspopup="dialog"
+              aria-expanded={isIconPickerOpen}
+              aria-invalid={!!iconError}
               aria-describedby={iconError ? 'deviceIcon-error' : undefined}
               className={cn(
                 'flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30',

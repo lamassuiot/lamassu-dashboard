@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { parseCertificatePemDetails } from '@/lib-crypto';
+import { parseCertificatePemDetails, type DistinguishedNameFields } from '@/lib-crypto';
 
 export interface DecodedCertInfo {
   commonName?: string;
@@ -18,6 +18,7 @@ export interface DecodedCertInfo {
   organization?: string;
   organizationalUnit?: string;
   issuer?: string;
+  issuerFields?: DistinguishedNameFields;
   serialNumber?: string;
   validFrom?: string;
   validTo?: string;
@@ -37,36 +38,21 @@ export interface DecodedCertInfo {
   error?: string;
 }
 
-export function parseSubjectFields(subject: string) {
-  const fields: Record<string, string> = {};
-  subject.split(/,\s*/).forEach(part => {
-    const idx = part.indexOf('=');
-    if (idx > 0) {
-      fields[part.slice(0, idx).trim().toUpperCase()] = part.slice(idx + 1).trim();
-    }
-  });
-  return {
-    cn: fields['CN'] || '',
-    c: fields['C'] || '',
-    st: fields['ST'] || '',
-    l: fields['L'] || '',
-    o: fields['O'] || '',
-    ou: fields['OU'] || '',
-  };
-}
+const EMPTY_DN_FIELDS: DistinguishedNameFields = { cn: '', c: '', st: '', l: '', o: '', ou: '' };
 
 export async function decodeCertificatePem(pem: string): Promise<DecodedCertInfo> {
   try {
     const parsed = await parseCertificatePemDetails(pem);
-    const subj = parseSubjectFields(parsed.subject || '');
+    const subj = parsed.subjectFields;
     return {
-      commonName: subj.cn,
-      country: subj.c,
-      state: subj.st,
-      locality: subj.l,
-      organization: subj.o,
-      organizationalUnit: subj.ou,
+      commonName: subj?.cn,
+      country: subj?.c,
+      state: subj?.st,
+      locality: subj?.l,
+      organization: subj?.o,
+      organizationalUnit: subj?.ou,
       issuer: parsed.issuer,
+      issuerFields: parsed.issuerFields,
       serialNumber: parsed.serialNumber,
       validFrom: parsed.validFrom ? formatDate(new Date(parsed.validFrom), 'PPpp') : 'N/A',
       validTo: parsed.validTo ? formatDate(new Date(parsed.validTo), 'PPpp') : 'N/A',
@@ -141,7 +127,7 @@ export function DecodedCertificateSections({ info }: { info: DecodedCertInfo }) 
           </div>
           <div className="space-y-4 lg:col-span-2">
             {(() => {
-              const issuerFields = parseSubjectFields(info.issuer || '');
+              const issuerFields = info.issuerFields ?? EMPTY_DN_FIELDS;
               return (
                 <>
                   <div className="space-y-1.5">

@@ -12,8 +12,7 @@ import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextar
 import { Loader2, Upload } from 'lucide-react';
 import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
-import { parseCertificatePemDetails } from '@/lib/ca-data';
-import { format as formatDate } from 'date-fns';
+import { decodeCertificatePem, type DecodedCertInfo } from '@/components/ca/DecodedCertificateSections';
 import dynamic from '@/components/shared/dynamic';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
@@ -24,51 +23,6 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
   loading: () => <div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin" /></div>,
 });
-
-interface DecodedCertInfo {
-  commonName?: string;
-  country?: string;
-  state?: string;
-  locality?: string;
-  organization?: string;
-  organizationalUnit?: string;
-  issuer?: string;
-  serialNumber?: string;
-  validFrom?: string;
-  validTo?: string;
-  isCa?: boolean;
-  pathLenConstraint?: number | 'None';
-  publicKeyAlgorithm?: string;
-  signatureAlgorithm?: string;
-  keyUsage?: string[];
-  extendedKeyUsage?: string[];
-  sans?: string[];
-  subjectKeyId?: string;
-  authorityKeyId?: string;
-  fingerprintSha256?: string;
-  crlDistributionPoints?: string[];
-  ocspUrls?: string[];
-  caIssuersUrls?: string[];
-  error?: string;
-}
-
-function parseSubjectFields(subject: string) {
-  const fields: Record<string, string> = {};
-  subject.split(/,\s*/).forEach(part => {
-    const idx = part.indexOf('=');
-    if (idx > 0) {
-      fields[part.slice(0, idx).trim().toUpperCase()] = part.slice(idx + 1).trim();
-    }
-  });
-  return {
-    cn: fields['CN'] || '',
-    c: fields['C'] || '',
-    st: fields['ST'] || '',
-    l: fields['L'] || '',
-    o: fields['O'] || '',
-    ou: fields['OU'] || '',
-  };
-}
 
 export default function ImportCertificatePage() {
   const monacoTheme = useMonacoTheme();
@@ -99,37 +53,7 @@ export default function ImportCertificatePage() {
   };
 
   const parseCertificate = async (pemContent: string) => {
-    try {
-      const parsed = await parseCertificatePemDetails(pemContent);
-      const subj = parseSubjectFields(parsed.subject || '');
-      setDecodedCertInfo({
-        commonName: subj.cn,
-        country: subj.c,
-        state: subj.st,
-        locality: subj.l,
-        organization: subj.o,
-        organizationalUnit: subj.ou,
-        issuer: parsed.issuer,
-        serialNumber: parsed.serialNumber,
-        validFrom: parsed.validFrom ? formatDate(new Date(parsed.validFrom), "PPpp") : 'N/A',
-        validTo: parsed.validTo ? formatDate(new Date(parsed.validTo), "PPpp") : 'N/A',
-        isCa: parsed.isCa ?? false,
-        pathLenConstraint: parsed.pathLenConstraint,
-        publicKeyAlgorithm: parsed.publicKeyAlgorithm,
-        signatureAlgorithm: parsed.signatureAlgorithm,
-        keyUsage: parsed.keyUsage,
-        extendedKeyUsage: parsed.extendedKeyUsage,
-        sans: parsed.sans,
-        subjectKeyId: parsed.subjectKeyId,
-        authorityKeyId: parsed.authorityKeyId,
-        fingerprintSha256: parsed.fingerprintSha256,
-        crlDistributionPoints: parsed.crlDistributionPoints,
-        ocspUrls: parsed.ocspUrls,
-        caIssuersUrls: parsed.caIssuersUrls,
-      });
-    } catch (error) {
-      setDecodedCertInfo({ error: `Failed to parse certificate: ${error instanceof Error ? error.message : 'Unknown error'}` });
-    }
+    setDecodedCertInfo(await decodeCertificatePem(pemContent));
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -337,7 +261,7 @@ export default function ImportCertificatePage() {
                 </div>
                 <div className="space-y-4 lg:col-span-2">
                   {(() => {
-                    const issuerFields = parseSubjectFields(decodedCertInfo.issuer || '');
+                    const issuerFields = decodedCertInfo.issuerFields ?? { cn: '', c: '', st: '', l: '', o: '', ou: '' };
                     return (
                       <>
                         <div className="space-y-1.5">

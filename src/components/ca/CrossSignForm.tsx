@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Info, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from '@/lib/router';
 import type { CA, ApiSigningProfile } from '@/lib/ca-data';
 import { createCa, fetchAndProcessCAs, fetchSigningProfiles, findCaById } from '@/lib/ca-data';
@@ -9,11 +9,13 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import { flattenCaTree, formatCaSubject } from '@/lib/ca-utils';
 import {
   buildCrossSignPayload,
+  checkCrossSignTarget,
   defaultCrossSignExpiration,
   findExistingCrossSigns,
   getCrossSignBlocker,
   outlivesSigner,
   type CrossSignRole,
+  type CrossSignTargetCheck,
 } from '@/lib/ca-cross-sign';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
@@ -24,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
+import { isValidPositiveDuration } from '@/components/shared/DurationInput';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { CrossSignPairSelector } from './CrossSignPairSelector';
 
@@ -67,6 +70,7 @@ export function CrossSignForm() {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [newCaId] = useState(() => crypto.randomUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [targetCheck, setTargetCheck] = useState<{ caId: string; result: CrossSignTargetCheck } | null>(null);
 
   const loadDependencies = useCallback(async () => {
     setIsLoading(true);
@@ -123,6 +127,20 @@ export function CrossSignForm() {
     setProfileId(inherited ?? profiles[0]?.id ?? null);
   }, [target, profiles]);
 
+  // Reads the target's certificate for its KMS key ID and whether its subject can be reproduced.
+  useEffect(() => {
+    if (!target) return;
+    let cancelled = false;
+    checkCrossSignTarget(target).then(result => {
+      if (!cancelled) setTargetCheck({ caId: target.id, result });
+    });
+    return () => { cancelled = true; };
+  }, [target]);
+  const currentTargetCheck = target && targetCheck?.caId === target.id ? targetCheck.result : null;
+  // The backend sets the cross certificate's SKI to the KMS key ID; imported CAs may carry another one.
+  const skiChanges = !!target?.subjectKeyId && !!currentTargetCheck?.keyId
+    && target.subjectKeyId.replaceAll(':', '').toLowerCase() !== currentTargetCheck.keyId;
+
   const counterpartOf = (role: CrossSignRole) => (role === 'signer' ? target : signer);
 
   const handleCaPicked = (ca: CA) => {
@@ -147,15 +165,22 @@ export function CrossSignForm() {
     ...(!signer ? ['Signing Relationship: select the signer CA.'] : []),
     ...(!target ? ['Signing Relationship: select the target CA.'] : []),
     ...(!profileId ? ['Default Issuance Profile: select a profile.'] : []),
+    ...(target && !currentTargetCheck ? ['Target CA: checking its certificate…'] : []),
+    ...(currentTargetCheck && (!currentTargetCheck.keyId || !currentTargetCheck.subject) ? ['Target CA: its certificate could not be read.'] : []),
+    ...(currentTargetCheck?.subject?.status === 'differs' ? [`Target CA: ${currentTargetCheck.subject.reason}, so the cross certificate's subject would not match it.`] : []),
     ...(expiration.type === 'Date' && !expiration.dateValue ? ['Expiration: pick a date.'] : []),
+    ...(expiration.type === 'Duration' && !isValidPositiveDuration(expiration.durationValue ?? '') ? ['Expiration: enter a duration greater than zero, such as 5y or 90d.'] : []),
   ];
   const validationWarnings = [
+    ...(skiChanges ? ['Subject Key ID: the cross certificate gets the KMS key ID as its SKI, not the target\'s. Clients that match Authority and Subject Key IDs, such as OpenSSL, will not build chains through it for certificates the target already issued.'] : []),
+    ...(currentTargetCheck?.subject?.status === 'encoding-differs' ? ['Subject: Lamassu re-encodes the target\'s subject with different string types. Clients that compare names byte by byte, such as Go, will not build chains through the cross certificate.'] : []),
     ...(signer && outlivesSigner(expiration, signer) ? ['Expiration: the cross certificate outlives the signer CA, so chains through it stop validating early.'] : []),
   ];
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!signer || !target || !profileId) return;
+    const keyId = currentTargetCheck?.keyId;
+    if (!signer || !target || !profileId || !keyId) return;
     const blocker = getCrossSignBlocker(signer, 'signer', target) ?? getCrossSignBlocker(target, 'target', signer);
     if (blocker) {
       sileo.error({ title: 'Cannot cross-sign', description: `${blocker}.` });
@@ -164,7 +189,7 @@ export function CrossSignForm() {
 
     setIsSubmitting(true);
     try {
-      await createCa(buildCrossSignPayload({ signer, target, id: newCaId, profileId, expiration }));
+      await createCa(buildCrossSignPayload({ signer, target, id: newCaId, profileId, keyId, expiration }));
       sileo.success({ title: 'Cross-signed', description: `"${signer.name}" issued a certificate for "${target.name}".` });
       router.push(`/certificate-authorities/details?caId=${newCaId}`);
     } catch (error: any) {
@@ -244,18 +269,10 @@ export function CrossSignForm() {
                   label="Public key"
                   value={<>{target.keyAlgorithm}{engineName(target) && <span className="text-muted-foreground"> · {engineName(target)}</span>} <span className="text-muted-foreground">(reused from {target.name})</span></>}
                 />
-                <PreviewRow label="Subject Key ID" value={target.subjectKeyId} mono />
+                <PreviewRow label="Subject Key ID" value={currentTargetCheck?.keyId ?? target.subjectKeyId} mono />
                 <PreviewRow label="Authority Key ID" value={signer.subjectKeyId} mono />
                 <PreviewRow label="New CA ID" value={newCaId} mono />
               </dl>
-              {target.caType !== 'MANAGED' && (
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    &quot;{target.name}&quot; was imported. Only the CN, OU, O, L, ST and C attributes of its subject are copied; check that its original subject has no others.
-                  </AlertDescription>
-                </Alert>
-              )}
             </Section>
           </>
         )}

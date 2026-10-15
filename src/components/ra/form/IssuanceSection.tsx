@@ -63,6 +63,10 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
             type="button"
             disabled={deps.isLoading}
             onClick={() => setIsCaModalOpen(true)}
+            role="combobox"
+            aria-haspopup="dialog"
+            aria-expanded={isCaModalOpen}
+            aria-invalid={!!caError}
             aria-describedby={caError ? 'enrollmentCa-error' : undefined}
             className={cn(
               'flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm text-muted-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-wait',

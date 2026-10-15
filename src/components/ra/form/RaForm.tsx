@@ -281,7 +281,7 @@ export function RaForm({ raId }: { raId: string | null }) {
         )}
 
         <IdentitySection {...sectionProps('identity')} isEditMode={isEditMode} />
-        <DevicesSection {...sectionProps('devices')} onOpenIconPicker={() => setIsIconModalOpen(true)} />
+        <DevicesSection {...sectionProps('devices')} isIconPickerOpen={isIconModalOpen} onOpenIconPicker={() => setIsIconModalOpen(true)} />
         <ProtocolSection {...sectionProps('protocol')} />
 
         <Tabs value={activeTab} onValueChange={tab => setActiveTab(tab as EnrollmentTabId)} className="w-full">

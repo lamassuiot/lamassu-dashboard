@@ -7,6 +7,7 @@ import {
   RelativeDistinguishedNames,
   PublicKeyInfo,
   AuthorityKeyIdentifier,
+  AttributeTypeAndValue,
 } from "pkijs";
 
 // ---------------------------------------------------------------------------
@@ -80,6 +81,28 @@ export function formatSubject(subject: RelativeDistinguishedNames): string {
     .join(", ");
 }
 
+/** The common attributes of a distinguished name; repeated attributes are joined with ", ". */
+export interface DistinguishedNameFields {
+  cn: string;
+  c: string;
+  st: string;
+  l: string;
+  o: string;
+  ou: string;
+}
+
+/**
+ * Reads the common attributes from a pkijs `RelativeDistinguishedNames`. Unlike
+ * splitting a formatted DN string, values that contain commas stay intact.
+ */
+export function distinguishedNameFields(name: RelativeDistinguishedNames): DistinguishedNameFields {
+  const valuesOf = (label: string) => name.typesAndValues
+    .filter(tv => OID_MAP[tv.type] === label)
+    .map(tv => String((tv.value as any).valueBlock.value))
+    .join(", ");
+  return { cn: valuesOf("CN"), c: valuesOf("C"), st: valuesOf("ST"), l: valuesOf("L"), o: valuesOf("O"), ou: valuesOf("OU") };
+}
+
 /**
  * Formats a pkijs `PublicKeyInfo` into a readable algorithm description,
  * e.g. `EC (Curve: P-256)` or `RSA (2048 bits)`.
@@ -99,6 +122,60 @@ export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
   return `${algoName} ${details}`;
 }
 
+/** Decodes a PEM-encoded certificate into its DER bytes. */
+export function certificatePemToDer(pem: string): ArrayBuffer {
+  const pemString = pem.replaceAll(/-----(BEGIN|END) CERTIFICATE-----/g, "").replaceAll(/\s+/g, "");
+  const binary = window.atob(pemString);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.codePointAt(i) ?? 0;
+  return bytes.buffer;
+}
+
+/**
+ * Hex SHA-256 digest of the certificate's DER-encoded SubjectPublicKeyInfo, or
+ * null when the PEM cannot be parsed.
+ */
+export async function publicKeySha256Hex(pem: string): Promise<string | null> {
+  try {
+    const asn1 = asn1js.fromBER(certificatePemToDer(pem));
+    if (asn1.offset === -1) return null;
+    const cert = new Certificate({ schema: asn1.result });
+    const spki = cert.subjectPublicKeyInfo.toSchema().toBER(false);
+    return abToHex(await crypto.subtle.digest("SHA-256", spki), "", false);
+  } catch {
+    return null;
+  }
+}
+
+/** One attribute of a distinguished name, as encoded in the certificate. */
+export interface NameAttribute {
+  /** Attribute type OID, e.g. `2.5.4.3` for CN. */
+  type: string;
+  value: string;
+  /** ASN.1 universal tag of the value's string type (12 = UTF8String, 19 = PrintableString, ...). */
+  tag: number;
+}
+
+/**
+ * The certificate's subject as its sequence of RDNs (each a set of one or more
+ * attributes), in encoded order. Null when the PEM cannot be parsed.
+ */
+export function parseCertificateSubjectRdns(pem: string): NameAttribute[][] | null {
+  try {
+    const asn1 = asn1js.fromBER(certificatePemToDer(pem));
+    if (asn1.offset === -1) return null;
+    const cert = new Certificate({ schema: asn1.result });
+    const rdns = (cert.subject.toSchema() as asn1js.Sequence).valueBlock.value as asn1js.Set[];
+    return rdns.map(rdn => rdn.valueBlock.value.map(schema => {
+      const atv = new AttributeTypeAndValue({ schema });
+      const value = atv.value as asn1js.BaseStringBlock;
+      return { type: atv.type, value: String(value.valueBlock.value), tag: value.idBlock.tagNumber };
+    }));
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Parsed certificate type
 // ---------------------------------------------------------------------------
@@ -107,6 +184,8 @@ export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
 export interface ParsedCertificate {
   subject: string;
   issuer: string;
+  subjectFields?: DistinguishedNameFields;
+  issuerFields?: DistinguishedNameFields;
   serialNumber: string;
   validFrom: string;
   validTo: string;
@@ -168,14 +247,8 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
   if (typeof window === "undefined" || !pem) return result;
 
   try {
-    const pemString = pem
-      .replaceAll(/-----(BEGIN|END) CERTIFICATE-----/g, "")
-      .replaceAll(/\s+/g, "");
-    const binaryString = window.atob(pemString);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.codePointAt(i) ?? 0;
-
-    const asn1 = asn1js.fromBER(bytes.buffer);
+    const der = certificatePemToDer(pem);
+    const asn1 = asn1js.fromBER(der);
     if (asn1.offset === -1) {
       console.error("parseCertificatePemDetails: Invalid ASN.1 structure.");
       return result;
@@ -186,7 +259,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
     // SHA-256 fingerprint
     if (window.crypto?.subtle) {
       try {
-        const hashBuffer = await crypto.subtle.digest("SHA-256", bytes.buffer);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", der);
         result.fingerprintSha256 = abToHex(hashBuffer, ":", false);
       } catch (e) {
         console.error("parseCertificatePemDetails: Could not calculate fingerprint", e);
@@ -195,6 +268,8 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
 
     result.subject = formatSubject(cert.subject);
     result.issuer = formatSubject(cert.issuer);
+    result.subjectFields = distinguishedNameFields(cert.subject);
+    result.issuerFields = distinguishedNameFields(cert.issuer);
     result.serialNumber = abToHex(cert.serialNumber.valueBlock.valueHex, ":");
     result.validFrom = cert.notBefore.value.toISOString();
     result.validTo = cert.notAfter.value.toISOString();
