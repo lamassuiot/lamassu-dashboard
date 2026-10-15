@@ -112,7 +112,8 @@ export default function CreateCaImportFullPage() {
       setDecodedImportedCertInfo(null);
       return;
     }
-    decodeCertificatePem(pem).then(setDecodedImportedCertInfo);
+    // Never rejects: parse failures come back as `error`.
+    void decodeCertificatePem(pem).then(setDecodedImportedCertInfo);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

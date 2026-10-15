@@ -181,8 +181,9 @@ export function resolveExpirationDate(config: ExpirationConfig, now: Date = new 
   if (config.type === 'Date') return config.dateValue ?? null;
   if (config.type !== 'Duration' || !config.durationValue) return null;
   const duration: Duration = {};
-  for (const [, value, unit] of config.durationValue.matchAll(/(\d+)([ywdhms])/g)) {
-    duration[DURATION_UNITS[unit]] = Number.parseInt(value, 10);
+  // The optional unit keeps every digit run a match, so the scan never backtracks through it.
+  for (const [, value, unit] of config.durationValue.matchAll(/(\d+)([ywdhms])?/g)) {
+    if (unit) duration[DURATION_UNITS[unit]] = Number.parseInt(value, 10);
   }
   return add(now, duration);
 }

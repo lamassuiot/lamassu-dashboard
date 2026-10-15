@@ -336,6 +336,7 @@ export function RaForm({ raId }: { raId: string | null }) {
       </div>
 
       <DeviceIconSelectorModal
+        id="deviceIconPicker"
         isOpen={isIconModalOpen}
         onOpenChange={setIsIconModalOpen}
         currentSelectedIconName={values.deviceIcon.name}

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Check, Copy, Loader2, Mail, Pencil, Trash2, Users, Webhook } from 'lucide-react';
 import type { ApiSubscription } from '@/lib/alerts-api';
+import { CodeBlock } from '@/components/shared/CodeBlock';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -47,6 +48,11 @@ const CONDITION_LABELS: Record<string, string> = {
   'JSON-PATH': 'JSON Path',
   'JSON-SCHEMA': 'JSON Schema',
   JAVASCRIPT: 'Javascript',
+};
+
+const CONDITION_LANGUAGES: Record<string, string> = {
+  'JSON-SCHEMA': 'json',
+  JAVASCRIPT: 'javascript',
 };
 
 const getConditionContent = (conditionType: string, conditionValue: string): string => {
@@ -200,15 +206,12 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
                     {conditions.map((cond) => {
                       const content = getConditionContent(cond.type, cond.condition);
                       return (
-                        <div key={`${cond.type}:${cond.condition}`} className="overflow-hidden rounded-lg border">
-                          <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1.5">
-                            <span className="text-xs font-medium text-muted-foreground">{CONDITION_LABELS[cond.type] ?? cond.type}</span>
-                            <CopyButton value={content} label="Copy condition" />
-                          </div>
-                          <pre className="max-h-80 overflow-auto p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words">
-                            {content}
-                          </pre>
-                        </div>
+                        <CodeBlock
+                          key={`${cond.type}:${cond.condition}`}
+                          content={content}
+                          title={CONDITION_LABELS[cond.type] ?? cond.type}
+                          language={CONDITION_LANGUAGES[cond.type] ?? 'plaintext'}
+                        />
                       );
                     })}
                   </div>

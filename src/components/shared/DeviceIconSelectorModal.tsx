@@ -10,6 +10,8 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 
 interface DeviceIconSelectorModalProps {
+  /** DOM id of the dialog, for `aria-controls` on the element that opens it. */
+  id?: string;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onIconSelected: (iconName: string) => void;
@@ -231,6 +233,7 @@ const ColorPalette: React.FC<{
 
 
 export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = ({
+  id,
   isOpen,
   onOpenChange,
   onIconSelected,
@@ -289,7 +292,7 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl lg:max-w-6xl max-h-[90vh] flex flex-col">
+      <DialogContent id={id} className="sm:max-w-3xl lg:max-w-6xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Select Device Icon</DialogTitle>
           <DialogDescription>Choose an icon that best represents the device type.</DialogDescription>

@@ -55,6 +55,7 @@ export function DevicesSection({ values, update, issues, isIconPickerOpen, onOpe
               onClick={onOpenIconPicker}
               role="combobox"
               aria-haspopup="dialog"
+              aria-controls="deviceIconPicker"
               aria-expanded={isIconPickerOpen}
               aria-invalid={!!iconError}
               aria-describedby={iconError ? 'deviceIcon-error' : undefined}

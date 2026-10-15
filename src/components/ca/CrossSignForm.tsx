@@ -131,9 +131,11 @@ export function CrossSignForm() {
   useEffect(() => {
     if (!target) return;
     let cancelled = false;
-    checkCrossSignTarget(target).then(result => {
-      if (!cancelled) setTargetCheck({ caId: target.id, result });
-    });
+    void checkCrossSignTarget(target)
+      .catch((): CrossSignTargetCheck => ({ keyId: null, subject: null }))
+      .then(result => {
+        if (!cancelled) setTargetCheck({ caId: target.id, result });
+      });
     return () => { cancelled = true; };
   }, [target]);
   const currentTargetCheck = target && targetCheck?.caId === target.id ? targetCheck.result : null;

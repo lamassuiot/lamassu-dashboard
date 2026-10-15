@@ -65,6 +65,7 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
             onClick={() => setIsCaModalOpen(true)}
             role="combobox"
             aria-haspopup="dialog"
+            aria-controls="enrollmentCaPicker"
             aria-expanded={isCaModalOpen}
             aria-invalid={!!caError}
             aria-describedby={caError ? 'enrollmentCa-error' : undefined}
@@ -134,6 +135,7 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
       </RaFieldGroup>
 
       <CaSelectorModal
+        id="enrollmentCaPicker"
         isOpen={isCaModalOpen}
         onOpenChange={setIsCaModalOpen}
         title="Select Enrollment CA"
