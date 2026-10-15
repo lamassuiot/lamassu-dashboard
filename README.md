@@ -233,6 +233,11 @@ Notes
 - Because `process.env` checks are evaluated at runtime/build-time by Next.js, changing `NEXT_FORCE_DEV_OPTIONS` typically requires a rebuild or restart to take effect in production builds.
 - Use dev-only items for debugging, feature preview, or tools that should not be exposed
 
+## Security
+
+To report a security vulnerability, do **not** open a public issue — follow
+[SECURITY.md](./SECURITY.md) instead.
+
 ## License
 
 This project is licensed under the Mozilla Public License 2.0 (MPL 2.0). See the `LICENSE` file for more details.
