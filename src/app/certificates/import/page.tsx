@@ -12,9 +12,9 @@ import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextar
 import { Loader2, Upload } from 'lucide-react';
 import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
-import { decodeCertificatePem, type DecodedCertInfo } from '@/components/ca/DecodedCertificateSections';
 import dynamic from '@/components/shared/dynamic';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { cn } from '@/lib/utils';
 import { CERTIFICATE_FILE_EXTENSIONS, CERTIFICATE_MAX_FILE_SIZE, loadCertificateFilesAsPem } from '@/lib/certificate-files';
@@ -31,7 +31,7 @@ export default function ImportCertificatePage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [certificatePem, setCertificatePem] = useState('');
-  const [decodedCertInfo, setDecodedCertInfo] = useState<DecodedCertInfo | null>(null);
+  const [decodedCertInfo, decodeCertificate] = useDecodedCertificatePem();
   const [metadataJson, setMetadataJson] = useState('{}');
   const [metadataError, setMetadataError] = useState<string | null>(null);
 
@@ -52,10 +52,6 @@ export default function ImportCertificatePage() {
     validateMetadata(newValue);
   };
 
-  const parseCertificate = async (pemContent: string) => {
-    setDecodedCertInfo(await decodeCertificatePem(pemContent));
-  };
-
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     // Reset so selecting the same file again still triggers onChange.
@@ -65,16 +61,12 @@ export default function ImportCertificatePage() {
     const pem = await loadCertificateFilesAsPem([file]);
     if (pem === null) return;
     setCertificatePem(pem);
-    await parseCertificate(pem);
+    await decodeCertificate(pem);
   };
 
   const handlePemTextChange = async (value: string) => {
     setCertificatePem(value);
-    if (value.trim()) {
-      await parseCertificate(value);
-    } else {
-      setDecodedCertInfo(null);
-    }
+    await decodeCertificate(value);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {

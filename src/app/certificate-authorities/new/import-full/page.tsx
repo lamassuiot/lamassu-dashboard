@@ -11,7 +11,8 @@ import { Separator } from '@/components/ui/separator';
 import { initPkijsEngine } from "@/lib-crypto";
 import { sileo } from '@/lib/toast';
 import { Alert } from '@/components/ui/alert';
-import { DecodedCertificateSections, decodeCertificatePem, type DecodedCertInfo } from '@/components/ca/DecodedCertificateSections';
+import { DecodedCertificateSections } from '@/components/ca/DecodedCertificateSections';
+import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
@@ -29,7 +30,7 @@ export default function CreateCaImportFullPage() {
 
   const [importedCaCertPem, setImportedCaCertPem] = useState('');
   const [importedPrivateKeyPem, setImportedPrivateKeyPem] = useState('');
-  const [decodedImportedCertInfo, setDecodedImportedCertInfo] = useState<DecodedCertInfo | null>(null);
+  const [decodedImportedCertInfo, decodeImportedCert] = useDecodedCertificatePem();
 
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
   const [caChainPem, setCaChainPem] = useState('');
@@ -108,12 +109,7 @@ export default function CreateCaImportFullPage() {
 
   const handleImportedCertPemChange = (pem: string) => {
     setImportedCaCertPem(pem);
-    if (!pem.trim()) {
-      setDecodedImportedCertInfo(null);
-      return;
-    }
-    // Never rejects: parse failures come back as `error`.
-    void decodeCertificatePem(pem).then(setDecodedImportedCertInfo);
+    void decodeImportedCert(pem);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

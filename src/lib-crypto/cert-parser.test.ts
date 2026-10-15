@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCertificatePemDetails, abToHex, parseDistinguishedName, parseCertificateSubjectRdns } from '@/lib-crypto'
+import { parseCertificatePem, parseCertificatePemDetails, abToHex, parseDistinguishedName, parseCertificateSubjectRdns } from '@/lib-crypto'
 import { OPENSSL_COMMA_SUBJECT_PEM, OPENSSL_EC_CA_PEM, VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('cert-parser', () => {
@@ -19,6 +19,17 @@ describe('cert-parser', () => {
     expect(parsed.issuer).toBe('N/A')
     expect(parsed.publicKeyAlgorithm).toBe('N/A')
     expect(parsed.fingerprintSha256).toBeUndefined()
+  })
+
+  it('parseCertificatePem throws for input that is not a PEM certificate', async () => {
+    await expect(parseCertificatePem('')).rejects.toThrow()
+    await expect(parseCertificatePem('hello')).rejects.toThrow()
+    await expect(parseCertificatePem(VALID_RSA_CERT_PEM.slice(0, 200))).rejects.toThrow()
+  })
+
+  it('parseCertificatePem parses a valid certificate', async () => {
+    const parsed = await parseCertificatePem(VALID_RSA_CERT_PEM)
+    expect(parsed.issuer).toContain('O=Internet Widgits Pty Ltd')
   })
 
   it('should correctly convert bytes to hex with abToHex', () => {

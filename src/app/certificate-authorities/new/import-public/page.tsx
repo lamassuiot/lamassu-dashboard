@@ -8,7 +8,8 @@ import { ArrowLeft, PlusCircle, Loader2 } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
 import { sileo } from '@/lib/toast';
 import { Alert } from '@/components/ui/alert';
-import { DecodedCertificateSections, decodeCertificatePem, type DecodedCertInfo } from '@/components/ca/DecodedCertificateSections';
+import { DecodedCertificateSections } from '@/components/ca/DecodedCertificateSections';
+import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
@@ -19,7 +20,7 @@ export default function CreateCaImportPublicPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [importedCaCertPem, setImportedCaCertPem] = useState('');
-  const [decodedImportedCertInfo, setDecodedImportedCertInfo] = useState<DecodedCertInfo | null>(null);
+  const [decodedImportedCertInfo, decodeImportedCert] = useDecodedCertificatePem();
 
   const certificateError = !importedCaCertPem.trim()
     ? 'Certificate: Certification Authority Certificate is required.'
@@ -30,12 +31,7 @@ export default function CreateCaImportPublicPage() {
 
   const handleImportedCertPemChange = (pem: string) => {
     setImportedCaCertPem(pem);
-    if (!pem.trim()) {
-      setDecodedImportedCertInfo(null);
-      return;
-    }
-    // Never rejects: parse failures come back as `error`.
-    void decodeCertificatePem(pem).then(setDecodedImportedCertInfo);
+    void decodeImportedCert(pem);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

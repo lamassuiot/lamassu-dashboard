@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { parseCertificatePemDetails, type DistinguishedNameFields } from '@/lib-crypto';
+import { parseCertificatePem, type DistinguishedNameFields } from '@/lib-crypto';
 
 export interface DecodedCertInfo {
   commonName?: string;
@@ -40,9 +40,10 @@ export interface DecodedCertInfo {
 
 const EMPTY_DN_FIELDS: DistinguishedNameFields = { cn: '', c: '', st: '', l: '', o: '', ou: '' };
 
+/** Never rejects: input that is not a PEM certificate comes back as `error`. */
 export async function decodeCertificatePem(pem: string): Promise<DecodedCertInfo> {
   try {
-    const parsed = await parseCertificatePemDetails(pem);
+    const parsed = await parseCertificatePem(pem);
     const subj = parsed.subjectFields;
     return {
       commonName: subj?.cn,

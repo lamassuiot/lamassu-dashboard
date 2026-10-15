@@ -240,132 +240,137 @@ const emptyParsed = (): ParsedCertificate => ({
  * containing all commonly-needed fields and extensions.
  *
  * Returns a safe default object (all fields set to "N/A" / empty arrays) when
- * called in an SSR context, or when the PEM cannot be parsed.
+ * called in an SSR context, or when the PEM cannot be parsed. Use
+ * {@link parseCertificatePem} to tell an unparseable PEM apart.
  */
 export async function parseCertificatePemDetails(pem: string): Promise<ParsedCertificate> {
-  const result = emptyParsed();
-  if (typeof window === "undefined" || !pem) return result;
-
+  if (typeof window === "undefined" || !pem) return emptyParsed();
   try {
-    const der = certificatePemToDer(pem);
-    const asn1 = asn1js.fromBER(der);
-    if (asn1.offset === -1) {
-      console.error("parseCertificatePemDetails: Invalid ASN.1 structure.");
-      return result;
-    }
-
-    const cert = new Certificate({ schema: asn1.result });
-
-    // SHA-256 fingerprint
-    if (window.crypto?.subtle) {
-      try {
-        const hashBuffer = await crypto.subtle.digest("SHA-256", der);
-        result.fingerprintSha256 = abToHex(hashBuffer, ":", false);
-      } catch (e) {
-        console.error("parseCertificatePemDetails: Could not calculate fingerprint", e);
-      }
-    }
-
-    result.subject = formatSubject(cert.subject);
-    result.issuer = formatSubject(cert.issuer);
-    result.subjectFields = distinguishedNameFields(cert.subject);
-    result.issuerFields = distinguishedNameFields(cert.issuer);
-    result.serialNumber = abToHex(cert.serialNumber.valueBlock.valueHex, ":");
-    result.validFrom = cert.notBefore.value.toISOString();
-    result.validTo = cert.notAfter.value.toISOString();
-    result.publicKeyAlgorithm = formatPublicKeyInfo(cert.subjectPublicKeyInfo);
-
-    try {
-      result.signatureAlgorithm =
-        SIG_OID_MAP[cert.signatureAlgorithm.algorithmId] ?? cert.signatureAlgorithm.algorithmId;
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Signature Algorithm:", e); }
-
-    try {
-      const cdpExt = cert.extensions?.find(e => e.extnID === "2.5.29.31");
-      if (cdpExt?.parsedValue) {
-        (cdpExt.parsedValue as CRLDistributionPoints).distributionPoints?.forEach((point: any) => {
-          if (point.distributionPoint?.[0]) result.crlDistributionPoints.push(point.distributionPoint[0].value);
-        });
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse CRL Distribution Points:", e); }
-
-    try {
-      const aiaExt = cert.extensions?.find(e => e.extnID === "1.3.6.1.5.5.7.1.1");
-      if (aiaExt?.parsedValue) {
-        aiaExt.parsedValue.accessDescriptions.forEach((desc: any) => {
-          if (desc.accessMethod === "1.3.6.1.5.5.7.48.1" && desc.accessLocation.type === 6)
-            result.ocspUrls.push(desc.accessLocation.value);
-          else if (desc.accessMethod === "1.3.6.1.5.5.7.48.2" && desc.accessLocation.type === 6)
-            result.caIssuersUrls.push(desc.accessLocation.value);
-        });
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse AIA:", e); }
-
-    try {
-      const bcExt = cert.extensions?.find(e => e.extnID === "2.5.29.19");
-      if (bcExt?.parsedValue) {
-        const bc = bcExt.parsedValue as BasicConstraints;
-        result.isCa = bc.cA;
-        if (bc.pathLenConstraint !== undefined) result.pathLenConstraint = bc.pathLenConstraint as number;
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Basic Constraints:", e); }
-
-    try {
-      const sanExt = cert.extensions?.find(e => e.extnID === "2.5.29.17");
-      if (sanExt?.parsedValue?.altNames) {
-        sanExt.parsedValue.altNames.forEach((name: any) => {
-          if (name.type === 1) result.sans!.push(`Email: ${name.value}`);
-          else if (name.type === 2) result.sans!.push(`DNS: ${name.value}`);
-          else if (name.type === 6) result.sans!.push(`URI: ${name.value}`);
-          else if (name.type === 7) {
-            const ipBytes = Array.from(new Uint8Array(name.value.valueBlock.valueHex));
-            result.sans!.push(`IP: ${ipBytes.join(".")}`);
-          }
-        });
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse SANs:", e); }
-
-    try {
-      const kuExt = cert.extensions?.find(e => e.extnID === "2.5.29.15");
-      if (kuExt?.parsedValue?.valueBlock?.valueHex) {
-        const keyUsage = new Uint8Array(kuExt.parsedValue.valueBlock.valueHex);
-        for (let i = 0; i < KEY_USAGE_NAMES.length; i++) {
-          if (keyUsage.length && (keyUsage[Math.floor(i / 8)] & (1 << (7 - (i % 8))))) {
-            result.keyUsage!.push(KEY_USAGE_NAMES[i]);
-          }
-        }
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Key Usage:", e); }
-
-    try {
-      const ekuExt = cert.extensions?.find(e => e.extnID === "2.5.29.37");
-      if (ekuExt?.parsedValue) {
-        (ekuExt.parsedValue as ExtKeyUsage).keyPurposes.forEach((oid: string) => {
-          result.extendedKeyUsage!.push(EKU_OID_MAP[oid] ?? oid);
-        });
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Extended Key Usage:", e); }
-
-    try {
-      const skiExt = cert.extensions?.find(e => e.extnID === "2.5.29.14");
-      if (skiExt?.parsedValue?.valueBlock?.valueHex)
-        result.subjectKeyId = abToHex(skiExt.parsedValue.valueBlock.valueHex);
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse SKI:", e); }
-
-    try {
-      const akiExt = cert.extensions?.find(e => e.extnID === "2.5.29.35");
-      if (akiExt?.parsedValue) {
-        const aki = akiExt.parsedValue as AuthorityKeyIdentifier;
-        if (aki.keyIdentifier?.valueBlock?.valueHex)
-          result.authorityKeyId = abToHex(aki.keyIdentifier.valueBlock.valueHex, ":");
-      }
-    } catch (e) { console.error("parseCertificatePemDetails: Failed to parse AKI:", e); }
-
-    return result;
+    return await parseCertificatePem(pem);
   } catch (e) {
     console.error("parseCertificatePemDetails: Fatal error:", e);
-    return result;
+    return emptyParsed();
   }
+}
+
+/**
+ * Like {@link parseCertificatePemDetails}, but throws when the input is not a
+ * PEM-encoded certificate. Extensions that fail to parse are still skipped.
+ */
+export async function parseCertificatePem(pem: string): Promise<ParsedCertificate> {
+  const result = emptyParsed();
+  const der = certificatePemToDer(pem);
+  const asn1 = asn1js.fromBER(der);
+  if (asn1.offset === -1) throw new Error("Invalid ASN.1 structure.");
+
+  const cert = new Certificate({ schema: asn1.result });
+
+  // SHA-256 fingerprint
+  if (window.crypto?.subtle) {
+    try {
+      const hashBuffer = await crypto.subtle.digest("SHA-256", der);
+      result.fingerprintSha256 = abToHex(hashBuffer, ":", false);
+    } catch (e) {
+      console.error("parseCertificatePemDetails: Could not calculate fingerprint", e);
+    }
+  }
+
+  result.subject = formatSubject(cert.subject);
+  result.issuer = formatSubject(cert.issuer);
+  result.subjectFields = distinguishedNameFields(cert.subject);
+  result.issuerFields = distinguishedNameFields(cert.issuer);
+  result.serialNumber = abToHex(cert.serialNumber.valueBlock.valueHex, ":");
+  result.validFrom = cert.notBefore.value.toISOString();
+  result.validTo = cert.notAfter.value.toISOString();
+  result.publicKeyAlgorithm = formatPublicKeyInfo(cert.subjectPublicKeyInfo);
+
+  try {
+    result.signatureAlgorithm =
+      SIG_OID_MAP[cert.signatureAlgorithm.algorithmId] ?? cert.signatureAlgorithm.algorithmId;
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Signature Algorithm:", e); }
+
+  try {
+    const cdpExt = cert.extensions?.find(e => e.extnID === "2.5.29.31");
+    if (cdpExt?.parsedValue) {
+      (cdpExt.parsedValue as CRLDistributionPoints).distributionPoints?.forEach((point: any) => {
+        if (point.distributionPoint?.[0]) result.crlDistributionPoints.push(point.distributionPoint[0].value);
+      });
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse CRL Distribution Points:", e); }
+
+  try {
+    const aiaExt = cert.extensions?.find(e => e.extnID === "1.3.6.1.5.5.7.1.1");
+    if (aiaExt?.parsedValue) {
+      aiaExt.parsedValue.accessDescriptions.forEach((desc: any) => {
+        if (desc.accessMethod === "1.3.6.1.5.5.7.48.1" && desc.accessLocation.type === 6)
+          result.ocspUrls.push(desc.accessLocation.value);
+        else if (desc.accessMethod === "1.3.6.1.5.5.7.48.2" && desc.accessLocation.type === 6)
+          result.caIssuersUrls.push(desc.accessLocation.value);
+      });
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse AIA:", e); }
+
+  try {
+    const bcExt = cert.extensions?.find(e => e.extnID === "2.5.29.19");
+    if (bcExt?.parsedValue) {
+      const bc = bcExt.parsedValue as BasicConstraints;
+      result.isCa = bc.cA;
+      if (bc.pathLenConstraint !== undefined) result.pathLenConstraint = bc.pathLenConstraint as number;
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Basic Constraints:", e); }
+
+  try {
+    const sanExt = cert.extensions?.find(e => e.extnID === "2.5.29.17");
+    if (sanExt?.parsedValue?.altNames) {
+      sanExt.parsedValue.altNames.forEach((name: any) => {
+        if (name.type === 1) result.sans!.push(`Email: ${name.value}`);
+        else if (name.type === 2) result.sans!.push(`DNS: ${name.value}`);
+        else if (name.type === 6) result.sans!.push(`URI: ${name.value}`);
+        else if (name.type === 7) {
+          const ipBytes = Array.from(new Uint8Array(name.value.valueBlock.valueHex));
+          result.sans!.push(`IP: ${ipBytes.join(".")}`);
+        }
+      });
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse SANs:", e); }
+
+  try {
+    const kuExt = cert.extensions?.find(e => e.extnID === "2.5.29.15");
+    if (kuExt?.parsedValue?.valueBlock?.valueHex) {
+      const keyUsage = new Uint8Array(kuExt.parsedValue.valueBlock.valueHex);
+      for (let i = 0; i < KEY_USAGE_NAMES.length; i++) {
+        if (keyUsage.length && (keyUsage[Math.floor(i / 8)] & (1 << (7 - (i % 8))))) {
+          result.keyUsage!.push(KEY_USAGE_NAMES[i]);
+        }
+      }
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Key Usage:", e); }
+
+  try {
+    const ekuExt = cert.extensions?.find(e => e.extnID === "2.5.29.37");
+    if (ekuExt?.parsedValue) {
+      (ekuExt.parsedValue as ExtKeyUsage).keyPurposes.forEach((oid: string) => {
+        result.extendedKeyUsage!.push(EKU_OID_MAP[oid] ?? oid);
+      });
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse Extended Key Usage:", e); }
+
+  try {
+    const skiExt = cert.extensions?.find(e => e.extnID === "2.5.29.14");
+    if (skiExt?.parsedValue?.valueBlock?.valueHex)
+      result.subjectKeyId = abToHex(skiExt.parsedValue.valueBlock.valueHex);
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse SKI:", e); }
+
+  try {
+    const akiExt = cert.extensions?.find(e => e.extnID === "2.5.29.35");
+    if (akiExt?.parsedValue) {
+      const aki = akiExt.parsedValue as AuthorityKeyIdentifier;
+      if (aki.keyIdentifier?.valueBlock?.valueHex)
+        result.authorityKeyId = abToHex(aki.keyIdentifier.valueBlock.valueHex, ":");
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse AKI:", e); }
+
+  return result;
 }
 
 /** Splits an RFC 4514-style DN string into its C/ST/L/O/OU/CN parts, in order. */
