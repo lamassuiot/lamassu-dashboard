@@ -6,8 +6,9 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Use the pnpm version pinned in package.json.
-RUN corepack enable
+# Use the pnpm version pinned in package.json. Node 25+ images no longer
+# bundle corepack, so install it from npm first.
+RUN npm install -g corepack@0.36.0 && corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
