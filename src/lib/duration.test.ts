@@ -6,7 +6,6 @@ import {
   isValidPositiveDuration,
   isZeroDuration,
   parseDurationToSeconds,
-  toDateFnsDuration,
 } from './duration';
 
 describe('duration', () => {
@@ -26,15 +25,16 @@ describe('duration', () => {
   });
 
   it('parses compound duration values to seconds', () => {
-    expect(parseDurationToSeconds('1y2w3d4h5m6s')).toBe(33_019_506);
+    expect(parseDurationToSeconds('1y')).toBe(364 * 86_400);
+    expect(parseDurationToSeconds('1y2w3d4h5m6s')).toBe(32_933_106);
     expect(parseDurationToSeconds('31d')).toBe(2_678_400);
     expect(parseDurationToSeconds('invalid')).toBeNull();
   });
 
-  it('maps to date-fns fields and adds calendar-aware', () => {
-    expect(toDateFnsDuration('1y2w')).toEqual({ years: 1, weeks: 2 });
-    const from = new Date(2024, 1, 29);
-    expect(addDuration('1y', from)).toEqual(new Date(2025, 1, 28));
+  it('adds fixed-length units like the backend (1y = 52 weeks)', () => {
+    const from = new Date('2024-01-01T00:00:00Z');
+    expect(addDuration('1y', from)).toEqual(new Date('2024-12-30T00:00:00Z'));
+    expect(addDuration('1d12h', from)).toEqual(new Date('2024-01-02T12:00:00Z'));
   });
 
   it('formats for humans', () => {

@@ -1,8 +1,9 @@
-import { add, type Duration } from 'date-fns';
-
 /**
  * Helpers for the backend's compound duration strings, e.g. "1y", "52w3d", "8760h".
  * Units must appear in order (y, w, d, h, m, s) and at most once each.
+ *
+ * Units are fixed lengths, matching the backend's TimeDuration (core/pkg/models/timeduration.go):
+ * a year is 52 weeks (364 days), not a calendar year, and a day is always 24 hours.
  */
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
@@ -11,17 +12,18 @@ const DURATION_PART_REGEX = /(\d+)([ywdhms])?/g;
 
 type DurationUnit = 'y' | 'w' | 'd' | 'h' | 'm' | 's';
 
+export const HOUR_SECONDS = 60 * 60;
+export const DAY_SECONDS = 24 * HOUR_SECONDS;
+export const WEEK_SECONDS = 7 * DAY_SECONDS;
+export const YEAR_SECONDS = 52 * WEEK_SECONDS;
+
 const UNIT_SECONDS: Record<DurationUnit, number> = {
-  y: 365 * 24 * 60 * 60,
-  w: 7 * 24 * 60 * 60,
-  d: 24 * 60 * 60,
-  h: 60 * 60,
+  y: YEAR_SECONDS,
+  w: WEEK_SECONDS,
+  d: DAY_SECONDS,
+  h: HOUR_SECONDS,
   m: 60,
   s: 1,
-};
-
-const UNIT_FIELDS: Record<DurationUnit, keyof Duration> = {
-  y: 'years', w: 'weeks', d: 'days', h: 'hours', m: 'minutes', s: 'seconds',
 };
 
 const UNIT_NAMES: Record<DurationUnit, string> = {
@@ -51,22 +53,21 @@ export function isValidPositiveDuration(value: string): boolean {
   return isValidDuration(value) && !isZeroDuration(value);
 }
 
-/** Total length in seconds (a year counts as 365 days), or null when the string is malformed. */
-export function parseDurationToSeconds(value: string): number | null {
-  if (!isValidDuration(value)) return null;
+function sumSeconds(value: string): number {
   return durationParts(value).reduce((total, [n, unit]) => total + n * UNIT_SECONDS[unit], 0);
 }
 
-/** date-fns Duration for the string, so calendar-aware maths (leap years, month lengths) stays exact. */
-export function toDateFnsDuration(value: string): Duration {
-  const duration: Duration = {};
-  for (const [n, unit] of durationParts(value)) duration[UNIT_FIELDS[unit]] = n;
-  return duration;
+/** Total length in seconds (a year counts as 364 days), or null when the string is malformed. */
+export function parseDurationToSeconds(value: string): number | null {
+  return isValidDuration(value) ? sumSeconds(value) : null;
 }
 
-/** The instant the duration ends when started at `from`. */
+/**
+ * The instant the duration ends when started at `from`, computed as the backend does:
+ * a fixed number of seconds, with no calendar or DST adjustment.
+ */
 export function addDuration(value: string, from: Date = new Date()): Date {
-  return add(from, toDateFnsDuration(value));
+  return new Date(from.getTime() + sumSeconds(value) * 1000);
 }
 
 /** "1y2d" → "1 year, 2 days" */

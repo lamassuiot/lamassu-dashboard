@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
-import { parseDurationToSeconds } from '@/lib/duration';
+import { DAY_SECONDS, HOUR_SECONDS, YEAR_SECONDS, parseDurationToSeconds } from '@/lib/duration';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -25,14 +25,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DAY_SECONDS = 24 * 60 * 60;
-const YEAR_SECONDS = 365 * DAY_SECONDS;
-
 function plural(n: number, unit: string) {
   return `${n.toLocaleString()} ${unit}${n === 1 ? '' : 's'}`;
 }
 
-/** Headline validity plus an optional secondary hint, e.g. "1 year" / "365 days". */
+/** Headline validity plus an optional secondary hint, e.g. "1 year" / "364 days" (backend years are 52 weeks). */
 function getValidity(profile: ApiSigningProfile): { label: string; hint?: string } {
   if (!profile.validity) return { label: "—" };
   switch (profile.validity.type) {
@@ -45,7 +42,7 @@ function getValidity(profile: ApiSigningProfile): { label: string; hint?: string
         return { label: plural(seconds / YEAR_SECONDS, 'year'), hint: plural(seconds / DAY_SECONDS, 'day') };
       }
       if (seconds % DAY_SECONDS === 0) return { label: plural(seconds / DAY_SECONDS, 'day') };
-      if (seconds % 3600 === 0) return { label: plural(seconds / 3600, 'hour') };
+      if (seconds % HOUR_SECONDS === 0) return { label: plural(seconds / HOUR_SECONDS, 'hour') };
       return { label: raw };
     }
     case 'Date':
@@ -297,7 +294,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
 
         {/* ── Quick actions ── */}
         {hasActions && (
-          <CardFooter className="justify-between gap-2 border-t py-3 [.border-t]:pt-3">
+          <CardFooter className="flex-wrap justify-between gap-x-2 gap-y-1 border-t py-3 [.border-t]:pt-3">
             <div>
               {onViewUsage && (
                 <Button variant="ghost" size="sm" className="-ml-3 text-muted-foreground" onClick={onViewUsage}>
@@ -305,7 +302,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
                 </Button>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {onEdit && (
                 <Button variant="outline" size="sm" onClick={onEdit}>
                   <Edit data-icon="inline-start" /> Edit

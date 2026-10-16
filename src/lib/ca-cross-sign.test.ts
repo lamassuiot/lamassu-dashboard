@@ -89,7 +89,8 @@ describe('expiration helpers', () => {
   })
 
   it('resolves durations from the issuance instant', () => {
-    expect(resolveExpirationDate({ type: 'Duration', durationValue: '1y2d' }, new Date(NOW))).toEqual(new Date('2027-01-03T00:00:00Z'))
+    // Backend years are 52 weeks, so 1y2d is 366 days.
+    expect(resolveExpirationDate({ type: 'Duration', durationValue: '1y2d' }, new Date(NOW))).toEqual(new Date('2027-01-02T00:00:00Z'))
     expect(resolveExpirationDate({ type: 'Indefinite' })).toBeNull()
   })
 
