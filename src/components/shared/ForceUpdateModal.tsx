@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import type { ApiDevice } from '@/lib/devices-api';

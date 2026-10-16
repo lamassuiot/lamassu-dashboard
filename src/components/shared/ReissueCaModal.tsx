@@ -19,13 +19,13 @@ import { Loader2, BookText, Settings2, Info, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
 import { Badge } from '@/components/ui/badge';
-import { differenceInSeconds, parseISO, isFuture, add } from 'date-fns';
+import { differenceInSeconds, parseISO, isFuture } from 'date-fns';
 import { fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
-import { isValidPositiveDuration } from './DurationInput';
+import { addDuration, isValidPositiveDuration } from '@/lib/duration';
 import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
 
 type ProfileMode = 'reuse' | 'inline';
@@ -48,42 +48,42 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   isReissuing,
 }) => {
   const [profileMode, setProfileMode] = useState<ProfileMode>('inline');
-  
+
   // Profile selector state
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  
+
   // Calculate duration from now to CA expiration
   const calculateDurationFromExpiration = () => {
     try {
       const expirationDate = parseISO(caExpirationDate);
       const now = new Date();
       const secondsRemaining = differenceInSeconds(expirationDate, now);
-      
+
       if (secondsRemaining <= 0) {
         return '1y'; // Default to 1 year if CA is already expired
       }
-      
+
       // Convert seconds to a duration string
       const years = Math.floor(secondsRemaining / (365.25 * 24 * 60 * 60));
       const remainingAfterYears = secondsRemaining % (365.25 * 24 * 60 * 60);
       const weeks = Math.floor(remainingAfterYears / (7 * 24 * 60 * 60));
       const remainingAfterWeeks = remainingAfterYears % (7 * 24 * 60 * 60);
       const days = Math.floor(remainingAfterWeeks / (24 * 60 * 60));
-      
+
       const parts = [];
       if (years > 0) parts.push(`${years}y`);
       if (weeks > 0) parts.push(`${weeks}w`);
       if (days > 0) parts.push(`${days}d`);
-      
+
       return parts.length > 0 ? parts.join('') : '1d';
     } catch (error) {
       console.error('Error calculating duration:', error);
       return '1y'; // Default fallback
     }
   };
-  
+
   // Get CA expiration date for Date type validity
   const getCaExpirationDate = () => {
     try {
@@ -96,10 +96,10 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
       return date;
     }
   };
-  
+
   // Inline profile state
-  const [validity, setValidity] = useState<ExpirationConfig>({ 
-    type: 'Duration', 
+  const [validity, setValidity] = useState<ExpirationConfig>({
+    type: 'Duration',
     durationValue: calculateDurationFromExpiration(),
     dateValue: getCaExpirationDate()
   });
@@ -111,11 +111,11 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
     if (isOpen ) {
       loadProfiles();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [isOpen]);
 
   const loadProfiles = async () => {
-        
+
     setIsLoadingProfiles(true);
     try {
       const result = await fetchSigningProfiles();
@@ -165,51 +165,19 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   };
 
   const selectedProfile = availableProfiles.find(p => p.id === selectedProfileId);
-  
+
   // Check if expiration will be in the future
   const isExpirationValid = () => {
     if (profileMode === 'reuse') {
       return true; // Profile validation is handled separately
     }
-    
+
     try {
       if (validity.type === 'Date') {
         return validity.dateValue ? isFuture(validity.dateValue) : false;
       } else if (validity.type === 'Duration' && validity.durationValue) {
         if (!isValidPositiveDuration(validity.durationValue)) return false;
-        // Parse duration string (e.g., "1y2w3d")
-        const durationRegex = /(\d+)([ywdhms])/g;
-        let match;
-        const now = new Date();
-        let expirationDate = now;
-        
-        while ((match = durationRegex.exec(validity.durationValue)) !== null) {
-          const value = Number.parseInt(match[1], 10);
-          const unit = match[2];
-          
-          switch (unit) {
-            case 'y':
-              expirationDate = add(expirationDate, { years: value });
-              break;
-            case 'w':
-              expirationDate = add(expirationDate, { weeks: value });
-              break;
-            case 'd':
-              expirationDate = add(expirationDate, { days: value });
-              break;
-            case 'h':
-              expirationDate = add(expirationDate, { hours: value });
-              break;
-            case 'm':
-              expirationDate = add(expirationDate, { minutes: value });
-              break;
-            case 's':
-              expirationDate = add(expirationDate, { seconds: value });
-              break;
-          }
-        }
-        
-        return isFuture(expirationDate);
+        return isFuture(addDuration(validity.durationValue));
       }
       return false;
     } catch (error) {
@@ -217,13 +185,13 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
       return false;
     }
   };
-  
+
   const expirationIsValid = isExpirationValid();
-  
+
   // Check if selected profile has Sign as CA enabled
   const profileHasSignAsCA = selectedProfile ? selectedProfile.sign_as_ca : true;
-  
-  const canSubmit = profileMode === 'reuse' 
+
+  const canSubmit = profileMode === 'reuse'
     ? (!!selectedProfileId && profileHasSignAsCA)
     : expirationIsValid;
   const profileSelectionError = profileMode === 'reuse' && !selectedProfileId
@@ -240,15 +208,15 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
 
   const cardClass = (mode: ProfileMode) => cn(
     "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-    profileMode === mode 
-      ? "border-primary bg-primary/5 shadow-sm" 
+    profileMode === mode
+      ? "border-primary bg-primary/5 shadow-sm"
       : "border-border hover:border-primary/50"
   );
 
   const iconWrapperClass = (mode: ProfileMode) => cn(
     "p-2 rounded-lg",
-    profileMode === mode 
-      ? "bg-primary text-primary-foreground" 
+    profileMode === mode
+      ? "bg-primary text-primary-foreground"
       : "bg-muted text-muted-foreground"
   );
 
@@ -363,7 +331,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
                 </div>
                 <p className="text-sm text-muted-foreground">This certificate will be issued with CA signing capabilities.</p>
               </div>
-              
+
               <div>
                 <Label>Certificate Validity</Label>
                 <ExpirationInput

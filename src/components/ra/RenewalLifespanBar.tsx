@@ -1,31 +1,10 @@
 'use client';
 
 import React from 'react';
+import { parseDurationToSeconds } from '@/lib/duration';
 
-const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
-const DURATION_PART_REGEX = /(\d+)([ywdhms])/g;
 const TIMELINE_START = 3;
 const TIMELINE_END = 97;
-
-const durationUnitSeconds: Record<string, number> = {
-  y: 365 * 24 * 60 * 60,
-  w: 7 * 24 * 60 * 60,
-  d: 24 * 60 * 60,
-  h: 60 * 60,
-  m: 60,
-  s: 1,
-};
-
-export function parseDurationToSeconds(value: string): number | null {
-  if (!DURATION_REGEX.test(value)) return null;
-
-  let seconds = 0;
-  for (const match of value.matchAll(DURATION_PART_REGEX)) {
-    seconds += Number.parseInt(match[1], 10) * durationUnitSeconds[match[2]];
-  }
-
-  return seconds;
-}
 
 export type CertificateValidity =
   | { type: 'Duration'; value: string }

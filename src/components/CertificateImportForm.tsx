@@ -66,7 +66,8 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
       const issuerCNMatch = fileContent.match(/Issuer:.*?CN=([^,/]+)/);
       const subject = commonNameMatch ? `CN=${commonNameMatch[1]}` : `CN=example-${Date.now() % 1000}.com, O=My Org`;
       const issuer = issuerCNMatch ? `CN=${issuerCNMatch[1]}` : 'CN=Example CA, O=Example Org';
-      const sans = subject.includes('example.com') ? ['dns:example.com', 'dns:www.example.com'] : [];
+      const commonName = commonNameMatch?.[1];
+      const sans = commonName === 'example.com' || commonName?.endsWith('.example.com') ? ['dns:example.com', 'dns:www.example.com'] : [];
 
       // Generate a SHA256 hash for fingerprint (client-side)
       const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(fileContent));

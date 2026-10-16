@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   ClipboardCheck,

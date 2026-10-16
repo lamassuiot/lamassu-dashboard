@@ -229,7 +229,6 @@ export function buildDeviceGroupTree(groups: DeviceGroup[]): DeviceGroupNode[] {
       const parent = groupMap.get(group.parent_id);
       if (parent) {
         parent.children.push(node);
-        node.level = parent.level + 1;
       } else {
         // Parent not found, treat as root
         rootNodes.push(node);
@@ -240,17 +239,17 @@ export function buildDeviceGroupTree(groups: DeviceGroup[]): DeviceGroupNode[] {
     }
   });
   
-  // Sort children recursively by name
-  const sortChildren = (nodes: DeviceGroupNode[]) => {
+  // Levels depend on the whole ancestor chain, which is only known once every link exists
+  // (the input is not in topological order), so assign them while walking down from the roots.
+  const arrange = (nodes: DeviceGroupNode[], level: number) => {
     nodes.sort((a, b) => a.name.localeCompare(b.name));
     nodes.forEach(node => {
-      if (node.children.length > 0) {
-        sortChildren(node.children);
-      }
+      node.level = level;
+      arrange(node.children, level + 1);
     });
   };
-  
-  sortChildren(rootNodes);
+
+  arrange(rootNodes, 0);
   
   return rootNodes;
 }

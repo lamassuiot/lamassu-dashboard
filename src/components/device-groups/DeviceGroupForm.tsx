@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from '@/lib/router';
+import Link from '@/components/shared/RouterLink';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

@@ -945,7 +945,7 @@ describe('ca-data', () => {
   describe('parseCertificatePemDetails', () => {
     it('should return default result when window is undefined', async () => {
       const originalWindow = global.window
-      // @ts-ignore
+      // @ts-expect-error: simulate a browser-free environment
       delete global.window
 
       const result = await parseCertificatePemDetails('test-pem')

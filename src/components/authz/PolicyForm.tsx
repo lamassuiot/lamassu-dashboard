@@ -15,7 +15,7 @@ import { usePolicySchemas } from '@/hooks/usePolicySchemas';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import type { HTTPRule, Rule } from '@/types/authz';
 
-interface PolicyFormData {
+export interface PolicyFormData {
   id: string;
   name: string;
   description: string;

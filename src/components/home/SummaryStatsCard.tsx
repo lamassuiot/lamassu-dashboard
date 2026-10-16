@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { ArrowUpRight } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,7 +40,7 @@ export default function CreateIntegrationPage() {
       if (Array.isArray(configConnectors)) {
         setConnectors(configConnectors);
       } else {
-        const envConnectors = process.env.NEXT_PUBLIC_CONNECTORS;
+        const envConnectors = import.meta.env.VITE_CONNECTORS;
         if (typeof envConnectors === 'string') {
           setConnectors(envConnectors.split(',').map(c => c.trim()));
         }

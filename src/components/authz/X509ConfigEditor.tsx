@@ -66,7 +66,7 @@ export function X509ConfigEditor({
         <Label className="text-sm">
           Certification Authority <span className="text-destructive">*</span>
         </Label>
-        {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- picker trigger: keep the invalid state exposed to assistive tech */}
+        { }
         <button
           type="button"
           onClick={onOpenCaSelector}

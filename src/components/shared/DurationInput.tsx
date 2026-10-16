@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
+import { isValidDuration, isZeroDuration } from '@/lib/duration';
 
 interface DurationInputProps extends Omit<React.ComponentProps<'input'>, 'onChange' | 'value'> {
   label: string;
@@ -14,23 +15,6 @@ interface DurationInputProps extends Omit<React.ComponentProps<'input'>, 'onChan
   description?: string;
   labelClassName?: string;
   error?: string;
-}
-
-// Regex to validate compound duration strings like '1y6m30s'
-// It ensures units are in the correct order (y, w, d, h, m, s) and appear at most once.
-const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
-const DURATION_PART_REGEX = /(\d+)([ywdhms])/g;
-
-function isZeroDuration(value: string): boolean {
-  let total = 0;
-  for (const match of value.matchAll(DURATION_PART_REGEX)) {
-    total += Number.parseInt(match[1], 10);
-  }
-  return total === 0;
-}
-
-export function isValidPositiveDuration(value: string): boolean {
-  return DURATION_REGEX.test(value) && !isZeroDuration(value);
 }
 
 export const DurationInput: React.FC<DurationInputProps> = ({
@@ -53,7 +37,7 @@ export const DurationInput: React.FC<DurationInputProps> = ({
     if (!value) {
       setIsInvalid(false);
       setIsZero(false);
-    } else if (!DURATION_REGEX.test(value)) {
+    } else if (!isValidDuration(value)) {
       setIsInvalid(true);
       setIsZero(false);
     } else if (isZeroDuration(value)) {

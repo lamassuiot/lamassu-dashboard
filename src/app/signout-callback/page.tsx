@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { useAuth } from '@/contexts/AuthContext';
 import { FullPageLoader } from '@/components/shared/FullPageLoader';
 

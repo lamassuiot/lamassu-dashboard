@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import { LogOut, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react';
 import LogoFullBlue from '@/app/lamassu_full_blue.svg';
 import LogoFullWhite from '@/app/lamassu_full_white.svg';

@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn, getCookie, setCookie } from '@/lib/utils';
 import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
@@ -307,7 +307,7 @@ export default function SigningProfilesPage() {
 
       {!isLoading && !error && profiles.length > 0 ? (
           viewMode === 'grid' ? (
-            <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
+            <div className={cn("grid grid-cols-1 gap-6", isLoading && "opacity-50")}>
               {profiles.map((profile) => (
                 <IssuanceProfileCard
                   key={profile.id}

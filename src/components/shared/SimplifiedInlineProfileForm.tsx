@@ -9,7 +9,7 @@ import { CalendarDays, ListChecks } from "lucide-react";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { CA_KEY_USAGES, extendedKeyUsageOptions, keyUsageOptions } from '@/lib/certificate-usage-options';
-import { isValidPositiveDuration } from '@/components/shared/DurationInput';
+import { isValidPositiveDuration } from '@/lib/duration';
 
 /**
  * Simplified schema for inline CA certificate profile during CA creation.

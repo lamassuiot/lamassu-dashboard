@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { format } from 'date-fns';
 import { FileText, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
