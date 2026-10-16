@@ -6,8 +6,6 @@ import { parseDurationToSeconds } from '@/lib/duration';
 const TIMELINE_START = 3;
 const TIMELINE_END = 97;
 
-export { parseDurationToSeconds };
-
 export type CertificateValidity =
   | { type: 'Duration'; value: string }
   | { type: 'Date'; value: string }

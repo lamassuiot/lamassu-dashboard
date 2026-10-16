@@ -1,6 +1,6 @@
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { ApiRaEstSettings, ApiRaItem, RaCreationPayload } from '@/lib/dms-api';
-import { isValidPositiveDuration } from '@/components/shared/DurationInput';
+import { isValidPositiveDuration } from '@/lib/duration';
 import {
   createDefaultEstAuthSettings,
   getEstAuthSettingsValidationErrors,

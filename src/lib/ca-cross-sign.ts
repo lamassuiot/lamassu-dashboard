@@ -1,4 +1,4 @@
-import { add, type Duration } from 'date-fns';
+import { addDuration } from '@/lib/duration';
 import type { CA, CreateCaPayload } from './ca-data';
 import { getEffectiveCaStatus, toApiCaExpiration, type CaStatusFilter } from './ca-utils';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
@@ -174,18 +174,11 @@ export function defaultCrossSignExpiration(signer: CA, target: CA): ExpirationCo
   return { type: 'Date', dateValue: new Date(expires) };
 }
 
-const DURATION_UNITS: Record<string, keyof Duration> = { y: 'years', w: 'weeks', d: 'days', h: 'hours', m: 'minutes', s: 'seconds' };
-
 /** The instant an expiration resolves to when issued at `now`; null for indefinite or incomplete input. */
 export function resolveExpirationDate(config: ExpirationConfig, now: Date = new Date()): Date | null {
   if (config.type === 'Date') return config.dateValue ?? null;
   if (config.type !== 'Duration' || !config.durationValue) return null;
-  const duration: Duration = {};
-  // The optional unit keeps every digit run a match, so the scan never backtracks through it.
-  for (const [, value, unit] of config.durationValue.matchAll(/(\d+)([ywdhms])?/g)) {
-    if (unit) duration[DURATION_UNITS[unit]] = Number.parseInt(value, 10);
-  }
-  return add(now, duration);
+  return addDuration(config.durationValue, now);
 }
 
 /** True when the cross certificate would stay valid after the signer expires (or never expire). */

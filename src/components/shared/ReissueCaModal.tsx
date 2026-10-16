@@ -19,13 +19,13 @@ import { Loader2, BookText, Settings2, Info, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
 import { Badge } from '@/components/ui/badge';
-import { differenceInSeconds, parseISO, isFuture, add } from 'date-fns';
+import { differenceInSeconds, parseISO, isFuture } from 'date-fns';
 import { fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
-import { isValidPositiveDuration } from './DurationInput';
+import { addDuration, isValidPositiveDuration } from '@/lib/duration';
 import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
 
 type ProfileMode = 'reuse' | 'inline';
@@ -177,39 +177,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
         return validity.dateValue ? isFuture(validity.dateValue) : false;
       } else if (validity.type === 'Duration' && validity.durationValue) {
         if (!isValidPositiveDuration(validity.durationValue)) return false;
-        // Parse duration string (e.g., "1y2w3d")
-        const durationRegex = /(\d+)([ywdhms])/g;
-        let match;
-        const now = new Date();
-        let expirationDate = now;
-
-        while ((match = durationRegex.exec(validity.durationValue)) !== null) {
-          const value = Number.parseInt(match[1], 10);
-          const unit = match[2];
-
-          switch (unit) {
-            case 'y':
-              expirationDate = add(expirationDate, { years: value });
-              break;
-            case 'w':
-              expirationDate = add(expirationDate, { weeks: value });
-              break;
-            case 'd':
-              expirationDate = add(expirationDate, { days: value });
-              break;
-            case 'h':
-              expirationDate = add(expirationDate, { hours: value });
-              break;
-            case 'm':
-              expirationDate = add(expirationDate, { minutes: value });
-              break;
-            case 's':
-              expirationDate = add(expirationDate, { seconds: value });
-              break;
-          }
-        }
-
-        return isFuture(expirationDate);
+        return isFuture(addDuration(validity.durationValue));
       }
       return false;
     } catch (error) {

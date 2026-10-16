@@ -17,7 +17,8 @@ import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
-import { add, format } from 'date-fns';
+import { format } from 'date-fns';
+import { addDuration, formatDuration } from '@/lib/duration';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -36,46 +37,6 @@ import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
 import { getEffectiveCaStatus, INDEFINITE_CA_EXPIRATION, toApiCaExpiration } from '@/lib/ca-utils';
 
-
-// Helper to parse duration string (e.g., "5y", "30d") to human-readable format
-const formatDurationToHuman = (durationStr: string): string => {
-  const regex = /(\d+)(y|w|d|h|m|s)/g;
-  const parts: string[] = [];
-  let match;
-  while ((match = regex.exec(durationStr)) !== null) {
-    const value = Number.parseInt(match[1], 10);
-    const unit = match[2];
-    switch (unit) {
-      case 'y': parts.push(`${value} year${value !== 1 ? 's' : ''}`); break;
-      case 'w': parts.push(`${value} week${value !== 1 ? 's' : ''}`); break;
-      case 'd': parts.push(`${value} day${value !== 1 ? 's' : ''}`); break;
-      case 'h': parts.push(`${value} hour${value !== 1 ? 's' : ''}`); break;
-      case 'm': parts.push(`${value} minute${value !== 1 ? 's' : ''}`); break;
-      case 's': parts.push(`${value} second${value !== 1 ? 's' : ''}`); break;
-    }
-  }
-  return parts.join(', ');
-};
-
-// Helper to calculate future date from duration string
-const calculateExpirationDate = (durationStr: string): Date => {
-  const duration: { years?: number; weeks?: number; days?: number; hours?: number; minutes?: number; seconds?: number } = {};
-  const regex = /(\d+)(y|w|d|h|m|s)/g;
-  let match;
-  while ((match = regex.exec(durationStr)) !== null) {
-    const value = Number.parseInt(match[1], 10);
-    const unit = match[2];
-    switch (unit) {
-      case 'y': duration.years = value; break;
-      case 'w': duration.weeks = value; break;
-      case 'd': duration.days = value; break;
-      case 'h': duration.hours = value; break;
-      case 'm': duration.minutes = value; break;
-      case 's': duration.seconds = value; break;
-    }
-  }
-  return add(new Date(), duration);
-};
 
 /** Parents must be able to sign: active and not an external public CA. */
 const canBeParentCa = (ca: CA) => ca.rawApiData?.certificate.type !== 'EXTERNAL_PUBLIC' && getEffectiveCaStatus(ca) === 'active';
@@ -233,8 +194,8 @@ export default function CreateCaGeneratePage() {
       const profile = availableProfiles.find(p => p.id === selectedCaProfileId);
       if (profile) {
         if (profile.validity.type === 'Duration' && profile.validity.duration) {
-          const humanReadable = formatDurationToHuman(profile.validity.duration);
-          const expirationDate = calculateExpirationDate(profile.validity.duration);
+          const humanReadable = formatDuration(profile.validity.duration);
+          const expirationDate = addDuration(profile.validity.duration);
           setEffectiveCaValidity({
             description: `Profile "${profile.name}" validity: ${humanReadable}`,
             date: format(expirationDate, 'PPP'),
@@ -250,8 +211,8 @@ export default function CreateCaGeneratePage() {
       }
     } else if (caProfileMode === 'inline') {
       if (inlineProfileValidity.type === 'Duration' && inlineProfileValidity.durationValue) {
-        const humanReadable = formatDurationToHuman(inlineProfileValidity.durationValue);
-        const expirationDate = calculateExpirationDate(inlineProfileValidity.durationValue);
+        const humanReadable = formatDuration(inlineProfileValidity.durationValue);
+        const expirationDate = addDuration(inlineProfileValidity.durationValue);
         setEffectiveCaValidity({
           description: `Inline profile validity: ${humanReadable}`,
           date: format(expirationDate, 'PPP'),

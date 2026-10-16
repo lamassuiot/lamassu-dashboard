@@ -25,12 +25,12 @@ import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningP
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/shared/Stepper';
 import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
-import { formatISO, add, parseISO, isAfter, type Duration } from 'date-fns';
+import { formatISO, parseISO, isAfter } from 'date-fns';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
-import { isValidPositiveDuration } from '@/components/shared/DurationInput';
+import { addDuration, isValidPositiveDuration } from '@/lib/duration';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 
@@ -44,25 +44,6 @@ interface SanEntry {
   type: 'DNS' | 'IP' | 'Email' | 'URI';
   value: string;
 }
-
-const parseDurationString = (durationStr: string): Duration => {
-  const duration: Duration = {};
-  const regex = /(\d+)(y|w|d|h|m|s)/g;
-  let match;
-  while ((match = regex.exec(durationStr)) !== null) {
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    switch (unit) {
-      case 'y': duration.years = value; break;
-      case 'w': duration.weeks = value; break;
-      case 'd': duration.days = value; break;
-      case 'h': duration.hours = value; break;
-      case 'm': duration.minutes = value; break;
-      case 's': duration.seconds = value; break;
-    }
-  }
-  return duration;
-};
 
 const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
@@ -160,8 +141,7 @@ export default function IssueCertificateFormClient() {
         certExpiryDate = validity.dateValue;
     } else if (validity.type === 'Duration' && validity.durationValue) {
         try {
-            const durationObj = parseDurationString(validity.durationValue);
-            certExpiryDate = add(new Date(), durationObj);
+            certExpiryDate = addDuration(validity.durationValue);
         } catch {
             return null;
         }

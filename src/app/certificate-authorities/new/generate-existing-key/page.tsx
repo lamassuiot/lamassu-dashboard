@@ -26,7 +26,8 @@ import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type Simpli
 import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { add, format } from 'date-fns';
+import { format } from 'date-fns';
+import { addDuration, formatDuration } from '@/lib/duration';
 import type { CreateSigningProfilePayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
@@ -126,44 +127,6 @@ export default function CreateCaExistingKeyPage() {
     loadDependencies();
   }, [loadDependencies]);
 
-  const formatDurationToHuman = (durationStr: string): string => {
-    const regex = /(\d+)(y|w|d|h|m|s)/g;
-    const parts: string[] = [];
-    let match;
-    while ((match = regex.exec(durationStr)) !== null) {
-      const value = Number.parseInt(match[1], 10);
-      const unit = match[2];
-      switch (unit) {
-        case 'y': parts.push(`${value} year${value !== 1 ? 's' : ''}`); break;
-        case 'w': parts.push(`${value} week${value !== 1 ? 's' : ''}`); break;
-        case 'd': parts.push(`${value} day${value !== 1 ? 's' : ''}`); break;
-        case 'h': parts.push(`${value} hour${value !== 1 ? 's' : ''}`); break;
-        case 'm': parts.push(`${value} minute${value !== 1 ? 's' : ''}`); break;
-        case 's': parts.push(`${value} second${value !== 1 ? 's' : ''}`); break;
-      }
-    }
-    return parts.join(', ');
-  };
-
-  const calculateExpirationDate = (durationStr: string): Date => {
-    const duration: { years?: number; weeks?: number; days?: number; hours?: number; minutes?: number; seconds?: number } = {};
-    const regex = /(\d+)(y|w|d|h|m|s)/g;
-    let match;
-    while ((match = regex.exec(durationStr)) !== null) {
-      const value = Number.parseInt(match[1], 10);
-      const unit = match[2];
-      switch (unit) {
-        case 'y': duration.years = value; break;
-        case 'w': duration.weeks = value; break;
-        case 'd': duration.days = value; break;
-        case 'h': duration.hours = value; break;
-        case 'm': duration.minutes = value; break;
-        case 's': duration.seconds = value; break;
-      }
-    }
-    return add(new Date(), duration);
-  };
-
   useEffect(() => {
     if (caProfileMode === 'reuse' && selectedCaProfileId) {
       const profile = availableProfiles.find(p => p.id === selectedCaProfileId);
@@ -184,8 +147,8 @@ export default function CreateCaExistingKeyPage() {
       const profile = availableProfiles.find(p => p.id === selectedCaProfileId);
       if (profile) {
         if (profile.validity.type === 'Duration' && profile.validity.duration) {
-          const humanReadable = formatDurationToHuman(profile.validity.duration);
-          const expirationDate = calculateExpirationDate(profile.validity.duration);
+          const humanReadable = formatDuration(profile.validity.duration);
+          const expirationDate = addDuration(profile.validity.duration);
           setEffectiveCaValidity({
             description: `Profile "${profile.name}" validity: ${humanReadable}`,
             date: format(expirationDate, 'PPP'),
@@ -201,8 +164,8 @@ export default function CreateCaExistingKeyPage() {
       }
     } else if (caProfileMode === 'inline') {
       if (inlineProfileValidity.type === 'Duration' && inlineProfileValidity.durationValue) {
-        const humanReadable = formatDurationToHuman(inlineProfileValidity.durationValue);
-        const expirationDate = calculateExpirationDate(inlineProfileValidity.durationValue);
+        const humanReadable = formatDuration(inlineProfileValidity.durationValue);
+        const expirationDate = addDuration(inlineProfileValidity.durationValue);
         setEffectiveCaValidity({
           description: `Inline profile validity: ${humanReadable}`,
           date: format(expirationDate, 'PPP'),

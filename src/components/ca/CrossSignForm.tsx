@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
-import { isValidPositiveDuration } from '@/components/shared/DurationInput';
+import { isValidPositiveDuration } from '@/lib/duration';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { CrossSignPairSelector } from './CrossSignPairSelector';
 
