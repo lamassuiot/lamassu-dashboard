@@ -35,7 +35,7 @@ import {
   getKeySpecOptions,
   getKeyTypeDetails,
   getPreferredKeySpecValue,
-  getSupportedKeyTypeOptions,
+  getAllKeyTypeOptions,
   getSupportedKeyTypeValues,
   parseKeySpecToApiSize,
 } from '@/lib/crypto-key-fields';
@@ -252,7 +252,7 @@ export default function CreateCaGeneratePage() {
   const selectedEngine = useMemo(() => allCryptoEngines.find(e => e.id === cryptoEngineId), [allCryptoEngines, cryptoEngineId]);
 
   const supportedKeyTypes = useMemo(() => getSupportedKeyTypeValues(selectedEngine), [selectedEngine]);
-  const keyTypeOptions = useMemo(() => getSupportedKeyTypeOptions(selectedEngine), [selectedEngine]);
+  const keyTypeOptions = useMemo(() => getAllKeyTypeOptions(selectedEngine), [selectedEngine]);
   const currentKeySpecOptions = useMemo(
     () => getKeySpecOptions(keyType, getKeyTypeDetails(selectedEngine, keyType)),
     [keyType, selectedEngine],

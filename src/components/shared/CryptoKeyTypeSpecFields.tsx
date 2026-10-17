@@ -48,11 +48,11 @@ export function CryptoKeyTypeSpecFields({
   keySpecDisabled = false,
 }: CryptoKeyTypeSpecFieldsProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div>
+    <div className="grid grid-cols-1 gap-4">
+      <div className="min-w-0">
         <Label htmlFor={`${idPrefix}-type`}>{keyTypeLabel}</Label>
         <Select value={keyTypeValue} onValueChange={onKeyTypeChange} disabled={disabled}>
-          <SelectTrigger id={`${idPrefix}-type`} className="mt-1">
+          <SelectTrigger id={`${idPrefix}-type`} className="mt-1 w-full">
             <SelectValue placeholder="Select key type" />
           </SelectTrigger>
           <SelectContent>
@@ -78,10 +78,10 @@ export function CryptoKeyTypeSpecFields({
           </SelectContent>
         </Select>
       </div>
-      <div>
+      <div className="min-w-0">
         <Label htmlFor={`${idPrefix}-spec`}>{keySpecLabel}</Label>
         <Select value={keySpecValue} onValueChange={onKeySpecChange} disabled={keySpecDisabled}>
-          <SelectTrigger id={`${idPrefix}-spec`} className="mt-1">
+          <SelectTrigger id={`${idPrefix}-spec`} className="mt-1 w-full">
             <SelectValue placeholder="Select key specification" />
           </SelectTrigger>
           <SelectContent>
