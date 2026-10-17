@@ -31,6 +31,8 @@ import { CA_PAGE_COLUMNS, type CaColumnId, type CaColumnState } from '@/componen
 import { useSortState } from '@/hooks/useSortState';
 import { useTreeCollapse } from '@/hooks/useTreeCollapse';
 import { cn } from '@/lib/utils';
+import { ALGORITHM_FAMILY_LABELS, getAlgorithmFamily } from '@/lib/pqc';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 
 type SortableColumn = 'name' | 'expires';
 type ColumnId = CaColumnId;
@@ -255,6 +257,16 @@ function KeyCell({ ca, engine, asLink }: Readonly<{ ca: CA; engine?: ApiCryptoEn
   );
 }
 
+function AlgorithmFamilyCell({ ca }: Readonly<{ ca: CA }>) {
+  const family = ca.algorithmFamily ?? getAlgorithmFamily(ca.publicKeyAlgorithm ?? ca.keyAlgorithm);
+  return (
+    <span className="inline-flex items-center justify-center gap-1 text-xs font-medium" title={ALGORITHM_FAMILY_LABELS[family]}>
+      {family !== 'T' && <QuantumAlgorithmIcon />}
+      {family}
+    </span>
+  );
+}
+
 function CaActionsMenu({ ca, status }: Readonly<{ ca: CA; status: DisplayStatus }>) {
   const canIssue = status !== 'REVOKED' && ca.caType !== 'EXTERNAL_PUBLIC';
   // Mirrors the parent checks on the create CA page.
@@ -422,6 +434,11 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
           <KeyCell ca={ca} engine={engine} asLink={!isPicker} />
         </TableCell>
       )}
+      {isVisible('algorithm') && (
+        <TableCell className="text-center">
+          <AlgorithmFamilyCell ca={ca} />
+        </TableCell>
+      )}
       {isVisible('expires') && (
         <TableCell>
           <DateDisplay date={ca.expires} className="text-xs" relativeClassName="text-xs" />
@@ -491,6 +508,7 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
               {isVisible('status') && <TableHead className="w-[110px]">Status</TableHead>}
               {isVisible('type') && <TableHead className="w-[170px]">Type</TableHead>}
               {isVisible('key') && <TableHead className="w-[180px]">Key</TableHead>}
+              {isVisible('algorithm') && <TableHead className="w-[90px] text-center">PQC</TableHead>}
               {isVisible('expires') && (
                 <SortableTableHead column="expires" title="Expires" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" isDateColumn className="w-[160px]" />
               )}

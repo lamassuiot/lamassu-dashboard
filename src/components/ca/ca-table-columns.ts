@@ -1,12 +1,13 @@
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
 
-export type CaColumnId = 'name' | 'status' | 'type' | 'key' | 'expires' | 'parentExpiry';
+export type CaColumnId = 'name' | 'status' | 'type' | 'key' | 'algorithm' | 'expires' | 'parentExpiry';
 
 export const CA_PAGE_COLUMNS: ColumnDefinition<CaColumnId>[] = [
   { id: 'name', label: 'Certification Authority', alwaysVisible: true },
   { id: 'status', label: 'Status' },
   { id: 'type', label: 'Type' },
   { id: 'key', label: 'Key' },
+  { id: 'algorithm', label: 'PQC' },
   { id: 'expires', label: 'Expires' },
   { id: 'parentExpiry', label: 'Expires vs. parent' },
 ];
