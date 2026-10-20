@@ -15,6 +15,7 @@ export default tseslint.config(
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
+    settings: { react: { version: 'detect' } },
     plugins: {
       'react-hooks': reactHooks,
       react,
@@ -22,6 +23,15 @@ export default tseslint.config(
       'unused-imports': unusedImports,
     },
     rules: {
+      ...react.configs.recommended.rules,
+      ...react.configs['jsx-runtime'].rules,
+      ...jsxA11y.configs.recommended.rules,
+      // TypeScript types the props; prose in JSX uses plain apostrophes and quotes.
+      'react/prop-types': 'off',
+      'react/no-unescaped-entities': 'off',
+      // Components such as <Calendar autoFocus> or <CrossSignSlot role="signer"> are not DOM elements.
+      'jsx-a11y/aria-role': ['error', { ignoreNonDOM: true }],
+      'jsx-a11y/no-autofocus': ['error', { ignoreNonDOM: true }],
       'no-undef': 'off',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
