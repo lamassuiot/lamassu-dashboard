@@ -4,13 +4,14 @@
  * Filters are arbitrary code typed into the subscription editor, so they must not run
  * on the page's main thread: a worker has no DOM and no access to localStorage or
  * sessionStorage (where the OIDC session lives), and it can be terminated when a
- * filter loops forever. Network and storage APIs are also removed inside the worker.
- * This limits the blast radius of a pasted filter; it is not a hardened sandbox.
+ * filter loops forever. Network and storage APIs are also removed inside the worker, and
+ * so are the worker constructors: a nested worker starts with a fresh global scope where
+ * `fetch` is intact. This limits the blast radius of a pasted filter; it is not a hardened sandbox.
  */
 
 /** Exported so tests can run the real worker script; not part of the public API. */
 export const WORKER_SOURCE = `
-for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches']) {
+for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches', 'Worker', 'SharedWorker']) {
   try { Object.defineProperty(self, name, { value: undefined, configurable: false }); } catch (e) { /* already locked */ }
 }
 self.onmessage = (message) => {

@@ -98,6 +98,8 @@ class ScriptWorker {
       onmessage: null,
       fetch: () => 'network',
       XMLHttpRequest: class {},
+      Worker: class {},
+      SharedWorker: class {},
       postMessage: (data: unknown) => queueMicrotask(() => this.onmessage?.({ data })),
     }
     ScriptWorker.scope = this.scope
@@ -165,5 +167,12 @@ describe('js-filter worker script', () => {
     for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches']) {
       expect(ScriptWorker.scope[name]).toBeUndefined()
     }
+  })
+
+  it('removes the worker constructors so a filter cannot start a nested worker with network access', async () => {
+    await runJsFilter('function () { return true; }', event)
+
+    expect(ScriptWorker.scope.Worker).toBeUndefined()
+    expect(ScriptWorker.scope.SharedWorker).toBeUndefined()
   })
 })
