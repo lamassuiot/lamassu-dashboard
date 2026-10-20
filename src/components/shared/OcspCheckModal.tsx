@@ -299,7 +299,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                                 <Button variant="secondary" size="sm" onClick={() => downloadPem(responseDetails?.requestDer ?? null, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
                                                     <Download className="mr-1.5 h-3.5 w-3.5" /> PEM
                                                 </Button>
-                                                <Button variant="secondary" size="sm" onClick={() => downloadFile(responseDetails?.requestDer!, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
+                                                <Button variant="secondary" size="sm" onClick={() => { if (responseDetails?.requestDer) downloadFile(responseDetails.requestDer, 'ocsp_request.der', 'application/ocsp-request'); }} disabled={!responseDetails?.requestDer}>
                                                     <Download className="mr-1.5 h-3.5 w-3.5" /> DER
                                                 </Button>
                                             </div>
@@ -314,7 +314,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                                 <Button variant="secondary" size="sm" onClick={() => downloadPem(responseDetails?.responseDer ?? null, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
                                                     <Download className="mr-1.5 h-3.5 w-3.5" /> PEM
                                                 </Button>
-                                                <Button variant="secondary" size="sm" onClick={() => downloadFile(responseDetails?.responseDer!, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
+                                                <Button variant="secondary" size="sm" onClick={() => { if (responseDetails?.responseDer) downloadFile(responseDetails.responseDer, 'ocsp_response.der', 'application/ocsp-response'); }} disabled={!responseDetails?.responseDer}>
                                                     <Download className="mr-1.5 h-3.5 w-3.5" /> DER
                                                 </Button>
                                             </div>

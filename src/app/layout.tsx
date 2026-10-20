@@ -8,11 +8,10 @@ import { FullPageLoader } from '@/components/shared/FullPageLoader';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import Link from '@/components/shared/RouterLink';
+import { usePathname, useRouter } from '@/lib/router';
 import { getPrincipal } from '@/lib/authz-api';
 import { usePlatformAccess } from '@/hooks/usePlatformAccess';
 import { AccessDeniedScreen } from '@/components/shared/AccessDeniedScreen';
@@ -36,14 +35,14 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, BellRing, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PrincipalBadge } from '@/components/authz/PrincipalBadge';
 import { jwtDecode } from 'jwt-decode';
-import Image from 'next/image'
+import Image from '@/components/shared/StaticImage'
 import LogoFullWhite from './lamassu_full_white.svg'
 import LogoFullBlue from './lamassu_full_blue.svg'
 import LogoBlue from './lamassu_logo_blue.svg'
@@ -72,15 +71,9 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
-import { Roboto, Inter, JetBrains_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { UIPreferencesProvider } from '@/contexts/UIPreferencesContext';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-roboto' });
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-ibm-plex-sans' });
-const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' });
 
 type DecodedClaims = Record<string, unknown>;
 
@@ -152,7 +145,7 @@ const navigationConfig: NavGroup[] = [
   },
   {
     label: 'NOTIFICATIONS',
-    items: [{ href: '/alerts', label: 'Alerts', icon: Info, uiAuthzCapabilities: 'pki.alerts.subscription' }],
+    items: [{ href: '/alerts', label: 'Alerts', icon: BellRing, uiAuthzCapabilities: 'pki.alerts.subscription' }],
   },
   {
     label: 'TOOLS',
@@ -309,6 +302,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [bashExportCopied, setBashExportCopied] = useState(false);
   const [matchedPrincipals, setMatchedPrincipals] = useState<Principal[] | null>(null);
 
   // Fetch principal details when the profile modal opens
@@ -375,15 +369,20 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
     if (typeof val === 'object') return JSON.stringify(val);
     return String(val);
   };
-  const handleCopyToken = async () => {
+  const handleCopyToken = async (format: 'token' | 'bash' = 'token') => {
     if (!user?.access_token) return;
 
+    const setCopied = format === 'bash' ? setBashExportCopied : setTokenCopied;
+    const value = format === 'bash'
+      ? `export ACCESS_TOKEN='${user.access_token.replace(/'/g, "'\\''")}'`
+      : user.access_token;
+
     try {
-      await navigator.clipboard.writeText(user.access_token);
-      setTokenCopied(true);
-      window.setTimeout(() => setTokenCopied(false), 1500);
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      setTokenCopied(false);
+      setCopied(false);
     }
   };
 
@@ -452,7 +451,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuContent className="w-56" align="end">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">My Account</p>
@@ -597,12 +596,12 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
               <SidebarContent className="p-2">
                 <SidebarMenu>
                   {navigationConfig.map((group, groupIndex) => {
-                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                    if (group.devOnly && !(import.meta.env.DEV || import.meta.env.VITE_FORCE_DEV_OPTIONS)) {
                       return null;
                     }
 
                     const filteredItems = group.items.filter(item =>
-                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) &&
+                      !(item.devOnly && !(import.meta.env.DEV || import.meta.env.VITE_FORCE_DEV_OPTIONS)) &&
                       isNavItemVisible(item)
                     );
 
@@ -657,18 +656,31 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
         <DialogContent showCloseButton={false} className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <DialogTitle>User Profile & Token Claims</DialogTitle>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleCopyToken}
-                disabled={!user?.access_token}
-              >
-                {tokenCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                {tokenCopied ? 'Copied' : 'Copy token'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopyToken()}
+                  disabled={!user?.access_token}
+                >
+                  {tokenCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  {tokenCopied ? 'Copied' : 'Copy token'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopyToken('bash')}
+                  disabled={!user?.access_token}
+                  title="Copy export ACCESS_TOKEN for Bash"
+                >
+                  {bashExportCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  {bashExportCopied ? 'Copied' : 'Copy Bash export'}
+                </Button>
+              </div>
             </div>
           </DialogHeader>
 
@@ -933,39 +945,22 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable, roboto.variable, jetbrainsMono.variable, ibmPlexSans.variable, manrope.variable)}>
-      <head>
-        <Script src="/config.js" strategy="beforeInteractive" />
-        <title>LamassuIoT Certificate Manager</title>
-        <meta name="description" content="Manage and verify your X.509 certificates with LamassuIoT." />
-        <link rel="manifest" href="/manifest.json" />
-        {/* Runtime-provided theme override served from /public (not part of the bundle), so it cannot be imported. */}
-        {/* eslint-disable-next-line @next/next/no-css-tags */}
-        <link rel="stylesheet" href="/custom-theme.css" />
-      </head>
-      <body className="font-body antialiased">
-        <ConfigProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <UIPreferencesProvider>
-                <IdentifierDisplayProvider>
-                  <React.Suspense fallback={<LoadingState />}>
-                    <InnerLayout>{children}</InnerLayout>
-                  </React.Suspense>
-                  <ThemedToaster offset={{ top: 40 }} />
-                </IdentifierDisplayProvider>
-              </UIPreferencesProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </ConfigProvider>
-      </body>
-    </html>
+    <ConfigProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <UIPreferencesProvider>
+            <IdentifierDisplayProvider>
+              <React.Suspense fallback={<LoadingState />}>
+                <InnerLayout>{children}</InnerLayout>
+              </React.Suspense>
+              <ThemedToaster offset={{ top: 40 }} />
+            </IdentifierDisplayProvider>
+          </UIPreferencesProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </ConfigProvider>
   );
 }
 

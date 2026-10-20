@@ -87,7 +87,9 @@ export function PolicyBuilderJSON({ rules, onChange, note }: PolicyBuilderJSONPr
         <p className={jsonError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'} role="status">
           {jsonError ? `Not applied: ${jsonError}` : note ?? 'Changes apply as you type.'}
         </p>
+        {/* Mouse-only resize grip, so it is hidden from assistive tech. */}
         <div
+          aria-hidden="true"
           className="flex h-4 w-16 shrink-0 cursor-ns-resize items-center justify-center"
           onMouseDown={handleDragStart}
           title="Drag to resize"

@@ -11,7 +11,7 @@ import { Info } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
-import { isValidPositiveDuration } from '@/components/shared/DurationInput';
+import { isValidPositiveDuration } from '@/lib/duration';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import {

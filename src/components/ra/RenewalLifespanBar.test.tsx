@@ -4,17 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildRenewalTimeline,
-  parseDurationToSeconds,
   RenewalLifespanBar,
 } from './RenewalLifespanBar';
 
 describe('RenewalLifespanBar', () => {
-  it('parses compound duration values', () => {
-    expect(parseDurationToSeconds('1y2w3d4h5m6s')).toBe(33_019_506);
-    expect(parseDurationToSeconds('31d')).toBe(2_678_400);
-    expect(parseDurationToSeconds('invalid')).toBeNull();
-  });
-
   it('positions milestones across the certificate validity', () => {
     const timeline = buildRenewalTimeline('1y', '100d', '31d', '7d');
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import {
   Loader2,
@@ -43,7 +43,7 @@ import { normalizePolicyRules } from '@/lib/policy-format';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Lamassu Dashboard is a Next.js and TypeScript UI for PKI, certificate lifecycle, device identity, registration authorities, validation authorities, and KMS-backed key management.
+Lamassu Dashboard is a Vite, React Router, and TypeScript UI for PKI, certificate lifecycle, device identity, registration authorities, validation authorities, and KMS-backed key management.
 
 This file is intentionally concise. It should capture repo-specific engineering guidance without duplicating the detailed UI rules now documented in `storybook/`.
 
@@ -19,7 +19,7 @@ Use these documents as the canonical reference before changing or adding UI:
 **Core Directory Layout:**
 ```
 ├── src/
-│   ├── app/                           # Next.js App Router pages
+│   ├── app/                           # React Router page components
 │   │   ├── certificate-authorities/   # CA management pages
 │   │   │   ├── details/               # CA details and operations
 │   │   │   ├── issue-certificate/     # Certificate issuance workflow
@@ -91,7 +91,7 @@ Use these documents as the canonical reference before changing or adding UI:
 ├── docker-entrypoint.sh               # Container startup script
 ├── Dockerfile                         # Multi-stage Docker build
 ├── nginx.conf                         # Nginx configuration for serving
-├── next.config.ts                     # Next.js configuration
+├── vite.config.mjs                    # Vite configuration
 └── package.json                       # Dependencies and scripts
 ```
 
@@ -113,7 +113,7 @@ Expectations:
 
 Core areas:
 
-- `src/app/`: Next.js App Router pages
+- `src/app/`: React Router page components mapped in `src/main.tsx`
 - `src/components/ui/`: base UI primitives
 - `src/components/shared/`: reusable app-level components and workflows
 - `src/lib/`: API clients, PKI helpers, and domain logic
@@ -152,9 +152,9 @@ Before shipping changes:
 
 ## Implementation rules
 
-### Next.js and React
+### Vite and React
 
-- prefer Server Components where possible, Client Components where interaction requires them
+- use browser-safe React components; Vite builds this app entirely for the browser
 - keep page logic close to the route, and move reusable UI into `src/components/shared/`
 - use typed API and domain models from `src/types/` and `src/lib/`
 
@@ -291,7 +291,7 @@ The application supports runtime configuration through multiple mechanisms:
 
 **Development Configuration:**
 - **Local Development**: Direct configuration in `public/config.js`
-- **Environment Variables**: Next.js environment variable support
+- **Environment Variables**: Vite `VITE_*` variables are embedded at build time
 - **Feature Toggles**: Developer-only menu items and debugging features
 
 ### Common Patterns
@@ -333,15 +333,15 @@ When contributing to Lamassu Dashboard, maintain clear and user-focused communic
 
 **Development Workflow:**
 - **Type Safety** - TypeScript strict mode catches errors at compile time
-- **Code Quality** - ESLint with Next.js configuration ensures consistent style
-- **Build Validation** - Static export process validates entire application
+- **Code Quality** - ESLint with TypeScript and React Hooks rules ensures consistent style
+- **Build Validation** - Vite production build validates static bundling
 
 **Pre-commit Validation:**
 1. **Always run `pnpm run typecheck`** - ensures TypeScript compilation succeeds
 2. **Always run `pnpm run lint`** - catches style and potential logic issues
 3. **Test critical PKI workflows** - certificate creation, validation, and revocation
 4. **Verify responsive design** - test on mobile and desktop viewports
-5. **Check `pnpm run build`** - ensures static export generation succeeds
+5. **Check `pnpm run build`** - ensures static build generation succeeds
 6. **Review for refactoring opportunities** - flag or address duplication and dead code found during the change
 
 **Docker Validation:**

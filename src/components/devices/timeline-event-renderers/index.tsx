@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import AwsIcon from '@/app/aws.svg';

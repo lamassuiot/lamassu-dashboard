@@ -2,13 +2,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
-import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Table2, UploadCloud } from "lucide-react";
+import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Signature, Table2, UploadCloud } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Input } from '@/components/ui/input';
@@ -169,6 +169,9 @@ export default function CertificateAuthoritiesPage() {
           </div>
         </div>
         <div className="flex items-center space-x-2 shrink-0">
+          <Button variant="outline" onClick={() => router.push('/certificate-authorities/cross-sign')}>
+            <Signature className="mr-2 h-4 w-4" /> Cross Sign
+          </Button>
           <Button variant="default" onClick={handleCreateNewCAClick}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
           </Button>
@@ -244,7 +247,7 @@ export default function CertificateAuthoritiesPage() {
                 <CaTableView cas={filteredCAs} allCryptoEngines={allCryptoEngines} filters={filters} />
               )}
               {viewMode === 'hierarchy' && (
-                <CaHierarchyView cas={filteredCAs} router={router} allCAs={cas} allCryptoEngines={allCryptoEngines} />
+                <CaHierarchyView cas={filteredCAs} router={router} allCryptoEngines={allCryptoEngines} />
               )}
               {viewMode === 'graph' && (
                 <CaGraphView cas={filteredCAs} allCryptoEngines={allCryptoEngines} router={router} />

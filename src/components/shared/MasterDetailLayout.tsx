@@ -90,8 +90,9 @@ export function MasterDetailLayout({
           className="fixed bottom-0 left-[var(--sidebar-width,256px)] right-0 z-30 flex flex-col bg-background border-t shadow-[0_-4px_24px_-4px_hsl(var(--foreground)/0.08)] transition-[height] duration-200 ease-out"
           style={{ height: panelHeight }}
         >
-          {/* Resize handle */}
+          {/* Resize handle (mouse-only, so hidden from assistive tech) */}
           <div
+            aria-hidden="true"
             onMouseDown={onHandleMouseDown}
             className="group flex h-3 w-full cursor-row-resize items-center justify-center shrink-0 select-none"
           >

@@ -11,6 +11,7 @@ import {
   getRandomValues,
 } from "pkijs";
 import { format } from "date-fns";
+import { certificatePemToDer } from "./cert-parser";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -71,14 +72,6 @@ function formatResponderId(responderID: any): string {
   return "Unknown format";
 }
 
-function parsePem(pem: string): ArrayBuffer {
-  const pemString = pem.replaceAll(/-----(BEGIN|END) CERTIFICATE-----/g, "").replaceAll(/\s+/g, "");
-  const binary = window.atob(pemString);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.codePointAt(i) ?? 0;
-  return bytes.buffer;
-}
-
 // ---------------------------------------------------------------------------
 // Main function
 // ---------------------------------------------------------------------------
@@ -102,8 +95,8 @@ export async function checkOcspStatus(
       if (engine) setEngine("webcrypto", engine);
     }
 
-    const targetAsn1 = asn1js.fromBER(parsePem(targetCertPem));
-    const issuerAsn1 = asn1js.fromBER(parsePem(issuerCertPem));
+    const targetAsn1 = asn1js.fromBER(certificatePemToDer(targetCertPem));
+    const issuerAsn1 = asn1js.fromBER(certificatePemToDer(issuerCertPem));
     const targetCert = new Certificate({ schema: targetAsn1.result });
     const issuerCert = new Certificate({ schema: issuerAsn1.result });
 

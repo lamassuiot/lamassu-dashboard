@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -11,8 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ShieldCheck, Edit, Trash2, Braces, Users, MoreVertical, ScrollText, Landmark } from "lucide-react";
+import {
+  Edit, Trash2, Braces, Users, MoreVertical,
+  Clock, KeyRound, Shield, User, FileText, Layers,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
+import { DAY_SECONDS, HOUR_SECONDS, YEAR_SECONDS, parseDurationToSeconds } from '@/lib/duration';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -20,15 +25,33 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getValidityLabel(profile: ApiSigningProfile) {
-  if (!profile.validity) return "—";
+function plural(n: number, unit: string) {
+  return `${n.toLocaleString()} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+/** Headline validity plus an optional secondary hint, e.g. "1 year" / "364 days" (backend years are 52 weeks). */
+function getValidity(profile: ApiSigningProfile): { label: string; hint?: string } {
+  if (!profile.validity) return { label: "—" };
   switch (profile.validity.type) {
-    case 'Duration': return profile.validity.duration || "—";
+    case 'Duration': {
+      const raw = profile.validity.duration;
+      if (!raw) return { label: "—" };
+      const seconds = parseDurationToSeconds(raw);
+      if (seconds === null || seconds === 0) return { label: raw };
+      if (seconds % YEAR_SECONDS === 0) {
+        return { label: plural(seconds / YEAR_SECONDS, 'year'), hint: plural(seconds / DAY_SECONDS, 'day') };
+      }
+      if (seconds % DAY_SECONDS === 0) return { label: plural(seconds / DAY_SECONDS, 'day') };
+      if (seconds % HOUR_SECONDS === 0) return { label: plural(seconds / HOUR_SECONDS, 'hour') };
+      return { label: raw };
+    }
     case 'Date':
-      if (profile.validity.time?.startsWith('9999-12-31')) return "No expiry";
-      return profile.validity.time ? new Date(profile.validity.time).toLocaleDateString() : "—";
-    case 'Indefinite': return "No expiry";
-    default: return "—";
+      if (profile.validity.time?.startsWith('9999-12-31')) return { label: "No expiry" };
+      return profile.validity.time
+        ? { label: `Until ${new Date(profile.validity.time).toLocaleDateString()}`, hint: "Fixed expiration date" }
+        : { label: "—" };
+    case 'Indefinite': return { label: "No expiry" };
+    default: return { label: "—" };
   }
 }
 
@@ -54,38 +77,48 @@ function getCryptoRules(profile: ApiSigningProfile) {
   return tokens;
 }
 
+/** "CN=device, O=Acme" from the pinned subject, or null when nothing is set. */
+function getSubjectSummary(profile: ApiSigningProfile) {
+  const s = profile.subject;
+  if (!s) return null;
+  const parts = [
+    s.common_name && `CN=${s.common_name}`,
+    s.organization && `O=${s.organization}`,
+    s.organization_unit && `OU=${s.organization_unit}`,
+    s.locality && `L=${s.locality}`,
+    s.state && `ST=${s.state}`,
+    s.country && `C=${s.country}`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-/** Whether a field is taken from the CSR or pinned by the profile. */
+/** Whether a field is taken from the CSR (caller-controlled) or pinned by the profile. */
 const SourceTag: React.FC<{ honors: boolean }> = ({ honors }) => (
-  <span className={cn(
-    "shrink-0 rounded-sm border px-1.5 py-px text-[10px] font-medium uppercase tracking-wider",
-    honors
-      ? "border-primary/25 bg-primary/5 text-primary"
-      : "border-border bg-muted/60 text-muted-foreground"
-  )}>
-    {honors ? "From CSR" : "Enforced"}
-  </span>
+  <Badge variant={honors ? 'warning' : 'default'}>{honors ? "From CSR" : "Enforced"}</Badge>
 );
 
-const Token: React.FC<React.PropsWithChildren<{ mono?: boolean }>> = ({ children, mono }) => (
-  <Badge variant="secondary" className={cn(mono && "font-mono")}>
-    {children}
-  </Badge>
-);
-
-/** Wrapping token list that collapses the tail into a "+N" chip with a tooltip. */
-const TokenList: React.FC<{ items: string[]; max?: number; mono?: boolean; empty?: string }> = ({
-  items, max = 3, mono, empty = "None",
-}) => {
+/** Wrapping chip list that collapses the tail into a "+N" chip with a tooltip. */
+const TokenList: React.FC<{
+  items: string[]; max?: number; mono?: boolean; empty?: string; variant?: 'default' | 'secondary';
+}> = ({ items, max = 3, mono, empty = "None", variant = 'secondary' }) => {
   if (items.length === 0) {
-    return <span className="text-xs text-muted-foreground">{empty}</span>;
+    return <span className="text-muted-foreground">{empty}</span>;
   }
   const shown = items.slice(0, max);
   const overflow = items.slice(max);
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {shown.map(item => <Token key={item} mono={mono}>{item}</Token>)}
+      {shown.map(item => (
+        <Badge
+          key={item}
+          variant={variant}
+          className={cn(variant === 'secondary' && "text-foreground", mono && "font-mono")}
+        >
+          {item}
+        </Badge>
+      ))}
       {overflow.length > 0 && (
         <TooltipProvider>
           <Tooltip>
@@ -104,18 +137,24 @@ const TokenList: React.FC<{ items: string[]; max?: number; mono?: boolean; empty
   );
 };
 
-/** One row of the spec grid: micro-caps label on a fixed rail, value on the right. */
-const SpecRow: React.FC<{ label: string; children: React.ReactNode; aside?: React.ReactNode }> = ({
-  label, children, aside,
+/** Small muted field label with its icon. */
+const FieldLabel: React.FC<{ icon: LucideIcon; title: string }> = ({ icon: Icon, title }) => (
+  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <Icon className="size-3.5 shrink-0" />
+    <span className="truncate">{title}</span>
+  </span>
+);
+
+/** One cell of the ruled grid: label with its CSR/Enforced source on the right, value underneath. */
+const SpecCell: React.FC<{ icon: LucideIcon; title: string; honors: boolean; children: React.ReactNode }> = ({
+  icon, title, honors, children,
 }) => (
-  <div className="grid grid-cols-[6.5rem_1fr] items-start gap-3 px-4 py-2.5">
-    <span className="pt-px text-[10px] font-semibold uppercase leading-4 tracking-wider text-muted-foreground">
-      {label}
-    </span>
-    <div className="flex min-w-0 items-start justify-between gap-2">
-      <div className="min-w-0 text-xs leading-5 text-foreground/90">{children}</div>
-      {aside && <div className="shrink-0 pt-px">{aside}</div>}
+  <div className="flex min-w-0 flex-col gap-1.5 bg-card px-5 py-3.5">
+    <div className="flex items-center justify-between gap-2">
+      <FieldLabel icon={icon} title={title} />
+      <SourceTag honors={honors} />
     </div>
+    <div className="text-sm text-foreground">{children}</div>
   </div>
 );
 
@@ -134,8 +173,9 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
-  const validityLabel = getValidityLabel(profile);
+  const validity = getValidity(profile);
   const cryptoTokens = getCryptoRules(profile);
+  const subjectSummary = getSubjectSummary(profile);
   const keyUsages = (profile.key_usage ?? []).map(humanizeUsage);
   const extendedKeyUsages = (profile.extended_key_usages ?? []).map(humanizeUsage);
   const hasActions = Boolean(onEdit || onDelete || onViewUsage);
@@ -144,117 +184,138 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
     <>
       <Card
         className={cn(
-          "group/profile h-full gap-0 py-0 transition-shadow duration-200",
+          "@container/profile h-full gap-0 py-0 transition-shadow",
           hasActions && "hover:shadow-md",
           className
         )}
       >
         {/* ── Identity ── */}
-        <CardHeader className="gap-0 border-b bg-muted/30 px-4 py-3">
-          <div className="flex items-start gap-3">
-            <div className="mt-px shrink-0 rounded-md border border-primary/20 bg-primary/10 p-1.5">
-              {profile.sign_as_ca
-                ? <Landmark className="h-4 w-4 text-primary" />
-                : <ScrollText className="h-4 w-4 text-primary" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-sm font-semibold leading-5 tracking-tight" title={profile.name}>
-                {profile.name}
-              </h3>
-              <p className="mt-0.5 line-clamp-1 text-xs leading-4 text-muted-foreground">
-                {profile.description || 'No description'}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Badge variant={profile.sign_as_ca ? 'default' : 'muted'}>
-                {profile.sign_as_ca ? 'CA' : 'End entity'}
-              </Badge>
-              {hasActions && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="-mr-1.5 h-7 w-7" title="Profile actions">
-                      <MoreVertical className="h-4 w-4" />
-                      <span className="sr-only">Profile actions</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {onEdit && (
-                      <DropdownMenuItem onClick={onEdit}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit profile
-                      </DropdownMenuItem>
-                    )}
-                    {onViewUsage && (
-                      <DropdownMenuItem onClick={onViewUsage}>
-                        <Users className="mr-2 h-4 w-4" /> Show usage
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => setIsDetailsModalOpen(true)}>
-                      <Braces className="mr-2 h-4 w-4" /> View raw JSON
-                    </DropdownMenuItem>
-                    {onDelete && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+        <CardHeader className="gap-0.5 border-b bg-muted/40 py-3 [.border-b]:pb-3">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <CardTitle className="truncate text-sm font-semibold text-primary" title={profile.name}>
+              {profile.name}
+            </CardTitle>
+            <span className="truncate font-mono text-xs text-muted-foreground" title={profile.id}>
+              {profile.id}
+            </span>
           </div>
+          <CardDescription className="line-clamp-1 text-xs">
+            {profile.description || 'No description'}
+          </CardDescription>
+          <CardAction className="-my-0.5 flex items-center gap-1">
+            <Badge variant="muted">{profile.sign_as_ca ? 'CA' : 'End entity'}</Badge>
+            {hasActions && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" className="-mr-2" title="Profile actions">
+                    <MoreVertical />
+                    <span className="sr-only">Profile actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onEdit && (
+                    <DropdownMenuItem onClick={onEdit}>
+                      <Edit className="mr-2 h-4 w-4" /> Edit profile
+                    </DropdownMenuItem>
+                  )}
+                  {onViewUsage && (
+                    <DropdownMenuItem onClick={onViewUsage}>
+                      <Users className="mr-2 h-4 w-4" /> Show usage
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setIsDetailsModalOpen(true)}>
+                    <Braces className="mr-2 h-4 w-4" /> View raw JSON
+                  </DropdownMenuItem>
+                  {onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </CardAction>
         </CardHeader>
 
-        {/* ── Specification ── */}
-        <CardContent className="flex-1 divide-y divide-border/60 px-0 py-0">
-          <SpecRow label="Validity">
-            <span className="font-mono">{validityLabel}</span>
-          </SpecRow>
+        {/* ── Specification: profile-wide summary rail + ruled 2×2 of certificate fields ── */}
+        <div className="grid flex-1 grid-cols-1 gap-px bg-border @xl/profile:grid-cols-[12.5rem_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4 bg-card px-5 py-4">
+            <div className="flex flex-col gap-0.5">
+              <FieldLabel icon={Clock} title="Validity" />
+              <span className="mt-1 text-xl font-semibold leading-tight tracking-tight tabular-nums">
+                {validity.label}
+              </span>
+              {validity.hint && (
+                <span className="text-xs text-muted-foreground tabular-nums">{validity.hint}</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel icon={Layers} title="Key policy" />
+              {cryptoTokens
+                ? <TokenList items={cryptoTokens} mono max={4} variant="default" empty="No algorithms allowed" />
+                : <span className="text-sm">Any algorithm accepted</span>}
+            </div>
+          </div>
 
-          <SpecRow label="Subject" aside={<SourceTag honors={profile.honor_subject} />}>
-            {profile.honor_subject
-              ? 'Copied verbatim from the request'
-              : 'Replaced by profile values'}
-          </SpecRow>
+          <div className="grid grid-cols-1 gap-px @xl/profile:grid-cols-2">
+            <SpecCell icon={KeyRound} title="Key usage" honors={profile.honor_key_usage}>
+              {profile.honor_key_usage
+                ? <span className="text-muted-foreground">Taken from the request</span>
+                : <TokenList items={keyUsages} />}
+            </SpecCell>
 
-          <SpecRow label="Key usage" aside={<SourceTag honors={profile.honor_key_usage} />}>
-            {profile.honor_key_usage
-              ? <span className="text-muted-foreground">Taken from the request</span>
-              : <TokenList items={keyUsages} />}
-          </SpecRow>
+            <SpecCell icon={Shield} title="Extended key usage" honors={profile.honor_extended_key_usages}>
+              {profile.honor_extended_key_usages
+                ? <span className="text-muted-foreground">Taken from the request</span>
+                : <TokenList items={extendedKeyUsages} />}
+            </SpecCell>
 
-          <SpecRow label="Ext. usage" aside={<SourceTag honors={profile.honor_extended_key_usages} />}>
-            {profile.honor_extended_key_usages
-              ? <span className="text-muted-foreground">Taken from the request</span>
-              : <TokenList items={extendedKeyUsages} />}
-          </SpecRow>
+            <SpecCell icon={User} title="Subject" honors={profile.honor_subject}>
+              {profile.honor_subject
+                ? <span className="text-muted-foreground">Copied from the request</span>
+                : 'Replaced by profile values'}
+              {!profile.honor_subject && subjectSummary && (
+                <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={subjectSummary}>
+                  {subjectSummary}
+                </p>
+              )}
+            </SpecCell>
 
-          <SpecRow
-            label="Key policy"
-            aside={cryptoTokens ? (
-              <Badge>
-                <ShieldCheck /> Enforced
-              </Badge>
-            ) : undefined}
-          >
-            {cryptoTokens
-              ? <TokenList items={cryptoTokens} mono empty="No algorithms allowed" />
-              : <span className="text-muted-foreground">Any algorithm accepted</span>}
-          </SpecRow>
-        </CardContent>
+            <SpecCell icon={FileText} title="Extensions" honors={profile.honor_extensions}>
+              {profile.honor_extensions
+                ? <span className="text-muted-foreground">Taken from the request</span>
+                : 'Request extensions ignored'}
+            </SpecCell>
+          </div>
+        </div>
 
-        {/* ── Identifier / quick actions ── */}
-        <CardFooter className="justify-between gap-3 border-t bg-muted/20 px-4 py-2">
-          <span className="truncate font-mono text-[11px] text-muted-foreground" title={profile.id}>
-            {profile.id}
-          </span>
-          {hasActions && onEdit && (
-            <Button variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" onClick={onEdit}>
-              <Edit className="mr-1.5 h-3 w-3" /> Edit
-            </Button>
-          )}
-        </CardFooter>
+        {/* ── Quick actions ── */}
+        {hasActions && (
+          <CardFooter className="flex-wrap justify-between gap-x-2 gap-y-1 border-t py-3 [.border-t]:pt-3">
+            <div>
+              {onViewUsage && (
+                <Button variant="ghost" size="sm" className="-ml-3 text-muted-foreground" onClick={onViewUsage}>
+                  <Users data-icon="inline-start" /> Show usage
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {onEdit && (
+                <Button variant="outline" size="sm" onClick={onEdit}>
+                  <Edit data-icon="inline-start" /> Edit
+                </Button>
+              )}
+              {onDelete && (
+                <Button variant="destructive" size="sm" onClick={onDelete}>
+                  <Trash2 data-icon="inline-start" /> Delete
+                </Button>
+              )}
+            </div>
+          </CardFooter>
+        )}
       </Card>
 
       <Sheet open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>

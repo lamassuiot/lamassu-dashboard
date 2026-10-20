@@ -163,6 +163,7 @@ export function ResourcePicker({
         <div className="flex items-center gap-2 border-b border-border px-3">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- the picker opened on demand; typing should search right away
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}

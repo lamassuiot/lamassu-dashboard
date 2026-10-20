@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Blocks, PlusCircle, Loader2, AlertTriangle, Settings, Eye, RefreshCw, MoreVertical, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

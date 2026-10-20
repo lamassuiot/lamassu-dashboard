@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,8 @@ import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
-import { formatISO, add, format } from 'date-fns';
+import { format } from 'date-fns';
+import { addDuration, formatDuration } from '@/lib/duration';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -34,49 +35,8 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
-import { getEffectiveCaStatus } from '@/lib/ca-utils';
+import { getEffectiveCaStatus, INDEFINITE_CA_EXPIRATION, toApiCaExpiration } from '@/lib/ca-utils';
 
-const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
-
-// Helper to parse duration string (e.g., "5y", "30d") to human-readable format
-const formatDurationToHuman = (durationStr: string): string => {
-  const regex = /(\d+)(y|w|d|h|m|s)/g;
-  const parts: string[] = [];
-  let match;
-  while ((match = regex.exec(durationStr)) !== null) {
-    const value = Number.parseInt(match[1], 10);
-    const unit = match[2];
-    switch (unit) {
-      case 'y': parts.push(`${value} year${value !== 1 ? 's' : ''}`); break;
-      case 'w': parts.push(`${value} week${value !== 1 ? 's' : ''}`); break;
-      case 'd': parts.push(`${value} day${value !== 1 ? 's' : ''}`); break;
-      case 'h': parts.push(`${value} hour${value !== 1 ? 's' : ''}`); break;
-      case 'm': parts.push(`${value} minute${value !== 1 ? 's' : ''}`); break;
-      case 's': parts.push(`${value} second${value !== 1 ? 's' : ''}`); break;
-    }
-  }
-  return parts.join(', ');
-};
-
-// Helper to calculate future date from duration string
-const calculateExpirationDate = (durationStr: string): Date => {
-  const duration: { years?: number; weeks?: number; days?: number; hours?: number; minutes?: number; seconds?: number } = {};
-  const regex = /(\d+)(y|w|d|h|m|s)/g;
-  let match;
-  while ((match = regex.exec(durationStr)) !== null) {
-    const value = Number.parseInt(match[1], 10);
-    const unit = match[2];
-    switch (unit) {
-      case 'y': duration.years = value; break;
-      case 'w': duration.weeks = value; break;
-      case 'd': duration.days = value; break;
-      case 'h': duration.hours = value; break;
-      case 'm': duration.minutes = value; break;
-      case 's': duration.seconds = value; break;
-    }
-  }
-  return add(new Date(), duration);
-};
 
 /** Parents must be able to sign: active and not an external public CA. */
 const canBeParentCa = (ca: CA) => ca.rawApiData?.certificate.type !== 'EXTERNAL_PUBLIC' && getEffectiveCaStatus(ca) === 'active';
@@ -234,8 +194,8 @@ export default function CreateCaGeneratePage() {
       const profile = availableProfiles.find(p => p.id === selectedCaProfileId);
       if (profile) {
         if (profile.validity.type === 'Duration' && profile.validity.duration) {
-          const humanReadable = formatDurationToHuman(profile.validity.duration);
-          const expirationDate = calculateExpirationDate(profile.validity.duration);
+          const humanReadable = formatDuration(profile.validity.duration);
+          const expirationDate = addDuration(profile.validity.duration);
           setEffectiveCaValidity({
             description: `Profile "${profile.name}" validity: ${humanReadable}`,
             date: format(expirationDate, 'PPP'),
@@ -251,8 +211,8 @@ export default function CreateCaGeneratePage() {
       }
     } else if (caProfileMode === 'inline') {
       if (inlineProfileValidity.type === 'Duration' && inlineProfileValidity.durationValue) {
-        const humanReadable = formatDurationToHuman(inlineProfileValidity.durationValue);
-        const expirationDate = calculateExpirationDate(inlineProfileValidity.durationValue);
+        const humanReadable = formatDuration(inlineProfileValidity.durationValue);
+        const expirationDate = addDuration(inlineProfileValidity.durationValue);
         setEffectiveCaValidity({
           description: `Inline profile validity: ${humanReadable}`,
           date: format(expirationDate, 'PPP'),
@@ -336,18 +296,6 @@ export default function CreateCaGeneratePage() {
     setIsParentCaModalOpen(false);
   };
 
-  const formatExpirationForApi = (config: ExpirationConfig): { type: "Duration" | "Date"; duration?: string; time?: string } => {
-    if (config.type === "Duration") {
-      return { type: "Duration", duration: config.durationValue };
-    }
-    if (config.type === "Date" && config.dateValue) {
-      return { type: "Date", time: formatISO(config.dateValue) };
-    }
-    if (config.type === "Indefinite") {
-      return { type: "Date", time: INDEFINITE_DATE_API_VALUE };
-    }
-    return { type: "Duration", duration: "1y" };
-  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -408,7 +356,7 @@ export default function CreateCaGeneratePage() {
       engine_id: cryptoEngineId,
       subject: {
         country: country || undefined,
-        state_province: stateProvince || undefined,
+        state: stateProvince || undefined,
         locality: locality || undefined,
         organization: organization || undefined,
         organization_unit: organizationalUnit || undefined,
@@ -418,7 +366,7 @@ export default function CreateCaGeneratePage() {
         type: keyType,
         bits: keyBits,
       },
-      ca_expiration: formatExpirationForApi(caExpiration),
+      ca_expiration: toApiCaExpiration(caExpiration),
       profile_id: selectedProfileId!,
       ca_type: "MANAGED",
     };
@@ -435,7 +383,7 @@ export default function CreateCaGeneratePage() {
       } else if (formData.validity.type === 'Date' && formData.validity.dateValue) {
         validityPayload = { type: 'Date', time: formData.validity.dateValue.toISOString() };
       } else if (formData.validity.type === 'Indefinite') {
-        validityPayload = { type: 'Date', time: INDEFINITE_DATE_API_VALUE };
+        validityPayload = { type: 'Date', time: INDEFINITE_CA_EXPIRATION };
       }
 
       // Simplified inline profile with forced values

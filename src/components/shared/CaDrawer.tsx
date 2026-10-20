@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 interface CaDrawerProps {
+  /** DOM id of the drawer panel, for `aria-controls` on the element that opens it. */
+  id?: string;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   title: React.ReactNode;
@@ -25,6 +27,7 @@ interface CaDrawerProps {
 
 /** Right-hand drawer shared by every CA picker, with consistent loading, error and empty states. */
 export function CaDrawer({
+  id,
   isOpen,
   onOpenChange,
   title,
@@ -69,7 +72,7 @@ export function CaDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw]">
+      <SheetContent id={id} side="right" className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw]">
         <SheetHeader className="border-b px-6 py-5 pr-14">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>

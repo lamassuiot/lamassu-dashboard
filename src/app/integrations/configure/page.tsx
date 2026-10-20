@@ -2,12 +2,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, ArrowLeft, BookText, Eye } from 'lucide-react';
-import Image from 'next/image';
+import Image from '@/components/shared/StaticImage';
 import { AwsIotIntegrationTab } from '@/components/ra/AwsIotIntegrationTab';
 import { fetchRaById, type ApiRaItem, createOrUpdateRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
@@ -113,7 +113,7 @@ export default function ConfigureIntegrationPage() {
     // Determine which configuration component to render
     let ConfigComponent = null;
     let pageTitle = "Configure Integration";
-    let isAwsIntegration = configKey.includes('aws');
+    const isAwsIntegration = configKey.includes('aws');
     let pageDescription = 'Manage the configuration associated with this platform integration.';
 
     if (isAwsIntegration) {

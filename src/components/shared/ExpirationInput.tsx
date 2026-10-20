@@ -59,7 +59,7 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
   const handleTypeChange = (newType: ExpirationType) => {
     setCurrentType(newType);
     // Construct the new config object and propagate it up
-    let newConfig: ExpirationConfig = { type: newType };
+    const newConfig: ExpirationConfig = { type: newType };
     if (newType === "Duration") {
       newConfig.durationValue = duration;
     } else if (newType === "Date") {

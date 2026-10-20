@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
@@ -23,6 +23,7 @@ import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
+import { useLatestRequest } from '@/hooks/useLatestRequest';
 import { getDeviceStatusMeta, type DeviceStatusKey } from '@/lib/device-status';
 import { getStatusSegments } from './DeviceGroupStatusBar';
 
@@ -78,7 +79,10 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  const startRequest = useLatestRequest();
+
   const fetchDevices = useCallback(async (bookmark?: string) => {
+    const isLatest = startRequest();
     try {
       setIsLoading(true);
       setError(null);
@@ -95,16 +99,17 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
         filters: filters.length > 0 ? filters : undefined,
       });
 
+      if (!isLatest()) return;
       setDevices(response.list);
       setNextBookmark(response.next || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch devices');
+      if (isLatest()) setError(err instanceof Error ? err.message : 'Failed to fetch devices');
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
     // refreshKey is a dependency so a parent refresh re-creates the fetcher and re-runs the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, pageSize, sortColumn, sortDirection, debouncedSearchTerm, searchField, statusFilter, refreshKey]);
+  }, [startRequest, groupId, pageSize, sortColumn, sortDirection, debouncedSearchTerm, searchField, statusFilter, refreshKey]);
 
   // Reset pagination whenever the query changes.
   useEffect(() => {

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import type { AlertEvent } from '@/app/alerts/page';
 
 type ParsedAuthClaims = Record<string, unknown> | null;
@@ -115,10 +116,31 @@ export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInf
   const realmRoles = ((claims.realm_access as { roles?: unknown[] } | undefined)?.roles ?? []) as unknown[];
   const accountRoles = ((claims.resource_access as { account?: { roles?: unknown[] } } | undefined)?.account?.roles ?? []) as unknown[];
 
+  const claimRows: { label: string; value: string; breakAll?: boolean }[] = [
+    { label: 'name', value: asText(claims.name) },
+    { label: 'given_name', value: asText(claims.given_name) },
+    { label: 'family_name', value: asText(claims.family_name) },
+    { label: 'preferred_username', value: asText(claims.preferred_username) },
+    { label: 'email', value: asText(claims.email), breakAll: true },
+    { label: 'sub', value: asText(claims.sub), breakAll: true },
+    { label: 'iss', value: asText(claims.iss), breakAll: true },
+    { label: 'aud', value: asText(claims.aud) },
+    { label: 'acr', value: asText(claims.acr) },
+    { label: 'scope', value: asText(claims.scope) },
+    { label: 'auth_time', value: formatEpoch(claims.auth_time) },
+    { label: 'iat', value: formatEpoch(claims.iat) },
+    { label: 'exp', value: formatEpoch(claims.exp) },
+    { label: 'realm roles', value: asText(realmRoles) },
+    { label: 'account roles', value: asText(accountRoles) },
+  ];
+
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col">
-        <SheetHeader className="border-b px-6 py-5 text-left">
+      <SheetContent
+        side="right"
+        className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-2/3 data-[side=right]:lg:w-1/2 data-[side=right]:xl:w-1/3 data-[side=right]:sm:max-w-none"
+      >
+        <SheetHeader className="border-b px-6 py-5 pr-14 text-left">
           <SheetTitle>Audit Event User Info</SheetTitle>
           <SheetDescription>User identity details extracted from this audit event.</SheetDescription>
           {event && (
@@ -128,106 +150,49 @@ export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInf
           )}
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-        <section className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <UserRound className="h-4 w-4 text-primary" />
-            Authentication Fields
-          </div>
-          <div className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 text-sm">
-            <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-              <span className="text-muted-foreground">authid</span>
-              <span className="break-all">{asText(authid)}</span>
-            </div>
-            <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-              <span className="text-muted-foreground">authtype</span>
-              <span className="break-all">{asText(authtype)}</span>
-            </div>
-            {!isCertificateAuth && (
-              <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-                <span className="text-muted-foreground">authclaims</span>
-                <span>{rawClaimsIsPresent ? 'Present' : 'Not present'}</span>
-              </div>
-            )}
-          </div>
-        </section>
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
+          <section className="space-y-2">
+            <SectionTitle icon={UserRound}>Authentication Fields</SectionTitle>
+            <InfoGrid>
+              <InfoRow label="authid" value={asText(authid)} breakAll />
+              <InfoRow label="authtype" value={asText(authtype)} breakAll />
+              {!isCertificateAuth && <InfoRow label="authclaims" value={rawClaimsIsPresent ? 'Present' : 'Not present'} />}
+            </InfoGrid>
+          </section>
 
-        {isCertificateAuth && (
-          <>
-            <Separator />
+          <Separator />
 
+          {isCertificateAuth ? (
             <section className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                Certificate Claims (CRT)
-              </div>
-              <div className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 text-sm">
-                <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-                  <span className="text-muted-foreground">authid</span>
-                  <span className="break-all">{asText(authid)}</span>
-                </div>
-              </div>
-
-              {certificatePem && (
-                <pre className="max-h-56 overflow-auto rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap break-words">
-                  {certificatePem}
-                </pre>
-              )}
+              <SectionTitle icon={ShieldCheck}>Certificate Claims (CRT)</SectionTitle>
+              <InfoGrid>
+                <InfoRow label="authid" value={asText(authid)} breakAll />
+              </InfoGrid>
+              {certificatePem && <CodeBox>{certificatePem}</CodeBox>}
             </section>
-          </>
-        )}
-
-        {!isCertificateAuth && (
-          <>
-            <Separator />
-
+          ) : (
             <section className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                Parsed Claims (easy read)
-              </div>
-
-              {!parsedClaims ? (
+              <SectionTitle icon={ShieldCheck}>Parsed Claims</SectionTitle>
+              {parsedClaims ? (
+                <InfoGrid>
+                  {claimRows.map((row) => (
+                    <InfoRow key={row.label} label={row.label} value={row.value} breakAll={row.breakAll} />
+                  ))}
+                </InfoGrid>
+              ) : (
                 <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
                   Claims are not present or could not be parsed.
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 text-sm">
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">name</span><span>{asText(claims.name)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">given_name</span><span>{asText(claims.given_name)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">family_name</span><span>{asText(claims.family_name)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">preferred_username</span><span>{asText(claims.preferred_username)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">email</span><span className="break-all">{asText(claims.email)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">sub</span><span className="break-all">{asText(claims.sub)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">iss</span><span className="break-all">{asText(claims.iss)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">aud</span><span>{asText(claims.aud)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">acr</span><span>{asText(claims.acr)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">scope</span><span>{asText(claims.scope)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">auth_time</span><span>{formatEpoch(claims.auth_time)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">iat</span><span>{formatEpoch(claims.iat)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">exp</span><span>{formatEpoch(claims.exp)}</span></div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-                    <span className="text-muted-foreground">realm roles</span>
-                    <span>{asText(realmRoles)}</span>
-                  </div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-                    <span className="text-muted-foreground">account roles</span>
-                    <span>{asText(accountRoles)}</span>
-                  </div>
-                </div>
               )}
             </section>
-          </>
-        )}
+          )}
 
-        <Separator />
+          <Separator />
 
-        <section className="space-y-2">
-          <p className="text-sm font-medium">Raw authclaims</p>
-          <pre className="max-h-56 overflow-auto rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap break-words">
-            {rawClaimsIsPresent ? asText(authclaims) : 'Not present'}
-          </pre>
-        </section>
+          <section className="space-y-2">
+            <p className="text-sm font-medium">Raw authclaims</p>
+            <CodeBox>{rawClaimsIsPresent ? asText(authclaims) : 'Not present'}</CodeBox>
+          </section>
         </div>
 
         <SheetFooter className="border-t px-6 py-4">
@@ -237,3 +202,27 @@ export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInf
     </Sheet>
   );
 }
+
+const SectionTitle: React.FC<{ icon: React.ElementType; children: React.ReactNode }> = ({ icon: Icon, children }) => (
+  <div className="flex items-center gap-2 text-sm font-medium">
+    <Icon className="h-4 w-4 text-primary" />
+    {children}
+  </div>
+);
+
+const InfoGrid: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <dl className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-3 text-sm">{children}</dl>
+);
+
+const InfoRow: React.FC<{ label: string; value: string; breakAll?: boolean }> = ({ label, value, breakAll }) => (
+  <div className="grid grid-cols-[minmax(0,130px)_minmax(0,1fr)] gap-2">
+    <dt className="truncate text-muted-foreground" title={label}>{label}</dt>
+    <dd className={cn('min-w-0', breakAll ? 'break-all' : 'break-words')}>{value}</dd>
+  </div>
+);
+
+const CodeBox: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 text-xs">
+    {children}
+  </pre>
+);

@@ -138,7 +138,7 @@ const SourceLink: React.FC<{ text: string }> = ({ text }) => {
   if (rfcMatch) {
     const rfcNumber = rfcMatch[1].replace(/\s/g, '').toUpperCase();
     let url = `https://datatracker.ietf.org/doc/html/${rfcNumber.toLowerCase()}`;
-    const sectionMatch = text.match(/[:/]\s*([\w\.]+)/);
+    const sectionMatch = text.match(/[:/]\s*([\w.]+)/);
     if (sectionMatch && sectionMatch[1] && !text.toUpperCase().includes('BRS:')) {
       url += `#section-${sectionMatch[1]}`;
     }
@@ -396,7 +396,7 @@ export default function CertificateViewerPage() {
     setTimeout(() => {
         try {
             const options = {
-                format: 'pem' as 'pem',
+                format: 'pem' as const,
                 includeSources: selectedSources.join(','),
             };
             const rawResult = window.zlintCertificate(pem, options);

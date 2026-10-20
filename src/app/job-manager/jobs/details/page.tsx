@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import dynamic from '@/components/shared/dynamic';
+import { useSearchParams } from '@/lib/router';
+import Link from '@/components/shared/RouterLink';
 import { AlertTriangle, ClipboardList, FileText, Info, LayoutList, Loader2, Workflow } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WfxStatusBadge, WfxGroupBadge } from '@/components/shared/WfxJobBadges';
