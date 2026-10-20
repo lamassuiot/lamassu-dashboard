@@ -1,6 +1,7 @@
-import React, { lazy, useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Outlet, Route, Routes, useLocation } from 'react-router';
+import { Loader2 } from 'lucide-react';
 import '@fontsource-variable/inter/index.css';
 import '@fontsource-variable/roboto/index.css';
 import '@fontsource-variable/jetbrains-mono/index.css';
@@ -27,6 +28,15 @@ function ScrollToTop() {
   return null;
 }
 
+function PageLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center flex-1 p-8">
+      <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+      <p className="text-lg text-muted-foreground">Loading Page...</p>
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
     <>
@@ -35,7 +45,7 @@ function AppRoutes() {
         {pages.filter(({ path }) => !path.startsWith('/devices/details')).map(({ path, Page }) => (
           <Route key={path} path={path} element={<Page />} />
         ))}
-        <Route path="/devices/details" element={<DeviceDetailsLayout><Outlet /></DeviceDetailsLayout>}>
+        <Route path="/devices/details" element={<DeviceDetailsLayout><Suspense fallback={<PageLoader />}><Outlet /></Suspense></DeviceDetailsLayout>}>
           {pages.filter(({ path }) => path.startsWith('/devices/details')).map(({ path, Page }) => (
             path === '/devices/details'
               ? <Route key={path} index element={<Page />} />
@@ -50,6 +60,12 @@ function AppRoutes() {
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    <RootLayout><AppRoutes /></RootLayout>
+    <RootLayout>
+      {/* The layout renders its children inside the content area, so a page chunk that is still
+          loading suspends only the page, not the sidebar and header. */}
+      <Suspense fallback={<PageLoader />}>
+        <AppRoutes />
+      </Suspense>
+    </RootLayout>
   </BrowserRouter>,
 );
