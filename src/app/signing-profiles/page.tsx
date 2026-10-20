@@ -307,7 +307,7 @@ export default function SigningProfilesPage() {
 
       {!isLoading && !error && profiles.length > 0 ? (
           viewMode === 'grid' ? (
-            <div className={cn("grid grid-cols-1 gap-6", isLoading && "opacity-50")}>
+            <div className={cn("grid grid-cols-1 gap-6 xl:grid-cols-2", isLoading && "opacity-50")}>
               {profiles.map((profile) => (
                 <IssuanceProfileCard
                   key={profile.id}

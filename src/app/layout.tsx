@@ -302,6 +302,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [bashExportCopied, setBashExportCopied] = useState(false);
   const [matchedPrincipals, setMatchedPrincipals] = useState<Principal[] | null>(null);
 
   // Fetch principal details when the profile modal opens
@@ -368,15 +369,20 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
     if (typeof val === 'object') return JSON.stringify(val);
     return String(val);
   };
-  const handleCopyToken = async () => {
+  const handleCopyToken = async (format: 'token' | 'bash' = 'token') => {
     if (!user?.access_token) return;
 
+    const setCopied = format === 'bash' ? setBashExportCopied : setTokenCopied;
+    const value = format === 'bash'
+      ? `export ACCESS_TOKEN='${user.access_token.replace(/'/g, "'\\''")}'`
+      : user.access_token;
+
     try {
-      await navigator.clipboard.writeText(user.access_token);
-      setTokenCopied(true);
-      window.setTimeout(() => setTokenCopied(false), 1500);
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      setTokenCopied(false);
+      setCopied(false);
     }
   };
 
@@ -650,18 +656,31 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
         <DialogContent showCloseButton={false} className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <DialogTitle>User Profile & Token Claims</DialogTitle>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleCopyToken}
-                disabled={!user?.access_token}
-              >
-                {tokenCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                {tokenCopied ? 'Copied' : 'Copy token'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopyToken()}
+                  disabled={!user?.access_token}
+                >
+                  {tokenCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  {tokenCopied ? 'Copied' : 'Copy token'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopyToken('bash')}
+                  disabled={!user?.access_token}
+                  title="Copy export ACCESS_TOKEN for Bash"
+                >
+                  {bashExportCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  {bashExportCopied ? 'Copied' : 'Copy Bash export'}
+                </Button>
+              </div>
             </div>
           </DialogHeader>
 
