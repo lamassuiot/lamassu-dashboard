@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
-import { fetchDeviceStats } from '@/lib/devices-api';
+import { fetchDeviceStats, type DeviceStats } from '@/lib/devices-api';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
@@ -75,6 +75,11 @@ export default function HomePage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [, setErrorStats] = useState<string | null>(null);
 
+  // Device stats feed both the summary count and the Device Status Overview chart.
+  const [deviceStats, setDeviceStats] = useState<DeviceStats | null>(null);
+  const [isLoadingDeviceStats, setIsLoadingDeviceStats] = useState(true);
+  const [errorDeviceStats, setErrorDeviceStats] = useState<string | null>(null);
+
   // Engines are needed by both
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
@@ -86,9 +91,24 @@ export default function HomePage() {
     setIsLoadingCAs(true);
     setIsLoadingEngines(true);
     setIsLoadingStats(true);
+    setIsLoadingDeviceStats(true);
     setErrorCAs(null);
     setErrorEngines(null);
     setErrorStats(null);
+    setErrorDeviceStats(null);
+
+    const loadDeviceStats = async () => {
+      try {
+        const stats = await fetchDeviceStats();
+        setDeviceStats(stats);
+        setSummaryStats(prev => ({ ...prev, devices: stats.total }));
+        setErrorDeviceStats(null);
+      } catch (err: any) {
+        setErrorDeviceStats(err.message ?? 'Failed to load device status data.');
+      } finally {
+        setIsLoadingDeviceStats(false);
+      }
+    };
 
     try {
       const [
@@ -96,13 +116,11 @@ export default function HomePage() {
         enginesData,
         caStats,
         dmsStats,
-        devManagerStats,
       ] = await Promise.all([
         fetchAndProcessCAs(),
         fetchCryptoEngines(),
         fetchCaStatsSummary(),
         fetchDmsStats(),
-        fetchDeviceStats(),
       ]);
 
       // Process CAs for timeline
@@ -115,12 +133,12 @@ export default function HomePage() {
       setIsLoadingEngines(false);
 
       // Process stats for summary card
-      setSummaryStats({
+      setSummaryStats(prev => ({
+        ...prev,
         certificates: caStats.certificates.total,
         cas: caStats.cas.total,
         ras: dmsStats.total,
-        devices: devManagerStats.total,
-      });
+      }));
       setIsLoadingStats(false);
 
     } catch (err: any) {
@@ -136,6 +154,8 @@ export default function HomePage() {
       setIsLoadingEngines(false);
       setIsLoadingStats(false);
     }
+
+    await loadDeviceStats();
   }, []);
 
   useEffect(() => {
@@ -144,7 +164,7 @@ export default function HomePage() {
 
   const anyTimelineError = errorCAs || errorEngines;
   const anyTimelineLoading = isLoadingCAs || isLoadingEngines;
-  const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats;
+  const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats || isLoadingDeviceStats;
 
 
   let timelineContent: React.ReactNode;
@@ -184,7 +204,7 @@ export default function HomePage() {
           {timelineContent}
         </div>
         <div className="w-full xl:max-w-lg xl:flex-none">
-          <DeviceStatusChartCard />
+          <DeviceStatusChartCard stats={deviceStats} isLoading={isLoadingDeviceStats} error={errorDeviceStats} />
         </div>
       </div>
       <div>

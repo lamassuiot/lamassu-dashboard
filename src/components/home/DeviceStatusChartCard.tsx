@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { fetchDeviceStats } from '@/lib/devices-api';
+import type { DeviceStats } from '@/lib/devices-api';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { getDeviceStatusMeta } from '@/lib/device-status';
 
@@ -30,34 +30,22 @@ const renderLegend = (props: any) => {
 
 const RADIAN = Math.PI / 180;
 
-export function DeviceStatusChartCard() {
-  const [chartData, setChartData] = useState<ChartData[] | null>(null);
-  const [totalDevices, setTotalDevices] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface DeviceStatusChartCardProps {
+  stats: DeviceStats | null;
+  isLoading: boolean;
+  error: string | null;
+}
 
-  useEffect(() => {
-    void (async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await fetchDeviceStats();
-        setTotalDevices(data.total);
-        setChartData(
-          Object.entries(data.status_distribution)
-            .map(([k, v]) => {
-              const cfg = getDeviceStatusMeta(k);
-              return { name: cfg.label, value: v as number, color: cfg.color };
-            })
-            .filter(d => d.value > 0),
-        );
-      } catch (err: any) {
-        setError(err.message ?? 'Failed to load device status data.');
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, []);
+export function DeviceStatusChartCard({ stats, isLoading, error }: DeviceStatusChartCardProps) {
+  const chartData: ChartData[] | null = stats
+    ? Object.entries(stats.status_distribution)
+        .map(([k, v]) => {
+          const cfg = getDeviceStatusMeta(k);
+          return { name: cfg.label, value: v as number, color: cfg.color };
+        })
+        .filter(d => d.value > 0)
+    : null;
+  const totalDevices = stats?.total ?? null;
 
   const renderCustomizedLabel = (props: any) => {
     const { cx, cy, midAngle, outerRadius, fill, percent } = props;

@@ -6,12 +6,10 @@ import { useRouter, useSearchParams } from '@/lib/router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { ArrowLeft } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle as AlertTitleUI } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, Scale } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import {
   fetchSigningProfileById,
   updateSigningProfile,
@@ -20,22 +18,9 @@ import {
 } from '@/lib/ca-data';
 import { SigningProfileForm, signingProfileSchema, type SigningProfileFormInput, type SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 import { Form } from '@/components/ui/form';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
-
-const getValidityLabel = (profile: ApiSigningProfile) => {
-  if (!profile.validity) return 'Not specified';
-  switch (profile.validity.type) {
-    case 'Duration': return profile.validity.duration || 'Not specified';
-    case 'Date':
-      if (profile.validity.time?.startsWith('9999-12-31')) return 'Never expires';
-      return profile.validity.time ? new Date(profile.validity.time).toLocaleDateString() : 'Not specified';
-    case 'Indefinite': return 'Never expires';
-    default: return 'Not specified';
-  }
-};
 
 export default function EditSigningProfilePage() {
   const router = useRouter();
@@ -209,88 +194,38 @@ export default function EditSigningProfilePage() {
     );
   }
 
-  const keyPolicyLabel = profileData
-    ? [
-        profileData.crypto_enforcement?.allow_rsa_keys ? 'RSA' : null,
-        profileData.crypto_enforcement?.allow_ecdsa_keys ? 'ECDSA' : null,
-      ].filter(Boolean).join(', ') || 'Open'
-    : 'N/A';
-
   return (
     <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Issuance Profiles',href:'/signing-profiles'},{label:'Edit'}]} className="mb-8 w-full space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          <SplitPanelLayout
-            isPanelOpen
-            panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_300px]"
-            panel={
-              <Card className="h-fit overflow-hidden rounded-xl shadow-sm xl:sticky xl:top-6">
-                <CardHeader className="border-b py-4">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
-                      <Scale className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">{profileData?.name}</CardTitle>
-                      {profileData?.description && (
-                        <CardDescription className="mt-0.5">{profileData.description}</CardDescription>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    {[
-                      { label: 'Validity', value: profileData ? getValidityLabel(profileData) : '—' },
-                      { label: 'Scope', value: profileData?.sign_as_ca ? 'CA' : 'Leaf' },
-                      { label: 'Subject', value: profileData?.honor_subject ? 'CSR' : 'Override' },
-                      { label: 'Key Policy', value: keyPolicyLabel },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <p className="text-xs text-muted-foreground">{label}</p>
-                        <p className="font-medium">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <Separator />
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    <p>• Review validity and CA signing behavior first.</p>
-                    <p>• Enforce crypto constraints when policy requires strict key types.</p>
-                    <p>• Configure KU/EKU overrides only when CSR values should be ignored.</p>
-                  </div>
-                </CardContent>
-              </Card>
-            }
-          >
-            <div className="space-y-6">
-              <div className="flex justify-end">
-                <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => router.push('/signing-profiles')}>
+          <div className="space-y-6">
+            <div className="pb-8 border-b">
+              <div className="flex items-center justify-between gap-4">
+                <h1 className="text-2xl font-bold">Edit Profile</h1>
+                <Button type="button" variant="ghost" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => router.push('/signing-profiles')}>
                   <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to Issuance Profiles
                 </Button>
               </div>
-              <div className="pb-8 border-b">
-                <h1 className="text-2xl font-bold">Edit Profile</h1>
-                <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
-                  Modify rules for certificate issuance, subject handling, and key policy.
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+                Modify rules for certificate issuance, subject handling, and key policy.
+              </p>
+            </div>
 
-              <SigningProfileForm form={form} />
+            <SigningProfileForm form={form} />
 
-              <div className="space-y-3">
-                <FormValidationSummary errors={validationErrors} />
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting || !profileData || !form.formState.isValid} className="min-w-36">
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save Changes
-                  </Button>
-                </div>
+            <div className="space-y-3">
+              <FormValidationSummary errors={validationErrors} />
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting || !profileData || !form.formState.isValid} className="min-w-36">
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save Changes
+                </Button>
               </div>
             </div>
-          </SplitPanelLayout>
+          </div>
         </form>
       </Form>
     </BreadcrumbPage>

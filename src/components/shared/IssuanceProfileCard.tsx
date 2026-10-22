@@ -190,7 +190,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
         )}
       >
         {/* ── Identity ── */}
-        <CardHeader className="gap-0.5 border-b bg-muted/40 py-3 [.border-b]:pb-3">
+        <CardHeader className="gap-0.5 rounded-none border-b bg-muted/40 py-3 [.border-b]:pb-3">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <CardTitle className="truncate text-sm font-semibold text-primary" title={profile.name}>
               {profile.name}
@@ -294,23 +294,30 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
 
         {/* ── Quick actions ── */}
         {hasActions && (
-          <CardFooter className="flex-wrap justify-between gap-x-2 gap-y-1 border-t py-3 [.border-t]:pt-3">
+          <CardFooter className="justify-between gap-2 rounded-none border-t bg-muted/40 py-3 [.border-t]:pt-3">
             <div>
               {onViewUsage && (
-                <Button variant="ghost" size="sm" className="-ml-3 text-muted-foreground" onClick={onViewUsage}>
+                <Button variant="outline" size="sm" className="rounded-lg" onClick={onViewUsage}>
                   <Users data-icon="inline-start" /> Show usage
                 </Button>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {onEdit && (
-                <Button variant="outline" size="sm" onClick={onEdit}>
-                  <Edit data-icon="inline-start" /> Edit
+            <div className="flex items-center gap-2">
+              {onDelete && (
+                <Button
+                  variant="destructive"
+                  size="icon-sm"
+                  className="rounded-lg"
+                  title="Delete profile"
+                  onClick={onDelete}
+                >
+                  <Trash2 />
+                  <span className="sr-only">Delete profile</span>
                 </Button>
               )}
-              {onDelete && (
-                <Button variant="destructive" size="sm" onClick={onDelete}>
-                  <Trash2 data-icon="inline-start" /> Delete
+              {onEdit && (
+                <Button size="sm" className="rounded-lg" onClick={onEdit}>
+                  <Edit data-icon="inline-start" /> Edit
                 </Button>
               )}
             </div>

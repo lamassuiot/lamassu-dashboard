@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
-import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Signature, Table2, UploadCloud } from "lucide-react";
+import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Signature, Table2, UploadCloud, RefreshCw } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
+import { cn } from '@/lib/utils';
 import { filterCaList, hasActiveCaFilters } from '@/lib/ca-utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
@@ -169,6 +170,9 @@ export default function CertificateAuthoritiesPage() {
           </div>
         </div>
         <div className="flex items-center space-x-2 shrink-0">
+          <Button variant="secondary" onClick={loadData} disabled={isLoadingCas || isLoadingCryptoEngines} className="shrink-0">
+            <RefreshCw className={cn("mr-2 h-4 w-4", (isLoadingCas || isLoadingCryptoEngines) && "animate-spin")} /> Refresh
+          </Button>
           <Button variant="outline" onClick={() => router.push('/certificate-authorities/cross-sign')}>
             <Signature className="mr-2 h-4 w-4" /> Cross Sign
           </Button>
