@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import type { UseFormReturn } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -46,6 +47,14 @@ export const defaultSimplifiedFormValues: SimplifiedInlineProfileFormValues = {
   keyUsages: [...CA_KEY_USAGES],
   extendedKeyUsages: [],
 };
+
+export function useSimplifiedInlineProfileForm() {
+  return useForm<SimplifiedInlineProfileFormInput, any, SimplifiedInlineProfileFormValues>({
+    resolver: zodResolver(simplifiedInlineProfileSchema),
+    defaultValues: defaultSimplifiedFormValues,
+    mode: 'onChange',
+  });
+}
 
 interface SimplifiedInlineProfileFormProps {
   form: UseFormReturn<SimplifiedInlineProfileFormInput, any, SimplifiedInlineProfileFormValues>;
