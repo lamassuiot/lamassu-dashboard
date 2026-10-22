@@ -7,6 +7,7 @@ import {
   formatAsPem,
   ipToBuffer,
   pemToBase64,
+  pemToDer,
 } from '@/lib-crypto'
 
 describe('buffer-utils', () => {
@@ -52,10 +53,17 @@ describe('buffer-utils', () => {
   describe('base64 and PEM helpers', () => {
     const pem = '-----BEGIN CERTIFICATE-----\nAQID\n-----END CERTIFICATE-----'
 
-    it('round-trips bytes through base64', () => {
-      const bytes = Uint8Array.from({ length: 300 }, (_, i) => i % 256)
-      expect(new Uint8Array(base64ToArrayBuffer(arrayBufferToBase64(bytes.buffer)))).toEqual(bytes)
+    it('round-trips bytes through base64, including large buffers', () => {
+      const bytes = Uint8Array.from({ length: 20000 }, (_, i) => i % 256)
+      const base64 = arrayBufferToBase64(bytes.buffer)
+      expect(new Uint8Array(base64ToArrayBuffer(base64))).toEqual(bytes)
       expect(new Uint8Array(base64ToArrayBuffer('AQ\nID'))).toEqual(new Uint8Array([1, 2, 3]))
+    })
+
+    it('decodes any PEM block to DER, the inverse of formatAsPem', () => {
+      expect(new Uint8Array(pemToDer(pem))).toEqual(new Uint8Array([1, 2, 3]))
+      const csr = formatAsPem(arrayBufferToBase64(new Uint8Array([9, 8, 7]).buffer), 'CERTIFICATE REQUEST')
+      expect(new Uint8Array(pemToDer(csr))).toEqual(new Uint8Array([9, 8, 7]))
     })
 
     it('encodes PEM text as the API expects and decodes it back', () => {

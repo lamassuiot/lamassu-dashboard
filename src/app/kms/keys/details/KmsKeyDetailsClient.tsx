@@ -29,6 +29,7 @@ import {
   SIGNATURE_ALGORITHMS,
   MLDSA_ALGORITHMS,
   arrayBufferToBase64,
+  base64ToPem,
   buildSignedCsr,
   type CsrSan,
 } from '@/lib-crypto';
@@ -372,7 +373,7 @@ export default function KmsKeyDetailsClient() {
       if (apiKey) {
         let pem = '';
         try {
-          const decodedKey = atob(apiKey.public_key);
+          const decodedKey = base64ToPem(apiKey.public_key);
           pem = decodedKey
         } catch (e) {
           console.error("Failed to decode public key", e);

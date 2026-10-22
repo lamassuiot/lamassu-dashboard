@@ -11,7 +11,7 @@ import {
   getRandomValues,
 } from "pkijs";
 import { format } from "date-fns";
-import { certificatePemToDer } from "./cert-parser";
+import { pemToDer } from "./buffer-utils";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -95,8 +95,8 @@ export async function checkOcspStatus(
       if (engine) setEngine("webcrypto", engine);
     }
 
-    const targetAsn1 = asn1js.fromBER(certificatePemToDer(targetCertPem));
-    const issuerAsn1 = asn1js.fromBER(certificatePemToDer(issuerCertPem));
+    const targetAsn1 = asn1js.fromBER(pemToDer(targetCertPem));
+    const issuerAsn1 = asn1js.fromBER(pemToDer(issuerCertPem));
     const targetCert = new Certificate({ schema: targetAsn1.result });
     const issuerCert = new Certificate({ schema: issuerAsn1.result });
 

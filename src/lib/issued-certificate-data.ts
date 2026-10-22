@@ -3,6 +3,7 @@ import type { CertificateData } from '@/types/certificate';
 import { get_CA_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 import { parseCertificatePemDetails } from './ca-data';
+import { base64ToPem } from '@/lib-crypto';
 
 
 // API Response Structures for Issued Certificates
@@ -67,7 +68,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
   let pemData = '';
   if (typeof window !== 'undefined' && apiCert.certificate) {
     try {
-      pemData = window.atob(apiCert.certificate);
+      pemData = base64ToPem(apiCert.certificate);
     } catch (e) {
       console.error("Failed to decode base64 PEM data for SN:", apiCert.serial_number, e);
       pemData = "Error: Could not decode PEM data.";
