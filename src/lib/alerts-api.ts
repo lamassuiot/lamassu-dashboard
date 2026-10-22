@@ -4,6 +4,7 @@
 
 import { get_ALERTS_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
+import type { ApiWebhookHttpClient } from './dms-api';
 
 export interface ApiAlertEventData {
     specversion: string;
@@ -43,9 +44,7 @@ export interface ApiSubscription {
             email?: string;
             webhook_url?: string;
             webhook_method?: 'POST' | 'PUT';
-            // Backward-compatible fields for existing persisted subscriptions.
-            url?: string;
-            method?: 'POST' | 'PUT';
+            http_client?: ApiWebhookHttpClient;
         };
     };
 }
@@ -63,6 +62,7 @@ export interface SubscriptionPayload {
             email?: string;
             webhook_url?: string;
             webhook_method?: 'POST' | 'PUT';
+            http_client?: ApiWebhookHttpClient;
         };
     };
 }

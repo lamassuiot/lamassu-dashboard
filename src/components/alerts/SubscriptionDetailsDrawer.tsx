@@ -44,6 +44,13 @@ const CHANNEL_META: Record<ApiSubscription['channel']['type'], { label: string; 
   WEBHOOK: { label: 'Webhook', icon: Webhook },
 };
 
+const AUTH_MODE_LABELS: Record<'noauth' | 'jwt' | 'apikey' | 'mtls', string> = {
+  noauth: 'None',
+  jwt: 'OIDC client credentials',
+  apikey: 'API key',
+  mtls: 'Mutual TLS',
+};
+
 const CONDITION_LABELS: Record<string, string> = {
   'JSON-PATH': 'JSON Path',
   'JSON-SCHEMA': 'JSON Schema',
@@ -130,8 +137,10 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
   const channel = subscription?.channel;
   const channelMeta = channel ? CHANNEL_META[channel.type] : null;
   const ChannelIcon = channelMeta?.icon ?? Webhook;
-  const webhookUrl = channel?.config.webhook_url || channel?.config.url;
-  const webhookMethod = channel?.config.webhook_method || channel?.config.method;
+  const webhookUrl = channel?.config.webhook_url;
+  const webhookMethod = channel?.config.webhook_method;
+  const httpClient = channel?.config.http_client;
+  const authModeLabel = httpClient ? (AUTH_MODE_LABELS[httpClient.auth_mode] ?? httpClient.auth_mode) : null;
   const channelTarget = channel?.config.email || webhookUrl;
   const conditions = subscription?.conditions ?? [];
 
@@ -176,6 +185,25 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
                       </DetailRow>
                     )}
                     {webhookUrl && <DetailRow label="URL" className="break-all font-mono text-xs font-normal">{webhookUrl}</DetailRow>}
+                    {httpClient && (
+                      <>
+                        <DetailRow label="Authentication">{authModeLabel}</DetailRow>
+                        {httpClient.auth_mode === 'apikey' && httpClient.apikey_options?.header && (
+                          <DetailRow label="API key header" className="break-all font-mono text-xs font-normal">{httpClient.apikey_options.header}</DetailRow>
+                        )}
+                        {httpClient.auth_mode === 'jwt' && httpClient.jwt_options?.oidc_well_known && (
+                          <DetailRow label="OIDC issuer" className="break-all font-mono text-xs font-normal">{httpClient.jwt_options.oidc_well_known}</DetailRow>
+                        )}
+                        {httpClient.auth_mode === 'mtls' && (
+                          <DetailRow label="mTLS client certificate">
+                            <Badge variant="muted">Configured</Badge>
+                          </DetailRow>
+                        )}
+                        <DetailRow label="TLS verification">
+                          <Badge variant={httpClient.insecure_skip_verify ? 'warning' : 'success'}>{httpClient.insecure_skip_verify ? 'Skipped' : 'Verified'}</Badge>
+                        </DetailRow>
+                      </>
+                    )}
                   </dl>
                 )}
               </Section>

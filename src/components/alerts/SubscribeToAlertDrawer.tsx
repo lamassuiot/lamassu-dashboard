@@ -19,6 +19,9 @@ import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, ArrowRight, Info, AlertTriangle } from 'lucide-react';
 import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updateSubscription } from '@/lib/alerts-api';
+import { validateWebhookCall, type WebhookValidationContext } from '@/lib/webhook-config';
+import { createDefaultWebhookHttpClient } from '@/lib/dms-form';
+import { WebhookHttpClientFields } from '@/components/shared/WebhookHttpClientFields';
 import { cn } from '@/lib/utils';
 import { JSONPath } from 'jsonpath-plus';
 import { Validator } from 'jsonschema';
@@ -52,6 +55,13 @@ const channelOptions: { value: ChannelType; label: string; description: string; 
     { value: 'TEAMS_WEBHOOK', label: 'Teams', description: 'Post to a Teams channel', icon: Users },
     { value: 'WEBHOOK', label: 'Webhook', description: 'Call a custom HTTP endpoint', icon: Webhook },
 ];
+
+const AUTH_MODE_LABELS: Record<'noauth' | 'jwt' | 'apikey' | 'mtls', string> = {
+    noauth: 'None',
+    jwt: 'OIDC client credentials',
+    apikey: 'API key',
+    mtls: 'Mutual TLS',
+};
 
 const filterOptions = [
     { value: 'NONE', label: 'None' },
@@ -161,6 +171,8 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   const [teamsName, setTeamsName] = useState('');
   const [webhookName, setWebhookName] = useState('');
   const [webhookMethod, setWebhookMethod] = useState<'POST' | 'PUT'>('POST');
+  const [webhookHttpClient, setWebhookHttpClient] = useState(createDefaultWebhookHttpClient());
+  const [teamsHttpClient, setTeamsHttpClient] = useState(createDefaultWebhookHttpClient());
 
   // Step 2 State
   const [filterType, setFilterType] = useState<string>('NONE');
@@ -191,14 +203,17 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
       if (isEditMode && subscriptionToEdit) {
           // Populate from existing subscription
           const sub = subscriptionToEdit;
-          const existingWebhookUrl = sub.channel.config.webhook_url || sub.channel.config.url || '';
-          const existingWebhookMethod = sub.channel.config.webhook_method || sub.channel.config.method;
+          const existingWebhookUrl = sub.channel.config.webhook_url || '';
+          const existingWebhookMethod = sub.channel.config.webhook_method;
+          const existingHttpClient = sub.channel.config.http_client;
           setChannelType(sub.channel.type);
           setEmail(sub.channel.config.email || '');
           setWebhookUrl(existingWebhookUrl);
           setWebhookName(sub.channel.name || '');
           setTeamsName(sub.channel.name || '');
           setWebhookMethod(existingWebhookMethod === 'PUT' ? 'PUT' : 'POST');
+          setWebhookHttpClient(existingHttpClient || createDefaultWebhookHttpClient());
+          setTeamsHttpClient(sub.channel.config.http_client || createDefaultWebhookHttpClient());
 
           if(sub.conditions && sub.conditions.length > 0) {
               const firstCond = sub.conditions[0];
@@ -220,6 +235,8 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
           setTeamsName('');
           setWebhookName('');
           setWebhookMethod('POST');
+          setWebhookHttpClient(createDefaultWebhookHttpClient());
+          setTeamsHttpClient(createDefaultWebhookHttpClient());
           setFilterType('NONE');
           setFilterCondition('$.data');
           if (samplePayload) {
@@ -331,6 +348,18 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
       ? 'Microsoft Teams webhook name is required.'
       : null;
   const webhookUrlError = channelType === 'EMAIL' ? null : getWebhookUrlError(webhookUrl);
+  const webhookContext: WebhookValidationContext = {
+      url: webhookUrl,
+      method: webhookMethod,
+      config: webhookHttpClient,
+  };
+  const webhookConfigErrors = channelType === 'WEBHOOK' ? validateWebhookCall(webhookContext) : [];
+  const teamsWebhookContext: WebhookValidationContext = {
+      url: webhookUrl,
+      method: 'POST',
+      config: teamsHttpClient,
+  };
+  const teamsConfigErrors = channelType === 'TEAMS_WEBHOOK' ? validateWebhookCall(teamsWebhookContext) : [];
 
   let filterError: string | null = null;
   if (filterType === 'JSON-PATH') {
@@ -355,7 +384,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
   const isJsFilterUnchecked = filterType === 'JAVASCRIPT' && jsSyntaxCheck?.source === jsFunction && jsSyntaxCheck.result.status === 'unchecked';
   const isCheckingJsFilter = filterType === 'JAVASCRIPT' && !!jsFunction.trim() && jsSyntaxCheck?.source !== jsFunction;
 
-  const channelValidationErrors = [emailError, webhookNameError, teamsNameError, webhookUrlError]
+  const channelValidationErrors = [emailError, webhookNameError, teamsNameError, ...webhookConfigErrors, ...teamsConfigErrors]
       .filter((error): error is string => Boolean(error));
   const validationErrors = [
       !eventType ? 'Event type is required.' : null,
@@ -385,9 +414,13 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
             config = {
                 webhook_url: webhookUrl,
                 webhook_method: webhookMethod,
+                http_client: webhookHttpClient,
             };
         } else { // TEAMS_WEBHOOK
-            config = { webhook_url: webhookUrl };
+            config = {
+                webhook_url: webhookUrl,
+                http_client: teamsHttpClient,
+            };
         }
 
         let channelName = `${channelType.toLowerCase()}-subscription-for-${eventType}`;
@@ -451,7 +484,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[140px_minmax(0,1fr)]">
                             <Field id="webhook-method-select" label="Method">
                                 <Select value={webhookMethod} onValueChange={(v: 'POST' | 'PUT') => setWebhookMethod(v)}>
-                                    <SelectTrigger id="webhook-method-select"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger id="webhook-method-select" className="w-full"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="POST">POST</SelectItem>
                                         <SelectItem value="PUT">PUT</SelectItem>
@@ -462,6 +495,13 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                                 <Input id="webhook-url-input" type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://your-webhook-url.com" aria-invalid={!!webhookUrlError} aria-describedby={webhookUrlError ? 'webhook-url-input-error' : undefined} />
                             </Field>
                         </div>
+                        <WebhookHttpClientFields
+                            idPrefix="webhook-channel"
+                            value={webhookHttpClient}
+                            onChange={setWebhookHttpClient}
+                            errors={webhookConfigErrors}
+                            url={webhookUrl}
+                        />
                     </div>
                 )}
                 {channelType === 'TEAMS_WEBHOOK' && (
@@ -472,6 +512,12 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                         <Field id="webhook-url-input-teams" label="Incoming Microsoft Teams Webhook URL" error={webhookUrlError}>
                             <Input id="webhook-url-input-teams" type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://your-tenant.webhook.office.com/..." aria-invalid={!!webhookUrlError} aria-describedby={webhookUrlError ? 'webhook-url-input-teams-error' : undefined} />
                         </Field>
+                        <WebhookHttpClientFields
+                            idPrefix="teams-channel"
+                            value={teamsHttpClient}
+                            onChange={setTeamsHttpClient}
+                            errors={teamsConfigErrors}
+                        />
                     </div>
                 )}
             </div>
@@ -579,12 +625,23 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                                 <DetailInfoRow label="Name" value={webhookName} />
                                 <DetailInfoRow label="Method" value={webhookMethod} />
                                 <DetailInfoRow label="URL" value={<span className="font-mono text-xs">{webhookUrl}</span>} />
+                                <DetailInfoRow
+                                    label="Authentication"
+                                    value={AUTH_MODE_LABELS[webhookHttpClient.auth_mode]}
+                                />
+                                {webhookHttpClient.insecure_skip_verify && (
+                                    <DetailInfoRow label="TLS verification" value="Skipped" />
+                                )}
                             </>
                         )}
                         {channelType === 'TEAMS_WEBHOOK' && (
                             <>
                                 <DetailInfoRow label="Name" value={teamsName} />
                                 <DetailInfoRow label="URL" value={<span className="font-mono text-xs">{webhookUrl}</span>} />
+                                <DetailInfoRow label="Authentication" value={AUTH_MODE_LABELS[teamsHttpClient.auth_mode]} />
+                                {teamsHttpClient.insecure_skip_verify && (
+                                    <DetailInfoRow label="TLS verification" value="Skipped" />
+                                )}
                             </>
                         )}
                     </DetailInfoRows>

@@ -24,7 +24,7 @@ import { useLatestRequest } from '@/hooks/useLatestRequest';
 
 function describeChannel(sub: ApiSubscription): string {
   const { type, name, config } = sub.channel;
-  const webhookUrl = config.webhook_url || config.url;
+  const webhookUrl = config.webhook_url;
   if (type === 'EMAIL' && config.email) return `${type}: ${config.email}`;
   if ((type === 'WEBHOOK' || type === 'TEAMS_WEBHOOK') && name) return `${type}: ${name}`;
   if (!webhookUrl) return type;
