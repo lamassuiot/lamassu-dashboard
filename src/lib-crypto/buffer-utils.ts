@@ -36,17 +36,16 @@ export function ipToBuffer(ip: string): ArrayBuffer | null {
   return null;
 }
 
-/**
- * Encodes an ArrayBuffer as a base64 string.
- * Uses the browser's btoa — must only be called in a browser context.
- */
+/** Encodes an ArrayBuffer as a base64 string. */
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = "";
   const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCodePoint(bytes[i]);
+  // Chunked so large buffers (PKCS#7 bundles, OCSP responses) stay fast.
+  const chunkSize = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
   }
-  return window.btoa(binary);
+  return btoa(binary);
 }
 
 /** Decodes a base64 string (whitespace allowed) into bytes. Throws on invalid base64. */
@@ -62,12 +61,17 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
  */
 export function formatAsPem(
   base64String: string,
-  type: "PUBLIC KEY" | "CERTIFICATE REQUEST" | "PRIVATE KEY" | "CERTIFICATE",
+  type: "PUBLIC KEY" | "CERTIFICATE REQUEST" | "PRIVATE KEY" | "CERTIFICATE" | "OCSP REQUEST" | "OCSP RESPONSE",
 ): string {
   const header = `-----BEGIN ${type}-----`;
   const footer = `-----END ${type}-----`;
   const body = base64String.match(/.{1,64}/g)?.join("\n") ?? "";
   return `${header}\n${body}\n${footer}`;
+}
+
+/** Decodes the body of a PEM block of any type into its DER bytes; the inverse of formatAsPem. */
+export function pemToDer(pem: string): ArrayBuffer {
+  return base64ToArrayBuffer(pem.replaceAll(/-----(BEGIN|END) [^-]+-----/g, ""));
 }
 
 /**

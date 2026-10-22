@@ -18,23 +18,7 @@ import { downloadFile } from '@/lib/utils';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib/va-api';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
-
-const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buffer);
-    const chunkSize = 8192;
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    return window.btoa(binary);
-};
-
-const formatAsPem = (base64String: string, type: 'OCSP REQUEST' | 'OCSP RESPONSE'): string => {
-    const header = `-----BEGIN ${type}-----`;
-    const footer = `-----END ${type}-----`;
-    const body = base64String.match(/.{1,64}/g)?.join('\n') || '';
-    return `${header}\n${body}\n${footer}`;
-};
+import { arrayBufferToBase64, formatAsPem } from '@/lib-crypto';
 
 const downloadPem = (derBuffer: ArrayBuffer | null, type: 'OCSP REQUEST' | 'OCSP RESPONSE', filename: string) => {
     if (!derBuffer) return;

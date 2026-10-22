@@ -1,7 +1,7 @@
 
 
 // Define the CA data structure
-import { parseCertificatePemDetails, type ParsedPemDetails, abToHex } from "@/lib-crypto";
+import { parseCertificatePemDetails, type ParsedPemDetails, abToHex, base64ToPem } from "@/lib-crypto";
 import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 import { apiFetch } from "./api-client";
 
@@ -131,7 +131,7 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
     keyAlgorithm += ` (${apiCa.certificate.key_metadata.curve_name})`;
   }
 
-  const pemData = typeof window !== 'undefined' ? window.atob(apiCa.certificate.certificate) : ''; // Decode base64 PEM
+  const pemData = typeof window !== 'undefined' ? base64ToPem(apiCa.certificate.certificate) : ''; // Decode base64 PEM
 
   // This logic is now redundant as we use defaultProfileId, but we'll keep it for display fallback.
   let defaultIssuanceLifetime = 'Not Specified';
