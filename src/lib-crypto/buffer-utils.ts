@@ -49,6 +49,14 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return window.btoa(binary);
 }
 
+/** Decodes a base64 string (whitespace allowed) into bytes. Throws on invalid base64. */
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64.replaceAll(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
 /**
  * Wraps a base64-encoded DER blob in PEM header/footer lines.
  */
@@ -60,4 +68,32 @@ export function formatAsPem(
   const footer = `-----END ${type}-----`;
   const body = base64String.match(/.{1,64}/g)?.join("\n") ?? "";
   return `${header}\n${body}\n${footer}`;
+}
+
+/**
+ * Encodes PEM text as base64, the way the Lamassu API carries certificates,
+ * CSRs and keys. Unicode-safe, unlike a bare btoa.
+ */
+export function pemToBase64(pem: string): string {
+  const bytes = new TextEncoder().encode(pem);
+  return arrayBufferToBase64(bytes.buffer as ArrayBuffer);
+}
+
+/** Decodes base64-encoded PEM as returned by the Lamassu API. Throws on invalid base64. */
+export function base64ToPem(base64: string): string {
+  return new TextDecoder().decode(base64ToArrayBuffer(base64));
+}
+
+/**
+ * Reads PEM content that may arrive base64-encoded or as plain PEM text.
+ * Returns null when it is neither.
+ */
+export function decodePemContent(value: string): string | null {
+  if (value.includes("-----BEGIN")) return value;
+  try {
+    const decoded = base64ToPem(value);
+    return decoded.includes("-----BEGIN") ? decoded : null;
+  } catch {
+    return null;
+  }
 }

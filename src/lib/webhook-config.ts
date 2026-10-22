@@ -1,5 +1,6 @@
 import type { ApiWebhookHttpClient } from './dms-api';
 import { isValidPositiveDuration, parseDurationToSeconds } from './duration';
+import { decodePemContent, pemToBase64 } from '@/lib-crypto';
 
 /**
  * Mirror of the backend webhook validation introduced in lamassuiot#810
@@ -65,6 +66,31 @@ const isValidWebhookUrl = (value: string) => {
 // The backend loads mTLS credentials from inline PEM only; anything else (a
 // file path, a Windows path, a file:// URL) fails when the webhook is called.
 const isPemBlock = (value: string) => value.trim().startsWith('-----BEGIN ');
+
+// The API carries mTLS credentials as base64-encoded PEM, like certificates
+// elsewhere. Configs migrated by lamassuiot#810 may still hold plain PEM.
+// Undecodable values are kept as is, so validation reports them.
+const decodeMtlsContent = (value: string) => (value ? decodePemContent(value) ?? value : value);
+
+const encodeMtlsContent = (value: string) => (value ? pemToBase64(value) : value);
+
+const mapMtlsContent = (config: ApiWebhookHttpClient, map: (value: string) => string): ApiWebhookHttpClient =>
+    config.mtls_options
+        ? {
+            ...config,
+            mtls_options: {
+                ...config.mtls_options,
+                cert_content: map(config.mtls_options.cert_content ?? ''),
+                key_content: map(config.mtls_options.key_content ?? ''),
+            },
+        }
+        : config;
+
+/** API → form: decodes the base64 mTLS certificate and key to PEM text. */
+export const decodeWebhookHttpClient = (config: ApiWebhookHttpClient) => mapMtlsContent(config, decodeMtlsContent);
+
+/** Form → API: encodes the PEM mTLS certificate and key as base64. */
+export const encodeWebhookHttpClient = (config: ApiWebhookHttpClient) => mapMtlsContent(config, encodeMtlsContent);
 
 /** Prefixes a webhook message with a form label, e.g. "Enrollment authentication webhook API key is required." */
 export const prefixWebhookMessage = (label: string, message: string) =>

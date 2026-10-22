@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { arrayBufferToBase64, formatAsPem, ipToBuffer } from '@/lib-crypto'
+import {
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
+  base64ToPem,
+  decodePemContent,
+  formatAsPem,
+  ipToBuffer,
+  pemToBase64,
+} from '@/lib-crypto'
 
 describe('buffer-utils', () => {
   it('should convert IPv4 to ArrayBuffer', () => {
@@ -39,5 +47,28 @@ describe('buffer-utils', () => {
     expect(pem).toContain('-----BEGIN CERTIFICATE-----')
     expect(pem).toContain('-----END CERTIFICATE-----')
     expect(pem).toContain('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+  })
+
+  describe('base64 and PEM helpers', () => {
+    const pem = '-----BEGIN CERTIFICATE-----\nAQID\n-----END CERTIFICATE-----'
+
+    it('round-trips bytes through base64', () => {
+      const bytes = Uint8Array.from({ length: 300 }, (_, i) => i % 256)
+      expect(new Uint8Array(base64ToArrayBuffer(arrayBufferToBase64(bytes.buffer)))).toEqual(bytes)
+      expect(new Uint8Array(base64ToArrayBuffer('AQ\nID'))).toEqual(new Uint8Array([1, 2, 3]))
+    })
+
+    it('encodes PEM text as the API expects and decodes it back', () => {
+      expect(pemToBase64(pem)).toBe(btoa(pem))
+      expect(base64ToPem(btoa(pem))).toBe(pem)
+      expect(base64ToPem(pemToBase64('ñ'))).toBe('ñ')
+    })
+
+    it('reads PEM content sent base64-encoded or as plain PEM', () => {
+      expect(decodePemContent(btoa(pem))).toBe(pem)
+      expect(decodePemContent(pem)).toBe(pem)
+      expect(decodePemContent(btoa('not a pem'))).toBeNull()
+      expect(decodePemContent('/etc/certs/client.crt')).toBeNull()
+    })
   })
 })
