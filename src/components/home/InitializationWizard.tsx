@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { createOrUpdateRa, deleteRa } from '@/lib/dms-api';
 import { registerDevice, decommissionDevice, deleteDevice } from '@/lib/devices-api';
-import { buildSelfSignedCsr, initPkijsEngine } from "@/lib-crypto";
+import { buildSelfSignedCsr, initPkijsEngine, pemToBase64 } from "@/lib-crypto";
 import { updateCertificateStatus, deleteCertificate, fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { templateDefaults, type SigningProfileFormValues } from '../shared/SigningProfileForm';
 import { checkOcspStatus } from '@/lib/va-api';
@@ -226,7 +226,7 @@ export const InitializationWizard: React.FC = () => {
                 const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
                 const signedCsrPem = await buildSelfSignedCsr({ subject: { commonName: testCertName }, keyPair });
 
-                const result = await signCertificate(testCaId, { csr: window.btoa(signedCsrPem), profile_id: testProfileId });
+                const result = await signCertificate(testCaId, { csr: pemToBase64(signedCsrPem), profile_id: testProfileId });
                 issuedCertSerialNumber = result.serial_number;
                 addLog("Test certificate issued successfully.", 'success', `Serial Number: ${issuedCertSerialNumber}`);
 

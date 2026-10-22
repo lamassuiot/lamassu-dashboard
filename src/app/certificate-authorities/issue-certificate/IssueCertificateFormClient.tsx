@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { cn } from '@/lib/utils';
-import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, type CsrSan } from "@/lib-crypto";
+import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, base64ToPem, formatAsPem, pemToBase64, type CsrSan } from "@/lib-crypto";
 import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
@@ -192,7 +192,7 @@ export default function IssueCertificateFormClient() {
     if (!issuedCertificate?.pem || !issuerCa?.rawApiData?.certificate?.certificate) return '';
     const leafCert = issuedCertificate.pem;
     const caCertBase64 = issuerCa.rawApiData.certificate.certificate;
-    const caCertPem = window.atob(caCertBase64);
+    const caCertPem = base64ToPem(caCertBase64);
     return `${leafCert}\n${caCertPem}`;
   }, [issuedCertificate, issuerCa]);
 
@@ -455,12 +455,12 @@ export default function IssueCertificateFormClient() {
       });
 
       const payload = {
-        csr: window.btoa(signedCsrPem),
+        csr: pemToBase64(signedCsrPem),
         ...buildProfilePayload()
       };
 
       const result = await signCertificate(caId!, payload);
-      const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
+      const issuedPem = result.certificate ? base64ToPem(result.certificate) : 'Error: Certificate not found in response.';
       setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
       setStep(3);
       showCertificateIssuedToast(result.serial_number);
@@ -481,13 +481,13 @@ export default function IssueCertificateFormClient() {
     setGenerationError(null);
 
     const payload = {
-        csr: window.btoa(csrPem),
+        csr: pemToBase64(csrPem),
         ...buildProfilePayload()
     };
 
     try {
         const result = await signCertificate(caId, payload);
-        const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
+        const issuedPem = result.certificate ? base64ToPem(result.certificate) : 'Error: Certificate not found in response.';
         setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
         setStep(3);
         showCertificateIssuedToast(result.serial_number);

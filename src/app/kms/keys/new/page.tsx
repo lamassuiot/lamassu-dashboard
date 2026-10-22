@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
+import { pemToBase64 } from '@/lib-crypto';
 
 const NEW_KEY_CRUMBS = [
   { label: 'Home', href: '/' },
@@ -284,7 +285,7 @@ export default function CreateKmsKeyPage() {
 
       try {
         await importKmsKey({
-          private_key: btoa(privateKeyPem.trim()),
+          private_key: pemToBase64(privateKeyPem.trim()),
           engine_id: cryptoEngineId,
           name: importKeyName.trim(),
           ...(tags.length > 0 && { tags }),

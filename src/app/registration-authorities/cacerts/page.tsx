@@ -18,7 +18,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
-import { parseCertificatePemDetails } from "@/lib-crypto";
+import { arrayBufferToBase64, parseCertificatePemDetails } from "@/lib-crypto";
 import { format as formatDate } from 'date-fns';
 
 // Simplified parsed cert structure for this page
@@ -87,7 +87,7 @@ export default function EstCaCertsPage() {
             // Fetch PKCS7
             const pkcs7Result = await fetchEstCaCerts(raId, 'pkcs7-mime');
             const pkcs7Buffer = pkcs7Result.data as ArrayBuffer;
-            const pkcs7Base64 = btoa(new Uint8Array(pkcs7Buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+            const pkcs7Base64 = arrayBufferToBase64(pkcs7Buffer);
             setPkcs7Certs(pkcs7Base64);
 
             // Fetch PEM

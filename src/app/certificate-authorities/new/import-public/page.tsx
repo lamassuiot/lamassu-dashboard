@@ -14,6 +14,7 @@ import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { pemToBase64 } from '@/lib-crypto';
 
 export default function CreateCaImportPublicPage() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function CreateCaImportPublicPage() {
       id: crypto.randomUUID(),
       engine_id: '',
       private_key: '',
-      ca: window.btoa(importedCaCertPem),
+      ca: pemToBase64(importedCaCertPem),
       ca_chain: [],
       ca_type: "EXTERNAL_PUBLIC",
       parent_id: '',

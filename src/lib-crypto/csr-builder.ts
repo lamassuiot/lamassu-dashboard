@@ -8,7 +8,7 @@ import {
   PSS_ALGO_PARAMS,
   MLDSA_ALGORITHMS,
 } from "./constants";
-import { ipToBuffer, arrayBufferToBase64, formatAsPem } from "./buffer-utils";
+import { ipToBuffer, arrayBufferToBase64, base64ToArrayBuffer, formatAsPem, pemToDer } from "./buffer-utils";
 import { getKeyImportParams } from "./key-utils";
 import { rawEcdsaSigToDer } from "./ecdsa-signature";
 
@@ -172,14 +172,7 @@ export async function buildSignedCsr(
   pkcs10.attributes = [];
 
   // --- Import the public key ---
-  const publicKeyDer = Uint8Array.from(
-    atob(
-      publicKeyPem
-        .replaceAll(/-----(BEGIN|END) PUBLIC KEY-----/g, "")
-        .replaceAll(/\s+/g, ""),
-    ),
-    (c) => c.codePointAt(0) ?? 0,
-  ).buffer;
+  const publicKeyDer = pemToDer(publicKeyPem);
 
   if (MLDSA_ALGORITHMS.has(signAlgorithm)) {
     // WebCrypto does not support ML-DSA yet. Parse the SPKI DER directly
@@ -246,9 +239,7 @@ export async function buildSignedCsr(
   pkcs10.tbs = tbs;
 
   const signatureBase64 = await signFn(arrayBufferToBase64(tbs));
-  const rawSignature = Uint8Array.from(atob(signatureBase64), (c) =>
-    c.codePointAt(0) ?? 0,
-  );
+  const rawSignature = new Uint8Array(base64ToArrayBuffer(signatureBase64));
 
   // --- Attach the signature value ---
   if (MLDSA_ALGORITHMS.has(signAlgorithm)) {

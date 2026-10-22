@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Check, Key, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/shared/CodeBlock";
 import { sileo } from '@/lib/toast';
+import { pemToDer } from '@/lib-crypto';
 
 interface KmsPublicKeyPemTabContentProps {
   publicKeyPem: string | undefined;
@@ -26,18 +27,7 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
     }
 
     try {
-      // Extract the base64 part (remove PEM headers/footers and whitespace)
-      const base64Data = publicKeyPem
-        .replaceAll('-----BEGIN PUBLIC KEY-----', '')
-        .replaceAll('-----END PUBLIC KEY-----', '')
-        .replaceAll(/\s+/g, '');
-      
-      // Convert base64 to binary
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.codePointAt(i) ?? 0;
-      }
+      const bytes = pemToDer(publicKeyPem);
 
       // Calculate SHA256 hash
       return crypto.subtle.digest('SHA-256', bytes).then(hashBuffer => {

@@ -11,6 +11,7 @@ import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
+import { arrayBufferToBase64 } from '@/lib-crypto';
 
 interface ApiRaItem {
   id: string;
@@ -49,7 +50,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
         ]);
 
         const pkcs7Buffer = pkcs7Result.data as ArrayBuffer;
-        const pkcs7Base64 = btoa(new Uint8Array(pkcs7Buffer).reduce((data, byte) => data + String.fromCodePoint(byte), ''));
+        const pkcs7Base64 = arrayBufferToBase64(pkcs7Buffer);
         setPkcs7Certs(pkcs7Base64);
         setPemCerts((pemResult.data as string) || '');
       } catch (e: any) {
