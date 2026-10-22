@@ -18,7 +18,7 @@ import {
   type CreateSigningProfilePayload,
   type ApiSigningProfile,
 } from '@/lib/ca-data';
-import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
+import { SigningProfileForm, signingProfileSchema, type SigningProfileFormInput, type SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 import { Form } from '@/components/ui/form';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
@@ -48,7 +48,7 @@ export default function EditSigningProfilePage() {
   const [errorProfile, setErrorProfile] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<SigningProfileFormValues>({
+  const form = useForm<SigningProfileFormInput, any, SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     mode: 'onChange',
   });

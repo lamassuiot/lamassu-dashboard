@@ -20,9 +20,7 @@ import { SigningProfileSelector } from '@/components/shared/SigningProfileSelect
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { CardSelector } from '@/components/shared/CardSelector';
 import { KmsKeySelector } from '@/components/shared/KmsKeySelector';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
+import { SimplifiedInlineProfileForm, useSimplifiedInlineProfileForm } from '@/components/shared/SimplifiedInlineProfileForm';
 import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -61,11 +59,7 @@ export default function CreateCaExistingKeyPage() {
   const [selectedCaProfileId, setSelectedCaProfileId] = useState<string | null>(null);
   const [caProfileWarning, setCaProfileWarning] = useState<string | null>(null);
 
-  const caProfileForm = useForm<SimplifiedInlineProfileFormValues>({
-    resolver: zodResolver(simplifiedInlineProfileSchema),
-    defaultValues: defaultSimplifiedFormValues,
-    mode: 'onChange',
-  });
+  const caProfileForm = useSimplifiedInlineProfileForm();
 
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);

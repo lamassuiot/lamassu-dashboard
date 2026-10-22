@@ -17,7 +17,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createSigningProfile } from '@/lib/ca-data';
 import { Form } from '../ui/form';
-import { signingProfileSchema, type SigningProfileFormValues, defaultFormValues } from './SigningProfileForm';
+import { signingProfileSchema, type SigningProfileFormInput, type SigningProfileFormValues, defaultFormValues } from './SigningProfileForm';
 import { SigningProfileForm } from './SigningProfileForm';
 import { Button } from '../ui/button';
 import { Loader2 } from 'lucide-react';
@@ -99,7 +99,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<SigningProfileFormValues>({
+  const form = useForm<SigningProfileFormInput, any, SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     defaultValues: defaultFormValues,
     mode: 'onChange',

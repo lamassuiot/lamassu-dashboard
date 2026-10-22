@@ -72,7 +72,8 @@ export const signingProfileSchema = z.object({
   honorExtensions: z.boolean().default(true),
 });
 
-export type SigningProfileFormValues = z.infer<typeof signingProfileSchema>;
+export type SigningProfileFormInput = z.input<typeof signingProfileSchema>;
+export type SigningProfileFormValues = z.output<typeof signingProfileSchema>;
 
 export const defaultFormValues: SigningProfileFormValues = {
   profileName: '',
@@ -159,7 +160,7 @@ const mapEcdsaCurveToBitSize = (curve: string): number => {
 };
 
 interface SigningProfileFormProps {
-  form: UseFormReturn<SigningProfileFormValues>;
+  form: UseFormReturn<SigningProfileFormInput, any, SigningProfileFormValues>;
   enforceSignAsCa?: boolean;
   compact?: boolean;
   hideBasicInformation?: boolean;
@@ -210,7 +211,7 @@ const InlineSwitchField = ({
   description,
   disabled = false,
 }: {
-  control: UseFormReturn<SigningProfileFormValues>["control"];
+  control: UseFormReturn<SigningProfileFormInput, any, SigningProfileFormValues>["control"];
   name:
     | "signAsCa"
     | "honorSubject"

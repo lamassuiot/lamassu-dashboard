@@ -14,7 +14,7 @@ import {
   createSigningProfile,
   type CreateSigningProfilePayload,
 } from '@/lib/ca-data';
-import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues, templateDefaults, defaultFormValues } from '@/components/shared/SigningProfileForm';
+import { SigningProfileForm, signingProfileSchema, type SigningProfileFormInput, type SigningProfileFormValues, templateDefaults, defaultFormValues } from '@/components/shared/SigningProfileForm';
 import { Form } from '@/components/ui/form';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -54,7 +54,7 @@ export default function CreateSigningProfilePage() {
   const [view, setView] = useState<'template' | 'form'>('template');
   const [initialFormValues, setInitialFormValues] = useState<SigningProfileFormValues | null>(defaultFormValues);
   
-  const form = useForm<SigningProfileFormValues>({
+  const form = useForm<SigningProfileFormInput, any, SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     values: initialFormValues || defaultFormValues,
     mode: 'onChange',

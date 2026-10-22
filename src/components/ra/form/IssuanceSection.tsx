@@ -8,7 +8,7 @@ import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { SigningProfileForm, type SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
+import { SigningProfileForm, type SigningProfileFormInput, type SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,7 @@ const profileModeOptions = [
 ];
 
 interface IssuanceSectionProps extends RaSectionProps {
-  inlineProfileForm: UseFormReturn<SigningProfileFormValues>;
+  inlineProfileForm: UseFormReturn<SigningProfileFormInput, any, SigningProfileFormValues>;
   enrollmentCaDefaultProfile?: ApiSigningProfile;
 }
 

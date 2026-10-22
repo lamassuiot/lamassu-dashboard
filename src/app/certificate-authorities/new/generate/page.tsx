@@ -25,9 +25,7 @@ import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { CardSelector } from '@/components/shared/CardSelector';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
+import { SimplifiedInlineProfileForm, useSimplifiedInlineProfileForm } from '@/components/shared/SimplifiedInlineProfileForm';
 import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -77,11 +75,7 @@ export default function CreateCaGeneratePage() {
   const [caProfileWarning, setCaProfileWarning] = useState<string | null>(null);
 
   // Form for inline CA certificate profile (simplified)
-  const caProfileForm = useForm<SimplifiedInlineProfileFormValues>({
-    resolver: zodResolver(simplifiedInlineProfileSchema),
-    defaultValues: defaultSimplifiedFormValues,
-    mode: 'onChange',
-  });
+  const caProfileForm = useSimplifiedInlineProfileForm();
 
   // Profile state (for certificates issued BY the new CA)
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
