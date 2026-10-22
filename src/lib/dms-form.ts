@@ -1,6 +1,11 @@
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { ApiRaEstSettings, ApiWebhookHttpClient } from '@/lib/dms-api';
-import { validateWebhookCall } from '@/lib/webhook-config';
+import {
+  decodeWebhookHttpClient,
+  encodeWebhookHttpClient,
+  prefixWebhookMessage,
+  validateWebhookCall,
+} from '@/lib/webhook-config';
 import type { SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 
 const INDEFINITE_DATE_API_VALUE = '9999-12-31T23:59:59.999Z';
@@ -96,6 +101,14 @@ function normalizeWebhookConfig(config: unknown): ApiWebhookHttpClient {
   };
 }
 
+/** Form → API: the inverse of the webhook decoding in normalizeEstAuthSettings. */
+export function toApiEstAuthSettings(settings: ApiRaEstSettings): ApiRaEstSettings {
+  const webhook = settings.external_webhook_settings;
+  return webhook
+    ? { ...settings, external_webhook_settings: { ...webhook, config: encodeWebhookHttpClient(webhook.config) } }
+    : settings;
+}
+
 export function normalizeEstAuthSettings(
   settings: ApiRaEstSettings | undefined,
   allowExpired = false,
@@ -130,7 +143,7 @@ export function normalizeEstAuthSettings(
       ...defaults.external_webhook_settings!,
       ...raw?.external_webhook_settings,
       method: raw?.external_webhook_settings?.method || 'POST',
-      config: normalizeWebhookConfig(raw?.external_webhook_settings?.config),
+      config: decodeWebhookHttpClient(normalizeWebhookConfig(raw?.external_webhook_settings?.config)),
     },
   };
 }
@@ -266,7 +279,7 @@ export function getEstAuthSettingsValidationErrors(
       url: webhook.url,
       method: webhook.method,
       config: webhook.config,
-    }).map((error) => `${label} ${error[0].toLowerCase()}${error.slice(1)}`),
+    }).map((error) => prefixWebhookMessage(label, error)),
   );
 
   return errors;

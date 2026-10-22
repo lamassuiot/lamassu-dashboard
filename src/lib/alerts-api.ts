@@ -45,7 +45,23 @@ export interface ApiSubscription {
             webhook_url?: string;
             webhook_method?: 'POST' | 'PUT';
             http_client?: ApiWebhookHttpClient;
+            // Written by dashboards from July 2025 until March 2026. The backend
+            // reads only webhook_url/webhook_method, so these channels never deliver;
+            // saving the subscription again rewrites them in the current layout.
+            url?: string;
+            method?: 'POST' | 'PUT';
         };
+    };
+}
+
+/** Webhook URL and method of a channel, falling back to the legacy `url`/`method` keys. */
+export function getChannelWebhookTarget(config: ApiSubscription['channel']['config']): {
+    url?: string;
+    method?: 'POST' | 'PUT';
+} {
+    return {
+        url: config.webhook_url || config.url,
+        method: config.webhook_method || config.method,
     };
 }
 

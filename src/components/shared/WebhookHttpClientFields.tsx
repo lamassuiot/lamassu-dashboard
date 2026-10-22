@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
-import { AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +13,7 @@ import { DurationInput } from '@/components/shared/DurationInput';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
 import type { ApiWebhookHttpClient } from '@/lib/dms-api';
+import type { WebhookAuthField, WebhookFieldError } from '@/lib/webhook-config';
 
 export const WEBHOOK_LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 
@@ -22,13 +24,12 @@ interface WebhookHttpClientFieldsProps {
   idPrefix: string;
   value: ApiWebhookHttpClient;
   onChange: (value: ApiWebhookHttpClient) => void;
-  errors?: readonly string[];
+  errors?: readonly WebhookFieldError[];
   timeoutError?: string | null;
   url?: string;
+  /** Alert channels always verify the server certificate, so they hide the switch. */
+  showInsecureSkipVerify?: boolean;
 }
-
-const takeError = (errors: readonly string[] | undefined, ...keywords: string[]) =>
-  errors?.find((error) => keywords.every((keyword) => error.includes(keyword))) ?? null;
 
 /**
  * Shared form for the webhook `http_client` configuration accepted by the
@@ -42,7 +43,9 @@ export const WebhookHttpClientFields: React.FC<WebhookHttpClientFieldsProps> = (
   errors = [],
   timeoutError,
   url,
+  showInsecureSkipVerify = true,
 }) => {
+  const [isPrivateKeyVisible, setIsPrivateKeyVisible] = useState(false);
   const patch = (partial: Partial<ApiWebhookHttpClient>) => onChange({ ...value, ...partial });
 
   const isPlainHttpUrl = (() => {
@@ -53,13 +56,15 @@ export const WebhookHttpClientFields: React.FC<WebhookHttpClientFieldsProps> = (
     }
   })();
 
-  const apiKeyValueError = takeError(errors, 'apikey_options.key');
-  const apiKeyHeaderError = takeError(errors, 'apikey_options.header');
-  const oidcClientIdError = takeError(errors, 'oidc_client_id');
-  const oidcClientSecretError = takeError(errors, 'oidc_client_secret');
-  const oidcWellKnownError = takeError(errors, 'oidc_well_known');
-  const mtlsCertError = takeError(errors, 'cert_content');
-  const mtlsKeyError = takeError(errors, 'key_content');
+  const fieldError = (field: WebhookAuthField) => errors.find((error) => error.field === field)?.message ?? null;
+  const apiKeyValueError = fieldError('apikeyKey');
+  const apiKeyHeaderError = fieldError('apikeyHeader');
+  const oidcClientIdError = fieldError('oidcClientId');
+  const oidcClientSecretError = fieldError('oidcClientSecret');
+  const oidcWellKnownError = fieldError('oidcWellKnown');
+  const mtlsCertError = fieldError('mtlsCert');
+  const mtlsKeyError = fieldError('mtlsKey');
+  const privateKey = value.mtls_options?.key_content || '';
 
   const updateApiKeyOptions = (key: string, header: string) =>
     patch({ apikey_options: { key, header } });
@@ -101,25 +106,27 @@ export const WebhookHttpClientFields: React.FC<WebhookHttpClientFieldsProps> = (
           <DurationInput
             id={`${idPrefix}-timeout`}
             label="Call Timeout"
-            value={value.call_timeout || DEFAULT_TIMEOUT}
+            value={value.call_timeout ?? DEFAULT_TIMEOUT}
             onChange={(callTimeout) => patch({ call_timeout: callTimeout })}
             placeholder="e.g., 10s"
             error={timeoutError || undefined}
           />
         </div>
       </div>
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <Label htmlFor={`${idPrefix}-insecure-skip-verify`}>Skip TLS Verification</Label>
-          <p className="mt-1 text-xs text-muted-foreground">Skip TLS verification for this webhook. Credentials are safer with it disabled.</p>
+      {showInsecureSkipVerify && (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor={`${idPrefix}-insecure-skip-verify`}>Skip TLS Verification</Label>
+            <p className="mt-1 text-xs text-muted-foreground">Skip TLS verification for this webhook. Credentials are safer with it disabled.</p>
+          </div>
+          <Switch
+            id={`${idPrefix}-insecure-skip-verify`}
+            checked={value.insecure_skip_verify}
+            onCheckedChange={(checked) => patch({ insecure_skip_verify: checked })}
+          />
         </div>
-        <Switch
-          id={`${idPrefix}-insecure-skip-verify`}
-          checked={value.insecure_skip_verify}
-          onCheckedChange={(checked) => patch({ insecure_skip_verify: checked })}
-        />
-      </div>
-      {value.insecure_skip_verify && (
+      )}
+      {showInsecureSkipVerify && value.insecure_skip_verify && (
         <Alert variant="warning">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Skipping TLS verification</AlertTitle>
@@ -240,16 +247,48 @@ export const WebhookHttpClientFields: React.FC<WebhookHttpClientFieldsProps> = (
             {mtlsCertError && <FormFieldError id={`${idPrefix}-mtls-cert-error`} title={mtlsCertError} />}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-mtls-key`}>Client Private Key</Label>
-            <Textarea
-              id={`${idPrefix}-mtls-key`}
-              value={value.mtls_options?.key_content || ''}
-              onChange={(event) => updateMtlsOptions({ key_content: event.target.value })}
-              placeholder="PEM private key"
-              className="min-h-32 font-mono text-xs"
-              aria-invalid={!!mtlsKeyError}
-              aria-describedby={mtlsKeyError ? `${idPrefix}-mtls-key-error` : undefined}
-            />
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor={`${idPrefix}-mtls-key`}>Client Private Key</Label>
+              {privateKey && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setIsPrivateKeyVisible((visible) => !visible)}
+                  aria-controls={`${idPrefix}-mtls-key`}
+                >
+                  {isPrivateKeyVisible ? <EyeOff className="mr-1 h-3.5 w-3.5" /> : <Eye className="mr-1 h-3.5 w-3.5" />}
+                  {isPrivateKeyVisible ? 'Hide' : 'Show'}
+                </Button>
+              )}
+            </div>
+            {privateKey && !isPrivateKeyVisible ? (
+              // A stored key is not rendered until revealed, like the other secret inputs.
+              <div
+                id={`${idPrefix}-mtls-key`}
+                className="flex min-h-32 items-center justify-center rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground"
+                aria-invalid={!!mtlsKeyError}
+                aria-describedby={mtlsKeyError ? `${idPrefix}-mtls-key-error` : undefined}
+              >
+                Private key set and hidden. Select Show to view or replace it.
+              </div>
+            ) : (
+              <Textarea
+                id={`${idPrefix}-mtls-key`}
+                value={privateKey}
+                onChange={(event) => {
+                  setIsPrivateKeyVisible(true);
+                  updateMtlsOptions({ key_content: event.target.value });
+                }}
+                placeholder="PEM private key"
+                className="min-h-32 font-mono text-xs"
+                autoComplete="off"
+                spellCheck={false}
+                aria-invalid={!!mtlsKeyError}
+                aria-describedby={mtlsKeyError ? `${idPrefix}-mtls-key-error` : undefined}
+              />
+            )}
             {mtlsKeyError && <FormFieldError id={`${idPrefix}-mtls-key-error`} title={mtlsKeyError} />}
           </div>
         </div>

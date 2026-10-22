@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
 import {
   buildInlineIssuanceProfile,
+  getEstAuthSettingsValidationErrors,
   includesValidationCa,
   normalizeEstAuthSettings,
   parseJsonObject,
+  toApiEstAuthSettings,
   validateEstAuthSettings,
   withDefaultValidationCa,
 } from '@/lib/dms-form';
 import { defaultFormValues } from '@/components/shared/SigningProfileForm';
+
+const PEM_CERT = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----';
+const PEM_KEY = '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----';
 
 describe('DMS form helpers', () => {
   it('normalizes legacy EST and webhook auth values to backend enums', () => {
@@ -65,6 +70,27 @@ describe('DMS form helpers', () => {
     });
   });
 
+  it('exchanges the webhook mTLS certificate and key with the API as base64 PEM', () => {
+    const fromApi = {
+      auth_mode: 'EXTERNAL_WEBHOOK',
+      external_webhook_settings: {
+        name: 'authorize',
+        url: 'https://example.com/authorize',
+        method: 'POST',
+        config: {
+          auth_mode: 'mtls',
+          insecure_skip_verify: false,
+          mtls_options: { cert_content: btoa(PEM_CERT), key_content: btoa(PEM_KEY) },
+        },
+      },
+    } as unknown as ApiRaEstSettings;
+
+    const normalized = normalizeEstAuthSettings(fromApi);
+    expect(normalized.external_webhook_settings?.config.mtls_options).toEqual({ cert_content: PEM_CERT, key_content: PEM_KEY });
+    expect(toApiEstAuthSettings(normalized).external_webhook_settings?.config.mtls_options)
+      .toEqual({ cert_content: btoa(PEM_CERT), key_content: btoa(PEM_KEY) });
+  });
+
   it('requires enrollment validation CAs for client-certificate authentication', () => {
     const settings = normalizeEstAuthSettings(undefined);
     expect(validateEstAuthSettings('Enrollment authentication', settings, true))
@@ -116,9 +142,9 @@ describe('DMS form helpers', () => {
     };
 
     expect(validateEstAuthSettings('Re-enrollment authentication', settings))
-      .toBe('Re-enrollment authentication webhook mTLS requires mtls_options.cert_content and mtls_options.key_content.');
+      .toBe('Re-enrollment authentication webhook mTLS client certificate is required.');
 
-    settings.external_webhook_settings.config.mtls_options = { cert_content: 'certificate', key_content: 'private-key' };
+    settings.external_webhook_settings.config.mtls_options = { cert_content: PEM_CERT, key_content: PEM_KEY };
     expect(validateEstAuthSettings('Re-enrollment authentication', settings)).toBeNull();
   });
 
@@ -139,7 +165,7 @@ describe('DMS form helpers', () => {
     };
 
     expect(validateEstAuthSettings('Enrollment authentication', settings))
-      .toBe('Enrollment authentication mTLS certificate and private key must be provided as PEM content, not file paths.');
+      .toBe('Enrollment authentication webhook mTLS client certificate must be PEM content, not a file path.');
 
     settings.external_webhook_settings.config = {
       auth_mode: 'apikey',
@@ -149,7 +175,27 @@ describe('DMS form helpers', () => {
     };
 
     expect(validateEstAuthSettings('Enrollment authentication', settings))
-      .toBe('Enrollment authentication webhook API key header "X-Principal-Id" is reserved.');
+      .toBe('Enrollment authentication webhook API key header "X-Principal-Id" is reserved by the platform.');
+  });
+
+  it('reports an invalid OIDC well-known URL once, with readable casing', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.auth_mode = 'EXTERNAL_WEBHOOK';
+    settings.external_webhook_settings = {
+      name: 'authorize',
+      url: 'https://example.com/authorize',
+      method: 'POST',
+      config: {
+        auth_mode: 'jwt',
+        log_level: 'info',
+        insecure_skip_verify: false,
+        jwt_options: { oidc_client_id: 'client', oidc_client_secret: 'secret', oidc_well_known: 'not-a-url' },
+      },
+    };
+
+    expect(getEstAuthSettingsValidationErrors('Enrollment authentication', settings, false)).toEqual([
+      'Enrollment authentication webhook OIDC well-known URL must be an absolute HTTP or HTTPS URL.',
+    ]);
   });
 
   it('builds a complete inline issuance profile', () => {

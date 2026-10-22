@@ -23,7 +23,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Check, Copy, Loader2, Mail, Pencil, Trash2, Users, Webhook } from 'lucide-react';
-import type { ApiSubscription } from '@/lib/alerts-api';
+import { getChannelWebhookTarget, type ApiSubscription } from '@/lib/alerts-api';
+import { WEBHOOK_AUTH_MODE_LABELS } from '@/lib/webhook-config';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -42,13 +43,6 @@ const CHANNEL_META: Record<ApiSubscription['channel']['type'], { label: string; 
   EMAIL: { label: 'Email', icon: Mail },
   TEAMS_WEBHOOK: { label: 'Microsoft Teams', icon: Users },
   WEBHOOK: { label: 'Webhook', icon: Webhook },
-};
-
-const AUTH_MODE_LABELS: Record<'noauth' | 'jwt' | 'apikey' | 'mtls', string> = {
-  noauth: 'None',
-  jwt: 'OIDC client credentials',
-  apikey: 'API key',
-  mtls: 'Mutual TLS',
 };
 
 const CONDITION_LABELS: Record<string, string> = {
@@ -137,10 +131,9 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
   const channel = subscription?.channel;
   const channelMeta = channel ? CHANNEL_META[channel.type] : null;
   const ChannelIcon = channelMeta?.icon ?? Webhook;
-  const webhookUrl = channel?.config.webhook_url;
-  const webhookMethod = channel?.config.webhook_method;
+  const { url: webhookUrl, method: webhookMethod } = channel ? getChannelWebhookTarget(channel.config) : {};
   const httpClient = channel?.config.http_client;
-  const authModeLabel = httpClient ? (AUTH_MODE_LABELS[httpClient.auth_mode] ?? httpClient.auth_mode) : null;
+  const authModeLabel = httpClient ? (WEBHOOK_AUTH_MODE_LABELS[httpClient.auth_mode] ?? httpClient.auth_mode) : null;
   const channelTarget = channel?.config.email || webhookUrl;
   const conditions = subscription?.conditions ?? [];
 
@@ -199,8 +192,9 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
                             <Badge variant="muted">Configured</Badge>
                           </DetailRow>
                         )}
+                        {/* The alerts service always verifies notification servers, whatever insecure_skip_verify holds. */}
                         <DetailRow label="TLS verification">
-                          <Badge variant={httpClient.insecure_skip_verify ? 'warning' : 'success'}>{httpClient.insecure_skip_verify ? 'Skipped' : 'Verified'}</Badge>
+                          <Badge variant="success">Verified</Badge>
                         </DetailRow>
                       </>
                     )}
