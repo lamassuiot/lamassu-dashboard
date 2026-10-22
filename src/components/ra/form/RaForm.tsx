@@ -10,6 +10,7 @@ import { getFormErrorMessages } from '@/components/shared/FormValidationSummary'
 import {
   defaultFormValues,
   signingProfileSchema,
+  type SigningProfileFormInput,
   type SigningProfileFormValues,
 } from '@/components/shared/SigningProfileForm';
 import type { CertificateValidity } from '@/components/ra/RenewalLifespanBar';
@@ -132,7 +133,7 @@ export function RaForm({ raId }: { raId: string | null }) {
   const [isIconModalOpen, setIsIconModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<EnrollmentTabId>('enrollment');
 
-  const inlineProfileForm = useForm<SigningProfileFormValues>({
+  const inlineProfileForm = useForm<SigningProfileFormInput, any, SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
     defaultValues: inlineProfileDefaultValues,
     mode: 'onChange',
@@ -226,7 +227,7 @@ export function RaForm({ raId }: { raId: string | null }) {
         { ...values, id: raId ?? values.id },
         {
           metadata: raData?.metadata,
-          inlineProfile: values.issuanceProfileMode === 'inline' ? buildInlineIssuanceProfile(inlineProfileForm.getValues()) : undefined,
+          inlineProfile: values.issuanceProfileMode === 'inline' ? buildInlineIssuanceProfile(signingProfileSchema.parse(inlineProfileForm.getValues())) : undefined,
         },
       );
       await createOrUpdateRa(payload, isEditMode, raId);

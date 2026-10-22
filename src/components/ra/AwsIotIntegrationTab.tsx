@@ -63,6 +63,7 @@ const awsIntegrationSchema = z.object({
 
 export type AwsPolicy = z.infer<typeof awsPolicySchema>;
 type AwsIntegrationFormValues = z.infer<typeof awsIntegrationSchema>;
+type AwsIntegrationFormInput = z.input<typeof awsIntegrationSchema>;
 
 interface PolicySummary {
   actionPreview: string;
@@ -160,7 +161,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
 
   const LmsRemediationPolicyName = useMemo(() => `${connectorIdUniquePart}.lms-remediation-access`, [connectorIdUniquePart]);
 
-  const form = useForm<AwsIntegrationFormValues>({
+  const form = useForm<AwsIntegrationFormInput, any, AwsIntegrationFormValues>({
     resolver: zodResolver(awsIntegrationSchema),
     defaultValues: getDefaultFormValues(ra, configKey),
     mode: 'onChange',

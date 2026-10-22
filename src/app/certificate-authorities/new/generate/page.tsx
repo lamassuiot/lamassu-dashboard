@@ -27,7 +27,7 @@ import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { CardSelector } from '@/components/shared/CardSelector';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
+import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormInput, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
 import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -77,7 +77,7 @@ export default function CreateCaGeneratePage() {
   const [caProfileWarning, setCaProfileWarning] = useState<string | null>(null);
 
   // Form for inline CA certificate profile (simplified)
-  const caProfileForm = useForm<SimplifiedInlineProfileFormValues>({
+  const caProfileForm = useForm<SimplifiedInlineProfileFormInput, any, SimplifiedInlineProfileFormValues>({
     resolver: zodResolver(simplifiedInlineProfileSchema),
     defaultValues: defaultSimplifiedFormValues,
     mode: 'onChange',

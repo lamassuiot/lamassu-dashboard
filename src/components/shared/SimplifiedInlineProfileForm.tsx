@@ -38,7 +38,8 @@ export const simplifiedInlineProfileSchema = z.object({
   extendedKeyUsages: z.array(z.enum(extendedKeyUsageOptions)).optional().default([]),
 });
 
-export type SimplifiedInlineProfileFormValues = z.infer<typeof simplifiedInlineProfileSchema>;
+export type SimplifiedInlineProfileFormInput = z.input<typeof simplifiedInlineProfileSchema>;
+export type SimplifiedInlineProfileFormValues = z.output<typeof simplifiedInlineProfileSchema>;
 
 export const defaultSimplifiedFormValues: SimplifiedInlineProfileFormValues = {
   validity: { type: 'Duration', durationValue: '1y' },
@@ -47,7 +48,7 @@ export const defaultSimplifiedFormValues: SimplifiedInlineProfileFormValues = {
 };
 
 interface SimplifiedInlineProfileFormProps {
-  form: UseFormReturn<SimplifiedInlineProfileFormValues>;
+  form: UseFormReturn<SimplifiedInlineProfileFormInput, any, SimplifiedInlineProfileFormValues>;
 }
 
 /**
