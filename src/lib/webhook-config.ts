@@ -1,6 +1,6 @@
 import type { ApiWebhookHttpClient } from './dms-api';
 import { isValidPositiveDuration, parseDurationToSeconds } from './duration';
-import { decodePemContent, pemToBase64 } from '@/lib-crypto';
+import { decodePemContent, isPem, pemToBase64 } from '@/lib-crypto';
 
 /**
  * Mirror of the backend webhook validation introduced in lamassuiot#810
@@ -63,9 +63,6 @@ const isValidWebhookUrl = (value: string) => {
     }
 };
 
-// The backend loads mTLS credentials from inline PEM only; anything else (a
-// file path, a Windows path, a file:// URL) fails when the webhook is called.
-const isPemBlock = (value: string) => value.trim().startsWith('-----BEGIN ');
 
 // The API carries mTLS credentials as base64-encoded PEM, like certificates
 // elsewhere. Configs migrated by lamassuiot#810 may still hold plain PEM.
@@ -116,6 +113,12 @@ export interface WebhookValidationContext {
     config?: ApiWebhookHttpClient | null;
 }
 
+/** Error for a webhook URL field, shared by the alert and RA forms so they show the same text. */
+export function getWebhookUrlError(url: string): string | null {
+    if (!url.trim()) return 'Webhook URL is required.';
+    return isValidWebhookUrl(url) ? null : 'Webhook URL must be an absolute HTTP or HTTPS URL.';
+}
+
 /**
  * Returns validation errors for the webhook call itself. Mirrors
  * webhookclient.ValidateWebhook: URL scheme and POST/PUT methods. Empty method
@@ -124,11 +127,8 @@ export interface WebhookValidationContext {
 export function getWebhookValidationErrors({ url, method }: WebhookValidationContext): string[] {
     const errors: string[] = [];
 
-    if (!url.trim()) {
-        errors.push('Webhook URL is required.');
-    } else if (!isValidWebhookUrl(url)) {
-        errors.push('Webhook URL must be an absolute HTTP or HTTPS URL.');
-    }
+    const urlError = getWebhookUrlError(url);
+    if (urlError) errors.push(urlError);
 
     if (method && method !== 'POST' && method !== 'PUT') {
         errors.push('Webhook method must be POST or PUT.');
@@ -175,9 +175,9 @@ export function getWebhookAuthOptionErrors(config: ApiWebhookHttpClient): Webhoo
             const cert = config.mtls_options?.cert_content ?? '';
             const key = config.mtls_options?.key_content ?? '';
             if (!cert.trim()) push('mtlsCert', 'Webhook mTLS client certificate is required.');
-            else if (!isPemBlock(cert)) push('mtlsCert', 'Webhook mTLS client certificate must be PEM content, not a file path.');
+            else if (!isPem(cert)) push('mtlsCert', 'Webhook mTLS client certificate must be PEM content, not a file path.');
             if (!key.trim()) push('mtlsKey', 'Webhook mTLS private key is required.');
-            else if (!isPemBlock(key)) push('mtlsKey', 'Webhook mTLS private key must be PEM content, not a file path.');
+            else if (!isPem(key)) push('mtlsKey', 'Webhook mTLS private key must be PEM content, not a file path.');
             break;
         }
         case 'noauth':

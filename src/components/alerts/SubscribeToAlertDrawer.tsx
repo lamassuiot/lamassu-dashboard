@@ -24,6 +24,7 @@ import {
     decodeWebhookHttpClient,
     encodeWebhookHttpClient,
     getWebhookAuthOptionErrors,
+    getWebhookUrlError,
     getWebhookTimeoutError,
     NOTIFICATION_MAX_CALL_TIMEOUT_SECONDS,
     validateWebhookCall,
@@ -90,23 +91,9 @@ const isValidEmail = (value: string) => {
     return labels.length >= 2 && labels.every(label => label.length > 0);
 };
 
-const isValidWebhookUrl = (value: string) => {
-    try {
-        const url = new URL(value);
-        return url.protocol === 'https:' || url.protocol === 'http:';
-    } catch {
-        return false;
-    }
-};
-
 const getEmailError = (value: string): string | null => {
     if (!value.trim()) return 'Email address is required.';
     return isValidEmail(value) ? null : 'Enter a valid email address.';
-};
-
-const getWebhookUrlError = (value: string): string | null => {
-    if (!value.trim()) return 'Webhook URL is required.';
-    return isValidWebhookUrl(value) ? null : 'Enter a valid HTTP or HTTPS webhook URL.';
 };
 
 const getFilterCondition = (

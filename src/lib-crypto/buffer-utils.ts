@@ -84,15 +84,20 @@ export function base64ToPem(base64: string): string {
   return new TextDecoder().decode(base64ToArrayBuffer(base64));
 }
 
+/** Whether a string is PEM text, i.e. starts with a "-----BEGIN ...-----" line. */
+export function isPem(value: string): boolean {
+  return value.trim().startsWith("-----BEGIN ");
+}
+
 /**
  * Reads PEM content that may arrive base64-encoded or as plain PEM text.
  * Returns null when it is neither.
  */
 export function decodePemContent(value: string): string | null {
-  if (value.includes("-----BEGIN")) return value;
+  if (isPem(value)) return value;
   try {
     const decoded = base64ToPem(value);
-    return decoded.includes("-----BEGIN") ? decoded : null;
+    return isPem(decoded) ? decoded : null;
   } catch {
     return null;
   }

@@ -4,6 +4,7 @@ import {
     encodeWebhookHttpClient,
     getWebhookAuthOptionErrors,
     getWebhookTimeoutError,
+    getWebhookUrlError,
     getWebhookValidationErrors,
     isReservedHeaderName,
     isValidHeaderName,
@@ -55,6 +56,15 @@ describe('webhook-config', () => {
             expect(isValidHeaderName('X-Key(1)')).toBe(false);
             expect(isValidHeaderName('X-Key,2')).toBe(false);
             expect(isValidHeaderName('X-Kéy')).toBe(false);
+        });
+    });
+
+    describe('getWebhookUrlError', () => {
+        it('reports missing and non-HTTP URLs with the same text the summaries use', () => {
+            expect(getWebhookUrlError(' ')).toBe('Webhook URL is required.');
+            expect(getWebhookUrlError('example.com/authorize')).toBe('Webhook URL must be an absolute HTTP or HTTPS URL.');
+            expect(getWebhookValidationErrors({ url: 'example.com/authorize' })).toEqual([getWebhookUrlError('example.com/authorize')]);
+            expect(getWebhookUrlError('https://example.com/authorize')).toBeNull();
         });
     });
 

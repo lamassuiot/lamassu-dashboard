@@ -5,7 +5,7 @@ import { AlertTriangle, PlusCircle, X } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
-import { getWebhookAuthOptionErrors } from '@/lib/webhook-config';
+import { getWebhookAuthOptionErrors, getWebhookUrlError } from '@/lib/webhook-config';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -96,7 +96,7 @@ export function EstAuthSettingsEditor({
     || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
   const validationCaError = validationErrors.find((error) => error.includes('validation CA')) || null;
   const webhookNameError = includesWebhook && !webhook.name.trim() ? 'Webhook name is required.' : null;
-  const webhookUrlError = includesWebhook && !webhook.url.trim() ? 'Webhook URL is required.' : null;
+  const webhookUrlError = includesWebhook ? getWebhookUrlError(webhook.url) : null;
   const webhookConfigErrors = includesWebhook ? getWebhookAuthOptionErrors(webhookConfig) : [];
 
   return (

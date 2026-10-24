@@ -6,6 +6,7 @@ import {
   decodePemContent,
   formatAsPem,
   ipToBuffer,
+  isPem,
   pemToBase64,
 } from '@/lib-crypto'
 
@@ -62,6 +63,12 @@ describe('buffer-utils', () => {
       expect(pemToBase64(pem)).toBe(btoa(pem))
       expect(base64ToPem(btoa(pem))).toBe(pem)
       expect(base64ToPem(pemToBase64('ñ'))).toBe('ñ')
+    })
+
+    it('recognises PEM text', () => {
+      expect(isPem(`  ${pem}`)).toBe(true)
+      expect(isPem(btoa(pem))).toBe(false)
+      expect(isPem('C:\\certs\\client.key')).toBe(false)
     })
 
     it('reads PEM content sent base64-encoded or as plain PEM', () => {
