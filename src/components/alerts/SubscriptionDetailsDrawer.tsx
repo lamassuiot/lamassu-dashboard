@@ -23,7 +23,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Check, Copy, Loader2, Mail, Pencil, Trash2, Users, Webhook } from 'lucide-react';
-import type { ApiSubscription } from '@/lib/alerts-api';
+import { getChannelWebhookTarget, type ApiSubscription } from '@/lib/alerts-api';
+import { WEBHOOK_AUTH_MODE_LABELS } from '@/lib/webhook-config';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -130,8 +131,9 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
   const channel = subscription?.channel;
   const channelMeta = channel ? CHANNEL_META[channel.type] : null;
   const ChannelIcon = channelMeta?.icon ?? Webhook;
-  const webhookUrl = channel?.config.webhook_url || channel?.config.url;
-  const webhookMethod = channel?.config.webhook_method || channel?.config.method;
+  const { url: webhookUrl, method: webhookMethod } = channel ? getChannelWebhookTarget(channel.config) : {};
+  const httpClient = channel?.config.http_client;
+  const authModeLabel = httpClient ? (WEBHOOK_AUTH_MODE_LABELS[httpClient.auth_mode] ?? httpClient.auth_mode) : null;
   const channelTarget = channel?.config.email || webhookUrl;
   const conditions = subscription?.conditions ?? [];
 
@@ -176,6 +178,26 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
                       </DetailRow>
                     )}
                     {webhookUrl && <DetailRow label="URL" className="break-all font-mono text-xs font-normal">{webhookUrl}</DetailRow>}
+                    {httpClient && (
+                      <>
+                        <DetailRow label="Authentication">{authModeLabel}</DetailRow>
+                        {httpClient.auth_mode === 'apikey' && httpClient.apikey_options?.header && (
+                          <DetailRow label="API key header" className="break-all font-mono text-xs font-normal">{httpClient.apikey_options.header}</DetailRow>
+                        )}
+                        {httpClient.auth_mode === 'jwt' && httpClient.jwt_options?.oidc_well_known && (
+                          <DetailRow label="OIDC issuer" className="break-all font-mono text-xs font-normal">{httpClient.jwt_options.oidc_well_known}</DetailRow>
+                        )}
+                        {httpClient.auth_mode === 'mtls' && (
+                          <DetailRow label="mTLS client certificate">
+                            <Badge variant="muted">Configured</Badge>
+                          </DetailRow>
+                        )}
+                        {/* The alerts service always verifies notification servers, whatever insecure_skip_verify holds. */}
+                        <DetailRow label="TLS verification">
+                          <Badge variant="success">Verified</Badge>
+                        </DetailRow>
+                      </>
+                    )}
                   </dl>
                 )}
               </Section>

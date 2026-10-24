@@ -7,25 +7,27 @@ import type { ApiSigningProfile } from './ca-data';
 
 // --- Interfaces ---
 
-export interface ApiRaOidcAuth {
-    client_id: string;
-    client_secret: string;
-    well_known: string;
+export interface ApiWebhookJwtOptions {
+    oidc_client_id: string;
+    oidc_client_secret: string;
+    oidc_well_known: string;
 }
-export interface ApiRaWebhookHttpClient {
-    validate_server_cert: boolean;
-    log_level: string;
+export interface ApiWebhookMtlsOptions {
+    cert_content: string;
+    key_content: string;
+}
+export interface ApiWebhookApiKeyOptions {
+    key: string;
+    header: string;
+}
+export interface ApiWebhookHttpClient {
     auth_mode: 'noauth' | 'jwt' | 'apikey' | 'mtls';
+    log_level?: string;
+    insecure_skip_verify: boolean;
     call_timeout?: string;
-    oidc?: ApiRaOidcAuth;
-    apikey?: {
-        key: string;
-        header: string;
-    };
-    mtls?: {
-        cert: string;
-        key: string;
-    };
+    jwt_options?: ApiWebhookJwtOptions;
+    mtls_options?: ApiWebhookMtlsOptions;
+    apikey_options?: ApiWebhookApiKeyOptions;
 }
 export interface ApiRaEstSettings {
     auth_mode: 'CLIENT_CERTIFICATE' | 'EXTERNAL_WEBHOOK' | 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' | 'NO_AUTH';
@@ -38,7 +40,7 @@ export interface ApiRaEstSettings {
         name: string;
         url: string;
         method: string;
-        config: ApiRaWebhookHttpClient;
+        config: ApiWebhookHttpClient;
     };
 }
 export interface ApiRaEnrollmentSettings {

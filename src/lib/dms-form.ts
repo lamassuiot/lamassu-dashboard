@@ -1,5 +1,11 @@
 import type { ApiSigningProfile } from '@/lib/ca-data';
-import type { ApiRaEstSettings } from '@/lib/dms-api';
+import type { ApiRaEstSettings, ApiWebhookHttpClient } from '@/lib/dms-api';
+import {
+  decodeWebhookHttpClient,
+  encodeWebhookHttpClient,
+  prefixWebhookMessage,
+  validateWebhookCall,
+} from '@/lib/webhook-config';
 import type { SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
 
 const INDEFINITE_DATE_API_VALUE = '9999-12-31T23:59:59.999Z';
@@ -17,13 +23,90 @@ export function createDefaultEstAuthSettings(allowExpired = false): ApiRaEstSett
       url: '',
       method: 'POST',
       config: {
-        validate_server_cert: true,
-        log_level: 'info',
         auth_mode: 'noauth',
+        log_level: 'info',
+        insecure_skip_verify: false,
         call_timeout: '10s',
       },
     },
   };
+}
+
+export function createDefaultWebhookHttpClient(): ApiWebhookHttpClient {
+  return {
+    auth_mode: 'noauth',
+    log_level: 'info',
+    insecure_skip_verify: false,
+    call_timeout: '10s',
+  };
+}
+
+/** Maps a legacy webhook config (pre-#810 keys) to the http_client layout. */
+function normalizeWebhookConfig(config: unknown): ApiWebhookHttpClient {
+  const raw = (config ?? {}) as {
+    auth_mode?: string;
+    log_level?: string;
+    insecure_skip_verify?: boolean;
+    validate_server_cert?: boolean;
+    call_timeout?: string;
+    oidc?: { client_id?: string; client_secret?: string; well_known?: string };
+    apikey?: { key?: string; header?: string };
+    mtls?: { cert?: string; key?: string };
+    jwt_options?: ApiWebhookHttpClient['jwt_options'];
+    apikey_options?: ApiWebhookHttpClient['apikey_options'];
+    mtls_options?: ApiWebhookHttpClient['mtls_options'];
+  };
+  const authModeMap: Record<string, 'noauth' | 'jwt' | 'apikey' | 'mtls'> = {
+    NO_AUTH: 'noauth',
+    OIDC: 'jwt',
+    API_KEY: 'apikey',
+    MTLS: 'mtls',
+    noauth: 'noauth',
+    jwt: 'jwt',
+    apikey: 'apikey',
+    mtls: 'mtls',
+  };
+  return {
+    auth_mode: authModeMap[raw.auth_mode || ''] || 'noauth',
+    log_level: (raw.log_level || 'info').toLowerCase(),
+    insecure_skip_verify: raw.insecure_skip_verify ?? !(raw.validate_server_cert ?? true),
+    call_timeout: raw.call_timeout || '10s',
+    ...(raw.jwt_options
+      ? {
+          jwt_options: {
+            oidc_client_id: raw.jwt_options.oidc_client_id || raw.oidc?.client_id || '',
+            oidc_client_secret: raw.jwt_options.oidc_client_secret || raw.oidc?.client_secret || '',
+            oidc_well_known: raw.jwt_options.oidc_well_known || raw.oidc?.well_known || '',
+          },
+        }
+      : raw.oidc
+        ? {
+            jwt_options: {
+              oidc_client_id: raw.oidc.client_id || '',
+              oidc_client_secret: raw.oidc.client_secret || '',
+              oidc_well_known: raw.oidc.well_known || '',
+            },
+          }
+        : {}),
+    ...(raw.apikey_options
+      ? { apikey_options: { key: raw.apikey_options.key || raw.apikey?.key || '', header: raw.apikey_options.header || raw.apikey?.header || 'X-API-Key' } }
+      : raw.apikey
+        ? { apikey_options: { key: raw.apikey.key || '', header: raw.apikey.header || 'X-API-Key' } }
+        : {}),
+    ...(raw.mtls_options
+      ? { mtls_options: { cert_content: raw.mtls_options.cert_content || raw.mtls?.cert || '', key_content: raw.mtls_options.key_content || raw.mtls?.key || '' } }
+      : raw.mtls
+        ? { mtls_options: { cert_content: raw.mtls.cert || '', key_content: raw.mtls.key || '' } }
+        : {}),
+  };
+}
+
+/** Form → API: the inverse of the webhook decoding in normalizeEstAuthSettings. */
+export function toApiEstAuthSettings(settings: ApiRaEstSettings): ApiRaEstSettings {
+  const webhook = settings.external_webhook_settings;
+  return webhook
+    ? { ...settings, external_webhook_settings: { ...webhook, config: encodeWebhookHttpClient(webhook.config) } }
+    : settings;
 }
 
 export function normalizeEstAuthSettings(
@@ -48,17 +131,6 @@ export function normalizeEstAuthSettings(
     NONE: 'NO_AUTH',
   };
   const authMode = authModeMap[raw?.auth_mode || ''];
-  const rawWebhookAuthMode = raw?.external_webhook_settings?.config?.auth_mode as string | undefined;
-  const webhookAuthModeMap: Record<string, 'noauth' | 'jwt' | 'apikey' | 'mtls'> = {
-    NO_AUTH: 'noauth',
-    OIDC: 'jwt',
-    API_KEY: 'apikey',
-    MTLS: 'mtls',
-    noauth: 'noauth',
-    jwt: 'jwt',
-    apikey: 'apikey',
-    mtls: 'mtls',
-  };
 
   return {
     auth_mode: authMode || defaults.auth_mode,
@@ -71,13 +143,7 @@ export function normalizeEstAuthSettings(
       ...defaults.external_webhook_settings!,
       ...raw?.external_webhook_settings,
       method: raw?.external_webhook_settings?.method || 'POST',
-      config: {
-        ...defaults.external_webhook_settings!.config,
-        ...raw?.external_webhook_settings?.config,
-        auth_mode: webhookAuthModeMap[rawWebhookAuthMode || ''] || 'noauth',
-        log_level: (raw?.external_webhook_settings?.config?.log_level || 'info').toLowerCase(),
-        call_timeout: raw?.external_webhook_settings?.config?.call_timeout || '10s',
-      },
+      config: decodeWebhookHttpClient(normalizeWebhookConfig(raw?.external_webhook_settings?.config)),
     },
   };
 }
@@ -208,18 +274,13 @@ export function getEstAuthSettingsValidationErrors(
   }
   if (!webhook) return errors;
 
-  if (webhook.config.auth_mode === 'apikey' && (!webhook.config.apikey?.key || !webhook.config.apikey.header)) {
-    errors.push(`${label} webhook API key and header are required.`);
-  }
-  if (
-    webhook.config.auth_mode === 'jwt'
-    && (!webhook.config.oidc?.client_id || !webhook.config.oidc.client_secret || !webhook.config.oidc.well_known)
-  ) {
-    errors.push(`${label} webhook OIDC client ID, client secret, and well-known URL are required.`);
-  }
-  if (webhook.config.auth_mode === 'mtls' && (!webhook.config.mtls?.cert || !webhook.config.mtls.key)) {
-    errors.push(`${label} webhook mTLS certificate and private key are required.`);
-  }
+  errors.push(
+    ...validateWebhookCall({
+      url: webhook.url,
+      method: webhook.method,
+      config: webhook.config,
+    }).map((error) => prefixWebhookMessage(label, error)),
+  );
 
   return errors;
 }

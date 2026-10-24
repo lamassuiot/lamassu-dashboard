@@ -7,7 +7,9 @@ import {
   includesValidationCa,
   normalizeEstAuthSettings,
   parseJsonObject,
+  toApiEstAuthSettings,
 } from '@/lib/dms-form';
+import { getWebhookTimeoutError, prefixWebhookMessage } from '@/lib/webhook-config';
 
 export type RegistrationMode = 'JITP' | 'PRE_REGISTRATION';
 /** Enrollment protocols the RA can expose. EST is the only one the DMS supports today. */
@@ -250,7 +252,7 @@ export function buildRaPayload(
         registration_mode: values.registrationMode,
         enable_replaceable_enrollment: values.allowReplaceableEnrollment,
         verify_csr_signature: values.verifyCsrSignature,
-        est_rfc7030_settings: values.enrollmentAuth,
+        est_rfc7030_settings: toApiEstAuthSettings(values.enrollmentAuth),
         device_provisioning_profile: {
           icon: values.deviceIcon.name ?? '',
           icon_color: `${values.deviceIcon.color}-${values.deviceIcon.bgColor}`,
@@ -259,7 +261,7 @@ export function buildRaPayload(
         },
       },
       reenrollment_settings: {
-        est_rfc7030_settings: values.reenrollmentAuth,
+        est_rfc7030_settings: toApiEstAuthSettings(values.reenrollmentAuth),
         revoke_on_reenrollment: values.revokeOnReenrollment,
         enable_expired_renewal: values.allowExpiredRenewal,
         reenrollment_delta: values.reenrollmentDelta,
@@ -289,9 +291,9 @@ export function usesClientCertificate(settings: ApiRaEstSettings): boolean {
 }
 
 function webhookTimeoutError(label: string, settings: ApiRaEstSettings): string | null {
-  return usesWebhook(settings) && !isValidPositiveDuration(settings.external_webhook_settings?.config.call_timeout || '')
-    ? `${label} webhook timeout must be a positive duration.`
-    : null;
+  if (!usesWebhook(settings)) return null;
+  const error = getWebhookTimeoutError(settings.external_webhook_settings?.config.call_timeout ?? '');
+  return error ? prefixWebhookMessage(label, error) : null;
 }
 
 export interface RaFormValidationContext {

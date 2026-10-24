@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { fetchLatestAlerts, fetchSystemSubscriptions, unsubscribeFromAlert, type ApiSubscription } from '@/lib/alerts-api';
+import { fetchLatestAlerts, fetchSystemSubscriptions, getChannelWebhookTarget, unsubscribeFromAlert, type ApiSubscription } from '@/lib/alerts-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertsTable } from '@/components/alerts/AlertsTable';
 import { sileo } from '@/lib/toast';
@@ -24,7 +24,7 @@ import { useLatestRequest } from '@/hooks/useLatestRequest';
 
 function describeChannel(sub: ApiSubscription): string {
   const { type, name, config } = sub.channel;
-  const webhookUrl = config.webhook_url || config.url;
+  const { url: webhookUrl } = getChannelWebhookTarget(config);
   if (type === 'EMAIL' && config.email) return `${type}: ${config.email}`;
   if ((type === 'WEBHOOK' || type === 'TEAMS_WEBHOOK') && name) return `${type}: ${name}`;
   if (!webhookUrl) return type;
