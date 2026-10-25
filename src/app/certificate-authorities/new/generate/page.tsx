@@ -56,7 +56,7 @@ export default function CreateCaGeneratePage() {
   const [caType, setCaType] = useState('root');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
   const [selectedParentCa, setSelectedParentCa] = useState<CA | null>(null);
-  const [caId, setCaId] = useState('');
+  const [caId] = useState(() => generateUUID());
   const [caName, setCaName] = useState('');
 
   const [keyType, setKeyType] = useState('RSA');
@@ -105,10 +105,6 @@ export default function CreateCaGeneratePage() {
     ...getIssuanceProfileValidationErrors({ profileMode, selectedProfileId, caProfileMode, inlineCaProfileErrors }),
   ];
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
-
-  useEffect(() => {
-    setCaId(generateUUID());
-  }, []);
 
   const loadDependencies = useCallback(async () => {
     

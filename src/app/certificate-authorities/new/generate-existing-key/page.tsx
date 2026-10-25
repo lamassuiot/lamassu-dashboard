@@ -42,7 +42,7 @@ export default function CreateCaExistingKeyPage() {
 
   const [caType, setCaType] = useState('root');
   const [selectedParentCa, setSelectedParentCa] = useState<CA | null>(null);
-  const [caId, setCaId] = useState('');
+  const [caId] = useState(() => generateUUID());
   const [caName, setCaName] = useState('');
 
   const [selectedKeyId, setSelectedKeyId] = useState<string | undefined>(undefined);
@@ -82,10 +82,6 @@ export default function CreateCaExistingKeyPage() {
     ...getIssuanceProfileValidationErrors({ profileMode, selectedProfileId, caProfileMode, inlineCaProfileErrors }),
   ];
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
-
-  useEffect(() => {
-    setCaId(generateUUID());
-  }, []);
 
   const loadDependencies = useCallback(async () => {
     setIsLoadingDependencies(true);
