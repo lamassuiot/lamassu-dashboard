@@ -4,6 +4,7 @@ import { server } from './test-utils/msw-server'
 import {
   fetchLatestAlerts,
   fetchSystemSubscriptions,
+  getChannelWebhookTarget,
   subscribeToAlert,
   updateSubscription,
   unsubscribeFromAlert,
@@ -277,6 +278,26 @@ describe('alerts-api', () => {
       await expect(
         unsubscribeFromAlert(subscriptionId)
       ).rejects.toThrow('Failed to unsubscribe')
+    })
+  })
+
+  describe('getChannelWebhookTarget', () => {
+    it('prefers webhook_url/webhook_method over the legacy url/method keys', () => {
+      expect(getChannelWebhookTarget({
+        webhook_url: 'https://hooks.example.com/new',
+        webhook_method: 'POST',
+        url: 'https://hooks.example.com/old',
+        method: 'PUT',
+      })).toEqual({ url: 'https://hooks.example.com/new', method: 'POST' })
+    })
+
+    it('falls back to the legacy url/method keys', () => {
+      expect(getChannelWebhookTarget({ url: 'https://hooks.example.com/x', method: 'PUT' }))
+        .toEqual({ url: 'https://hooks.example.com/x', method: 'PUT' })
+    })
+
+    it('returns undefined values when no target is set', () => {
+      expect(getChannelWebhookTarget({ email: 'ops@example.com' })).toEqual({ url: undefined, method: undefined })
     })
   })
 })

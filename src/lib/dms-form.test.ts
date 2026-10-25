@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
 import {
   buildInlineIssuanceProfile,
+  getEstAuthSettingsValidationErrors,
   includesValidationCa,
   normalizeEstAuthSettings,
   parseJsonObject,
+  toApiEstAuthSettings,
   validateEstAuthSettings,
   withDefaultValidationCa,
 } from '@/lib/dms-form';
 import { defaultFormValues } from '@/components/shared/SigningProfileForm';
+
+const PEM_CERT = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----';
+const PEM_KEY = '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----';
 
 describe('DMS form helpers', () => {
   it('normalizes legacy EST and webhook auth values to backend enums', () => {
@@ -31,7 +36,67 @@ describe('DMS form helpers', () => {
 
     expect(normalized.auth_mode).toBe('NO_AUTH');
     expect(normalized.external_webhook_settings?.config.auth_mode).toBe('jwt');
+    expect(normalized.external_webhook_settings?.config.jwt_options?.oidc_client_id).toBe('client');
+    expect(normalized.external_webhook_settings?.config.insecure_skip_verify).toBe(false);
     expect(normalized.external_webhook_settings?.config.call_timeout).toBe('10s');
+  });
+
+  it('keeps the http_client webhook layout for configs created after lamassuiot#810', () => {
+    const modern = {
+      auth_mode: 'EXTERNAL_WEBHOOK',
+      external_webhook_settings: {
+        name: 'authorize',
+        url: 'https://example.com/authorize',
+        method: 'PUT',
+        config: {
+          auth_mode: 'apikey',
+          log_level: 'error',
+          insecure_skip_verify: true,
+          call_timeout: '15s',
+          apikey_options: { key: 'secret', header: 'X-Custom-Key' },
+        },
+      },
+    } as unknown as ApiRaEstSettings;
+
+    const normalized = normalizeEstAuthSettings(modern);
+
+    expect(normalized.external_webhook_settings?.method).toBe('PUT');
+    expect(normalized.external_webhook_settings?.config).toEqual({
+      auth_mode: 'apikey',
+      log_level: 'error',
+      insecure_skip_verify: true,
+      call_timeout: '15s',
+      apikey_options: { key: 'secret', header: 'X-Custom-Key' },
+    });
+  });
+
+  it('exchanges the webhook mTLS certificate and key with the API as base64 PEM', () => {
+    const fromApi = {
+      auth_mode: 'EXTERNAL_WEBHOOK',
+      external_webhook_settings: {
+        name: 'authorize',
+        url: 'https://example.com/authorize',
+        method: 'POST',
+        config: {
+          auth_mode: 'mtls',
+          insecure_skip_verify: false,
+          mtls_options: { cert_content: btoa(PEM_CERT), key_content: btoa(PEM_KEY) },
+        },
+      },
+    } as unknown as ApiRaEstSettings;
+
+    const normalized = normalizeEstAuthSettings(fromApi);
+    expect(normalized.external_webhook_settings?.config.mtls_options).toEqual({ cert_content: PEM_CERT, key_content: PEM_KEY });
+    expect(toApiEstAuthSettings(normalized).external_webhook_settings?.config.mtls_options)
+      .toEqual({ cert_content: btoa(PEM_CERT), key_content: btoa(PEM_KEY) });
+  });
+
+  it('clamps a stored webhook method the form cannot render to POST', () => {
+    const stored = { external_webhook_settings: { method: 'GET' } } as unknown as ApiRaEstSettings;
+
+    expect(normalizeEstAuthSettings(stored).external_webhook_settings?.method).toBe('POST');
+    expect(normalizeEstAuthSettings({ external_webhook_settings: { method: 'PUT' } } as unknown as ApiRaEstSettings)
+      .external_webhook_settings?.method).toBe('PUT');
   });
 
   it('requires enrollment validation CAs for client-certificate authentication', () => {
@@ -77,18 +142,83 @@ describe('DMS form helpers', () => {
       url: 'https://example.com/authorize',
       method: 'POST',
       config: {
-        validate_server_cert: true,
-        log_level: 'info',
         auth_mode: 'mtls',
+        log_level: 'info',
+        insecure_skip_verify: false,
         call_timeout: '10s',
       },
     };
 
     expect(validateEstAuthSettings('Re-enrollment authentication', settings))
-      .toBe('Re-enrollment authentication webhook mTLS certificate and private key are required.');
+      .toBe('Re-enrollment authentication webhook mTLS client certificate is required.');
 
-    settings.external_webhook_settings.config.mtls = { cert: 'certificate', key: 'private-key' };
+    settings.external_webhook_settings.config.mtls_options = { cert_content: PEM_CERT, key_content: PEM_KEY };
     expect(validateEstAuthSettings('Re-enrollment authentication', settings)).toBeNull();
+  });
+
+  it('reports an empty webhook URL once, apart from the missing name', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.auth_mode = 'EXTERNAL_WEBHOOK';
+
+    expect(getEstAuthSettingsValidationErrors('Enrollment authentication', settings)).toEqual([
+      'Enrollment authentication webhook name is required.',
+      'Enrollment authentication webhook URL is required.',
+    ]);
+
+    settings.external_webhook_settings!.name = 'authorize';
+    expect(getEstAuthSettingsValidationErrors('Enrollment authentication', settings)).toEqual([
+      'Enrollment authentication webhook URL is required.',
+    ]);
+  });
+
+  it('rejects webhook settings that reference server files or reserved API key headers', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.auth_mode = 'EXTERNAL_WEBHOOK';
+    settings.external_webhook_settings = {
+      name: 'authorize',
+      url: 'https://example.com/authorize',
+      method: 'POST',
+      config: {
+        auth_mode: 'mtls',
+        log_level: 'info',
+        insecure_skip_verify: false,
+        call_timeout: '10s',
+        mtls_options: { cert_content: '/etc/certs/client.crt', key_content: '/etc/certs/client.key' },
+      },
+    };
+
+    expect(validateEstAuthSettings('Enrollment authentication', settings))
+      .toBe('Enrollment authentication webhook mTLS client certificate must be PEM content, not a file path.');
+
+    settings.external_webhook_settings.config = {
+      auth_mode: 'apikey',
+      log_level: 'info',
+      insecure_skip_verify: false,
+      apikey_options: { key: 'secret', header: 'X-Principal-Id' },
+    };
+
+    expect(validateEstAuthSettings('Enrollment authentication', settings))
+      .toBe('Enrollment authentication webhook API key header "X-Principal-Id" is reserved by the platform.');
+  });
+
+  it('reports an invalid OIDC well-known URL once, with readable casing', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.auth_mode = 'EXTERNAL_WEBHOOK';
+    settings.external_webhook_settings = {
+      name: 'authorize',
+      url: 'https://example.com/authorize',
+      method: 'POST',
+      config: {
+        auth_mode: 'jwt',
+        log_level: 'info',
+        insecure_skip_verify: false,
+        jwt_options: { oidc_client_id: 'client', oidc_client_secret: 'secret', oidc_well_known: 'not-a-url' },
+      },
+    };
+
+    expect(getEstAuthSettingsValidationErrors('Enrollment authentication', settings, false)).toEqual([
+      'Enrollment authentication webhook OIDC well-known URL must be an absolute HTTP or HTTPS URL.',
+    ]);
   });
 
   it('builds a complete inline issuance profile', () => {

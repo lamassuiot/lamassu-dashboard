@@ -256,6 +256,24 @@ describe('dms-api', () => {
         'Failed to create RA'
       )
     })
+
+    it('should surface backend webhook validation errors on creation', async () => {
+      server.use(
+        http.post(`${DMS_API_BASE}/dms`, () => {
+          return HttpResponse.json(
+            {
+              err: 'struct validation error: invalid enrollment external webhook config: '
+                + 'webhook config must not reference files: use mtls_options.cert_content and mtls_options.key_content',
+            },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(createOrUpdateRa(payload, false)).rejects.toThrow(
+        'webhook config must not reference files'
+      )
+    })
   })
 
   describe('updateRegistrationAuthority', () => {
@@ -406,13 +424,13 @@ describe('dms-api', () => {
                 url: 'https://auth.example.com/validate',
                 method: 'POST',
                 config: {
-                  validate_server_cert: true,
-                  log_level: 'Info',
                   auth_mode: 'jwt',
-                  oidc: {
-                    client_id: 'webhook-client',
-                    client_secret: 'secret',
-                    well_known: 'https://auth.example.com/.well-known/openid-configuration',
+                  log_level: 'Info',
+                  insecure_skip_verify: false,
+                  jwt_options: {
+                    oidc_client_id: 'webhook-client',
+                    oidc_client_secret: 'secret',
+                    oidc_well_known: 'https://auth.example.com/.well-known/openid-configuration',
                   },
                 },
               },
@@ -453,10 +471,10 @@ describe('dms-api', () => {
                 url: 'https://auth.example.com/validate',
                 method: 'POST',
                 config: {
-                  validate_server_cert: false,
-                  log_level: 'Debug',
                   auth_mode: 'apikey',
-                  apikey: {
+                  log_level: 'Debug',
+                  insecure_skip_verify: true,
+                  apikey_options: {
                     key: 'my-secret-key',
                     header: 'X-API-Key',
                   },
@@ -488,9 +506,9 @@ describe('dms-api', () => {
       const webhookSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings.external_webhook_settings
       expect(webhookSettings.method).toBe('POST')
       expect(webhookSettings.config.auth_mode).toBe('apikey')
-      expect(webhookSettings.config.apikey.key).toBe('my-secret-key')
-      expect(webhookSettings.config.apikey.header).toBe('X-API-Key')
-      expect(webhookSettings.config.validate_server_cert).toBe(false)
+      expect(webhookSettings.config.apikey_options.key).toBe('my-secret-key')
+      expect(webhookSettings.config.apikey_options.header).toBe('X-API-Key')
+      expect(webhookSettings.config.insecure_skip_verify).toBe(true)
     })
 
     it('should handle EST webhook settings with no auth', async () => {
@@ -507,9 +525,9 @@ describe('dms-api', () => {
                 url: 'https://internal.example.com/validate',
                 method: 'POST',
                 config: {
-                  validate_server_cert: true,
-                  log_level: 'Warn',
                   auth_mode: 'noauth',
+                  log_level: 'Warn',
+                  insecure_skip_verify: false,
                 },
               },
             },
@@ -529,7 +547,7 @@ describe('dms-api', () => {
       expect(webhookSettings).toBeDefined()
       expect(webhookSettings?.method).toBe('POST')
       expect(webhookSettings?.config.auth_mode).toBe('noauth')
-      expect(webhookSettings?.config.validate_server_cert).toBe(true)
+      expect(webhookSettings?.config.insecure_skip_verify).toBe(false)
       expect(webhookSettings?.config.log_level).toBe('Warn')
     })
 
@@ -552,9 +570,9 @@ describe('dms-api', () => {
                 url: 'https://auth.example.com/validate',
                 method: 'POST',
                 config: {
-                  validate_server_cert: true,
-                  log_level: 'info',
                   auth_mode: 'noauth',
+                  log_level: 'info',
+                  insecure_skip_verify: false,
                 },
               },
             },
@@ -609,10 +627,10 @@ describe('dms-api', () => {
                 url: 'https://hooks.example.com/verify',
                 method: 'POST',
                 config: {
-                  validate_server_cert: true,
-                  log_level: 'info',
                   auth_mode: 'apikey',
-                  apikey: {
+                  log_level: 'info',
+                  insecure_skip_verify: false,
+                  apikey_options: {
                     key: 'super-secret-key',
                     header: 'X-API-Key',
                   },
@@ -631,7 +649,7 @@ describe('dms-api', () => {
       expect(estSettings.client_certificate_settings.validation_cas).toEqual(['ca-1'])
       expect(estSettings.external_webhook_settings).toBeDefined()
       expect(estSettings.external_webhook_settings.config.auth_mode).toBe('apikey')
-      expect(estSettings.external_webhook_settings.config.apikey.key).toBe('super-secret-key')
+      expect(estSettings.external_webhook_settings.config.apikey_options.key).toBe('super-secret-key')
     })
 
     it('should create RA with combined auth mode and OIDC webhook', async () => {
@@ -664,13 +682,13 @@ describe('dms-api', () => {
                 url: 'https://hooks.example.com/verify',
                 method: 'POST',
                 config: {
-                  validate_server_cert: true,
-                  log_level: 'debug',
                   auth_mode: 'jwt',
-                  oidc: {
-                    client_id: 'my-client',
-                    client_secret: 'my-secret',
-                    well_known: 'https://idp.example.com/.well-known/openid-configuration',
+                  log_level: 'debug',
+                  insecure_skip_verify: false,
+                  jwt_options: {
+                    oidc_client_id: 'my-client',
+                    oidc_client_secret: 'my-secret',
+                    oidc_well_known: 'https://idp.example.com/.well-known/openid-configuration',
                   },
                 },
               },
@@ -685,7 +703,7 @@ describe('dms-api', () => {
       expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
       expect(estSettings.client_certificate_settings.chain_level_validation).toBe(1)
       expect(estSettings.external_webhook_settings.config.auth_mode).toBe('jwt')
-      expect(estSettings.external_webhook_settings.config.oidc.client_id).toBe('my-client')
+      expect(estSettings.external_webhook_settings.config.jwt_options.oidc_client_id).toBe('my-client')
     })
 
     it('should handle createOrUpdateRa error without JSON response', async () => {
