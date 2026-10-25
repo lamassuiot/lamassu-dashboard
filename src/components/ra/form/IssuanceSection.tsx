@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ApiSigningProfile } from '@/lib/ca-data';
-import { withDefaultValidationCa } from '@/lib/dms-form';
 import type { IssuanceProfileMode } from '@/lib/ra-form';
 import { ChoiceList, RaFieldGroup, RaFormSection } from './RaFormSection';
 import { fieldError, listedIssues, type RaSectionProps } from './types';
@@ -147,14 +146,7 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
         allCryptoEngines={deps.cryptoEngines}
         currentSelectedCaId={values.enrollmentCaId}
         onCaSelected={ca => {
-          // Devices re-enroll with the certificate this CA issues, so trust it for re-enrollment by default.
-          update({
-            enrollmentCaId: ca.id,
-            additionalValidationCaIds: values.additionalValidationCaIds.includes(ca.id)
-              ? values.additionalValidationCaIds
-              : [...values.additionalValidationCaIds, ca.id],
-            reenrollmentAuth: withDefaultValidationCa(values.reenrollmentAuth, ca.id),
-          });
+          update({ enrollmentCaId: ca.id });
           setIsCaModalOpen(false);
         }}
       />

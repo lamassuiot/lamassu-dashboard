@@ -31,13 +31,12 @@ export function fieldMessages(issues: readonly RaFormIssue[], field: RaFormField
   return issues.filter(issue => issue.field === field && issue.severity === severity).map(issue => issue.message);
 }
 
-/** Error/warning props for `EstAuthSettingsEditor`, which renders every auth issue inline. */
+/** Error props for `EstAuthSettingsEditor`, which renders every auth issue inline. */
 export function authEditorIssueProps(issues: readonly RaFormIssue[], field: 'enrollmentAuth' | 'reenrollmentAuth') {
   const errors = fieldMessages(issues, field, 'error');
   return {
     validationErrors: errors,
     timeoutError: errors.find(message => message.includes('timeout')) ?? null,
-    validationCaWarning: fieldMessages(issues, field, 'warning')[0] ?? null,
   };
 }
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ApiRaItem } from '@/lib/dms-api';
-import { withDefaultValidationCa } from '@/lib/dms-form';
+import type { ApiRaEstSettings, ApiRaItem } from '@/lib/dms-api';
 import {
+  authModeFor,
   buildRaPayload,
   createDefaultRaFormValues,
   isIssueVisible,
@@ -12,6 +12,10 @@ import {
   type RaFormValues,
 } from './ra-form';
 
+function withValidationCas(settings: ApiRaEstSettings, validationCas: string[]): ApiRaEstSettings {
+  return { ...settings, client_certificate_settings: { ...settings.client_certificate_settings!, validation_cas: validationCas } };
+}
+
 function validValues(overrides: Partial<RaFormValues> = {}): RaFormValues {
   const defaults = createDefaultRaFormValues(200);
   return {
@@ -19,14 +23,21 @@ function validValues(overrides: Partial<RaFormValues> = {}): RaFormValues {
     name: 'Factory RA',
     id: 'factory-ra',
     enrollmentCaId: 'ca-1',
-    additionalValidationCaIds: ['ca-1'],
-    enrollmentAuth: withDefaultValidationCa(defaults.enrollmentAuth, 'bootstrap-ca'),
-    reenrollmentAuth: withDefaultValidationCa(defaults.reenrollmentAuth, 'ca-1'),
+    enrollmentAuth: withValidationCas(defaults.enrollmentAuth, ['bootstrap-ca']),
     ...overrides,
   };
 }
 
 const context = { isEditMode: false, enrollmentCaHasDefaultProfile: true };
+
+describe('authModeFor', () => {
+  it('maps the client certificate and webhook checks to every auth mode', () => {
+    expect(authModeFor(true, true)).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK');
+    expect(authModeFor(true, false)).toBe('CLIENT_CERTIFICATE');
+    expect(authModeFor(false, true)).toBe('EXTERNAL_WEBHOOK');
+    expect(authModeFor(false, false)).toBe('NO_AUTH');
+  });
+});
 
 describe('slugifyRaId', () => {
   it('derives a URL-safe identifier from a display name', () => {
@@ -50,7 +61,6 @@ describe('validateRaForm', () => {
       ['identity', 'id'],
       ['issuance', 'enrollmentCa'],
       ['enrollment', 'enrollmentAuth'],
-      ['reenrollment', 'reenrollmentAuth'],
     ]));
   });
 
@@ -68,14 +78,15 @@ describe('validateRaForm', () => {
     ]);
   });
 
-  it('warns when the Enrollment CA is not trusted for re-enrollment', () => {
-    const issues = validateRaForm(
-      validValues({ additionalValidationCaIds: [], reenrollmentAuth: withDefaultValidationCa(createDefaultRaFormValues(0).reenrollmentAuth, 'other') }),
-      { ...context, enrollmentCaName: 'Device CA' },
-    );
+  it('does not require re-enrollment validation CAs because the Enrollment CA is always trusted', () => {
+    const issues = validateRaForm(validValues(), context);
+    expect(validValues().reenrollmentAuth.client_certificate_settings?.validation_cas).toEqual([]);
+    expect(issues).toEqual([]);
+  });
 
-    expect(issues.map(issue => issue.severity)).toEqual(['warning', 'warning']);
-    expect(issues[0].message).toContain('"Device CA"');
+  it('still requires enrollment validation CAs for client-certificate authentication', () => {
+    const issues = validateRaForm(validValues({ enrollmentAuth: createDefaultRaFormValues(0).enrollmentAuth }), context);
+    expect(issues).toEqual([expect.objectContaining({ section: 'enrollment', field: 'enrollmentAuth', kind: 'required' })]);
   });
 
   it('warns when the default profile mode has no profile to resolve', () => {
@@ -127,6 +138,7 @@ describe('raFormValuesFromApi', () => {
       deviceMetadataJson: '{\n  "site": "north"\n}',
       serverKeygen: { enabled: true, type: 'ECDSA', spec: 'P-521' },
       managedCaIds: ['ca-2'],
+      reenrollmentAuth: withValidationCas(createDefaultRaFormValues(0).reenrollmentAuth, ['old-ca']),
     }));
     const ra: ApiRaItem = { ...original, creation_ts: '2026-01-01T00:00:00Z' };
 

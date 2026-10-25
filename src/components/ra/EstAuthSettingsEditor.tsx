@@ -1,21 +1,22 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, PlusCircle, X } from 'lucide-react';
+import { AlertTriangle, Lock, PlusCircle, X } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ApiRaEstSettings } from '@/lib/dms-api';
+import { authModeFor, usesClientCertificate, usesWebhook } from '@/lib/ra-form';
 import { getWebhookAuthOptionErrors, getWebhookUrlError } from '@/lib/webhook-config';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { WebhookHttpClientFields } from '@/components/shared/WebhookHttpClientFields';
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
+import { SettingSwitch, SettingToggleGroup } from '@/components/ra/form/RaFormSection';
 
 type EstAuthSettingsEditorProps = {
   idPrefix: string;
@@ -28,7 +29,11 @@ type EstAuthSettingsEditorProps = {
   loadCAsAction: () => void;
   validationErrors?: readonly string[];
   timeoutError?: string | null;
-  validationCaWarning?: string | null;
+  /**
+   * Re-enrollment always validates against the Enrollment CA before trying the listed CAs.
+   * When set, that CA is shown pinned above the list; `null` means none is selected yet.
+   */
+  implicitEnrollmentCaId?: string | null;
 };
 
 export function EstAuthSettingsEditor({
@@ -42,7 +47,7 @@ export function EstAuthSettingsEditor({
   loadCAsAction,
   validationErrors = [],
   timeoutError,
-  validationCaWarning,
+  implicitEnrollmentCaId,
 }: EstAuthSettingsEditorProps) {
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const clientSettings = value.client_certificate_settings || {
@@ -63,11 +68,17 @@ export function EstAuthSettingsEditor({
   };
   const webhookConfig = webhook.config;
 
+  const showsImplicitEnrollmentCa = implicitEnrollmentCaId !== undefined;
+  const implicitEnrollmentCa = implicitEnrollmentCaId
+    ? availableCAs.find((ca) => ca.id === implicitEnrollmentCaId)
+    : undefined;
+  // An explicit entry for the Enrollment CA is redundant with the pinned row, so it is not repeated.
   const validationCAs = useMemo(
     () => clientSettings.validation_cas
+      .filter((id) => id !== implicitEnrollmentCaId)
       .map((id) => availableCAs.find((ca) => ca.id === id))
       .filter((ca): ca is CA => !!ca),
-    [availableCAs, clientSettings.validation_cas],
+    [availableCAs, clientSettings.validation_cas, implicitEnrollmentCaId],
   );
 
   const updateClientSettings = (
@@ -90,10 +101,8 @@ export function EstAuthSettingsEditor({
     updateWebhook({ config: { ...webhookConfig, ...patch } });
   };
 
-  const includesClientCertificate = value.auth_mode === 'CLIENT_CERTIFICATE'
-    || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
-  const includesWebhook = value.auth_mode === 'EXTERNAL_WEBHOOK'
-    || value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
+  const includesClientCertificate = usesClientCertificate(value);
+  const includesWebhook = usesWebhook(value);
   const validationCaError = validationErrors.find((error) => error.includes('validation CA')) || null;
   const webhookNameError = includesWebhook && !webhook.name.trim() ? 'Webhook name is required.' : null;
   const webhookUrlError = includesWebhook ? getWebhookUrlError(webhook.url) : null;
@@ -101,30 +110,35 @@ export function EstAuthSettingsEditor({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-auth-mode`}>Authentication Mode</Label>
-        <Select
-          value={value.auth_mode}
-          onValueChange={(authMode: ApiRaEstSettings['auth_mode']) => onChange({ ...value, auth_mode: authMode })}
+      <div className="divide-y">
+        <SettingToggleGroup
+          id={`${idPrefix}-client-certificate`}
+          label="Require client certificate"
+          description="Devices authenticate with a certificate issued by a trusted CA."
+          checked={includesClientCertificate}
+          onCheckedChange={(checked) => onChange({ ...value, auth_mode: authModeFor(checked, includesWebhook) })}
         >
-          <SelectTrigger id={`${idPrefix}-auth-mode`} className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="CLIENT_CERTIFICATE">Client Certificate</SelectItem>
-            <SelectItem value="EXTERNAL_WEBHOOK">External Webhook</SelectItem>
-            <SelectItem value="CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK">Client Certificate + Webhook</SelectItem>
-            <SelectItem value="NO_AUTH">No Authentication</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {includesClientCertificate ? (
-        <div className="space-y-4 rounded-md border p-4">
-          <div>
-            <p className="text-sm font-medium">Client certificate</p>
-            <p className="mt-1 text-xs text-muted-foreground">Configure certificate trust and chain validation for this EST operation.</p>
-          </div>
           <div className="space-y-2">
             <Label>Validation CAs</Label>
+            {showsImplicitEnrollmentCa ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  The Enrollment CA is always included. Add other CAs to also accept certificates they issued, such as the previous Enrollment CA during a CA rotation.
+                </p>
+                <div className="flex items-center gap-2">
+                  {implicitEnrollmentCa ? (
+                    <CaVisualizerCard ca={implicitEnrollmentCa} allCryptoEngines={allCryptoEngines} className="flex-1 shadow-none" />
+                  ) : (
+                    <div className="flex-1 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      {implicitEnrollmentCaId ? `Enrollment CA "${implicitEnrollmentCaId}"` : 'Enrollment CA (not selected yet)'}
+                    </div>
+                  )}
+                  <Badge variant="muted" title="The Enrollment CA is always used to validate re-enrollment requests.">
+                    <Lock /> Always included
+                  </Badge>
+                </div>
+              </>
+            ) : null}
             {validationCAs.length ? validationCAs.map((ca) => (
               <div key={ca.id} className="flex items-center gap-2">
                 <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-1 shadow-none" />
@@ -140,49 +154,43 @@ export function EstAuthSettingsEditor({
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            )) : <p className="text-sm text-muted-foreground">No validation CAs selected.</p>}
+            )) : (
+              <p className="text-sm text-muted-foreground">
+                {showsImplicitEnrollmentCa ? 'No additional validation CAs.' : 'No validation CAs selected.'}
+              </p>
+            )}
             <Button type="button" variant="outline" onClick={() => setIsCaSelectorOpen(true)} aria-invalid={!!validationCaError} aria-describedby={validationCaError ? `${idPrefix}-validation-ca-error` : undefined}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
+              <PlusCircle className="mr-2 h-4 w-4" /> Add validation CA
             </Button>
             {validationCaError && <FormFieldError id={`${idPrefix}-validation-ca-error`} title="Validation CA required." description="Select at least one for client certificate authentication." />}
-            {!validationCaError && validationCaWarning ? (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Enrollment CA not included</AlertTitle>
-                <AlertDescription>{validationCaWarning}</AlertDescription>
-              </Alert>
-            ) : null}
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label htmlFor={`${idPrefix}-allow-expired`}>Allow Expired Certificates</Label>
-              <p className="mt-1 text-xs text-muted-foreground">Accept an expired certificate during authentication.</p>
-            </div>
-            <Switch
-              id={`${idPrefix}-allow-expired`}
-              checked={clientSettings.allow_expired}
-              onCheckedChange={(checked) => updateClientSettings({ allow_expired: checked })}
-            />
-          </div>
+          <SettingSwitch
+            id={`${idPrefix}-allow-expired`}
+            label="Allow expired certificates"
+            description="Accept an expired certificate during authentication."
+            checked={clientSettings.allow_expired}
+            onCheckedChange={(checked) => updateClientSettings({ allow_expired: checked })}
+          />
           <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-chain-level`}>Chain Validation Level</Label>
+            <Label htmlFor={`${idPrefix}-chain-level`}>Chain validation level</Label>
             <Input
               id={`${idPrefix}-chain-level`}
               type="number"
+              className="max-w-40"
               value={clientSettings.chain_level_validation}
               onChange={(event) => updateClientSettings({ chain_level_validation: Number(event.target.value) })}
             />
             <p className="text-xs text-muted-foreground">Use -1 to validate the complete certificate chain.</p>
           </div>
-        </div>
-      ) : null}
+        </SettingToggleGroup>
 
-      {includesWebhook ? (
-        <div className="space-y-4 rounded-md border p-4">
-          <div>
-            <p className="text-sm font-medium">External webhook</p>
-            <p className="mt-1 text-xs text-muted-foreground">Call an external authorization endpoint before issuing the certificate.</p>
-          </div>
+        <SettingToggleGroup
+          id={`${idPrefix}-webhook`}
+          label="Call external webhook"
+          description="An external endpoint must approve each request before the certificate is issued."
+          checked={includesWebhook}
+          onCheckedChange={(checked) => onChange({ ...value, auth_mode: authModeFor(includesClientCertificate, checked) })}
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-webhook-name`}>Name</Label>
@@ -210,7 +218,7 @@ export function EstAuthSettingsEditor({
               {webhookUrlError && <FormFieldError id={`${idPrefix}-webhook-url-error`} title={webhookUrlError} />}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${idPrefix}-webhook-method`}>HTTP Method</Label>
+              <Label htmlFor={`${idPrefix}-webhook-method`}>HTTP method</Label>
               <Select value={webhook.method || 'POST'} onValueChange={(method) => updateWebhook({ method })}>
                 <SelectTrigger id={`${idPrefix}-webhook-method`} className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -228,7 +236,17 @@ export function EstAuthSettingsEditor({
             timeoutError={timeoutError}
             url={webhook.url}
           />
-        </div>
+        </SettingToggleGroup>
+      </div>
+
+      {value.auth_mode === 'NO_AUTH' ? (
+        <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" />
+          <span>No authentication: any device can request a certificate.</span>
+        </p>
+      ) : null}
+      {value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' ? (
+        <p className="text-xs text-muted-foreground">Both checks must pass.</p>
       ) : null}
 
       <CaSelectorModal

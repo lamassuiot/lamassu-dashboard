@@ -3,7 +3,6 @@
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
 import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
 import { DurationInput } from '@/components/shared/DurationInput';
-import { CaListField } from './CaListField';
 import { RaFieldGroup, RaFormSection, SettingSwitch, SettingSwitchList } from './RaFormSection';
 import { authEditorIssueProps, fieldError, listedIssues, type RaSectionProps } from './types';
 
@@ -29,6 +28,7 @@ export function ReenrollmentSection({ values, update, issues, deps, effectivePro
         isLoadingCAs={deps.isLoading}
         errorCAs={deps.error}
         loadCAsAction={deps.reload}
+        implicitEnrollmentCaId={values.enrollmentCaId}
         {...authEditorIssueProps(issues, 'reenrollmentAuth')}
       />
 
@@ -89,17 +89,6 @@ export function ReenrollmentSection({ values, update, issues, deps, effectivePro
           />
         </SettingSwitchList>
       </RaFieldGroup>
-
-      <CaListField
-        label="Additional validation CAs"
-        description="Extra CAs whose certificates are accepted when a device re-enrolls."
-        emptyText="No additional validation CAs."
-        addLabel="Add validation CA"
-        modalDescription="Select a CA to trust for re-enrollment."
-        value={values.additionalValidationCaIds}
-        onChange={additionalValidationCaIds => update({ additionalValidationCaIds })}
-        deps={deps}
-      />
     </RaFormSection>
   );
 }

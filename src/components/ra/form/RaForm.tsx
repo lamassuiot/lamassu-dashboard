@@ -188,7 +188,6 @@ export function RaForm({ raId }: { raId: string | null }) {
   const inlineProfileErrors = values.issuanceProfileMode === 'inline' ? getFormErrorMessages(inlineProfileForm.formState.errors) : [];
   const allIssues = validateRaForm(values, {
     isEditMode,
-    enrollmentCaName: enrollmentCa?.name,
     enrollmentCaHasDefaultProfile: deps.isLoading || !enrollmentCa ? undefined : !!enrollmentCaDefaultProfile,
     inlineProfileErrors,
   });

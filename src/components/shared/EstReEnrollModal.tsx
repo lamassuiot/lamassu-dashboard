@@ -203,6 +203,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
                                 <AlertDescUI>
                                     This process assumes you have the device's current, valid certificate and private key (e.g., `{finalDeviceId}.existing.crt` and `{finalDeviceId}.existing.key`).
                                     {!rekey && ' The existing private key will be used to generate the new CSR.'}
+                                    {' '}The existing certificate is always accepted if it was issued by the RA&apos;s Enrollment CA; certificates from other CAs are accepted only if they are configured as re-enrollment validation CAs.
                                 </AlertDescUI>
                             </Alert>
                             <div className="my-2 flex items-center space-x-2">

@@ -61,7 +61,6 @@ describe('dms-api', () => {
         critical_delta: '30d',
         preventive_delta: '60d',
         reenrollment_delta: '90d',
-        additional_validation_cas: [],
       },
       server_keygen_settings: {
         enabled: false,
