@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
+    // Node 25+ ships a global localStorage that shadows happy-dom's.
+    execArgv: ['--no-experimental-webstorage'],
     setupFiles: ['./src/lib/test-utils/setup.ts'],
     include: ['**/*.test.ts', '**/*.test.tsx'],
     coverage: {
