@@ -270,10 +270,12 @@ export function getEstAuthSettingsValidationErrors(
 
   if (!includesWebhook) return errors;
   const webhook = settings.external_webhook_settings;
-  if (!webhook || !webhook.name.trim() || !webhook.url.trim()) {
+  if (!webhook) {
     errors.push(`${label} webhook name and URL are required.`);
+    return errors;
   }
-  if (!webhook) return errors;
+  // The URL, including an empty one, is reported once by validateWebhookCall below.
+  if (!webhook.name.trim()) errors.push(`${label} webhook name is required.`);
 
   errors.push(
     ...validateWebhookCall({

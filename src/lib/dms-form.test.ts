@@ -156,6 +156,21 @@ describe('DMS form helpers', () => {
     expect(validateEstAuthSettings('Re-enrollment authentication', settings)).toBeNull();
   });
 
+  it('reports an empty webhook URL once, apart from the missing name', () => {
+    const settings = normalizeEstAuthSettings(undefined);
+    settings.auth_mode = 'EXTERNAL_WEBHOOK';
+
+    expect(getEstAuthSettingsValidationErrors('Enrollment authentication', settings)).toEqual([
+      'Enrollment authentication webhook name is required.',
+      'Enrollment authentication webhook URL is required.',
+    ]);
+
+    settings.external_webhook_settings!.name = 'authorize';
+    expect(getEstAuthSettingsValidationErrors('Enrollment authentication', settings)).toEqual([
+      'Enrollment authentication webhook URL is required.',
+    ]);
+  });
+
   it('rejects webhook settings that reference server files or reserved API key headers', () => {
     const settings = normalizeEstAuthSettings(undefined);
     settings.auth_mode = 'EXTERNAL_WEBHOOK';
