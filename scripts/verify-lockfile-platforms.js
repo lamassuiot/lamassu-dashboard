@@ -4,12 +4,14 @@
 // package metadata in packages. Check exact versions, including peer suffixes.
 const fs = require('fs');
 const path = require('path');
-const { parse } = require('yaml');
+const { parseAllDocuments } = require('yaml');
 
 const LOCKFILE = path.join(__dirname, '..', 'pnpm-lock.yaml');
 const X64_TOKEN = /(^|[-/])x64($|[-/])/;
 
-const lock = parse(fs.readFileSync(LOCKFILE, 'utf8'));
+// pnpm 12 prepends a document that locks pnpm itself; the project lockfile is the last one.
+const documents = parseAllDocuments(fs.readFileSync(LOCKFILE, 'utf8'));
+const lock = documents[documents.length - 1].toJS();
 if (String(lock?.lockfileVersion) !== '9.0' || !lock.packages || !lock.snapshots) {
   console.error('Expected a pnpm v9 lockfile with packages and snapshots.');
   process.exit(1);

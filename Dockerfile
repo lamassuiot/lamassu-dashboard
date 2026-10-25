@@ -6,8 +6,10 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Use the pnpm version pinned in package.json.
-RUN corepack enable
+# Copy pnpm from its official image.
+# Keep the tag in sync with packageManager in package.json.
+COPY --from=ghcr.io/pnpm/pnpm:12.15.0 /opt/pnpm /opt/pnpm
+RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 

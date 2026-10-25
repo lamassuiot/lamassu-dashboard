@@ -2,7 +2,7 @@
   "name": "lamassu-dashboard",
   "version": "4.2.0",
   "private": true,
-  "packageManager": "pnpm@10.15.1",
+  "packageManager": "pnpm@12.15.0",
   "cpu": [
     "x64",
     "arm64"
