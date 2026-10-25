@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
+import { generateUUID } from '@/lib-crypto/uuid';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,6 @@ import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormVa
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
 import { getEffectiveCaStatus, INDEFINITE_CA_EXPIRATION, toApiCaExpiration } from '@/lib/ca-utils';
-import { generateUUID } from '@/lib-crypto/uuid';
 
 
 /** Parents must be able to sign: active and not an external public CA. */
