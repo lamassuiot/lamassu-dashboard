@@ -6,8 +6,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Node 25+ no longer bundles corepack, so install the pnpm version pinned in package.json directly.
-RUN npm install -g --ignore-scripts pnpm@10.15.1
+# Node 25+ no longer bundles corepack, so install pnpm from a lockfile (docker/pnpm).
+# Keep its version in sync with packageManager in package.json.
+COPY docker/pnpm/package.json docker/pnpm/package-lock.json /opt/pnpm/
+RUN npm ci --ignore-scripts --prefix /opt/pnpm \
+    && ln -s /opt/pnpm/node_modules/.bin/pnpm /usr/local/bin/pnpm
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 

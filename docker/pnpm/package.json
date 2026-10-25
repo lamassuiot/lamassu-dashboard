@@ -1,0 +1,8 @@
+{
+  "name": "pnpm-bootstrap",
+  "private": true,
+  "description": "Locked install of the pnpm version used by the Docker build. Keep in sync with packageManager in the root package.json.",
+  "dependencies": {
+    "pnpm": "10.15.1"
+  }
+}
