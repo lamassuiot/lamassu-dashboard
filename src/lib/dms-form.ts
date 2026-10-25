@@ -142,7 +142,8 @@ export function normalizeEstAuthSettings(
     external_webhook_settings: {
       ...defaults.external_webhook_settings!,
       ...raw?.external_webhook_settings,
-      method: raw?.external_webhook_settings?.method || 'POST',
+      // The form only offers POST/PUT; clamp anything else so it never blocks saving with no visible error.
+      method: raw?.external_webhook_settings?.method === 'PUT' ? 'PUT' : 'POST',
       config: decodeWebhookHttpClient(normalizeWebhookConfig(raw?.external_webhook_settings?.config)),
     },
   };

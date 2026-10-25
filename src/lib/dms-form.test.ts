@@ -91,6 +91,14 @@ describe('DMS form helpers', () => {
       .toEqual({ cert_content: btoa(PEM_CERT), key_content: btoa(PEM_KEY) });
   });
 
+  it('clamps a stored webhook method the form cannot render to POST', () => {
+    const stored = { external_webhook_settings: { method: 'GET' } } as unknown as ApiRaEstSettings;
+
+    expect(normalizeEstAuthSettings(stored).external_webhook_settings?.method).toBe('POST');
+    expect(normalizeEstAuthSettings({ external_webhook_settings: { method: 'PUT' } } as unknown as ApiRaEstSettings)
+      .external_webhook_settings?.method).toBe('PUT');
+  });
+
   it('requires enrollment validation CAs for client-certificate authentication', () => {
     const settings = normalizeEstAuthSettings(undefined);
     expect(validateEstAuthSettings('Enrollment authentication', settings, true))
