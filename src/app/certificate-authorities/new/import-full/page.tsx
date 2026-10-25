@@ -21,6 +21,7 @@ import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageO
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 export default function CreateCaImportFullPage() {
   const router = useRouter();
@@ -76,7 +77,7 @@ export default function CreateCaImportFullPage() {
   }, []);
 
   useEffect(() => {
-    setCaId(crypto.randomUUID());
+    setCaId(generateUUID());
   }, []);
 
   useEffect(() => {

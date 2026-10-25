@@ -34,6 +34,7 @@ import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormVa
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
 import { getEffectiveCaStatus, INDEFINITE_CA_EXPIRATION, toApiCaExpiration } from '@/lib/ca-utils';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 
 /** Parents must be able to sign: active and not an external public CA. */
@@ -106,7 +107,7 @@ export default function CreateCaGeneratePage() {
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
 
   useEffect(() => {
-    setCaId(crypto.randomUUID());
+    setCaId(generateUUID());
   }, []);
 
   const loadDependencies = useCallback(async () => {

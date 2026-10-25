@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UploadCloud, CheckCircle, Loader2 } from 'lucide-react';
 import type { CertificateData } from '@/types/certificate';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { generateUUID } from '@/lib-crypto/uuid';
 // For client-side UUID and hash generation
 
 interface CertificateImportFormProps {
@@ -76,11 +77,11 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
 
 
       const newCert: CertificateData = {
-        id: globalThis.crypto.randomUUID(),
+        id: generateUUID(),
         fileName: file.name,
         subject,
         issuer,
-        serialNumber: globalThis.crypto.randomUUID().slice(0,16).replace(/-/g,':'), // Placeholder
+        serialNumber: generateUUID().slice(0,16).replace(/-/g,':'), // Placeholder
         validFrom: new Date(Date.now() - Math.random() * 100 * 24 * 60 * 60 * 1000).toISOString(),
         validTo: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000) * (Math.random() + 0.5)).toISOString(),
         sans,

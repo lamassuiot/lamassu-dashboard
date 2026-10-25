@@ -1,4 +1,5 @@
 import type { PrincipalType, SubjectAttributeConfig } from '@/types/authz';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 export type SubjectAttributeRow = {
   id: string;
@@ -13,7 +14,7 @@ export const X509_SUBJECT_ATTRIBUTE_SOURCES = [
 ] as const;
 
 export const newSubjectAttributeRow = (key = '', value = ''): SubjectAttributeRow => ({
-  id: crypto.randomUUID(),
+  id: generateUUID(),
   key,
   value,
 });

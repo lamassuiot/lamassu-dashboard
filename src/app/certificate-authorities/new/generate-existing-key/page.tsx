@@ -32,6 +32,7 @@ import { FormFieldError, getFormErrorMessages } from '@/components/shared/FormVa
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { getIssuanceProfileValidationErrors, type CaProfileMode } from '@/lib/ca-form-validation';
 import { INDEFINITE_CA_EXPIRATION, toApiCaExpiration } from '@/lib/ca-utils';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 
 export default function CreateCaExistingKeyPage() {
@@ -83,7 +84,7 @@ export default function CreateCaExistingKeyPage() {
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
 
   useEffect(() => {
-    setCaId(crypto.randomUUID());
+    setCaId(generateUUID());
   }, []);
 
   const loadDependencies = useCallback(async () => {

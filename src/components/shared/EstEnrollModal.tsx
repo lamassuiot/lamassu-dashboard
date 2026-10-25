@@ -31,6 +31,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import { CaSelectorModal } from './CaSelectorModal';
 import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {
@@ -133,7 +134,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     useEffect(() => {
         if(isOpen) {
-            const newDeviceId = initialDeviceId || crypto.randomUUID();
+            const newDeviceId = initialDeviceId || generateUUID();
             setStep(1);
             setDeviceId(newDeviceId);
             setBootstrapCn(newDeviceId); // Default bootstrap CN to device ID
@@ -372,7 +373,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         type="button"
                                         variant="secondary"
                                         size="icon"
-                                        onClick={() => setDeviceId(crypto.randomUUID())}
+                                        onClick={() => setDeviceId(generateUUID())}
                                         title="Generate random GUID"
                                         disabled={!!initialDeviceId}
                                     >
