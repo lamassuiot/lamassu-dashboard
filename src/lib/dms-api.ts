@@ -64,7 +64,6 @@ export interface ApiRaReEnrollmentSettings {
     critical_delta: string;
     preventive_delta: string;
     reenrollment_delta: string;
-    additional_validation_cas: string[];
 }
 export interface ApiRaSettings {
     enrollment_settings: ApiRaEnrollmentSettings;

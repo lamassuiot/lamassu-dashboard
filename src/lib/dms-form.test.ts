@@ -3,12 +3,10 @@ import type { ApiRaEstSettings } from '@/lib/dms-api';
 import {
   buildInlineIssuanceProfile,
   getEstAuthSettingsValidationErrors,
-  includesValidationCa,
   normalizeEstAuthSettings,
   parseJsonObject,
   toApiEstAuthSettings,
   validateEstAuthSettings,
-  withDefaultValidationCa,
 } from '@/lib/dms-form';
 import { defaultFormValues } from '@/components/shared/SigningProfileForm';
 
@@ -106,32 +104,6 @@ describe('DMS form helpers', () => {
 
     settings.client_certificate_settings!.validation_cas = ['ca-1'];
     expect(validateEstAuthSettings('Enrollment authentication', settings, true)).toBeNull();
-  });
-
-  it('uses the Enrollment CA when no explicit client validation CA is configured', () => {
-    const settings = normalizeEstAuthSettings(undefined);
-    const effectiveSettings = withDefaultValidationCa(settings, 'enrollment-ca');
-
-    expect(effectiveSettings.client_certificate_settings?.validation_cas).toEqual(['enrollment-ca']);
-    expect(validateEstAuthSettings('Enrollment authentication', effectiveSettings, true)).toBeNull();
-    expect(settings.client_certificate_settings?.validation_cas).toEqual([]);
-  });
-
-  it('appends the Enrollment CA alongside validation CAs already configured', () => {
-    const settings = normalizeEstAuthSettings(undefined);
-    settings.client_certificate_settings!.validation_cas = ['other-ca'];
-
-    expect(withDefaultValidationCa(settings, 'enrollment-ca').client_certificate_settings?.validation_cas)
-      .toEqual(['other-ca', 'enrollment-ca']);
-  });
-
-  it('keeps settings untouched when the Enrollment CA is already a validation CA', () => {
-    const settings = normalizeEstAuthSettings(undefined);
-    settings.client_certificate_settings!.validation_cas = ['enrollment-ca'];
-
-    expect(withDefaultValidationCa(settings, 'enrollment-ca')).toBe(settings);
-    expect(includesValidationCa(settings, 'enrollment-ca')).toBe(true);
-    expect(includesValidationCa(settings, 'other-ca')).toBe(false);
   });
 
   it('validates webhook credentials for the selected HTTP auth mode', () => {

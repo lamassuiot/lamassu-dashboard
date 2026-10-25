@@ -4,7 +4,6 @@ import { isValidPositiveDuration } from '@/lib/duration';
 import {
   createDefaultEstAuthSettings,
   getEstAuthSettingsValidationErrors,
-  includesValidationCa,
   normalizeEstAuthSettings,
   parseJsonObject,
   toApiEstAuthSettings,
@@ -39,7 +38,6 @@ export interface RaFormValues {
   reenrollmentDelta: string;
   preventiveDelta: string;
   criticalDelta: string;
-  additionalValidationCaIds: string[];
   serverKeygen: { enabled: boolean; type: ServerKeygenType; spec: string };
   includeSystemCa: boolean;
   includeEnrollmentCa: boolean;
@@ -80,26 +78,22 @@ export interface RaFormIssue {
   field?: RaFormField;
 }
 
-export const SERVER_KEYGEN_SPECS: Record<ServerKeygenType, Array<{ value: string; label: string }>> = {
+export const SERVER_KEYGEN_SPECS: Record<ServerKeygenType, Array<{ value: string; label: string; hint: string }>> = {
   RSA: [
-    { value: '2048', label: '2048 bit' },
-    { value: '3072', label: '3072 bit' },
-    { value: '4096', label: '4096 bit' },
+    { value: '2048', label: '2048 bit', hint: 'Widest device compatibility; about 112-bit security.' },
+    { value: '3072', label: '3072 bit', hint: 'About 128-bit security, on par with P-256.' },
+    { value: '4096', label: '4096 bit', hint: 'More margin than 3072 bit, at the cost of slower generation and larger keys.' },
   ],
   ECDSA: [
-    { value: 'P-256', label: 'P-256' },
-    { value: 'P-384', label: 'P-384' },
-    { value: 'P-521', label: 'P-521' },
+    { value: 'P-256', label: 'P-256', hint: 'Small, fast keys with about 128-bit security. A good fit for constrained devices.' },
+    { value: 'P-384', label: 'P-384', hint: 'About 192-bit security.' },
+    { value: 'P-521', label: 'P-521', hint: 'About 256-bit security; some device TLS stacks do not support it.' },
   ],
 };
 
 const DEFAULT_KEYGEN_SPEC: Record<ServerKeygenType, string> = { RSA: '4096', ECDSA: 'P-256' };
 const CURVE_BITS: Record<string, number> = { 'P-256': 256, 'P-384': 384, 'P-521': 521 };
 const BITS_CURVE: Record<number, string> = { 256: 'P-256', 384: 'P-384', 521: 'P-521' };
-
-export function defaultKeygenSpec(type: ServerKeygenType): string {
-  return DEFAULT_KEYGEN_SPEC[type];
-}
 
 export function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -164,7 +158,6 @@ export function createDefaultRaFormValues(hue?: number): RaFormValues {
     reenrollmentDelta: '100d',
     preventiveDelta: '31d',
     criticalDelta: '7d',
-    additionalValidationCaIds: [],
     serverKeygen: { enabled: false, type: 'RSA', spec: DEFAULT_KEYGEN_SPEC.RSA },
     includeSystemCa: true,
     includeEnrollmentCa: false,
@@ -210,7 +203,6 @@ export function raFormValuesFromApi(ra: ApiRaItem): { values: RaFormValues; inli
       reenrollmentDelta: reenrollment.reenrollment_delta,
       preventiveDelta: reenrollment.preventive_delta,
       criticalDelta: reenrollment.critical_delta,
-      additionalValidationCaIds: reenrollment.additional_validation_cas ?? [],
       serverKeygen: {
         enabled: keygen.enabled,
         type: keygenType,
@@ -267,7 +259,6 @@ export function buildRaPayload(
         reenrollment_delta: values.reenrollmentDelta,
         preventive_delta: values.preventiveDelta,
         critical_delta: values.criticalDelta,
-        additional_validation_cas: values.additionalValidationCaIds,
       },
       server_keygen_settings: {
         enabled: serverKeygen.enabled,
@@ -290,6 +281,14 @@ export function usesClientCertificate(settings: ApiRaEstSettings): boolean {
   return settings.auth_mode === 'CLIENT_CERTIFICATE' || settings.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
 }
 
+/** Combines the two independent authentication checks into the DMS auth mode. */
+export function authModeFor(clientCertificate: boolean, webhook: boolean): ApiRaEstSettings['auth_mode'] {
+  if (clientCertificate && webhook) return 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK';
+  if (clientCertificate) return 'CLIENT_CERTIFICATE';
+  if (webhook) return 'EXTERNAL_WEBHOOK';
+  return 'NO_AUTH';
+}
+
 function webhookTimeoutError(label: string, settings: ApiRaEstSettings): string | null {
   if (!usesWebhook(settings)) return null;
   const error = getWebhookTimeoutError(settings.external_webhook_settings?.config.call_timeout ?? '');
@@ -298,7 +297,6 @@ function webhookTimeoutError(label: string, settings: ApiRaEstSettings): string 
 
 export interface RaFormValidationContext {
   isEditMode: boolean;
-  enrollmentCaName?: string;
   /** Whether the selected Enrollment CA has a default issuance profile; undefined while unknown. */
   enrollmentCaHasDefaultProfile?: boolean;
   inlineProfileErrors?: readonly string[];
@@ -340,7 +338,8 @@ export function validateRaForm(values: RaFormValues, context: RaFormValidationCo
   const enrollmentTimeout = webhookTimeoutError('Enrollment authentication', values.enrollmentAuth);
   if (enrollmentTimeout) error('enrollment', 'invalid', enrollmentTimeout, 'enrollmentAuth');
 
-  getEstAuthSettingsValidationErrors('Re-enrollment authentication', values.reenrollmentAuth, true)
+  // The Enrollment CA is always trusted for re-enrollment, so listing extra validation CAs is optional.
+  getEstAuthSettingsValidationErrors('Re-enrollment authentication', values.reenrollmentAuth)
     .forEach(message => error('reenrollment', 'required', message, 'reenrollmentAuth'));
   const reenrollmentTimeout = webhookTimeoutError('Re-enrollment authentication', values.reenrollmentAuth);
   if (reenrollmentTimeout) error('reenrollment', 'invalid', reenrollmentTimeout, 'reenrollmentAuth');
@@ -348,16 +347,6 @@ export function validateRaForm(values: RaFormValues, context: RaFormValidationCo
   if (!isValidPositiveDuration(values.reenrollmentDelta)) error('reenrollment', 'invalid', 'Re-enrollment window must be a positive duration.', 'reenrollmentDelta');
   if (!isValidPositiveDuration(values.preventiveDelta)) error('reenrollment', 'invalid', 'Preventive renewal delta must be a positive duration.', 'preventiveDelta');
   if (!isValidPositiveDuration(values.criticalDelta)) error('reenrollment', 'invalid', 'Critical renewal delta must be a positive duration.', 'criticalDelta');
-
-  if (values.enrollmentCaId) {
-    const caName = context.enrollmentCaName ? `"${context.enrollmentCaName}"` : 'The Enrollment CA';
-    if (usesClientCertificate(values.reenrollmentAuth) && !includesValidationCa(values.reenrollmentAuth, values.enrollmentCaId)) {
-      warning('reenrollment', `${caName} is not a re-enrollment validation CA, so devices holding a certificate issued by it cannot re-enroll.`, 'reenrollmentAuth');
-    }
-    if (!values.additionalValidationCaIds.includes(values.enrollmentCaId)) {
-      warning('reenrollment', `${caName} is not in the additional validation CAs used for re-enrollment.`);
-    }
-  }
 
   return issues;
 }

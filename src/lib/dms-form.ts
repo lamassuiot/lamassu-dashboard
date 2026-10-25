@@ -287,29 +287,3 @@ export function getEstAuthSettingsValidationErrors(
 
   return errors;
 }
-
-export function withDefaultValidationCa(
-  settings: ApiRaEstSettings,
-  validationCaId: string,
-): ApiRaEstSettings {
-  const clientSettings = settings.client_certificate_settings;
-
-  if (!clientSettings || clientSettings.validation_cas.includes(validationCaId)) {
-    return settings;
-  }
-
-  return {
-    ...settings,
-    client_certificate_settings: {
-      ...clientSettings,
-      validation_cas: [...clientSettings.validation_cas, validationCaId],
-    },
-  };
-}
-
-export function includesValidationCa(
-  settings: ApiRaEstSettings,
-  validationCaId: string,
-): boolean {
-  return settings.client_certificate_settings?.validation_cas.includes(validationCaId) ?? false;
-}

@@ -131,3 +131,29 @@ export function SettingSwitch({ id, label, description, checked, onCheckedChange
     </div>
   );
 }
+
+interface SettingToggleGroupProps extends SettingSwitchProps {
+  children: React.ReactNode;
+}
+
+/** A switch whose dependent settings hang beneath it, behind a left rule, while it is on. */
+export function SettingToggleGroup({ id, label, description, checked, onCheckedChange, children }: SettingToggleGroupProps) {
+  return (
+    <div className="space-y-4 py-4 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-0.5">
+          <Label htmlFor={id} className="font-medium">{label}</Label>
+          <p id={`${id}-description`} className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Switch
+          id={id}
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          aria-describedby={`${id}-description`}
+          aria-controls={checked ? `${id}-settings` : undefined}
+        />
+      </div>
+      {checked ? <div id={`${id}-settings`} className="space-y-5 border-l-2 pl-4">{children}</div> : null}
+    </div>
+  );
+}
