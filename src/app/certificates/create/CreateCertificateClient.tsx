@@ -27,7 +27,7 @@ import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/l
 import { CLIENT_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile, type CreateCertificateIssuanceProfile, type CreateCertificateKeySpec, type CreateCertificatePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
-import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
+import { base64ToPem, parseCertificatePemDetails } from '@/lib-crypto';
 import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -213,7 +213,7 @@ export default function CreateCertificateClient() {
 
         try {
             const result = await createCertificate(payload, user!.access_token!);
-            const pem = result.certificate ? window.atob(result.certificate) : null;
+            const pem = result.certificate ? base64ToPem(result.certificate) : null;
             setIssuedCertPem(pem);
             setIssuedSerialNumber(result.serial_number ?? null);
 

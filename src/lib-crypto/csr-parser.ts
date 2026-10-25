@@ -8,6 +8,7 @@ import {
   PublicKeyInfo as PkijsPublicKeyInfo,
   RelativeDistinguishedNames as PkijsRelativeDistinguishedNames,
 } from "pkijs";
+import { pemToDer } from "./buffer-utils";
 
 // ---------------------------------------------------------------------------
 // OID lookup
@@ -93,10 +94,7 @@ export interface DecodedCsrInfo {
  */
 export async function parseCsr(pem: string): Promise<DecodedCsrInfo> {
   try {
-    const pemContent = pem
-      .replaceAll(/-----(BEGIN|END) (NEW )?CERTIFICATE REQUEST-----/g, "")
-      .replaceAll(/\s+/g, "");
-    const derBuffer = Uint8Array.from(atob(pemContent), c => c.codePointAt(0) ?? 0).buffer;
+    const derBuffer = pemToDer(pem);
     const asn1 = asn1js.fromBER(derBuffer);
     if (asn1.offset === -1) throw new Error("Cannot parse CSR. Invalid ASN.1 structure.");
 

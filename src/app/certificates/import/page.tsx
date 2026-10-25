@@ -18,6 +18,7 @@ import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { cn } from '@/lib/utils';
 import { CERTIFICATE_FILE_EXTENSIONS, CERTIFICATE_MAX_FILE_SIZE, loadCertificateFilesAsPem } from '@/lib/certificate-files';
+import { pemToBase64 } from '@/lib-crypto';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -89,7 +90,7 @@ export default function ImportCertificatePage() {
     try {
       const payload: ImportCertificateBody = {
         metadata: JSON.parse(metadataJson),
-        certificate: btoa(certificatePem),
+        certificate: pemToBase64(certificatePem),
       };
       await importCertificate(payload);
       sileo.success({

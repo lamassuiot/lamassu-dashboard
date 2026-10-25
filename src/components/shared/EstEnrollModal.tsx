@@ -23,7 +23,7 @@ import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { Switch } from '@/components/ui/switch';
-import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem } from "@/lib-crypto";
+import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, base64ToPem, formatAsPem, pemToBase64 } from "@/lib-crypto";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
@@ -61,18 +61,6 @@ interface EstEnrollModalProps {
 }
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
-
-function encodeToBase64(pemContent: string): string {
-  if (!pemContent.trim()) return '';
-  try {
-    // Convert string to base64 using btoa, but handle potential unicode issues
-    return btoa(unescape(encodeURIComponent(pemContent)));
-  } catch (error) {
-    console.error('Error encoding to base64:', error);
-    return '';
-  }
-}
-
 
 export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     isOpen,
@@ -267,7 +255,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
                 // Prepare payload for signing API
                 const payload = {
-                    csr: window.btoa(signedCsrPem),
+                    csr: pemToBase64(signedCsrPem),
                     profile: {
                         key_usage: [...TLS_KEY_USAGES],
                         honor_subject: true,
@@ -278,7 +266,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
                 // Call signing API
                 const result = await signCertificate(bootstrapSigner.id, payload);
-                const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
+                const issuedPem = result.certificate ? base64ToPem(result.certificate) : 'Error: Certificate not found in response.';
 
                 setBootstrapCertificate(issuedPem);
                 setStep(4);
@@ -588,7 +576,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         Copy and paste these commands to quickly create your bootstrap files:
                                     </p>
                                     <CodeBlock
-                                        content={`echo "${encodeToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${encodeToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
+                                        content={`echo "${pemToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${pemToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
                                         textareaClassName="h-24"
                                     />
                                 </div>

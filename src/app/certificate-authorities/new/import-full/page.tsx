@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, Loader2 } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
-import { initPkijsEngine } from "@/lib-crypto";
+import { initPkijsEngine, pemToBase64 } from "@/lib-crypto";
 import { sileo } from '@/lib/toast';
 import { Alert } from '@/components/ui/alert';
 import { DecodedCertificateSections } from '@/components/ca/DecodedCertificateSections';
@@ -137,9 +137,9 @@ export default function CreateCaImportFullPage() {
     const payload: ImportCaPayload = {
       id: caId,
       engine_id: cryptoEngineId,
-      private_key: window.btoa(importedPrivateKeyPem),
-      ca: window.btoa(importedCaCertPem),
-      ca_chain: caChainPems.map(cert => window.btoa(cert)),
+      private_key: pemToBase64(importedPrivateKeyPem),
+      ca: pemToBase64(importedCaCertPem),
+      ca_chain: caChainPems.map(pemToBase64),
       ca_type: "IMPORTED",
       profile_id: selectedProfileId || undefined,
       parent_id: "",

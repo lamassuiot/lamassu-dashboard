@@ -9,6 +9,7 @@ import {
   AuthorityKeyIdentifier,
   AttributeTypeAndValue,
 } from "pkijs";
+import { pemToDer } from "./buffer-utils";
 
 // ---------------------------------------------------------------------------
 // OID lookup tables
@@ -122,22 +123,13 @@ export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
   return `${algoName} ${details}`;
 }
 
-/** Decodes a PEM-encoded certificate into its DER bytes. */
-export function certificatePemToDer(pem: string): ArrayBuffer {
-  const pemString = pem.replaceAll(/-----(BEGIN|END) CERTIFICATE-----/g, "").replaceAll(/\s+/g, "");
-  const binary = window.atob(pemString);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.codePointAt(i) ?? 0;
-  return bytes.buffer;
-}
-
 /**
  * Hex SHA-256 digest of the certificate's DER-encoded SubjectPublicKeyInfo, or
  * null when the PEM cannot be parsed.
  */
 export async function publicKeySha256Hex(pem: string): Promise<string | null> {
   try {
-    const asn1 = asn1js.fromBER(certificatePemToDer(pem));
+    const asn1 = asn1js.fromBER(pemToDer(pem));
     if (asn1.offset === -1) return null;
     const cert = new Certificate({ schema: asn1.result });
     const spki = cert.subjectPublicKeyInfo.toSchema().toBER(false);
@@ -162,7 +154,7 @@ export interface NameAttribute {
  */
 export function parseCertificateSubjectRdns(pem: string): NameAttribute[][] | null {
   try {
-    const asn1 = asn1js.fromBER(certificatePemToDer(pem));
+    const asn1 = asn1js.fromBER(pemToDer(pem));
     if (asn1.offset === -1) return null;
     const cert = new Certificate({ schema: asn1.result });
     const rdns = (cert.subject.toSchema() as asn1js.Sequence).valueBlock.value as asn1js.Set[];
@@ -259,7 +251,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
  */
 export async function parseCertificatePem(pem: string): Promise<ParsedCertificate> {
   const result = emptyParsed();
-  const der = certificatePemToDer(pem);
+  const der = pemToDer(pem);
   const asn1 = asn1js.fromBER(der);
   if (asn1.offset === -1) throw new Error("Invalid ASN.1 structure.");
 
