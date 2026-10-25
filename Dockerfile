@@ -7,7 +7,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Use the pnpm version pinned in package.json.
-RUN corepack enable
+# Node 25+ no longer bundles corepack, so install it explicitly.
+RUN npm install -g corepack && corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
