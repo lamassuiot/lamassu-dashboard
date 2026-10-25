@@ -62,11 +62,6 @@ interface EstEnrollModalProps {
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
 
-function encodeToBase64(pemContent: string): string {
-  return pemContent.trim() ? pemToBase64(pemContent) : '';
-}
-
-
 export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     isOpen,
     onOpenChange,
@@ -581,7 +576,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         Copy and paste these commands to quickly create your bootstrap files:
                                     </p>
                                     <CodeBlock
-                                        content={`echo "${encodeToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${encodeToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
+                                        content={`echo "${pemToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${pemToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
                                         textareaClassName="h-24"
                                     />
                                 </div>
