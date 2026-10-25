@@ -20,6 +20,7 @@ import type {
   X509AuthConfig,
   X509CaTrustIdentityType,
 } from '@/types/authz';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 export default function NewPrincipalPage() {
   const router = useRouter();
@@ -53,7 +54,7 @@ export default function NewPrincipalPage() {
   const [subjectAttributeMappings, setSubjectAttributeMappings] = useState<SubjectAttributeRow[]>([]);
 
   useEffect(() => {
-    setPrincipalId(crypto.randomUUID());
+    setPrincipalId(generateUUID());
   }, []);
 
   const loadCAs = useCallback(async () => {

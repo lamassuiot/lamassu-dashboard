@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from '@/lib/router';
+import { generateUUID } from '@/lib-crypto/uuid';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ export default function CreateCaExistingKeyPage() {
 
   const [caType, setCaType] = useState('root');
   const [selectedParentCa, setSelectedParentCa] = useState<CA | null>(null);
-  const [caId, setCaId] = useState('');
+  const [caId] = useState(() => generateUUID());
   const [caName, setCaName] = useState('');
 
   const [selectedKeyId, setSelectedKeyId] = useState<string | undefined>(undefined);
@@ -81,10 +82,6 @@ export default function CreateCaExistingKeyPage() {
     ...getIssuanceProfileValidationErrors({ profileMode, selectedProfileId, caProfileMode, inlineCaProfileErrors }),
   ];
   const validationWarnings = caProfileWarning ? [`CA Certificate Profile: ${caProfileWarning}`] : [];
-
-  useEffect(() => {
-    setCaId(crypto.randomUUID());
-  }, []);
 
   const loadDependencies = useCallback(async () => {
     setIsLoadingDependencies(true);

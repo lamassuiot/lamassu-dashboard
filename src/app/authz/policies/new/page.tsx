@@ -8,11 +8,12 @@ import type { Rule, HTTPRule } from '@/types/authz';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { PolicyForm, type PolicyFormData } from '@/components/authz/PolicyForm';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 export default function NewPolicyPage() {
   const router = useRouter();
   const [formData, setFormData] = useState<PolicyFormData>({
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     name: '',
     description: '',
     rules: [] as Rule[],

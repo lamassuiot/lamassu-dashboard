@@ -29,6 +29,7 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { isValidPositiveDuration } from '@/lib/duration';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { CrossSignPairSelector } from './CrossSignPairSelector';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 function Section({ title, description, children }: Readonly<{ title: string; description: string; children: React.ReactNode }>) {
   return (
@@ -68,7 +69,7 @@ export function CrossSignForm() {
   const [pickingRole, setPickingRole] = useState<CrossSignRole | null>(null);
   const [expiration, setExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '5y' });
   const [profileId, setProfileId] = useState<string | null>(null);
-  const [newCaId] = useState(() => crypto.randomUUID());
+  const [newCaId] = useState(() => generateUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [targetCheck, setTargetCheck] = useState<{ caId: string; result: CrossSignTargetCheck } | null>(null);
 

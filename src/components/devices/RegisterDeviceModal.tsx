@@ -15,6 +15,7 @@ import { Separator } from '../ui/separator';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { registerDevice } from '@/lib/devices-api';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 interface RegisterDeviceModalProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   // Generate new UUID when modal opens and reset all state
   useEffect(() => {
     if (isOpen) {
-      setDeviceId(crypto.randomUUID());
+      setDeviceId(generateUUID());
       setSelectedRaId(null);
       setSelectedRa(null);
       setTags([]);

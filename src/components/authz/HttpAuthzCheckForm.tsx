@@ -37,6 +37,7 @@ import type {
 } from '@/types/authz';
 import { EmptyResult, FullResponse, DecisionBanner, ResultTable, MatchedPrincipals } from '@/components/authz/TestResultViews';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { generateUUID } from '@/lib-crypto/uuid';
 
 type KeyValueRow = {
   id: string;
@@ -65,7 +66,7 @@ const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'
 const OPTION_SEP = '|||';
 
 const newKeyValueRow = (key = '', value = ''): KeyValueRow => ({
-  id: crypto.randomUUID(),
+  id: generateUUID(),
   key,
   value,
 });
