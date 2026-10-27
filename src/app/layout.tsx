@@ -35,7 +35,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, BellRing, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, BellRing, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus, LayoutDashboard, Package, Rocket, Boxes } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -73,6 +73,9 @@ import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
 import { cn } from "@/lib/utils";
 import { UIPreferencesProvider } from '@/contexts/UIPreferencesContext';
+import { UpdatesCapabilitiesProvider } from '@/contexts/UpdatesCapabilitiesContext';
+import { PageSearchMenu, type PageSearchAccent } from '@/components/shared/PageSearchMenu';
+import { DebugBackendSwitch } from '@/components/shared/DebugBackendSwitch';
 
 
 type DecodedClaims = Record<string, unknown>;
@@ -91,6 +94,9 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  /** Shown under the label in the page search. */
+  description?: string;
+  accent?: PageSearchAccent;
   devOnly?: boolean;
   /** If set, the item is only shown when the user has "ui" in global_actions for this capability key (e.g. "pki.ca.ca_certificate") */
   uiAuthzCapabilities?: string;
@@ -99,62 +105,110 @@ interface NavItem {
 interface NavGroup {
   label?: string;
   items: NavItem[];
+  /** Colour of the group's entries in the page search. */
+  accent?: PageSearchAccent;
   devOnly?: boolean;
 }
 
 const navigationConfig: NavGroup[] = [
-  { items: [{ href: '/', label: 'Home', icon: HomeIcon }] },
+  { accent: 'general', items: [{ href: '/', label: 'Home', icon: HomeIcon, description: 'Dashboard overview' }] },
   {
     label: 'KMS',
+    accent: 'kms',
     items: [
-      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key' },
-      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
+      { href: '/kms/keys', label: 'Asymmetric Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key', description: 'KMS signing and encryption keys' },
+      { href: '/kms/keys/sym-keys', label: 'Symmetric Keys', icon: Lock, description: 'Symmetric key management' },
+      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu, description: 'Configured cryptographic backends' },
     ],
   },
   {
     label: 'PKI',
+    accent: 'pki',
     items: [
-      { href: '/certificates', label: 'Certificates', icon: FileText, uiAuthzCapabilities: 'pki.ca.certificate' },
-      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, uiAuthzCapabilities: 'pki.ca.ca_certificate' },
-      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, uiAuthzCapabilities: 'pki.ca.issuance_profile' },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck, uiAuthzCapabilities: 'pki.dmsmanager.dms' },
+      { href: '/certificates', label: 'Certificates', icon: FileText, uiAuthzCapabilities: 'pki.ca.certificate', description: 'Issued certificate inventory' },
+      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, uiAuthzCapabilities: 'pki.ca.ca_certificate', description: 'Root and intermediate CA management' },
+      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, uiAuthzCapabilities: 'pki.ca.issuance_profile', description: 'Certificate issuance policy templates' },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck, uiAuthzCapabilities: 'pki.dmsmanager.dms', description: 'Enrollment and registration services' },
     ],
   },
   {
     label: 'IoT',
+    accent: 'iot',
     items: [
-      { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device' },
-      { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group' },
-      { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+      { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device', description: 'Device identity records' },
+      { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group', description: 'Grouped device targeting' },
+      { href: '/device-inventory', label: 'Device Key Inventory', icon: KeyRound, description: 'Device key material inventory' },
+      { href: '/integrations', label: 'Platform Integrations', icon: Blocks, description: 'Cloud and platform connectors' },
+    ],
+  },
+  {
+    label: 'OTA UPDATES MANAGER',
+    accent: 'ota',
+    items: [
+      { href: '/updates/dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Fleet OTA overview' },
+      { href: '/updates/devices', label: 'OTA Devices', icon: Router, description: 'Installed versions across the fleet' },
+      { href: '/updates/device-groups', label: 'OTA Device Groups', icon: Layers, description: 'Fleet-targeting groups and their rollout compliance' },
+      { href: '/package-inventory', label: 'Distribution Set', icon: Package, description: 'Packages and update artifacts' },
+      { href: '/updates/software-modules', label: 'Software Modules', icon: Boxes, description: 'Fleet-wide software module catalog' },
+      { href: '/updates', label: 'Campaigns', icon: Rocket, description: 'OTA rollout campaigns' },
     ],
   },
   {
     label: 'JOB MANAGER',
+    accent: 'jobs',
     items: [
-      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList },
-      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow },
+      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList, description: 'Job execution history' },
+      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow, description: 'Reusable job workflows' },
     ],
   },
   {
     label: 'AUTHZ & SECURITY',
+    accent: 'tools',
     items: [
-      { href: '/authz/principals', label: 'Principals', icon: UserCheck },
-      { href: '/authz/policies', label: 'Policies', icon: Lock },
-      { href: '/authz/test', label: 'Authorization Test', icon: TestTube2 },
+      { href: '/authz/principals', label: 'Principals', icon: UserCheck, description: 'Identities that can be granted access' },
+      { href: '/authz/policies', label: 'Policies', icon: Lock, description: 'What each principal is allowed to do' },
+      { href: '/authz/test', label: 'Authorization Test', icon: TestTube2, description: 'Check a request against the policies' },
     ],
   },
   {
     label: 'NOTIFICATIONS',
-    items: [{ href: '/alerts', label: 'Alerts', icon: BellRing, uiAuthzCapabilities: 'pki.alerts.subscription' }],
+    accent: 'notifications',
+    items: [{ href: '/alerts', label: 'Alerts', icon: BellRing, uiAuthzCapabilities: 'pki.alerts.subscription', description: 'System alerts and notifications' }],
   },
   {
     label: 'TOOLS',
+    accent: 'tools',
     items: [
-      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
-      { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen },
+      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary, description: 'Inspect PEM certificates and metadata' },
+      { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen, description: 'Browse the platform API reference' },
     ],
   },
 ];
+
+const allNavItems = navigationConfig.flatMap(group => group.items);
+
+// Pack-management screens live under /updates/* (pack-details, create, create-version, packs)
+// but conceptually belong to the "Distribution Set" section, not "Campaigns".
+const DISTRIBUTION_SET_ROUTE_PREFIXES = ['/updates/pack-details', '/updates/packs', '/updates/create'];
+
+/** Exactly one sidebar entry is active: the most specific one whose route contains the current path. */
+function isNavItemActive(itemHref: string, currentPath: string): boolean {
+  if (DISTRIBUTION_SET_ROUTE_PREFIXES.some(prefix => currentPath.startsWith(prefix))) {
+    return itemHref === '/package-inventory';
+  }
+  if (itemHref === currentPath) return true;
+  if (itemHref !== '/' && currentPath.startsWith(itemHref)) {
+    if (currentPath.length > itemHref.length && currentPath[itemHref.length] !== '/') return false;
+    const moreSpecificMatch = allNavItems.find(other =>
+      other.href !== itemHref &&
+      other.href.length > itemHref.length &&
+      other.href.startsWith(itemHref) &&
+      (currentPath === other.href || currentPath.startsWith(other.href + '/'))
+    );
+    return !moreSpecificMatch;
+  }
+  return false;
+}
 
 
 const LoadingState = ({ title = 'Loading Application', message = 'Preparing the dashboard…' }: { title?: string; message?: string }) => (
@@ -300,6 +354,17 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  // Build-time flags are baked into the bundle, so a container image could never turn this on —
+  // the runtime config (config.js, written from env by the entrypoint) is what lets a deployment
+  // enable it without a rebuild. Applied after mount because the static export prerenders with the
+  // build-time value, so reading window during render would mismatch on hydration.
+  const buildTimeDevMode = process.env.NODE_ENV == 'development' || Boolean(process.env.NEXT_FORCE_DEV_OPTIONS);
+  const [isDeveloperMode, setIsDeveloperMode] = useState(buildTimeDevMode);
+  useEffect(() => {
+    if (!buildTimeDevMode && (window as any).lamassuConfig?.LAMASSU_DEV_OPTIONS) {
+      setIsDeveloperMode(true);
+    }
+  }, [buildTimeDevMode]);
   const [avatarError, setAvatarError] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [bashExportCopied, setBashExportCopied] = useState(false);
@@ -427,6 +492,13 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
               className="block md:hidden h-full w-auto invert brightness-0"
             />
           </div>
+          <div className="flex min-w-0 flex-1 justify-center px-3 md:px-6">
+            {/* Only pages this user may open: the same authz filter the sidebar applies. */}
+            <PageSearchMenu
+              navGroups={navigationConfig.map(group => ({ ...group, items: group.items.filter(isNavItemVisible) }))}
+              isDeveloperMode={isDeveloperMode}
+            />
+          </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <DropdownMenu>
@@ -531,6 +603,10 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                     </div>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+                {/* Developer builds only: it fakes what the server reported, so it has no place
+                    in an operator's menu. Sits with the other display toggles because it is the
+                    same kind of knob — it changes what this browser shows, nothing on the server. */}
+                {isDeveloperMode && <DebugBackendSwitch />}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
                   <User className="mr-2 h-4 w-4" />
@@ -620,7 +696,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
                           <SidebarMenuItem key={item.href}>
                             <SidebarMenuButton
                               asChild
-                              isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                              isActive={isNavItemActive(item.href, pathname)}
                               tooltip={{ children: item.label, side: 'right', align: 'center' }}
                             >
                               <Link href={item.href} className="flex items-center w-full justify-start">
@@ -951,12 +1027,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <AuthProvider>
         <ThemeProvider>
           <UIPreferencesProvider>
-            <IdentifierDisplayProvider>
-              <React.Suspense fallback={<LoadingState />}>
-                <InnerLayout>{children}</InnerLayout>
-              </React.Suspense>
-              <ThemedToaster offset={{ top: 40 }} />
-            </IdentifierDisplayProvider>
+            <UpdatesCapabilitiesProvider>
+              <IdentifierDisplayProvider>
+                <React.Suspense fallback={<LoadingState />}>
+                  <InnerLayout>{children}</InnerLayout>
+                </React.Suspense>
+                <ThemedToaster offset={{ top: 40 }} />
+              </IdentifierDisplayProvider>
+            </UpdatesCapabilitiesProvider>
           </UIPreferencesProvider>
         </ThemeProvider>
       </AuthProvider>

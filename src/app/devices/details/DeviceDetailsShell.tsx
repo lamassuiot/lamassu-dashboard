@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import Link from '@/components/shared/RouterLink';
-import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2, KeyRound, Workflow, Layers, Rocket } from 'lucide-react';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { mapApiIconToIconType } from '@/components/shared/DeviceIcon';
@@ -291,6 +291,9 @@ export default function DeviceDetailsShell({ children }: { children: React.React
                 <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
               </Button>
               <DetailHeroActionsMenu ariaLabel="Device actions">
+                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id })}>
+                  <Rocket className="mr-2 h-4 w-4" /> Launch Update...
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={fetchDevice}>
                   <RefreshCw className="mr-2 h-4 w-4" /> Refresh
                 </DropdownMenuItem>

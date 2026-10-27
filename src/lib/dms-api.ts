@@ -101,99 +101,67 @@ export interface RaCreationPayload {
     settings: ApiRaSettings;
 }
 
-export function createDefaultRaAuthFormValues(): RaAuthFormValues {
+// --- Newer backend shape ---
+//
+// Lamassu's CMP-capable backend (lamassuiot feat/cmp) nests an RA's settings per protocol:
+// `settings.protocol` plus `settings.est_settings` or `settings.cmp_settings`, each carrying the
+// enrollment/re-enrollment blocks with the auth fields flattened into them. Every reader in this
+// dashboard expects the shape above, and met with the newer one the RA list, the RA picker and the
+// device page's RA link crashed outright. normalizeRaItem converts a newer-shape RA on the way in, so
+// those views read it as before; an RA already in this shape passes through unchanged.
+//
+// Read side only: creating or editing an RA still sends this shape, which the newer backend refuses.
+// TODO: port the protocol-nested model (origin/feat/cmp's dms-api.ts) for create/edit.
+type NestedProtocolSettings = {
+    enrollment_settings?: Record<string, any>;
+    reenrollment_settings?: Record<string, any>;
+    server_keygen_settings?: ApiRaSettings['server_keygen_settings'];
+    ca_distribution_settings?: ApiRaSettings['ca_distribution_settings'];
+    issuance_profile_id?: string;
+    issuance_profile?: ApiSigningProfile | null;
+};
+
+export function normalizeRaItem(ra: ApiRaItem): ApiRaItem {
+    const settings = ra?.settings as unknown as Record<string, any> | undefined;
+    if (!settings || settings.enrollment_settings) return ra;
+    const protocol: string = settings.protocol ?? '';
+    const nested: NestedProtocolSettings | undefined = settings.est_settings ?? settings.cmp_settings ?? undefined;
+    if (!nested) return ra;
+    const isEst = Boolean(settings.est_settings);
+    const { auth_mode, client_certificate_settings, external_webhook_settings, ...enrollment } = nested.enrollment_settings ?? {};
+    const reAuth = nested.reenrollment_settings ?? {};
+    const estAuth = (src: Record<string, any>): ApiRaEstSettings | undefined =>
+        isEst ? {
+            auth_mode: src.auth_mode,
+            client_certificate_settings: src.client_certificate_settings,
+            external_webhook_settings: src.external_webhook_settings,
+        } : undefined;
     return {
-        authMode: 'Client Certificate',
-        validationCaIds: [],
-        allowExpiredAuth: true,
-        chainValidationLevel: -1,
-        webhookName: '',
-        webhookUrl: '',
-        webhookMethod: 'POST',
-        webhookValidateServerCert: true,
-        webhookLogLevel: 'Info',
-        webhookAuthMode: 'No Auth',
-        webhookApiKey: '',
-        webhookApiKeyHeader: 'X-API-Key',
-        oidcClientId: '',
-        oidcClientSecret: '',
-        oidcWellKnownUrl: '',
+        ...ra,
+        settings: {
+            enrollment_settings: {
+                registration_mode: enrollment.registration_mode ?? '',
+                enrollment_ca: enrollment.enrollment_ca ?? '',
+                protocol,
+                enable_replaceable_enrollment: Boolean(enrollment.enable_replaceable_enrollment),
+                verify_csr_signature: enrollment.verify_csr_signature,
+                est_rfc7030_settings: estAuth({ auth_mode, client_certificate_settings, external_webhook_settings }),
+                device_provisioning_profile: enrollment.device_provisioning_profile ?? { icon: 'Cpu', icon_color: '', metadata: {}, tags: [] },
+            },
+            reenrollment_settings: {
+                est_rfc7030_settings: estAuth(reAuth),
+                revoke_on_reenrollment: Boolean(reAuth.revoke_on_reenrollment),
+                enable_expired_renewal: Boolean(reAuth.enable_expired_renewal),
+                critical_delta: reAuth.critical_delta ?? '',
+                preventive_delta: reAuth.preventive_delta ?? '',
+                reenrollment_delta: reAuth.reenrollment_delta ?? '',
+            },
+            server_keygen_settings: nested.server_keygen_settings ?? { enabled: false },
+            ca_distribution_settings: nested.ca_distribution_settings ?? { include_enrollment_ca: false, include_system_ca: false, managed_cas: [] },
+            issuance_profile_id: nested.issuance_profile_id,
+            issuance_profile: nested.issuance_profile ?? null,
+        },
     };
-}
-
-export function hydrateRaAuthFormValuesFromApi(estSettings?: ApiRaEstSettings): RaAuthFormValues {
-    const defaults = createDefaultRaAuthFormValues();
-    if (!estSettings) {
-        return defaults;
-    }
-
-    const authMode = API_TO_UI_AUTH_MODE[estSettings.auth_mode] || defaults.authMode;
-    const clientCert = estSettings.client_certificate_settings;
-    const webhook = estSettings.external_webhook_settings;
-    const webhookAuthMode = API_TO_UI_WEBHOOK_AUTH_MODE[webhook?.config.auth_mode || 'NO_AUTH'] || defaults.webhookAuthMode;
-
-    return {
-        ...defaults,
-        authMode,
-        validationCaIds: clientCert?.validation_cas || [],
-        allowExpiredAuth: clientCert?.allow_expired ?? defaults.allowExpiredAuth,
-        chainValidationLevel: clientCert?.chain_level_validation ?? defaults.chainValidationLevel,
-        webhookName: webhook?.name || defaults.webhookName,
-        webhookUrl: webhook?.url || defaults.webhookUrl,
-        webhookMethod: (webhook?.method as 'POST' | 'PUT') || defaults.webhookMethod,
-        webhookValidateServerCert: webhook?.config.validate_server_cert ?? defaults.webhookValidateServerCert,
-        webhookLogLevel: (webhook?.config.log_level as 'Info' | 'Debug' | 'Warn' | 'Error') || defaults.webhookLogLevel,
-        webhookAuthMode,
-        webhookApiKey: webhook?.config.apikey?.key || defaults.webhookApiKey,
-        webhookApiKeyHeader: webhook?.config.apikey?.header || defaults.webhookApiKeyHeader,
-        oidcClientId: webhook?.config.oidc?.client_id || defaults.oidcClientId,
-        oidcClientSecret: webhook?.config.oidc?.client_secret || defaults.oidcClientSecret,
-        oidcWellKnownUrl: webhook?.config.oidc?.well_known || defaults.oidcWellKnownUrl,
-    };
-}
-
-export function buildApiRaEstSettingsFromForm(values: RaAuthFormValues): ApiRaEstSettings {
-    const estSettings: ApiRaEstSettings = {
-        auth_mode: UI_TO_API_AUTH_MODE[values.authMode],
-    };
-
-    if (values.authMode === 'Client Certificate' || values.authMode === 'Client Certificate + Webhook') {
-        estSettings.client_certificate_settings = {
-            chain_level_validation: values.chainValidationLevel,
-            validation_cas: values.validationCaIds,
-            allow_expired: values.allowExpiredAuth,
-        };
-    }
-
-    if (values.authMode === 'External Webhook' || values.authMode === 'Client Certificate + Webhook') {
-        const config: ApiRaWebhookHttpClient = {
-            validate_server_cert: values.webhookValidateServerCert,
-            log_level: values.webhookLogLevel,
-            auth_mode: UI_TO_API_WEBHOOK_AUTH_MODE[values.webhookAuthMode],
-        };
-
-        if (values.webhookAuthMode === 'API Key') {
-            config.apikey = {
-                key: values.webhookApiKey,
-                header: values.webhookApiKeyHeader,
-            };
-        } else if (values.webhookAuthMode === 'OIDC') {
-            config.oidc = {
-                client_id: values.oidcClientId,
-                client_secret: values.oidcClientSecret,
-                well_known: values.oidcWellKnownUrl,
-            };
-        }
-
-        estSettings.external_webhook_settings = {
-            name: values.webhookName,
-            url: values.webhookUrl,
-            method: values.webhookMethod,
-            config,
-        };
-    }
-
-    return estSettings;
 }
 
 // --- API Functions ---
@@ -208,7 +176,8 @@ export async function fetchRegistrationAuthorities(params?: URLSearchParams): Pr
     }
     
     const response = await apiFetch(url.toString());
-    return handleApiError(response, 'Failed to fetch RAs');
+    const data: ApiRaListResponse = await handleApiError(response, 'Failed to fetch RAs');
+    return data ? { ...data, list: (data.list ?? []).map(normalizeRaItem) } : data;
 }
 
 export async function fetchAllRegistrationAuthorities(): Promise<ApiRaItem[]> {
@@ -237,7 +206,7 @@ export async function fetchAllRegistrationAuthorities(): Promise<ApiRaItem[]> {
 
 export async function fetchRaById(raId: string): Promise<ApiRaItem> {
     const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`);
-    return handleApiError(response, 'Failed to fetch RA details');
+    return normalizeRaItem(await handleApiError(response, 'Failed to fetch RA details'));
 }
 
 export async function createOrUpdateRa(
@@ -299,7 +268,7 @@ export async function deleteRaIntegration(raId: string, integrationKey: string):
     const currentRa = await fetchRaById(raId);
     
     // 2. Check if metadata and the key exist
-    if (!currentRa.metadata?.[integrationKey]) {
+    if (!currentRa.metadata || !currentRa.metadata[integrationKey]) {
         throw new Error("Integration key not found in RA metadata.");
     }
     
