@@ -40,7 +40,7 @@ import { VersionManifestPanel } from '@/components/iot/version-manifest-panel';
 import { HawkbitUnsupportedFeatures } from '@/components/iot/HawkbitUnsupportedFeatures';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
-import { cn, formatBytes, isValidSemver } from '@/lib/utils';
+import { cn, formatBytes, isValidSemver, truncateText } from '@/lib/utils';
 import type { UpdatePackVersion, Artifact, ArtifactRef } from '@/types/iot';
 import type { UpdatePacksResponse } from '@/lib/iot-api';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
@@ -754,11 +754,11 @@ export default function UpdatePackDetailsPage() {
                     <div className="py-3">
                       <p className="text-xs font-medium text-muted-foreground">Device Group</p>
                       {groupId ? (
-                        <Link href={`/device-groups/details?groupId=${groupId}`} className="mt-1 inline-block text-sm font-medium text-primary hover:underline">
-                          {groupName}
+                        <Link href={`/device-groups/details?groupId=${groupId}`} title={groupName} className="mt-1 inline-block text-sm font-medium text-primary hover:underline">
+                          {truncateText(groupName, 80)}
                         </Link>
                       ) : (
-                        <p className="mt-1 text-sm">{groupName}</p>
+                        <p className="mt-1 text-sm" title={groupName}>{truncateText(groupName, 80)}</p>
                       )}
                     </div>
                     <div className="grid grid-cols-1 gap-4 py-3 last:pb-0 sm:grid-cols-3">

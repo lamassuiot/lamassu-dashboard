@@ -59,6 +59,19 @@ type TypeFilter = 'all' | 'os' | 'application';
 // (stored encrypted at rest). Filtering therefore offers those, not a made-up lifecycle.
 type StateFilter = 'all' | 'built' | 'unbuilt' | 'locked' | 'unlocked';
 
+/** When a module identity last saw activity: the newest create/update time over all its definitions,
+ *  as epoch ms (0 when the backend reports none). */
+function lastActivity(uses: ReusableSoftwareModule[]): number {
+  let newest = 0;
+  for (const u of uses) {
+    for (const t of [u.updated_at, u.created_at]) {
+      const ms = t ? Date.parse(t) : NaN;
+      if (ms > newest) newest = ms;
+    }
+  }
+  return newest;
+}
+
 /** One line of "Set vX.X.X" (and, only when it genuinely differs, "· module vY.Y.Y") — the two
  *  numbers usually match (a module ordinarily moves with its set's version), so printing both
  *  unconditionally read as an accidental duplicate rather than as two distinct facts. Spelled out
@@ -335,7 +348,14 @@ export default function SoftwareModulesCatalogPage() {
             a.source_group_id.localeCompare(b.source_group_id)
         ),
       }))
-      .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'os' ? -1 : 1));
+      // Most recently created or changed first, so a module that was just added or rebuilt is on top
+      // rather than buried alphabetically. Modules with no timestamp (a backend that predates the
+      // field) fall to the bottom, in the old type/name order.
+      .sort(
+        (a, b) =>
+          lastActivity(b.uses) - lastActivity(a.uses) ||
+          (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'os' ? -1 : 1)
+      );
   }, [filtered]);
 
   // Rollups over the REAL state axes. Counted per distinct module key, not per definition, so a

@@ -209,9 +209,9 @@ export function ModuleDetailPanel({
             ? "Already built — this distribution set builds one deliverable from every module's inputs, so adding more needs a new pack version."
             : null;
   // The build step of this module, when it has one that is still to do: swu-build assembles its SWU,
-  // generic files are encrypted and/or signed. A prebuilt SWU is built by uploading it.
+  // generic files are built (encrypted and/or signed, both optional). A prebuilt SWU is built by uploading it.
   const buildLabel = perModuleDeliverables && active && !active.built && artifacts.length > 0
-    ? active.delivery_intent === 'swu-build' ? 'Build SWU' : active.delivery_intent === 'raw' ? 'Encrypt / sign' : null
+    ? active.delivery_intent === 'swu-build' ? 'Build SWU' : active.delivery_intent === 'raw' ? 'Build' : null
     : null;
 
   const save = async () => {

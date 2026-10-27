@@ -32,19 +32,20 @@ import {
   Rocket, CalendarClock, CheckCircle2, Clock, AlertCircle, RefreshCw, Boxes, Package,
   Info, ArrowRight, Construction, TriangleAlert, Users, XCircle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { fetchAllCampaigns, fetchAllUpdatePacks, getGroupVersionStatus } from '@/lib/iot-api';
+import { fetchAllCampaigns, fetchAllUpdatePacks, fetchLatestDevicePackUpdates, getGroupVersionStatus } from '@/lib/iot-api';
+import { newestAttemptByDevice } from '@/lib/device-update-attempts';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import {
   deriveCampaignStatus, deriveCampaignDeviceStats, isActiveCampaign, isScheduledCampaign, campaignAttentionReasons,
   CAMPAIGN_STATUS_VARIANT,
 } from '@/components/iot/campaign-cells';
-import type { CampaignItem, DevicePackVersionStatus } from '@/types/iot';
+import type { CampaignItem, DevicePackUpdate, DevicePackVersionStatus } from '@/types/iot';
 
 const ALL_GROUPS = '__all__';
 
@@ -280,6 +281,8 @@ export default function OtaDashboardPage() {
   const [versionRows, setVersionRows] = useState<DevicePackVersionStatus[]>([]);
   // distribution_set_id -> name, to say which set each campaign rolls out.
   const [packNames, setPackNames] = useState<Map<string, string>>(new Map());
+  // The newest update attempt per (device, set), fleet-wide — for the failed-devices count.
+  const [latestAttempts, setLatestAttempts] = useState<DevicePackUpdate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
@@ -296,7 +299,7 @@ export default function OtaDashboardPage() {
     try {
       // Degrade per group: one group failing (or a backend without compliance) must
       // not blank the whole dashboard.
-      const [campaignSets, versionSets, packs] = await Promise.all([
+      const [campaignSets, versionSets, packs, attempts] = await Promise.all([
         Promise.all(
           groupsInScope.map((g) =>
             fetchAllCampaigns({ groupId: g.id })
@@ -314,7 +317,9 @@ export default function OtaDashboardPage() {
             )
           : Promise.resolve([] as DevicePackVersionStatus[][]),
         fetchAllUpdatePacks({ pageSize: 500 }).then((r) => r.list).catch(() => []),
+        fetchLatestDevicePackUpdates().catch(() => [] as DevicePackUpdate[]),
       ]);
+      setLatestAttempts(attempts);
       setPackNames(new Map(packs.filter((p) => p.id).map((p) => [p.id, p.name])));
       setCampaigns(campaignSets.flat());
       setVersionRows(versionSets.flat());
@@ -354,6 +359,19 @@ export default function OtaDashboardPage() {
     const horizon = Date.now() + 7 * 24 * 60 * 60 * 1000;
     return scheduledCampaigns.filter((c) => new Date(c.scheduled_at!).getTime() <= horizon);
   }, [scheduledCampaigns]);
+
+  // Devices whose last update failed — counted exactly like the OTA Devices page's Failed filter
+  // (newestAttemptByDevice), so the number on the quick action matches the list it opens. Scoped to
+  // the selected group by the group of the set that last update was for.
+  const failedDeviceCount = useMemo(() => {
+    const inScope = new Set(groupsInScope.map((g) => g.id));
+    let n = 0;
+    for (const a of newestAttemptByDevice(latestAttempts).values()) {
+      if (a.status === 'failed' && (groupFilter === ALL_GROUPS || inScope.has(a.group_id))) n++;
+    }
+    return n;
+  }, [latestAttempts, groupsInScope, groupFilter]);
+  const groupQuery = groupFilter === ALL_GROUPS ? '' : `&groupId=${encodeURIComponent(groupFilter)}`;
 
   // Part-to-whole over every campaign device assignment. Terminal + in-flight are
   // all included, which keeps the four segments a true partition of one total.
@@ -411,12 +429,13 @@ export default function OtaDashboardPage() {
   }, [versionRows]);
 
   // Campaigns needing an operator decision — exactly the campaign list's "Requires attention" set
-  // (campaignAttentionReasons) — most severe first: failures, then a failed canary, then the rest.
+  // (campaignAttentionReasons) — a rollout held up waiting for its next batch first, then the ones
+  // that never started.
   const attention = useMemo(() => {
     const scored = campaignStats.flatMap(({ campaign, status, stats }) => {
       const reasons = campaignAttentionReasons(campaign);
       if (reasons.length === 0) return [];
-      const severity = status === 'Failed' ? 4 : stats.failed > 0 ? 3 : reasons.includes('Test device failed') ? 3 : 1;
+      const severity = reasons.length > 1 ? 3 : reasons[0] === 'Not started' ? 1 : 2;
       return [{ campaign, status, stats, reasons, severity }];
     });
     return scored.sort((a, b) => b.severity - a.severity || b.stats.failed - a.stats.failed);
@@ -446,7 +465,7 @@ export default function OtaDashboardPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_GROUPS}>All Device Groups</SelectItem>
-              {availableDms.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+              {availableDms.map((g) => <SelectItem key={g.id} value={g.id} title={g.name}>{truncateText(g.name, 40)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={() => load()} disabled={isLoading}>
@@ -557,7 +576,7 @@ export default function OtaDashboardPage() {
 
         <Panel
           title="Campaigns Requiring Attention"
-          description="Failures, pauses and blocked rollouts that need an operator decision."
+          description="Campaigns that have not started, or whose manual batch ended and awaits release."
           icon={TriangleAlert}
           className="lg:col-span-7"
           action={
@@ -568,7 +587,7 @@ export default function OtaDashboardPage() {
                 </Badge>
               )}
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/updates">View all <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
+                <Link href={`/updates?view=attention${groupQuery}`}>View all <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
               </Button>
             </div>
           }
@@ -711,8 +730,8 @@ export default function OtaDashboardPage() {
             { href: '/updates/new', label: 'Create campaign', hint: 'Start a new rollout', icon: Rocket, cls: 'text-blue-600 dark:text-blue-400' },
             { href: '/updates/software-modules', label: 'Software modules', hint: 'Browse the catalog', icon: Boxes, cls: 'text-emerald-600 dark:text-emerald-400' },
             { href: '/package-inventory', label: 'Distribution sets', hint: 'Define or update a set', icon: Package, cls: 'text-violet-600 dark:text-violet-400' },
-            { href: '/updates/devices?status=failed', label: 'Failed devices', hint: 'Last update attempt errored', icon: XCircle, cls: 'text-red-600 dark:text-red-400' },
-          ].map((a) => (
+            { href: `/updates/devices?status=failed${groupQuery}`, label: 'Failed devices', hint: 'Last update attempt errored', icon: XCircle, cls: 'text-red-600 dark:text-red-400', count: failedDeviceCount },
+          ].map((a: { href: string; label: string; hint: string; icon: React.ElementType; cls: string; count?: number }) => (
             <Link
               key={a.href}
               href={a.href}
@@ -720,7 +739,14 @@ export default function OtaDashboardPage() {
             >
               <a.icon className={cn('h-5 w-5 shrink-0', a.cls)} />
               <span className="min-w-0">
-                <span className="block text-sm font-medium">{a.label}</span>
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  {a.label}
+                  {a.count !== undefined && (
+                    <Badge variant={a.count > 0 ? 'destructive' : 'secondary'} className="tabular-nums">
+                      {showSkeleton ? '…' : a.count}
+                    </Badge>
+                  )}
+                </span>
                 <span className="block truncate text-xs text-muted-foreground">{a.hint}</span>
               </span>
               <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />

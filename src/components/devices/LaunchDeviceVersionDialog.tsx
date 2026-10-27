@@ -9,6 +9,7 @@ import { fetchUpdatePacks, fetchUpdatePackVersions, forceDeviceVersion } from '@
 import { resolveDeviceGroups } from '@/lib/device-groups-api';
 import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
 import { sileo } from '@/lib/toast';
+import { truncateText } from '@/lib/utils';
 
 export interface LaunchTarget {
   deviceId: string;
@@ -164,7 +165,7 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
                     </SelectTrigger>
                     <SelectContent>
                       {groups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                        <SelectItem key={g.id} value={g.id} title={g.name}>{truncateText(g.name, 40)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

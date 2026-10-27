@@ -35,6 +35,14 @@ export function compareSemver(a: string, b: string): number {
   return 0;
 }
 
+/** Shortens text to at most `max` characters, ending in "…" when it was cut. For names that can be
+ *  arbitrarily long (device groups, sets) inside layouts that cannot wrap them; put the full text in
+ *  a title/tooltip. */
+export function truncateText(text: string | null | undefined, max = 48): string {
+  const value = text ?? '';
+  return value.length > max ? `${value.slice(0, Math.max(1, max - 1)).trimEnd()}…` : value;
+}
+
 export function formatBytes(bytes?: number | null, decimals = 1): string {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes <= 0) return '—';
   const k = 1024;

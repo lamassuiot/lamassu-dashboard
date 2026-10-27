@@ -18,7 +18,7 @@ import {
 import { useDms } from '@/contexts/DmsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { cn, isValidSemver } from '@/lib/utils';
+import { cn, isValidSemver, truncateText } from '@/lib/utils';
 import { createUpdatePack, fetchAllSoftwareModules, fetchAllUpdatePacks } from '@/lib/iot-api';
 import type { CampaignPrecondition, ReusableSoftwareModule, UpdatePack } from '@/types/iot';
 import { sileo } from '@/lib/toast';
@@ -67,6 +67,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
   const [moduleIds, setModuleIds] = useState<string[]>([]);
 
   const groupId = showGroupSelector ? groupIdState : (defaultGroupId || selectedDms?.id || '');
+  const groupNames = React.useMemo(() => new Map(availableDms.map((d) => [d.id, d.name])), [availableDms]);
   const groupName = availableDms.find((d) => d.id === groupId)?.name || selectedDms?.name;
 
   // The sets a precondition can require. Fleet-wide on purpose: a launch resolves a rule by pack
@@ -199,11 +200,13 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
     <div className="space-y-1.5">
       <Label>Device Group</Label>
       <Select value={groupIdState} onValueChange={setGroupIdState}>
-        <SelectTrigger><SelectValue placeholder="Select a device group" /></SelectTrigger>
+        {/* w-full + min-w-0 so a long group name truncates inside the field instead of widening the
+            trigger over the Type field beside it. */}
+        <SelectTrigger className="w-full min-w-0 *:data-[slot=select-value]:min-w-0"><SelectValue placeholder="Select a device group" /></SelectTrigger>
         <SelectContent>
           {availableDms.map((dms) => (
-            <SelectItem key={dms.id} value={dms.id}>
-              <span className="flex items-center gap-2"><Boxes className="h-3.5 w-3.5 text-muted-foreground" />{dms.name}</span>
+            <SelectItem key={dms.id} value={dms.id} title={dms.name}>
+              <span className="flex items-center gap-2"><Boxes className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />{truncateText(dms.name, 40)}</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -349,6 +352,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
         <ModuleCandidateTable
           candidates={importableModules}
           groupId={groupId}
+          groupNames={groupNames}
           checkedIds={checkedModuleIds}
           onToggle={toggleModule}
           checkDisabledReason={moduleBlockedReason}

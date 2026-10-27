@@ -23,12 +23,13 @@
  *                                           pack's version history. It is also the endpoint the
  *                                           OTA Dashboard reads, so both pages agree by
  *                                           construction. Gated on `version_compliance`.
- *   fetchAllCampaigns + fetchAllJobsByCampaign
- *                                         → per-device OTA job state (clientId + status.state).
- *                                           This is the richest signal on a hawkBit backend,
- *                                           where installed-version reporting is often sparse.
- *                                           Jobs are only fetched for campaigns that actually
- *                                           dispatched work — a fully-pending campaign has none.
+ *   fetchLatestDevicePackUpdates()        → GET /v1/devices/distribution-set-updates/latest: the
+ *                                           newest update attempt per (device, set) and how it went
+ *                                           (pending / running / success / failed), in ONE request.
+ *                                           Covers attempts outside any campaign too (force-version,
+ *                                           sync-to-latest, retries), which reading campaign jobs
+ *                                           never saw.
+ *   fetchAllCampaigns(group)              → only to name and link the campaign behind an attempt.
  *
  * A device tracks MANY distribution sets, each at its own version with its own target, so the table
  * is grouped rather than flat: each device is a banner row spanning the width, and its distribution
@@ -37,17 +38,18 @@
  * sets behind a per-row expander (what this did before) meant the fleet's actual update state was
  * never visible without clicking every device in turn.
  *
- * Per-set status is job-first: a campaign deploys exactly one distribution set, so its jobs are
- * attributed to that set (by pack NAME — see packNameById for why not by id) and the set reads
- * Queued/Installing/Failed while something is in flight, falling back to the compliance answer
- * (Up to date / Outdated / No target) when nothing is.
+ * Per-set status is attempt-first: the backend reports each set's newest attempt by set NAME (on
+ * hawkBit every version of a set is its own distribution set id, so an id would not match the
+ * installed row while an update is in flight), and the set reads Queued/Installing/Failed while
+ * that attempt is in flight or failed, falling back to the compliance answer (Up to date / Outdated
+ * / No target) otherwise.
  *
  * Deliberately absent: no Actions column and no online/offline state. Connectivity is not
  * something these APIs report (the `online | offline` field in types/iot.ts belongs to a legacy
  * mock type), so an Offline column could only ever be fabricated.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
@@ -64,19 +66,19 @@ import {
   Boxes, CheckCircle2, AlertTriangle, CircleSlash, RefreshCw, Search, Router as RouterIcon,
   Info, Package, Loader2, XCircle, HelpCircle, Rocket, Clock, PackageCheck, ArrowRight,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
+import { attemptTime, newestAttemptByDevice } from '@/lib/device-update-attempts';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import {
-  fetchAllDevicePackVersions, getGroupVersionStatus, fetchAllCampaigns, fetchAllJobsByCampaign,
-  fetchAllUpdatePacks, fetchDevicePackUpdates,
+  fetchAllDevicePackVersions, getGroupVersionStatus, fetchAllCampaigns,
+  fetchLatestDevicePackUpdates,
 } from '@/lib/iot-api';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
-import { deriveCampaignDeviceStats } from '@/components/iot/campaign-cells';
 import { LaunchGroupUpdateDialog } from '@/components/device-groups/LaunchGroupUpdateDialog';
-import type { DevicePackVersion, DevicePackUpdate } from '@/types/iot';
+import type { DevicePackVersion, DevicePackUpdate, FirmwareUpdateStatus } from '@/types/iot';
 
 const ALL = '__all__';
 const PAGE_SIZES = [10, 25, 50];
@@ -156,27 +158,22 @@ function isRealDate(iso?: string): boolean {
   return !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 1971;
 }
 
-// wfx / hawkBit job states. This backend emits CREATED, DOWNLOADING and TERMINATED; the
-// ACTIVATED/INSTALLED terminal states come from wfx workflows. Two deliberate choices:
-//   - a finished job maps to 'installed', not 'up-to-date' (see JobStatus);
-//   - CREATED — and any state we don't recognise — is 'queued', not 'installing'. The job has
-//     been dispatched but nothing is transferring yet, so reporting progress would overstate it.
-function jobStatusOf(state?: string): JobStatus {
-  switch ((state ?? '').toUpperCase()) {
-    case 'TERMINATED':
-    case 'FAILED':
-    case 'ERROR':
-      return 'failed';
-    case 'ACTIVATED':
-    case 'INSTALLED':
-      return 'installed';
-    case 'DOWNLOADING':
-    case 'DOWNLOAD':
-    case 'INSTALLING':
-    case 'ACTIVATING':
-      return 'installing';
-    default:
+// What a device's update attempt says, in this page's vocabulary. A finished attempt maps to
+// 'installed', not 'up-to-date' (see JobStatus). A cancelled attempt maps to nothing: the update was
+// withdrawn rather than tried, so the row falls back to its compliance answer instead of reading as
+// queued or failed.
+function attemptStatusOf(status: FirmwareUpdateStatus): JobStatus | null {
+  switch (status) {
+    case 'pending':
       return 'queued';
+    case 'running':
+      return 'installing';
+    case 'success':
+      return 'installed';
+    case 'failed':
+      return 'failed';
+    default:
+      return null;
   }
 }
 
@@ -189,20 +186,22 @@ interface DeviceSetRow {
   status: SetStatus;
   packaging: string;
   installedAt: string;
-  /** The most recent update job for THIS set on this device, matched through the campaign's
-   *  distribution_set_id. It is what makes "an update is in flight for this set" expressible per set,
-   *  rather than only per device. */
+  /** The newest update attempt of THIS set on this device. It is what makes "an update is in flight
+   *  for this set" (or "its last update failed") expressible per set, rather than only per device. */
   job: DeviceJobInfo | null;
+  /** The raw newest attempt behind `job` (cancelled ones included), for the Last Update tooltip. */
+  attempt: DevicePackUpdate | null;
   /** When this set last changed on the device: its job's timestamp, or the install time where the
    *  backend records one (hawkBit does not — see isRealDate). Empty means neither is known. */
   lastUpdate: string;
 }
 
 interface DeviceJobInfo {
+  /** Empty for an attempt outside any campaign (force-version, sync-to-latest, a retry). */
   campaignId: string;
   campaignName: string;
-  state: string;
-  message?: string;
+  status: JobStatus;
+  /** When the attempt last moved: its end, else its start, else its creation. */
   mtime: string;
 }
 
@@ -213,6 +212,8 @@ interface DeviceRow {
   sets: DeviceSetRow[];
   job: DeviceJobInfo | null;
   status: DeviceStatus;
+  // Newest of the Last Update column's timestamps over the device's sets — the list's sort key.
+  newestUpdate: string;
   lastActivity: string;
 }
 
@@ -239,8 +240,7 @@ function matchesStatusFilter(d: DeviceRow, filter: string): boolean {
 // compliance can make the second (see JobStatus).
 function setDisplayStatus(s: DeviceSetRow): DeviceStatus {
   if (s.job) {
-    const jobStatus = jobStatusOf(s.job.state);
-    if (jobStatus !== 'installed') return jobStatus;
+    if (s.job.status !== 'installed') return s.job.status;
   }
   return s.status;
 }
@@ -284,19 +284,35 @@ function StatTile({
   );
 }
 
-// The newest recorded update of one distribution set on a device, by completion (else start) time.
-function latestUpdateFor(updates: DevicePackUpdate[] | null | undefined, packName: string): DevicePackUpdate | null {
-  const stamp = (u: DevicePackUpdate) => u.timestamp_completed || u.timestamp_init || '';
-  return (updates ?? [])
-    .filter((u) => u.distribution_set_name === packName)
-    .sort((a, b) => stamp(b).localeCompare(stamp(a)))[0] ?? null;
+// The campaign behind an attempt, linked to its page — or, for an attempt outside any campaign
+// (force-version, sync-to-latest, a retry), plain text, since there is no campaign page to open.
+function CampaignLink({ job, groupId, className }: { job: DeviceJobInfo; groupId?: string; className?: string }) {
+  const router = useRouter();
+  if (!job.campaignId) {
+    return (
+      <span className={cn('flex max-w-full items-center gap-1 text-xs text-muted-foreground', className)}>
+        <Rocket className="h-3 w-3 shrink-0" />
+        <span className="truncate">{job.campaignName}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={cn('flex max-w-full items-center gap-1 text-xs text-primary hover:underline', className)}
+      onClick={() => router.push(`/updates/details?groupId=${encodeURIComponent(groupId ?? '')}&campaignId=${encodeURIComponent(job.campaignId)}`)}
+    >
+      <Rocket className="h-3 w-3 shrink-0" />
+      <span className="truncate">{job.campaignName}</span>
+    </button>
+  );
 }
 
-// The date of the last change to this set, with the transition behind it on hover. When the history
-// has not arrived (or failed) the tooltip falls back to what this page already knows — the installed
-// version and the job — rather than inventing a "from" version it cannot see.
-function LastUpdateCell({ set: s, updates }: { set: DeviceSetRow; updates: DevicePackUpdate[] | null | undefined }) {
-  const update = latestUpdateFor(updates, s.packName);
+// The date of the last change to this set, with its newest update attempt on hover. Without an
+// attempt the tooltip falls back to what this page already knows — the installed version — rather
+// than inventing a "from" version it cannot see.
+function LastUpdateCell({ set: s }: { set: DeviceSetRow }) {
+  const update = s.attempt;
   const when = s.lastUpdate || update?.timestamp_completed || update?.timestamp_init || '';
   if (!when) return <>—</>;
 
@@ -323,11 +339,7 @@ function LastUpdateCell({ set: s, updates }: { set: DeviceSetRow; updates: Devic
             </>
           ) : (
             <p className="text-muted-foreground">
-              {updates === undefined
-                ? 'Loading update history…'
-                : updates === null
-                  ? `Update history unavailable. Installed v${s.current}.`
-                  : `No recorded transition. Installed v${s.current}.`}
+              {`No recorded update. Installed v${s.current}.`}
             </p>
           )}
           {s.job?.campaignName && <p className="text-muted-foreground">Campaign: {s.job.campaignName}</p>}
@@ -354,7 +366,11 @@ export default function OtaDevicesPage() {
   // Multi-select, OR semantics: a device matches if it belongs to ANY selected group / carries ANY
   // selected distribution set — not all of them. Empty means "no filter", matching the old ALL
   // sentinel's meaning for these two.
-  const [groupFilters, setGroupFilters] = useState<string[]>([]);
+  // Deep link from the dashboard (?groupId=…), so a count scoped to one group opens the same scope.
+  const [groupFilters, setGroupFilters] = useState<string[]>(() => {
+    const fromUrl = searchParams.get('groupId');
+    return fromUrl ? [fromUrl] : [];
+  });
   const [statusFilter, setStatusFilter] = useState<string>(() => {
     // Deep link from the dashboard (?status=failed). Ignore anything that is not a known status.
     const fromUrl = searchParams.get('status');
@@ -370,8 +386,7 @@ export default function OtaDevicesPage() {
 
   const groupIdsKey = availableDms.map((g) => g.id).join(',');
 
-  // silent: a background refresh — no spinner (which also resets the per-device history cache) and no
-  // error state, so the table updates in place. An options object, so a click event can't read as silent.
+  // silent: a background refresh — no spinner and no error state, so the table updates in place. An options object, so a click event can't read as silent.
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.access_token || availableDms.length === 0) return;
     const silent = opts?.silent === true;
@@ -380,7 +395,7 @@ export default function OtaDevicesPage() {
       setLoadError(null);
     }
     try {
-      const [membership, packPages, targetPages, campaignPages, allPacks] = await Promise.all([
+      const [membership, packPages, targetPages, campaignPages, latestAttempts] = await Promise.all([
         // 1. The real fleet, by group. Paged; a device may appear under several groups.
         Promise.all(availableDms.map(async (g) => {
           const ids: string[] = [];
@@ -410,12 +425,11 @@ export default function OtaDevicesPage() {
           ? Promise.all(availableDms.map((g) =>
               getGroupVersionStatus({ groupId: g.id }).then((r) => r.rows ?? []).catch(() => [])))
           : Promise.resolve([]),
-        // 4. Campaigns per group, for per-device job state.
+        // 4. Campaigns per group — only to name and link the campaign behind an attempt.
         Promise.all(availableDms.map((g) =>
           fetchAllCampaigns({ groupId: g.id }).catch(() => []))),
-        // 5. Distribution sets, purely to resolve a campaign's distribution_set_id to a pack NAME —
-        //    see packNameById for why an id comparison cannot do that job.
-        fetchAllUpdatePacks({ pageSize: 500 }).then((r) => r.list).catch(() => []),
+        // 5. The newest update attempt per (device, set), fleet-wide, with its outcome.
+        fetchLatestDevicePackUpdates().catch(() => []),
       ]);
 
       // Compliance keyed per (device, pack) — keyed by id and by name, since pack rows and
@@ -427,53 +441,30 @@ export default function OtaDevicesPage() {
         compliance.set(`${row.device_id}::name::${row.distribution_set_name}`, entry);
       }
 
-      // Only campaigns that actually dispatched something have jobs; a fully-pending campaign
-      // returns an empty list, so skip those requests entirely.
-      const campaigns = campaignPages.flat();
-      const dispatched = campaigns.filter((c) => {
-        const s = deriveCampaignDeviceStats(c);
-        return s.active + s.completed + s.failed > 0;
-      });
-      const jobsPerCampaign = await Promise.all(dispatched.map((c) =>
-        fetchAllJobsByCampaign({ campaignId: c.id })
-          .then((jobs) => ({ campaign: c, jobs }))
-          .catch(() => ({ campaign: c, jobs: [] })),
-      ));
+      const campaignNameById = new Map(campaignPages.flat().map((c) => [c.id, c.name]));
 
-      // distribution_set_id -> pack NAME. Attribution has to go through the name, not the id: in hawkbit
-      // mode every VERSION of a set is its own distribution set with its own id, so a campaign
-      // deploying v1.1.0 carries a different id from the v1.0.0 row the device reports installed —
-      // precisely when a device is mid-update, which is the case this is for. Both sources are
-      // merged because each knows ids the other does not: the pack list has the current version of
-      // every set, the device rows have whichever older versions are still installed out there.
-      const packNameById = new Map<string, string>();
-      for (const p of allPacks) if (p.id) packNameById.set(p.id, p.name);
-      for (const row of packPages) if (row.distribution_set_id) packNameById.set(row.distribution_set_id, row.distribution_set_name);
-
-      // Latest job per device, by mtime — and, separately, the latest job per (device, distribution
-      // set). A campaign deploys exactly one set, so its jobs attribute cleanly to that set; without
-      // this split, a device updating one set would colour every set it holds.
-      const jobByDevice = new Map<string, DeviceJobInfo>();
+      // The newest attempt per (device, set NAME) comes straight from the backend; per device, the
+      // newest of those (newestAttemptByDevice). A cancelled attempt is left out (see attemptStatusOf).
       const jobByDevicePack = new Map<string, DeviceJobInfo>();
-      for (const { campaign, jobs } of jobsPerCampaign) {
-        for (const job of jobs) {
-          if (!job.clientId) continue;
-          const info: DeviceJobInfo = {
-            campaignId: campaign.id,
-            campaignName: campaign.name,
-            state: job.status?.state ?? '',
-            message: job.status?.message,
-            mtime: job.mtime,
-          };
-          const prev = jobByDevice.get(job.clientId);
-          if (!prev || (info.mtime ?? '') > (prev.mtime ?? '')) jobByDevice.set(job.clientId, info);
-          const packName = campaign.distribution_set_id ? packNameById.get(campaign.distribution_set_id) : undefined;
-          if (packName) {
-            const key = `${job.clientId}::${packName}`;
-            const prevForPack = jobByDevicePack.get(key);
-            if (!prevForPack || (info.mtime ?? '') > (prevForPack.mtime ?? '')) jobByDevicePack.set(key, info);
-          }
-        }
+      const attemptByDevicePack = new Map(latestAttempts.map((a) => [`${a.device_id}::${a.distribution_set_name}`, a]));
+      for (const a of latestAttempts) {
+        const status = attemptStatusOf(a.status);
+        if (!status) continue;
+        const launchId = a.launch_id ?? '';
+        const info: DeviceJobInfo = {
+          campaignId: launchId,
+          campaignName: launchId ? (campaignNameById.get(launchId) ?? `Campaign ${launchId}`) : 'Direct update',
+          status,
+          mtime: attemptTime(a),
+        };
+        jobByDevicePack.set(`${a.device_id}::${a.distribution_set_name}`, info);
+      }
+      // The same info object as the set row's, which is how the device cell tells whether its job is
+      // already shown on one of its set rows.
+      const jobByDevice = new Map<string, DeviceJobInfo>();
+      for (const [deviceId, a] of newestAttemptByDevice(latestAttempts)) {
+        const info = jobByDevicePack.get(`${deviceId}::${a.distribution_set_name}`);
+        if (info) jobByDevice.set(deviceId, info);
       }
 
       // Installed sets per device.
@@ -494,7 +485,8 @@ export default function OtaDevicesPage() {
           packaging: row.packaging,
           installedAt: row.installed_at,
           job: setJob,
-          // The job's timestamp is preferred because it is the one hawkBit actually records: its
+          attempt: attemptByDevicePack.get(`${row.device_id}::${row.distribution_set_name}`) ?? null,
+          // The attempt's timestamp is preferred because it is the one hawkBit actually records: its
           // /devices/distribution-sets rows carry a zero installed_at, so without this the column would be empty
           // for the whole fleet in hawkbit mode.
           lastUpdate: setJob && isRealDate(setJob.mtime)
@@ -527,7 +519,7 @@ export default function OtaDevicesPage() {
 
         // Live job state first, then installed-vs-target, then "nothing reported".
         let status: DeviceStatus;
-        if (job) status = jobStatusOf(job.state);
+        if (job) status = job.status;
         else if (sets.length === 0) status = 'no-data';
         else if (sets.some((s) => s.status === 'outdated')) status = 'outdated';
         else if (sets.some((s) => s.status === 'up-to-date')) status = 'up-to-date';
@@ -537,7 +529,12 @@ export default function OtaDevicesPage() {
           ...(job && isRealDate(job.mtime) ? [job.mtime] : []),
           ...sets.filter((s) => isRealDate(s.installedAt)).map((s) => s.installedAt),
         ];
+        // What the Last Update column shows, folded to the device. The live job is left out on
+        // purpose: its mtime moves with every download tick, which would reshuffle the list while
+        // devices update and put it out of step with the column the operator is reading.
+        const updated = sets.filter((s) => isRealDate(s.lastUpdate)).map((s) => s.lastUpdate);
         return {
+          newestUpdate: updated.sort().at(-1) ?? '',
           deviceId,
           groupIds,
           groupLabel: groupIds.map((id) => groupNames.get(id) ?? id).join(', '),
@@ -546,7 +543,9 @@ export default function OtaDevicesPage() {
           status,
           lastActivity: stamps.sort().at(-1) ?? '',
         };
-      }).sort((a, b) => a.deviceId.localeCompare(b.deviceId));
+      // Newest update first (ISO timestamps compare lexicographically); devices that never had one
+      // follow, by id.
+      }).sort((a, b) => b.newestUpdate.localeCompare(a.newestUpdate) || a.deviceId.localeCompare(b.deviceId));
 
       setDevices(rows);
     } catch (err) {
@@ -620,26 +619,6 @@ export default function OtaDevicesPage() {
   const bulkGroupId = selectedDevices.length === 0
     ? undefined
     : selectedDevices.map((d) => d.groupIds).reduce((common, ids) => common.filter((g) => ids.includes(g)))[0];
-
-  // Update history (version_from → version_to) per device, fetched for the rows on screen only:
-  // there is no fleet-wide history endpoint, so loading every device up front would be N requests.
-  // `null` means the request failed, which is different from "no history yet" (an empty list).
-  const [history, setHistory] = useState<Map<string, DevicePackUpdate[] | null>>(new Map());
-  const requestedHistory = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    for (const dev of visible) {
-      if (requestedHistory.current.has(dev.deviceId)) continue;
-      requestedHistory.current.add(dev.deviceId);
-      fetchDevicePackUpdates({ deviceId: dev.deviceId, pageSize: 50 })
-        .then((r) => r.list)
-        .catch(() => null)
-        .then((list) => setHistory((prev) => new Map(prev).set(dev.deviceId, list)));
-    }
-  }, [visible]);
-  // A refresh may have changed what the devices ran; drop the cache so the next render refetches.
-  useEffect(() => {
-    if (isLoading) { requestedHistory.current = new Set(); setHistory(new Map()); }
-  }, [isLoading]);
 
   const showSkeleton = isLoading && devices.length === 0;
 
@@ -732,7 +711,7 @@ export default function OtaDevicesPage() {
             <MultiSelectDropdown
               id="ota-devices-group-filter"
               className="w-[190px]"
-              options={availableDms.map((g) => ({ value: g.id, label: g.name }))}
+              options={availableDms.map((g) => ({ value: g.id, label: truncateText(g.name, 40) }))}
               selectedValues={groupFilters}
               onChange={setGroupFilters}
               buttonText="All groups"
@@ -814,7 +793,7 @@ export default function OtaDevicesPage() {
                   // A job belonging to a set listed on a row of its own is shown there. One that does
                   // not — a first-ever install, or a set the device has not reported yet — has nowhere
                   // else to appear, so the device cell carries it rather than losing it.
-                  const jobShownOnASetRow = dev.sets.some((s) => s.job?.campaignId === dev.job?.campaignId);
+                  const jobShownOnASetRow = dev.sets.some((s) => s.job === dev.job);
                   const unattributedJob = dev.job && !jobShownOnASetRow ? dev.job : null;
 
                   // The device cell, rendered once and spanning this device's set rows.
@@ -859,14 +838,7 @@ export default function OtaDevicesPage() {
 
                       {unattributedJob && (
                         <div className="mt-1.5 text-xs">
-                          <button
-                            type="button"
-                            className="flex max-w-full items-center gap-1 text-primary hover:underline"
-                            onClick={() => router.push(`/updates/details?groupId=${encodeURIComponent(dev.groupIds[0] ?? '')}&campaignId=${encodeURIComponent(unattributedJob.campaignId)}`)}
-                          >
-                            <Rocket className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{unattributedJob.campaignName}</span>
-                          </button>
+                          <CampaignLink job={unattributedJob} groupId={dev.groupIds[0]} />
                           <span className="text-muted-foreground">{fmtDate(unattributedJob.mtime)}</span>
                         </div>
                       )}
@@ -902,15 +874,8 @@ export default function OtaDevicesPage() {
                                 <span className="truncate font-medium" title={s.packName}>{s.packName}</span>
                               </span>
                               {/* The campaign driving this set right now, where there is one. */}
-                              {s.job && jobStatusOf(s.job.state) !== 'installed' && (
-                                <button
-                                  type="button"
-                                  className="mt-0.5 flex max-w-full items-center gap-1 pl-5 text-xs text-primary hover:underline"
-                                  onClick={() => router.push(`/updates/details?groupId=${encodeURIComponent(dev.groupIds[0] ?? '')}&campaignId=${encodeURIComponent(s.job!.campaignId)}`)}
-                                >
-                                  <Rocket className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{s.job.campaignName}</span>
-                                </button>
+                              {s.job && s.job.status !== 'installed' && (
+                                <CampaignLink job={s.job} groupId={dev.groupIds[0]} className="mt-0.5 pl-5" />
                               )}
                             </TableCell>
                             <TableCell className={edge}>
@@ -929,10 +894,7 @@ export default function OtaDevicesPage() {
                             </TableCell>
                             <TableCell className={edge}><StatusBadge status={shown} spin /></TableCell>
                             <TableCell className={cn('text-xs text-muted-foreground', edge)}>
-                              <LastUpdateCell
-                                set={s}
-                                updates={history.get(dev.deviceId)}
-                              />
+                              <LastUpdateCell set={s} />
                             </TableCell>
                           </TableRow>
                         );

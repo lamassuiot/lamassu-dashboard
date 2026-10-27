@@ -143,7 +143,7 @@ export function DeviceGroupsList({
                       toggleDisabled={Boolean(query)}
                     >
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Link href={`/device-groups/details?groupId=${node.id}`} className="truncate font-medium hover:underline">
+                        <Link href={`/device-groups/details?groupId=${node.id}`} title={node.name} className="block max-w-[32rem] truncate font-medium hover:underline">
                           <HighlightedText text={node.name} query={query} />
                         </Link>
                         {childCount > 0 && (

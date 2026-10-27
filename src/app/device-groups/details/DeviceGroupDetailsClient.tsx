@@ -11,6 +11,7 @@ import { sileo } from '@/lib/toast';
 import { AlertCircle, Edit, Trash2, FolderTree, FolderPlus, Loader2, Monitor, RefreshCw, Info, Layers, ListFilter } from 'lucide-react';
 import { fetchAllDeviceGroups, getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
 import { getAncestorChain, getDescendantIds } from '@/lib/device-groups-utils';
+import { truncateText } from '@/lib/utils';
 import type { DeviceGroup } from '@/types/device-group';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
 import { MembershipRulesView } from '@/components/device-groups/MembershipRulesView';
@@ -176,8 +177,8 @@ export default function DeviceGroupDetailsClient() {
       className="space-y-5"
       items={[
         ...DEVICE_GROUP_CRUMBS,
-        ...ancestors.map((ancestor) => ({ label: ancestor.name, href: `/device-groups/details?groupId=${ancestor.id}` })),
-        { label: <Badge className="max-w-[320px] truncate">{group.name}</Badge> },
+        ...ancestors.map((ancestor) => ({ label: truncateText(ancestor.name, 32), href: `/device-groups/details?groupId=${ancestor.id}` })),
+        { label: <Badge className="max-w-[320px] truncate" title={group.name}>{truncateText(group.name, 40)}</Badge> },
       ]}
     >
       <DetailHero

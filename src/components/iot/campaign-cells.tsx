@@ -195,18 +195,30 @@ export function isActiveCampaign(campaign: CampaignItem): boolean {
   return (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
 }
 
+/** A campaign that was created but never started: nothing dispatched, and not merely waiting for a
+ *  scheduled start in the future (that one is Scheduled, which is expected). */
+export function isNotStartedCampaign(campaign: CampaignItem): boolean {
+  return deriveCampaignStatus(campaign) === 'Not Started';
+}
+
+/** A manual campaign whose current batch has ended with devices still pending: it only moves on when
+ *  an operator releases the next batch. An auto campaign releases it by itself, so it never is. */
+export function isAwaitingBatchRelease(campaign: CampaignItem): boolean {
+  if (campaign.auto) return false;
+  if (campaign.status === 'cancelled' || campaign.status === 'completed' || campaign.status === 'paused') return false;
+  const { completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
+  return pending > 0 && active === 0 && completed + failed > 0;
+}
+
 /** Why a campaign needs an operator, or an empty list when it does not. The single definition of
- *  "requires attention" — the campaign list's filter and the OTA dashboard's panel both use it. */
+ *  "requires attention" — the campaign list's filter and the OTA dashboard's panel both use it.
+ *  Only what is stuck on an operator counts: a campaign that never started, or a manual one whose
+ *  batch ended and is waiting to be released. Auto rollouts that are running, and failures inside a
+ *  campaign that is otherwise progressing or finished, do not. */
 export function campaignAttentionReasons(campaign: CampaignItem): string[] {
   const reasons: string[] = [];
-  if (campaign.status === 'paused') reasons.push('Paused');
-  if (getTestDeviceStatus(campaign) === 'failed') reasons.push('Test device failed');
-  const failed = campaign.failed_count ?? 0;
-  if (failed > 0 && campaign.status !== 'cancelled') reasons.push(`${failed} device${failed === 1 ? '' : 's'} failed`);
-  const skipped = campaign.precondition_failures?.length ?? 0;
-  if (skipped > 0 && campaign.status !== 'cancelled') {
-    reasons.push(`${skipped} device${skipped === 1 ? '' : 's'} failed preconditions`);
-  }
+  if (isNotStartedCampaign(campaign)) reasons.push('Not started');
+  if (isAwaitingBatchRelease(campaign)) reasons.push('Batch ended, waiting for release');
   return reasons;
 }
 

@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Package } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 import type { ReusableSoftwareModule } from '@/types/iot';
 
 /** A candidate's stable row key: its id where the backend assigned one, else where it is defined. */
@@ -18,6 +18,9 @@ interface ModuleCandidateTableProps {
   candidates: ReusableSoftwareModule[];
   // The group the picker is used from: a candidate's source group is only shown when it differs.
   groupId?: string;
+  // Group id → display name. A candidate's source group is shown by name where one is known (the id
+  // goes in the tooltip) and by its raw id otherwise.
+  groupNames?: ReadonlyMap<string, string>;
   // Per-row action column (the set page's Link/Copy button).
   renderAction?: (candidate: ReusableSoftwareModule, id: string) => React.ReactNode;
   // Checklist mode (the create form): the whole row toggles its checkbox. checkDisabledReason greys
@@ -35,21 +38,21 @@ interface ModuleCandidateTableProps {
 // from ("the one from water-panel") rather than its exact name. The query lives here, so it starts
 // empty every time the table mounts — a query left over from last time would silently hide most of
 // the list.
-export function ModuleCandidateTable({ candidates, groupId, renderAction, checkedIds, onToggle, checkDisabledReason }: ModuleCandidateTableProps) {
+export function ModuleCandidateTable({ candidates, groupId, groupNames, renderAction, checkedIds, onToggle, checkDisabledReason }: ModuleCandidateTableProps) {
   const [query, setQuery] = React.useState('');
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return candidates;
     return candidates.filter((c) =>
-      [c.name, c.type, c.version, c.source_distribution_set_name, c.source_distribution_set_version, c.source_group_id]
+      [c.name, c.type, c.version, c.source_distribution_set_name, c.source_distribution_set_version, c.source_group_id, groupNames?.get(c.source_group_id)]
         .some((f) => String(f ?? '').toLowerCase().includes(q))
     );
-  }, [candidates, query]);
+  }, [candidates, query, groupNames]);
   const selectable = Boolean(onToggle);
   const columns = (renderAction ? 1 : 0) + (selectable ? 1 : 0) + 3;
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <div className="flex items-center gap-2">
         <Input
           value={query}
@@ -62,7 +65,7 @@ export function ModuleCandidateTable({ candidates, groupId, renderAction, checke
         </span>
       </div>
 
-      <div className="max-h-80 overflow-y-auto rounded-md border">
+      <div className="max-h-80 min-w-0 overflow-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -109,7 +112,7 @@ export function ModuleCandidateTable({ candidates, groupId, renderAction, checke
                     </TableCell>
                   )}
                   {renderAction && <TableCell className="whitespace-nowrap">{renderAction(c, id)}</TableCell>}
-                  <TableCell className="font-medium">
+                  <TableCell className="whitespace-normal font-medium [overflow-wrap:anywhere]">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span>{c.name}</span>
@@ -119,13 +122,19 @@ export function ModuleCandidateTable({ candidates, groupId, renderAction, checke
                       <span className="font-mono text-xs text-muted-foreground">v{c.version}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-64 break-words text-sm">
+                  <TableCell className="min-w-56 max-w-72 whitespace-normal [overflow-wrap:anywhere] text-sm">
                     {c.source_distribution_set_name || 'Module catalog'}
                     <span className="text-muted-foreground"> v{c.source_distribution_set_version || c.version}</span>
                     {/* The source group is only worth showing when it differs — otherwise it
                         is the group already in the page's own context. */}
                     {c.source_group_id && c.source_group_id !== groupId ? (
-                      <div className="break-all text-xs text-muted-foreground">group {c.source_group_id}</div>
+                      groupNames?.get(c.source_group_id) ? (
+                        <div className="text-xs leading-tight text-muted-foreground" title={`${groupNames.get(c.source_group_id)} (${c.source_group_id})`}>
+                          group {truncateText(groupNames.get(c.source_group_id), 48)}
+                        </div>
+                      ) : (
+                        <div className="font-mono text-[11px] leading-tight text-muted-foreground">group {c.source_group_id}</div>
+                      )
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm">

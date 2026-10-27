@@ -233,6 +233,9 @@ export interface DevicePackUpdate {
   timestamp_init?: string | null;
   timestamp_completed?: string | null;
   source?: FirmwareUpdateSource;
+  /** When the attempt was created (dispatched) — set even while it is still pending. Absent on
+   *  attempts recorded before the backend tracked it. */
+  created_at?: string | null;
 }
 
 // One artifact a pack version delivers. Since a device installs a whole pack version (an immutable
@@ -605,6 +608,10 @@ export interface SoftwareModule {
   // it; hawkBit's lock covers content, not description). Optional so a backend that predates the
   // field still deserialises.
   release_notes?: string;
+  // created_at / updated_at (ISO) are when this module version was declared and last changed (its
+  // fields or its files). Absent on a backend that predates them, so a reader must tolerate both.
+  created_at?: string;
+  updated_at?: string;
 }
 
 // POST body for building one module's deliverable. Every field is optional — an empty body means

@@ -5,7 +5,7 @@
 import { get_CLIENT_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 import { getDevicesByGroup } from './device-groups-api';
-import type { SoftwareModuleBuildPayload, UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, DevicePackWithArtifacts, CampaignPrecondition, GroupLatestPack, DeviceLatestDrift, GroupVersionCompliance, GroupVersionStatus, UpdatesCapabilities, SoftwareModule, SoftwareModuleRef, ReusableSoftwareModule, SoftwareModuleImport } from '@/types/iot';
+import type { SoftwareModuleBuildPayload, UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, FirmwareUpdateStatus, DevicePackWithArtifacts, CampaignPrecondition, GroupLatestPack, DeviceLatestDrift, GroupVersionCompliance, GroupVersionStatus, UpdatesCapabilities, SoftwareModule, SoftwareModuleRef, ReusableSoftwareModule, SoftwareModuleImport } from '@/types/iot';
 
 
 export interface ApiParams {
@@ -1639,6 +1639,29 @@ export async function fetchDevicePackUpdates(
   });
   const data = await handleApiError(response, `Failed to fetch pack updates for device ${deviceId}`);
   return { list: data.list || [], next: data.next || null };
+}
+
+/**
+ * The newest update attempt per (device, distribution set), fleet-wide — how the last update of each
+ * set went on each device (pending / running / success / failed / cancelled), including attempts
+ * outside any campaign (force-version, sync-to-latest, retries). Filters apply to that newest
+ * attempt, so `status: 'failed'` lists the devices whose LAST update failed.
+ * GET /v1/devices/distribution-set-updates/latest
+ */
+export async function fetchLatestDevicePackUpdates(
+  options?: { groupId?: string; deviceId?: string; status?: FirmwareUpdateStatus },
+  opts?: ApiCallOptions
+): Promise<DevicePackUpdate[]> {
+  const params = new URLSearchParams();
+  if (options?.groupId) params.append('filter', `group_id[eq]${options.groupId}`);
+  if (options?.deviceId) params.append('filter', `device_id[eq]${options.deviceId}`);
+  if (options?.status) params.append('filter', `status[eq]${options.status}`);
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/distribution-set-updates/latest${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await apiFetch(url, {
+    signal: opts?.signal ?? undefined,
+  });
+  const data = await handleApiError(response, 'Failed to fetch the latest device updates');
+  return data.list || [];
 }
 
 // ============================================================================

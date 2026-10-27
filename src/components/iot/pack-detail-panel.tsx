@@ -483,7 +483,7 @@ export function PackDetailPanel({
                   <dd className="mt-0.5 text-xs text-muted-foreground">
                     {backend === 'hawkbit'
                       ? (pack.packaging === 'non-swu'
-                        ? 'Generic: each module delivers its files as they are, once they are encrypted and/or signed.'
+                        ? 'Generic: each module delivers its built files, encrypted and/or signed if that was chosen when it was built.'
                         : 'SWU: each software module is built — and signed and encrypted — on its own before it is linked.')
                       : (pack.packaging === 'non-swu'
                         ? 'Launch this set on the Download-Install workflow — Direct/Phased expect an SWU and will leave the update looking stuck.'

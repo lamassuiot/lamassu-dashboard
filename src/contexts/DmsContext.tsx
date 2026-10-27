@@ -81,6 +81,12 @@ export function DmsProvider({ children }: { children: ReactNode }) {
   return <DmsContext.Provider value={value}>{children}</DmsContext.Provider>;
 }
 
+/** Like useDms, but undefined outside a DmsProvider — for components that only enrich their display
+ *  with group names and must still render without one. */
+export function useOptionalDms() {
+  return useContext(DmsContext);
+}
+
 export function useDms() {
   const context = useContext(DmsContext);
   if (context === undefined) {

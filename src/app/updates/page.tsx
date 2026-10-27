@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 import {
   fetchUpdatePacks, fetchAllCampaigns, pauseCampaign, resumeCampaign, cancelCampaign, retryFailedDevices,
   triggerItemRollout,
@@ -33,7 +33,7 @@ import { useDms } from '@/contexts/DmsContext';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
   CampaignStatusCell, CampaignProgressCell, TestDeviceBadge, BatchProgress, getTestDeviceStatus,
-  deriveCampaignStatus, deriveBatchPlan, isScheduledCampaign, isActiveCampaign, campaignAttentionReasons, campaignRolloutPolicy,
+  deriveCampaignStatus, deriveBatchPlan, isScheduledCampaign, isActiveCampaign, campaignAttentionReasons, isNotStartedCampaign, campaignRolloutPolicy,
   type CampaignDisplayStatus,
 } from '@/components/iot/campaign-cells';
 import { CampaignBatchesPanel } from '@/components/iot/campaign-batches-panel';
@@ -124,7 +124,12 @@ export default function UpdatesPage() {
   // Campaign IDs confirmed finished by CampaignProgressCell (complements the count-based active check).
   const [completedCampaignIds, setCompletedCampaignIds] = React.useState<Set<string>>(new Set());
   const [filterDmsId, setFilterDmsId] = React.useState<string>(dmsIdFilter || "all");
-  const [viewFilter, setViewFilter] = React.useState<ViewFilter>('all');
+  // Deep link (?view=attention from the OTA Dashboard's "Campaigns Requiring Attention"). Anything
+  // that is not a known view is ignored.
+  const [viewFilter, setViewFilter] = React.useState<ViewFilter>(() => {
+    const fromUrl = searchParams.get('view');
+    return fromUrl && fromUrl in VIEW_LABEL ? (fromUrl as ViewFilter) : 'all';
+  });
   const [pageSize, setPageSize] = React.useState<string>('10');
   const [page, setPage] = React.useState(0);
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
@@ -359,10 +364,10 @@ export default function UpdatesPage() {
       .map(c => new Date(c.scheduled_at as string))
       .sort((a, b) => a.getTime() - b.getTime())[0];
     const inFlight = groups.rolling.reduce((n, c) => n + (c.active_count || 0), 0);
-    const paused = groups.attention.filter(c => c.status === 'paused').length;
-    const withFailures = groups.attention.filter(c => (c.failed_count || 0) > 0).length;
+    const notStarted = groups.attention.filter(isNotStartedCampaign).length;
+    const awaitingRelease = groups.attention.length - notStarted;
     const updatedDevices = groups.completed.reduce((n, c) => n + (c.completed_count || 0), 0);
-    return { nextStart, inFlight, paused, withFailures, updatedDevices };
+    return { nextStart, inFlight, notStarted, awaitingRelease, updatedDevices };
   }, [groups]);
 
   const filtered = groups[viewFilter];
@@ -561,7 +566,7 @@ export default function UpdatesPage() {
             <KpiTile
               label="Requires attention" value={groups.attention.length} icon={AlertCircle}
               tone="bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
-              sub={[kpi.paused > 0 && `${kpi.paused} paused`, kpi.withFailures > 0 && `${kpi.withFailures} with failures`].filter(Boolean).join(' · ') || undefined}
+              sub={[kpi.notStarted > 0 && `${kpi.notStarted} not started`, kpi.awaitingRelease > 0 && `${kpi.awaitingRelease} awaiting release`].filter(Boolean).join(' · ') || undefined}
               active={viewFilter === 'attention'} onClick={() => toggleView('attention')}
             />
             <KpiTile
@@ -597,7 +602,7 @@ export default function UpdatesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All device groups</SelectItem>
-                      {availableDms.map((dms) => <SelectItem key={dms.id} value={dms.id}>{dms.name}</SelectItem>)}
+                      {availableDms.map((dms) => <SelectItem key={dms.id} value={dms.id} title={dms.name}>{truncateText(dms.name, 40)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )}

@@ -61,7 +61,7 @@ import {
   deleteUpdatePackByIdApi,
   fetchAllUpdatePacks,
 } from '@/lib/iot-api';
-import { cn, compareSemver } from '@/lib/utils';
+import { cn, compareSemver, truncateText } from '@/lib/utils';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import type { UpdatePack } from '@/types/iot';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -687,7 +687,7 @@ export default function PackageInventoryPage() {
                     <SelectItem value={ORPHANED_FILTER}>Orphaned ({orphanedCount})</SelectItem>
                   )}
                   {availableDms.map((dms) => (
-                    <SelectItem key={dms.id} value={dms.id}>{dms.name}</SelectItem>
+                    <SelectItem key={dms.id} value={dms.id} title={dms.name}>{truncateText(dms.name, 40)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

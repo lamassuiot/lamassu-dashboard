@@ -30,6 +30,7 @@ import {
 } from '@/lib/iot-api';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOptionalDms } from '@/contexts/DmsContext';
 import { ModuleFileSheet } from '@/components/iot/module-file-sheet';
 import { DELIVERY_LABELS, ModuleFilesFields, moduleBuildPayload, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
 import { SwuSecurityFields, useSwuSecurity } from '@/components/iot/swu-security-fields';
@@ -115,6 +116,11 @@ export function SoftwareModulesCard({
 }) {
   const { isSupported, isLoading: capabilitiesLoading, backend } = useUpdatesCapabilities();
   const { user } = useAuth();
+  const optionalDms = useOptionalDms();
+  const groupNames = React.useMemo(
+    () => new Map((optionalDms?.availableDms ?? []).map((d) => [d.id, d.name])),
+    [optionalDms?.availableDms]
+  );
   // Every method behind this card returns ErrNotSupported (HTTP 501) on a backend that does not
   // implement composition — see pkg/updates.CapabilitySoftwareModuleComposition. Without this check
   // the card would render a permanent error instead of explaining why the feature isn't offered.
@@ -1115,8 +1121,8 @@ export function SoftwareModulesCard({
               <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                 {hawkbit ? (
                   <li>
-                    · it is built — a module that is undecided, has no SWU yet, or holds generic files that are
-                    not yet encrypted and/or signed cannot be linked. Build it in the Software Modules catalog first
+                    · it is built — a module that is undecided, has no SWU yet, or holds generic files that have
+                    not been built yet cannot be linked. Build it in the Software Modules catalog first
                   </li>
                 ) : (
                   <li>
@@ -1163,6 +1169,7 @@ export function SoftwareModulesCard({
               <ModuleCandidateTable
                 candidates={candidates}
                 groupId={groupId}
+                groupNames={groupNames}
                 renderAction={(c, id) => (
                   <ActionButton
                     variant="outline"

@@ -26,7 +26,7 @@ import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { fetchWorkflows, fetchGroupDevices, fetchPackPreconditions, type WfxWorkflow, type GroupDeviceRef } from '@/lib/iot-api';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import { packagingMismatchNote } from '@/components/devices/WorkflowSelect';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 
 const SELECT_NONE_VALUE = "_NONE_";
@@ -323,9 +323,9 @@ export function UpdateStrategyForm({
       {selectedPack && groupName && (
         <p className="m-4 mt-2 flex items-start gap-2 rounded-md bg-primary/5 p-3 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-          <span>
-            This campaign rolls out <span className="font-medium text-foreground">{selectedPack.name}</span> (v{selectedPack.version}) to
-            the <span className="font-medium text-foreground">{groupName}</span> group
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            This campaign rolls out <span className="font-medium text-foreground" title={selectedPack.name}>{truncateText(selectedPack.name, 60)}</span> (v{selectedPack.version}) to
+            the <span className="font-medium text-foreground" title={groupName}>{truncateText(groupName, 60)}</span> group
             {estimatedBatches > 0 ? ` in ${estimatedBatches} batch${estimatedBatches === 1 ? '' : 'es'}` : ''}
             {hasTestDevice ? ', after the test device succeeds' : ''}
             {isAuto ? ', advancing automatically.' : ', releasing each batch on Execute.'}
