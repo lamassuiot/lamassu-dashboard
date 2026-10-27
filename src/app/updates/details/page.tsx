@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
@@ -368,9 +368,9 @@ function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActi
     return (
       <TableRow className="bg-muted/40 text-xs">
         <TableCell className="font-mono py-2">
-          <span className="cursor-pointer hover:underline text-primary" onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}>
+          <button type="button" className="cursor-pointer text-left hover:underline text-primary" onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}>
             {deviceId}
-          </span>
+          </button>
         </TableCell>
         <TableCell className="py-2">
           <div className="flex items-center gap-1.5">
@@ -408,9 +408,9 @@ function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActi
   return (
     <TableRow className={rowClassName}>
       <TableCell className="font-mono py-2">
-        <span className="cursor-pointer hover:underline text-primary" onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}>
+        <button type="button" className="cursor-pointer text-left hover:underline text-primary" onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}>
           {deviceId}
-        </span>
+        </button>
       </TableCell>
       <TableCell className="py-2">
         <div className="flex items-center gap-1.5">

@@ -78,6 +78,7 @@ export function WorkflowSelect({
   onChange,
   disabled,
   packaging,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -86,6 +87,8 @@ export function WorkflowSelect({
    *  mismatch warning below. Meaningless in hawkbit mode, where packaging and the device's action
    *  type are unrelated (see hawkbitActionNote), so it's simply ignored there. */
   packaging?: string;
+  /** id for the select's trigger, so a label can be associated with it. */
+  id?: string;
 }) {
   const [workflows, setWorkflows] = useState<WfxWorkflow[]>([]);
   const { isSupported } = useUpdatesCapabilities();
@@ -109,7 +112,7 @@ export function WorkflowSelect({
   return (
     <div className="space-y-1.5">
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger>
+        <SelectTrigger id={id}>
           <span className="flex items-center gap-2 truncate">
             <GitBranch className="h-4 w-4 text-muted-foreground" />
             <SelectValue placeholder="Select a workflow" />

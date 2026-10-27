@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/components/shared/RouterLink';
+import { useRouter } from '@/lib/router';
 import {
   AlertTriangle,
   ArrowDown10,

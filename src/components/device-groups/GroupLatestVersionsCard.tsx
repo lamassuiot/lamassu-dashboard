@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -340,8 +340,8 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
           </DialogHeader>
 
           <div className="space-y-1.5 py-2">
-            <label className="text-sm font-medium">Workflow</label>
-            <WorkflowSelect value={workflow} onChange={setWorkflow} />
+            <label htmlFor="group-latest-workflow" className="text-sm font-medium">Workflow</label>
+            <WorkflowSelect id="group-latest-workflow" value={workflow} onChange={setWorkflow} />
           </div>
 
           <DialogFooter>

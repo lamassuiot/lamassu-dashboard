@@ -25,7 +25,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { Button } from '@/components/ui/button';

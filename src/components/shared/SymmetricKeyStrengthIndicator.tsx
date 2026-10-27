@@ -3,7 +3,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { HelpCircle } from 'lucide-react';
 
 interface SymmetricKeyStrengthIndicatorProps {
   algorithm?: string;

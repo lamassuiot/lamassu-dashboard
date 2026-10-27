@@ -26,7 +26,7 @@
  */
 
 import React from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { useDropzone } from 'react-dropzone';
 import { AlertTriangle, CheckCircle2, HelpCircle, Info, PackageCheck, UploadCloud, Wrench, X } from 'lucide-react';
 

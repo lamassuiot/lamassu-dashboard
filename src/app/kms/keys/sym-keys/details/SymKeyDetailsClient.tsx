@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { useDropzone } from 'react-dropzone';
-import { ArrowLeft, Lock, Info, FileText, Loader2, AlertTriangle, Upload, Download, Plus, X, UploadCloud, File as FileIcon, Shield, Zap, Key, Router as RouterIcon } from 'lucide-react';
+import { ArrowLeft, Lock, Info, FileText, Loader2, AlertTriangle, Upload, Download, X, UploadCloud, File as FileIcon, Shield, Zap, Router as RouterIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';

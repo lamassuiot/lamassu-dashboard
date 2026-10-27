@@ -7,13 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Info, Workflow, Settings, Eye, BookOpen } from 'lucide-react';
+import { Info, Workflow, BookOpen } from 'lucide-react';
 import type { DeviceJob, JobDetail, JobHistoryEntry, DeviceJobWorkflow } from '@/types/iot';
 import { JobWorkflowGraph } from './JobWorkflowGraph';
-import { format, parseISO, isValid } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { parseISO, isValid } from 'date-fns';
 
 import directWorkflow from '@/lib/workflows/direct.json';
 import phasedWorkflow from '@/lib/workflows/phased.json';
@@ -241,9 +239,9 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({
                   
                   {/* Workflow Graph in Modal */}
                   <div className="h-[600px] w-full border rounded-md bg-muted/20 relative">
-                    {workflowViewSelection ? (
+                    {workflowViewSelection && availableWorkflows.find(w => w.name === workflowViewSelection)?.definition ? (
                       <JobWorkflowGraph 
-                        workflow={availableWorkflows.find(w => w.name === workflowViewSelection)?.definition!}
+                        workflow={availableWorkflows.find(w => w.name === workflowViewSelection)!.definition}
                         jobHistory={[]} // Empty history for pure workflow view
                       />
                     ) : (

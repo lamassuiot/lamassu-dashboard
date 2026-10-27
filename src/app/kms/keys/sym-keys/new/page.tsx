@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -163,7 +163,7 @@ export default function CreateSymKeyPage() {
     try {
       const userId = user.profile?.sub || user.profile?.email || 'default-user';
       let keyValue: string;
-      let finalKeyName = keyName.trim();
+      const finalKeyName = keyName.trim();
 
       if (selectedMode === 'generate') {
         // Generate a new key

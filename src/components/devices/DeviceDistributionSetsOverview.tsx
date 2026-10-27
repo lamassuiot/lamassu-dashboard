@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Boxes, CheckCircle2, AlertTriangle, CircleSlash, HelpCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { fetchDevicePackVersions, getDeviceLatestDrift } from '@/lib/iot-api';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import type { DevicePackVersion, PackDrift } from '@/types/iot';

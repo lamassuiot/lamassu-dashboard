@@ -9,7 +9,6 @@ import ReactFlow, {
   applyEdgeChanges,
   type Node,
   type Edge,
-  type NodeTypes,
   type OnNodesChange,
   type OnEdgesChange,
   MarkerType,
@@ -26,11 +25,8 @@ import type {
 } from '@/types/iot';
 import dagre from '@dagrejs/dagre';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Play, CheckCircle, AlertTriangle, Check, X, Cpu, Code, Zap, Loader2 } from 'lucide-react';
-import { NodeStatusIndicator } from '@/components/node-status-indicator';
-import { BaseNode, BaseNodeContent } from '@/components/base-node';
-import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
+import { Play, CheckCircle, AlertTriangle, Check, X, Cpu, Code, Loader2 } from 'lucide-react';
+import { differenceInSeconds } from 'date-fns';
 import {
   Tooltip,
   TooltipContent,
@@ -561,8 +557,8 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       const isCurrentTerminalEdge = edge.source === actualCurrentState && actualCurrentState !== null && edge.target !== 'TERMINATED';
       
       let stroke: string;
-      let animated = true;
-      let animationDuration = `${2 + (index % 3)}s`;
+      const animated = true;
+      const animationDuration = `${2 + (index % 3)}s`;
       
       let strokeWidth = 2;
       
@@ -900,7 +896,15 @@ const CustomNode = ({
         zIndex: 9999, // Much higher z-index to ensure nodes are always on top
         position: 'relative' // Ensure z-index takes effect
       }}
+      role="button"
+      tabIndex={0}
       onClick={(e) => {
+        e.stopPropagation();
+        onStateClick?.(data);
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
         e.stopPropagation();
         onStateClick?.(data);
       }}

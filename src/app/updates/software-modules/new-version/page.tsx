@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { Button } from '@/components/ui/button';

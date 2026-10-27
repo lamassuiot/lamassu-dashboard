@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Rocket, Search, Package } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { fetchUpdatePackVersions, forceDeviceVersion, getGroupVersionStatus } from '@/lib/iot-api';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
 import { sileo } from '@/lib/toast';
@@ -197,9 +196,9 @@ export function TargetedUpdateDialog({
         <div className="space-y-4 py-2">
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-44 space-y-1.5">
-              <label className="text-sm font-medium">Version</label>
+              <label htmlFor="targeted-update-version" className="text-sm font-medium">Version</label>
               <Select value={version} onValueChange={setVersion} disabled={loadingVersions || versions.length === 0}>
-                <SelectTrigger>
+                <SelectTrigger id="targeted-update-version">
                   <span className="flex items-center gap-2 truncate">
                     <Package className="h-4 w-4 text-muted-foreground" />
                     <SelectValue placeholder={loadingVersions ? 'Loading…' : versions.length === 0 ? 'No versions' : 'Select'} />

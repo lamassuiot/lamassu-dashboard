@@ -151,13 +151,13 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
             <>
               {(loadingGroups || groups.length > 1) && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Device group</label>
+                  <label htmlFor="device-launch-group" className="text-sm font-medium">Device group</label>
                   <Select
                     value={groupId}
                     onValueChange={(v) => { setGroupId(v); setPackId(''); setVersion(''); }}
                     disabled={loadingGroups || groups.length === 0}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="device-launch-group">
                       <span className="flex items-center gap-2 truncate">
                         <Boxes className="h-4 w-4 text-muted-foreground" />
                         <SelectValue placeholder={loadingGroups ? 'Resolving device groups…' : 'Select a device group'} />
@@ -173,9 +173,9 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
               )}
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Distribution set</label>
+                <label htmlFor="device-launch-set" className="text-sm font-medium">Distribution set</label>
                 <Select value={packId} onValueChange={(v) => { setPackId(v); setVersion(''); }} disabled={!groupId || loadingPacks || packs.length === 0}>
-                  <SelectTrigger>
+                  <SelectTrigger id="device-launch-set">
                     <span className="flex items-center gap-2 truncate">
                       <Package className="h-4 w-4 text-muted-foreground" />
                       <SelectValue placeholder={!groupId ? 'Pick a device group first' : loadingPacks ? 'Loading packs…' : packs.length === 0 ? 'No packs in this group' : 'Select a pack'} />
@@ -190,9 +190,9 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Version</label>
+                <label htmlFor="device-launch-version" className="text-sm font-medium">Version</label>
                 <Select value={version} onValueChange={setVersion} disabled={!selectedPack || loadingVersions || versions.length === 0}>
-                  <SelectTrigger>
+                  <SelectTrigger id="device-launch-version">
                     <SelectValue placeholder={!selectedPack ? 'Pick a pack first' : loadingVersions ? 'Loading versions…' : versions.length === 0 ? 'No built versions' : 'Select a version'} />
                   </SelectTrigger>
                   <SelectContent>
@@ -206,8 +206,8 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Workflow</label>
-                <WorkflowSelect value={workflow} onChange={setWorkflow} packaging={selectedPack?.packaging} />
+                <label htmlFor="device-launch-workflow" className="text-sm font-medium">Workflow</label>
+                <WorkflowSelect id="device-launch-workflow" value={workflow} onChange={setWorkflow} packaging={selectedPack?.packaging} />
               </div>
             </>
           )}

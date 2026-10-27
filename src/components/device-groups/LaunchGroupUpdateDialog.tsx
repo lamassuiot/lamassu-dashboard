@@ -127,9 +127,9 @@ export function LaunchGroupUpdateDialog({
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Distribution set</label>
+            <label htmlFor="group-update-set" className="text-sm font-medium">Distribution set</label>
             <Select value={packId} onValueChange={(v) => { setPackId(v); setVersion(''); }} disabled={loadingPacks || packs.length === 0}>
-              <SelectTrigger>
+              <SelectTrigger id="group-update-set">
                 <span className="flex items-center gap-2 truncate">
                   <Package className="h-4 w-4 text-muted-foreground" />
                   <SelectValue placeholder={loadingPacks ? 'Loading packs…' : packs.length === 0 ? 'No packs in this group' : 'Select a pack'} />
@@ -144,9 +144,9 @@ export function LaunchGroupUpdateDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Version</label>
+            <label htmlFor="group-update-version" className="text-sm font-medium">Version</label>
             <Select value={version} onValueChange={setVersion} disabled={!selectedPack || loadingVersions || versions.length === 0}>
-              <SelectTrigger>
+              <SelectTrigger id="group-update-version">
                 <SelectValue placeholder={!selectedPack ? 'Pick a pack first' : loadingVersions ? 'Loading versions…' : versions.length === 0 ? 'No built versions' : 'Select a version'} />
               </SelectTrigger>
               <SelectContent>
@@ -160,8 +160,8 @@ export function LaunchGroupUpdateDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Workflow</label>
-            <WorkflowSelect value={workflow} onChange={setWorkflow} />
+            <label htmlFor="group-update-workflow" className="text-sm font-medium">Workflow</label>
+            <WorkflowSelect id="group-update-workflow" value={workflow} onChange={setWorkflow} />
           </div>
         </div>
 

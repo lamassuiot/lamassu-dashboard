@@ -356,9 +356,8 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   // Build-time flags are baked into the bundle, so a container image could never turn this on —
   // the runtime config (config.js, written from env by the entrypoint) is what lets a deployment
-  // enable it without a rebuild. Applied after mount because the static export prerenders with the
-  // build-time value, so reading window during render would mismatch on hydration.
-  const buildTimeDevMode = process.env.NODE_ENV == 'development' || Boolean(process.env.NEXT_FORCE_DEV_OPTIONS);
+  // enable it without a rebuild.
+  const buildTimeDevMode = Boolean(import.meta.env.DEV || import.meta.env.VITE_FORCE_DEV_OPTIONS);
   const [isDeveloperMode, setIsDeveloperMode] = useState(buildTimeDevMode);
   useEffect(() => {
     if (!buildTimeDevMode && (window as any).lamassuConfig?.LAMASSU_DEV_OPTIONS) {

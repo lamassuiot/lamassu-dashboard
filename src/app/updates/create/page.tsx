@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { Package } from 'lucide-react';
 import { CreatePackForm } from '@/components/iot/create-pack-form';
 import { useDms } from '@/contexts/DmsContext';

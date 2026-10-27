@@ -13,7 +13,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import {
   Package, CheckCircle2, CircleDashed, ShieldCheck, Boxes, Info, X, ArrowRight,
   ExternalLink, GitBranchPlus, Rocket, AlertTriangle, Users, Loader2, RefreshCw, Lock,

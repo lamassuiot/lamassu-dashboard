@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';

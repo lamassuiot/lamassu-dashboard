@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 
 // Legacy route: the all-packs list is the Package Inventory now.
 // Kept only so old links and bookmarks keep working.

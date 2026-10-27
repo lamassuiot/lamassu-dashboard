@@ -29,7 +29,7 @@
 import { DELIVERY_LABELS, ModuleDeliverySelect } from '@/components/iot/module-files';
 import { updateCatalogModule } from '@/lib/iot-api';
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';

@@ -3,8 +3,8 @@
 /** Module catalog: prepare independently versioned files, then compose compatible sets. */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/components/shared/RouterLink';
+import { useRouter } from '@/lib/router';
 import { AlertTriangle, CheckCircle2, CircleDashed, ChevronDown, ChevronRight, ExternalLink, GitBranchPlus, Hammer, Layers, MoreVertical, Package, PackagePlus, Plus, RefreshCw, Search, Trash2, Upload, Lock } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -676,12 +676,15 @@ export default function SoftwareModulesCatalogPage() {
                     <TooltipProvider delayDuration={150}>
                       <ul className="space-y-1">
                         {usedBySet.map((entry) => (
-                          <li key={entry.key} className="text-sm" onClick={(e) => e.stopPropagation()}>
-                            <UsedBySetLine
-                              entry={entry}
-                              groupNames={groupNames}
-                              detailsHref={`/updates/pack-details?groupId=${encodeURIComponent(entry.groupId)}&packName=${encodeURIComponent(entry.packName)}`}
-                            />
+                          <li key={entry.key} className="text-sm">
+                            {/* Keeps a click or key press on a set link from also selecting the row. */}
+                            <div role="presentation" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                              <UsedBySetLine
+                                entry={entry}
+                                groupNames={groupNames}
+                                detailsHref={`/updates/pack-details?groupId=${encodeURIComponent(entry.groupId)}&packName=${encodeURIComponent(entry.packName)}`}
+                              />
+                            </div>
                           </li>
                         ))}
                       </ul>

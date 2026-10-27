@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';

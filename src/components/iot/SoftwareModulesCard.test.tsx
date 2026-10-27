@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SoftwareModulesCard } from './SoftwareModulesCard';
 import type { SoftwareModule } from '@/types/iot';
+import { MemoryRouter } from 'react-router';
 
 // What these cover, and why each matters:
 //
@@ -137,7 +138,8 @@ const closeActionsFor = () => {
 };
 
 const renderCard = (props: Partial<React.ComponentProps<typeof SoftwareModulesCard>> = {}) =>
-  render(<SoftwareModulesCard groupId="g1" packName="gateway" packVersion="1.0.0" packIsBuilt={false} {...props} />);
+  // The card links to the module catalog, and a router link needs a router around it.
+  render(<MemoryRouter><SoftwareModulesCard groupId="g1" packName="gateway" packVersion="1.0.0" packIsBuilt={false} {...props} /></MemoryRouter>);
 
 describe('SoftwareModulesCard', () => {
   beforeEach(() => {

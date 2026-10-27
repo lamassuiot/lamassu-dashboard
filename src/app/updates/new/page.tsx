@@ -2,8 +2,8 @@
 "use client";
 
 import React from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import Link from '@/components/shared/RouterLink';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { AlertTriangle, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -57,7 +57,9 @@ const strategyFormSchema = z.object({
   errorThreshold: optionalPct,
 });
 
-type StrategyFormValues = z.infer<typeof strategyFormSchema>;
+// Input and output differ under zod 4: coerced number fields take `unknown` in and give numbers out.
+type StrategyFormInput = z.input<typeof strategyFormSchema>;
+type StrategyFormValues = z.output<typeof strategyFormSchema>;
 
 /** A distribution set offered for launch, tagged with the device group it belongs to. */
 export type LaunchablePack = UpdatePack & { group_id?: string; groupName?: string };
@@ -155,7 +157,7 @@ export function UpdateStrategyForm({
     errorThreshold: data?.errorThreshold ?? undefined,
   });
 
-  const form = useForm<StrategyFormValues>({
+  const form = useForm<StrategyFormInput, any, StrategyFormValues>({
     resolver: zodResolver(strategyFormSchema),
     defaultValues: makeDefaults(initialStrategyData, defaultSelectedPackId),
   });
@@ -312,8 +314,8 @@ export function UpdateStrategyForm({
         )}
         {hasTestDevice && <SummaryItem label="Test device"><span className="font-mono text-xs">{testDeviceId}</span></SummaryItem>}
         <SummaryItem label="Auto rollout">{isAuto ? 'Enabled' : 'Manual per batch'}</SummaryItem>
-        {isAuto && approvalThreshold ? <SummaryItem label="Approval threshold"><span className="tabular-nums">{approvalThreshold}%</span></SummaryItem> : null}
-        {isAuto && errorThreshold ? <SummaryItem label="Error threshold"><span className="tabular-nums">{errorThreshold}%</span></SummaryItem> : null}
+        {isAuto && approvalThreshold ? <SummaryItem label="Approval threshold"><span className="tabular-nums">{String(approvalThreshold)}%</span></SummaryItem> : null}
+        {isAuto && errorThreshold ? <SummaryItem label="Error threshold"><span className="tabular-nums">{String(errorThreshold)}%</span></SummaryItem> : null}
         <SummaryItem label="Schedule">
           {scheduledDate && !Number.isNaN(scheduledDate.getTime())
             ? scheduledDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -529,7 +531,7 @@ export function UpdateStrategyForm({
                       <FormLabel>{rolloutType === 'percentage' ? 'Batch percentage' : 'Batch size'} <span className="text-destructive">*</span></FormLabel>
                       <div className="relative">
                         <FormControl>
-                          <Input type="number" min={1} placeholder={rolloutType === 'percentage' ? "25" : "10"} {...field} className="pr-16" />
+                          <Input type="number" min={1} placeholder={rolloutType === 'percentage' ? "25" : "10"} {...field} value={field.value as number | string | undefined} className="pr-16" />
                         </FormControl>
                         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
                           {rolloutType === 'percentage' ? '%' : 'devices'}
@@ -599,7 +601,7 @@ export function UpdateStrategyForm({
                             <FormControl>
                               <Input
                                 type="number" placeholder={placeholder} min={1} max={100}
-                                value={field.value ?? ""}
+                                value={(field.value as number | string | undefined) ?? ""}
                                 onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
                                 className="pr-8"
                               />
@@ -717,7 +719,7 @@ export function UpdateStrategyForm({
                         </TooltipProvider>
                       </FormLabel>
                       <FormControl>
-                        <Input type="number" min={0} max={1000} placeholder="0–1000" value={field.value ?? ''} onChange={field.onChange} />
+                        <Input type="number" min={0} max={1000} placeholder="0–1000" value={(field.value as number | string | undefined) ?? ''} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

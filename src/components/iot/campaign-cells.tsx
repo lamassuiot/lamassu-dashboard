@@ -367,12 +367,13 @@ export function CampaignNameCell({ campaign, onClick }: CampaignNameCellProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <span
-        className={onClick ? "text-primary font-medium cursor-pointer hover:underline" : "font-medium"}
-        onClick={onClick}
-      >
-        {campaign.name}
-      </span>
+      {onClick ? (
+        <button type="button" className="text-left text-primary font-medium cursor-pointer hover:underline" onClick={onClick}>
+          {campaign.name}
+        </button>
+      ) : (
+        <span className="font-medium">{campaign.name}</span>
+      )}
       {versionToDisplay && (
         <Badge variant="secondary" className="text-xs">v{versionToDisplay}</Badge>
       )}

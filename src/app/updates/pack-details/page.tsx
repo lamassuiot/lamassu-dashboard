@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/router';
 import { useDropzone } from 'react-dropzone';
-import Link from 'next/link';
+import Link from '@/components/shared/RouterLink';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -45,7 +45,7 @@ import type { UpdatePackVersion, Artifact, ArtifactRef } from '@/types/iot';
 import type { UpdatePacksResponse } from '@/lib/iot-api';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { format } from 'date-fns';
-import dynamic from 'next/dynamic';
+import dynamic from '@/components/shared/dynamic';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';

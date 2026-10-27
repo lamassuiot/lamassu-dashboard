@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router';
 
 // Legacy route: pack creation/versioning now lives in the Package Inventory (creation dialogs).
 // Kept only so old links and bookmarks keep working.
