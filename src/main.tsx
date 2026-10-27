@@ -16,6 +16,16 @@ const pages = Object.entries(pageModules).map(([file, load]) => ({
   Page: lazy(load),
 }));
 
+// Nested layouts (src/app/<dir>/layout.tsx) wrap every page under their directory, as they did under
+// Next — e.g. /updates and /package-inventory provide the device-group context their pages read.
+// The root layout and the device details one are applied explicitly below.
+const layoutModules = import.meta.glob<{ default: React.ComponentType<{ children: React.ReactNode }> }>('./app/**/layout.tsx', { eager: true });
+const nestedLayouts = Object.entries(layoutModules)
+  .map(([file, module]) => ({ base: file.replace(/^\.\/app/, '').replace(/\/layout\.tsx$/, ''), Layout: module.default }))
+  .filter(({ base }) => base !== '' && base !== '/devices/details');
+const underBase = (path: string, base: string) => path === base || path.startsWith(`${base}/`);
+const layoutFor = (path: string) => nestedLayouts.find(({ base }) => underBase(path, base));
+
 function ScrollToTop() {
   const location = useLocation();
 
@@ -41,8 +51,17 @@ function AppRoutes() {
     <>
       <ScrollToTop />
       <Routes>
-        {pages.filter(({ path }) => !path.startsWith('/devices/details')).map(({ path, Page }) => (
+        {pages.filter(({ path }) => !path.startsWith('/devices/details') && !layoutFor(path)).map(({ path, Page }) => (
           <Route key={path} path={path} element={<Page />} />
+        ))}
+        {nestedLayouts.map(({ base, Layout }) => (
+          <Route key={base} path={base} element={<Layout><Suspense fallback={<PageLoader />}><Outlet /></Suspense></Layout>}>
+            {pages.filter(({ path }) => layoutFor(path)?.base === base).map(({ path, Page }) => (
+              path === base
+                ? <Route key={path} index element={<Page />} />
+                : <Route key={path} path={path.slice(base.length + 1)} element={<Page />} />
+            ))}
+          </Route>
         ))}
         <Route path="/devices/details" element={<DeviceDetailsLayout><Suspense fallback={<PageLoader />}><Outlet /></Suspense></DeviceDetailsLayout>}>
           {pages.filter(({ path }) => path.startsWith('/devices/details')).map(({ path, Page }) => (
