@@ -113,6 +113,9 @@ export interface UpdatePack {
   descriptorContent?: string; // Added for viewing descriptor
   uri?: string;
   createdAt?: string; // ISO Date string
+  // Backend audit times (ISO). Absent for sets created before the backend recorded them.
+  created_at?: string;
+  updated_at?: string;
   binaryFileName?: string; // Name of the uploaded binary file
   last_build_error?: string; // why the last build attempt failed (set with status 'build_failed')
   generationError?: string; // Error message if SWU generation failed

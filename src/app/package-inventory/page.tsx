@@ -64,18 +64,19 @@ import {
 import { cn, compareSemver } from '@/lib/utils';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import type { UpdatePack } from '@/types/iot';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { sileo } from '@/lib/toast';
 
 type PackRow = UpdatePack & { groupId: string; groupName: string; orphaned: boolean };
 type SortDirection = 'asc' | 'desc';
-type SortablePackColumn = 'name' | 'group' | 'version' | 'type' | 'packaging' | 'status';
+type SortablePackColumn = 'name' | 'group' | 'version' | 'type' | 'packaging' | 'status' | 'modified';
 
 interface PackSortConfig {
   column: SortablePackColumn;
   direction: SortDirection;
 }
 
-type PackColumnId = 'name' | 'group' | 'version' | 'packaging' | 'type' | 'status' | 'security' | 'compatibility';
+type PackColumnId = 'name' | 'group' | 'version' | 'packaging' | 'type' | 'status' | 'security' | 'compatibility' | 'modified';
 
 type ColumnVisibility = Record<PackColumnId, boolean>;
 
@@ -88,12 +89,23 @@ const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
   status: true,
   security: true,
   compatibility: true,
+  modified: true,
 };
 
 // Sentinel filter value for packs whose device group no longer exists.
 const ORPHANED_FILTER = '__orphaned__';
 
 const sortableText = (value?: string) => (value || '').toLowerCase();
+
+/** When a set last changed, as epoch ms: its update time, else its creation time, else 0 (a set the
+ *  backend recorded no time for). Same idea as the module catalog's lastActivity. */
+function lastModified(pack: UpdatePack): number {
+  for (const t of [pack.updated_at, pack.created_at]) {
+    const ms = t ? Date.parse(t) : NaN;
+    if (ms > 0) return ms;
+  }
+  return 0;
+}
 
 function getDetailsHref(pack: PackRow) {
   return `/updates/pack-details?groupId=${encodeURIComponent(pack.groupId)}&packName=${encodeURIComponent(pack.name)}`;
@@ -268,6 +280,9 @@ const PackInventoryTable: React.FC<{
             <TableHead className="hidden lg:table-cell">Compatibility</TableHead>
           )}
           {columnVisibility.security && <TableHead className="hidden xl:table-cell">Security</TableHead>}
+          {columnVisibility.modified && (
+            <SortableHeader column="modified" title="Last modified" sortConfig={sortConfig} requestSort={requestSort} className="hidden lg:table-cell" numeric />
+          )}
           {columnVisibility.status && (
             <SortableHeader column="status" title="Status" sortConfig={sortConfig} requestSort={requestSort} />
           )}
@@ -378,6 +393,11 @@ const PackInventoryTable: React.FC<{
                   <SecurityIcons pack={pack} />
                 </TableCell>
               )}
+              {columnVisibility.modified && (
+                <TableCell className="hidden lg:table-cell whitespace-nowrap text-sm">
+                  <DateDisplay date={lastModified(pack) ? new Date(lastModified(pack)).toISOString() : ''} />
+                </TableCell>
+              )}
               {columnVisibility.status && (
                 <TableCell>
                   <StatusChip pack={pack} />
@@ -436,7 +456,7 @@ export default function PackageInventoryPage() {
   const [packToVersion, setPackToVersion] = useState<PackForVersioning | null>(null);
   const [packToDelete, setPackToDelete] = useState<PackRow | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<PackSortConfig>({ column: 'name', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState<PackSortConfig>({ column: 'modified', direction: 'desc' });
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>(DEFAULT_COLUMN_VISIBILITY);
   // Packaging is still a real, per-pack choice in hawkbit mode (build+sign one .swu vs. ship raw
   // artifacts — see create-pack-form's own packaging note), but unlike native mode it has no
@@ -549,6 +569,14 @@ export default function PackageInventoryPage() {
       });
 
     return result.sort((a, b) => {
+      // Most recently changed first by default, like the module catalog. A set with no recorded time
+      // goes last in either direction (its place is unknown, not "oldest"), in name order.
+      if (sortConfig.column === 'modified') {
+        const ma = lastModified(a), mb = lastModified(b);
+        if (!ma || !mb) return (ma ? -1 : mb ? 1 : 0) || sortableText(a.name).localeCompare(sortableText(b.name));
+        const byTime = sortConfig.direction === 'asc' ? ma - mb : mb - ma;
+        return byTime || sortableText(a.name).localeCompare(sortableText(b.name));
+      }
       let comparison = 0;
       switch (sortConfig.column) {
         case 'group':
@@ -697,6 +725,7 @@ export default function PackageInventoryPage() {
                   { id: 'type', label: 'Type', visible: columnVisibility.type },
                   { id: 'compatibility', label: 'Compatibility', visible: columnVisibility.compatibility },
                   { id: 'security', label: 'Security', visible: columnVisibility.security },
+                  { id: 'modified', label: 'Last modified', visible: columnVisibility.modified },
                   ...(backend === 'hawkbit' ? [] : [{ id: 'status' as const, label: 'Status', visible: columnVisibility.status }]),
                 ]}
                 onColumnToggle={handleColumnToggle}

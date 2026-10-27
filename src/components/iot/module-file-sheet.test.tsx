@@ -514,6 +514,47 @@ describe('standalone modules in the shared file sheet', () => {
     expect(fetchUpdatePacksMock).not.toHaveBeenCalled();
     expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
   });
+  it('builds unprotected through a delivery change, with a warning (Build now from "Decide later")', async () => {
+    isSupportedMock.mockReturnValue(true);
+    fetchKmsKeysMock.mockResolvedValue({ list: [] });
+    fetchSymmetricKeysMock.mockResolvedValue({ list: [] });
+    fetchIssuedCertificatesMock.mockResolvedValue({ certificates: [] });
+    const stored = { ...standalone, artifacts: [{ id: 'a1', name: 'fw', version: '', filename: 'firmware.bin' }] };
+    fetchCatalogModuleMock.mockResolvedValue(stored);
+    render(<ModuleFileSheet open onOpenChange={vi.fn()} groupId="" packName="" module={stored} perModuleDeliverables buildNow onDone={vi.fn()} />);
+    openSelect(screen.getAllByRole('combobox')[0]);
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Deliver files unchanged' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('option', { name: 'Deliver files unchanged' }));
+    // Neither signing nor encryption is chosen: warned about, not blocked, and the button is a plain build.
+    await waitFor(() => expect(screen.getByText(/No security selected/i)).toBeInTheDocument());
+    expect(screen.getByText(/delivered neither signed nor encrypted/i)).toBeInTheDocument();
+    updateCatalogModuleMock.mockResolvedValue({ ...stored, delivery_intent: 'raw' });
+    buildCatalogModuleMock.mockResolvedValue({});
+    const build = screen.getByRole('button', { name: 'Build' });
+    expect(build).toBeEnabled();
+    fireEvent.click(build);
+    // The delivery is saved AND the build runs — with no encryption and no signature in it.
+    await waitFor(() => expect(updateCatalogModuleMock).toHaveBeenCalledWith('standalone-1', { delivery_intent: 'raw' }));
+    await waitFor(() => expect(buildCatalogModuleMock).toHaveBeenCalledTimes(1));
+    const opts = buildCatalogModuleMock.mock.calls[0][1];
+    expect(opts.encryption_key_name).toBeFalsy();
+    expect(opts.signature_key_id).toBeFalsy();
+  });
+
+  it('still saves a delivery change on its own when the build is left for later', async () => {
+    updateCatalogModuleMock.mockResolvedValue({ ...standalone, delivery_intent: 'raw' });
+    const stored = { ...standalone, artifacts: [{ id: 'a1', name: 'fw', version: '', filename: 'firmware.bin' }] };
+    render(<ModuleFileSheet open onOpenChange={vi.fn()} groupId="" packName="" module={stored} perModuleDeliverables buildNow={false} onDone={vi.fn()} />);
+    openSelect(screen.getAllByRole('combobox')[0]);
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Deliver files unchanged' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('option', { name: 'Deliver files unchanged' }));
+    const save = await screen.findByRole('button', { name: /Save changes|Encrypt \/ sign/ });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+    await waitFor(() => expect(updateCatalogModuleMock).toHaveBeenCalledWith('standalone-1', { delivery_intent: 'raw' }));
+    expect(buildCatalogModuleMock).not.toHaveBeenCalled();
+  });
+
   it('keeps only failed uploads queued for retry', async () => {
     uploadModuleArtifactBinaryMock.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('Upload unavailable')).mockResolvedValue({});
     renderStandalone();
@@ -565,7 +606,8 @@ describe('standalone modules in the shared file sheet', () => {
 });
 
 // In hawkbit mode "built" is a property of the module: a prebuilt SWU is built once uploaded, an SWU
-// from inputs once it is generated, and generic files only once they are encrypted and/or signed.
+// from inputs once it is generated, and generic files once they are built (encryption and signing are
+// both optional).
 // Only a built module can be added to a distribution set, so the sheet has to say which state a
 // module is in and what is still missing.
 describe('building a standalone module (hawkbit)', () => {
@@ -584,18 +626,42 @@ describe('building a standalone module (hawkbit)', () => {
     fetchIssuedCertificatesMock.mockResolvedValue({ certificates: [] });
   });
 
+  // Files stored on an earlier visit are enough to build: the operator must not have to upload
+  // anything again. A stored .swu counts like any other file for generic delivery.
+  it('builds files stored earlier, a .swu included, without uploading anything new', async () => {
+    const stored: SoftwareModule = { ...raw, artifacts: [{ id: 'a1', name: 'test-update_2', version: '', filename: 'test-update_2.swu' }] };
+    fetchCatalogModuleMock.mockResolvedValue(stored);
+    renderRaw(stored);
+    const build = await screen.findByRole('button', { name: 'Build' });
+    await waitFor(() => expect(build).toBeEnabled());
+    fireEvent.click(build);
+    await waitFor(() => expect(buildCatalogModuleMock).toHaveBeenCalledTimes(1));
+    expect(uploadModuleArtifactBinaryMock).not.toHaveBeenCalled();
+  });
+
+  // When the module builds its SWU from inputs, a stored .swu is an output, not an input: on its own
+  // it gives the build nothing to work from.
+  it('does not treat a stored .swu as build input for an SWU built from inputs', async () => {
+    const swuBuild: SoftwareModule = { ...raw, delivery_intent: 'swu-build', artifacts: [{ id: 'a1', name: 'image', version: '', filename: 'image.swu' }] };
+    fetchCatalogModuleMock.mockResolvedValue(swuBuild);
+    renderRaw(swuBuild);
+    const build = await screen.findByRole('button', { name: /Build/ });
+    expect(build).toBeDisabled();
+  });
+
   it('says an unbuilt module cannot join a set yet, and what to do next', () => {
     renderRaw();
     expect(outcomeTitles()).toContain('Not built');
     expect(screen.getByText(/cannot be added to a distribution set until it is built/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Upload the files, then encrypt and\/or sign them\./i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Upload the files, then build them/i).length).toBeGreaterThan(0);
   });
 
-  it('builds generic files by encrypting them, and will not build with nothing chosen', async () => {
+  it('builds generic files by encrypting them', async () => {
     renderRaw();
     dropFile('firmware.bin');
-    // Files alone are not a build: neither encryption nor signing is chosen yet.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and encrypt / sign' })).toBeDisabled());
+    // With nothing chosen yet it is a plain (unprotected) build, warned about but allowed.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and build' })).toBeEnabled());
+    expect(screen.getByText(/delivered neither signed nor encrypted/i)).toBeInTheDocument();
 
     const combos = screen.getAllByRole('combobox');
     openSelect(combos[combos.length - 1]);
@@ -614,6 +680,19 @@ describe('building a standalone module (hawkbit)', () => {
     expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }));
     // It is a catalog build — never the set-scoped one, which a linked (frozen) module refuses.
     expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
+  });
+
+  it('builds generic files with neither encryption nor signing, after warning', async () => {
+    renderRaw();
+    dropFile('firmware.bin');
+    await waitFor(() => expect(screen.getByText(/No security selected/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and build' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and build' }));
+    await waitFor(() => expect(buildCatalogModuleMock).toHaveBeenCalledTimes(1));
+    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }));
+    const opts = buildCatalogModuleMock.mock.calls[0][1];
+    expect(opts.encryption_key_name).toBeFalsy();
+    expect(opts.signature_key_id).toBeFalsy();
   });
 
   it('shows a built module as built and takes no more files', () => {

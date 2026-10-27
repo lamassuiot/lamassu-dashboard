@@ -376,7 +376,7 @@ export function SwuSecurityFields({
           <AlertTitle>No security selected</AlertTitle>
           <AlertDescription>
             {forFiles
-              ? 'Generic files are only built once they are signed and/or encrypted. Choose at least one.'
+              ? 'These files will be delivered neither signed nor encrypted. You can still proceed.'
               : 'This build will be neither signed nor encrypted. You can still proceed.'}
           </AlertDescription>
         </Alert>

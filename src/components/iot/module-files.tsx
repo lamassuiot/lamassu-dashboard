@@ -130,15 +130,16 @@ export function useModuleFiles({
   // flow — a "build a SWU from inputs" module could stage binaries and never become a SWU.
   const canBuild = perModuleDeliverables;
   // Where a module builds its own deliverable (hawkbit), generic files are "built" too: uploading them
-  // is not enough, they only count as built once they have been encrypted and/or signed. So a raw
-  // module has a build step of its own — it just has no sw-description, only the security options.
+  // is not enough, the module counts as built once its build has run. So a raw module has a build
+  // step of its own — no sw-description, only the security options, which are optional.
   const secureFiles = canBuild && deliveryIntent === 'raw';
   const buildsSomething = answer === 'build' || secureFiles;
   const security = useSwuSecurity(active && canBuild && buildsSomething);
 
   const willBuild = canBuild && buildsSomething && buildNow;
-  // A generic-files build with neither encryption nor signing would produce nothing.
-  const needsSecurityChoice = secureFiles && willBuild && !(security.value.hasSigning || security.value.encryptionMode === 'shared');
+  // A build with neither encryption nor signing is allowed, for generic files as for an SWU: the
+  // security fields warn about it, nothing blocks it.
+  const unprotectedBuild = willBuild && !(security.value.hasSigning || security.value.encryptionMode !== 'none');
 
   const addFiles = React.useCallback((incoming: File[]) => {
     setFiles((prev) => {
@@ -198,7 +199,7 @@ export function useModuleFiles({
     : willBuild && descriptorCheck.missing.length > 0
       ? `The sw-description needs ${descriptorCheck.missing.length === 1 ? 'a file that is' : 'files that are'} not here: ${descriptorCheck.missing.join(', ')}.`
       : null;
-  const isComplete = !fileError && (files.length > 0 || (willBuild && (hasStoredFiles || uploadedAnswer !== undefined))) && (answer !== undefined || deliveryIntent === 'undecided') && (!willBuild || security.value.isComplete) && !needsSecurityChoice;
+  const isComplete = !fileError && (files.length > 0 || (willBuild && (hasStoredFiles || uploadedAnswer !== undefined))) && (answer !== undefined || deliveryIntent === 'undecided') && (!willBuild || security.value.isComplete);
 
   /** True when the staged files are incomplete in a way that must stop a submit. Distinguished from
    *  isComplete so a dialog whose file section is optional can still refuse a half-answered one. */
@@ -233,7 +234,7 @@ export function useModuleFiles({
     security,
     perModuleDeliverables,
     secureFiles,
-    needsSecurityChoice,
+    unprotectedBuild,
     willBuild,
     isComplete,
     blocksSubmit,
@@ -586,11 +587,12 @@ export function ModuleFilesFields({
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
                 <div>
                   <Label htmlFor="module-build-now" className="text-sm font-semibold">
-                    Encrypt and/or sign now
+                    Build now
                   </Label>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Generic files are only built once they are encrypted and/or signed. Until then the module
-                    cannot be added to a distribution set. Leave off to store the files and do it later.
+                    Building makes the files the module&apos;s deliverable, encrypted and/or signed if you choose
+                    (both optional). Until it is built the module cannot be added to a distribution set. Leave
+                    off to store the files and build later.
                   </p>
                 </div>
                 <Switch
@@ -876,7 +878,7 @@ export function ModuleDeliverySelect({ value, onChange, disabled, id = 'module-d
         undecided: 'Not built: choose how this module ships, then build it. Only a built module can be added to a distribution set.',
         'swu-build': 'Upload the build inputs and a sw-description, then build the SWU. The module is built once the SWU exists.',
         'swu-prebuilt': 'Upload a finished .swu. The module is built as soon as it is uploaded; its signing and encryption must already be inside it.',
-        raw: 'Upload the files, then encrypt and/or sign them. The module is built once that is done.',
+        raw: 'Upload the files, then build them; encrypting and/or signing them is optional. The module is built once that is done.',
       }[value]
     : value === 'undecided'
       ? 'Files can be stored now. Choose delivery before adding the module to a distribution set.'

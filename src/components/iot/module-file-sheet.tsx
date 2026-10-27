@@ -28,7 +28,7 @@ function nextBuildStep(intent: ModuleDeliveryIntent): string {
   switch (intent) {
     case 'swu-prebuilt': return 'Upload the finished .swu — the module is built as soon as it is stored.';
     case 'swu-build': return 'Upload the build inputs and the sw-description, then build the SWU.';
-    case 'raw': return 'Upload the files, then encrypt and/or sign them.';
+    case 'raw': return 'Upload the files, then build them (encrypting and/or signing them is optional).';
     default: return 'Choose how this module ships, then upload and build it.';
   }
 }
@@ -119,12 +119,20 @@ export function ModuleFileSheet({
   // it, so it must already be in scope.
   const files = useModuleFiles({ active: open, perModuleDeliverables, packaging,
     standalone, deliveryIntent: addressedById ? intent : undefined,
-    hasStoredFiles: Boolean(current?.artifacts.some((a) => !/\.swu$/i.test(a.filename))),
+    // A stored .swu is not a build input when the module builds its SWU from inputs (it would be the
+    // output), so it does not count there. For any other delivery it is a file like the rest: a module
+    // whose files were stored on an earlier visit must be buildable without uploading anything new.
+    hasStoredFiles: Boolean(current?.artifacts.some((a) => (addressedById && intent !== 'swu-build') || !/\.swu$/i.test(a.filename))),
     // The names, not just whether any exist: the sw-description check has to know WHICH files are
     // already on the module, since one it declares may have been uploaded on an earlier visit.
     storedFileNames: (current?.artifacts ?? []).map((a) => a.filename).filter(Boolean),
   });
   const intentChanged = addressedById && intent !== (current?.delivery_intent ?? 'undecided');
+  // A delivery change on its own may be saved — but not when the sheet was opened to build NOW and the
+  // new delivery is one that builds: then the build itself has to be complete, including the
+  // signing/encryption generic files require. Letting the delivery change carry the submit through
+  // saved only the delivery, built nothing, and still announced a built module.
+  const canSubmit = files.isComplete || (intentChanged && !files.willBuild);
 
   // Re-armed on every open, not only when the module changes.
   //
@@ -140,12 +148,13 @@ export function ModuleFileSheet({
 
   // Staged files are uploaded first; with none staged and inputs already on the module, only the build runs.
   const uploadsFirst = files.files.length > 0 || !current?.artifacts.length;
-  const submitLabel = files.secureFiles
+  // "Encrypt / sign" only when that is what the build will do; an unprotected build is just a build.
+  const submitLabel = files.secureFiles && !files.unprotectedBuild
     ? uploadsFirst ? 'Upload and encrypt / sign' : 'Encrypt / sign'
     : uploadsFirst ? 'Upload and build' : 'Build';
 
   const submit = async () => {
-    if (!module || (!files.isComplete && !intentChanged) || files.blocksSubmit || current?.locked || busy) return;
+    if (!module || !canSubmit || files.blocksSubmit || current?.locked || busy) return;
     setBusy(true); setError(null);
     try {
       if (intentChanged && current?.id) setCurrent(await updateCatalogModule(current.id, { delivery_intent: intent }));
@@ -158,7 +167,8 @@ export function ModuleFileSheet({
         userId: user?.profile?.sub || '',
       }) : ['delivery updated'];
       sileo.success({
-        title: files.willBuild ? 'Module built' : 'Module updated',
+        // Named after what ran, not what was intended: a delivery-only save built nothing.
+        title: files.isComplete && files.willBuild ? 'Module built' : files.isComplete ? 'Module updated' : 'Delivery updated',
         description: `${module.key}: ${done.join(', ')}.`,
       });
       if (addressedById) { await reload(); files.reset(); }
@@ -269,7 +279,7 @@ export function ModuleFileSheet({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={busy || current?.locked || files.blocksSubmit || (!files.isComplete && !intentChanged)}>
+            <Button onClick={submit} disabled={busy || current?.locked || files.blocksSubmit || !canSubmit}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {busy
                 ? 'Working…'
