@@ -10,6 +10,8 @@ import { AlertTriangle, CheckCircle2, CircleDashed, ChevronDown, ChevronRight, E
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ModuleDetailPanel, type GroupedModule } from '@/components/iot/module-detail-panel';
+import { ClientPaginationFooter } from '@/components/shared/ClientPaginationFooter';
+import { useClientPagination } from '@/hooks/useClientPagination';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -366,6 +368,9 @@ export default function SoftwareModulesCatalogPage() {
     [selectedKey, grouped]
   );
 
+  // Paged so the detail panel below the list stays close to the row that opened it.
+  const pagination = useClientPagination(grouped, { resetKey: `${search}\u0000${typeFilter}\u0000${builtFilter}` });
+
   if (!capsLoading && !composition) {
     return (
       <BreadcrumbPage items={[{ label: 'Distribution Set', href: '/package-inventory' }, { label: 'Software Modules' }]}>
@@ -508,7 +513,7 @@ export default function SoftwareModulesCatalogPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {grouped.map((g) => {
+              {pagination.pageItems.map((g) => {
                 // A module identity is "built" only when every definition of it is — the same AND a
                 // pack's launchability uses.
                 const inNoSet = g.uses.every((u) => !u.source_distribution_set_name);
@@ -692,6 +697,7 @@ export default function SoftwareModulesCatalogPage() {
               })}
             </TableBody>
           </Table>
+          <ClientPaginationFooter pagination={pagination} id="software-modules-page-size" />
         </div>
       )}
 

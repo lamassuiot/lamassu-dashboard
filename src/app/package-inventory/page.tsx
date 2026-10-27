@@ -65,6 +65,8 @@ import { cn, compareSemver } from '@/lib/utils';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
 import type { UpdatePack } from '@/types/iot';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { ClientPaginationFooter } from '@/components/shared/ClientPaginationFooter';
+import { useClientPagination } from '@/hooks/useClientPagination';
 import { sileo } from '@/lib/toast';
 
 type PackRow = UpdatePack & { groupId: string; groupName: string; orphaned: boolean };
@@ -603,6 +605,11 @@ export default function PackageInventoryPage() {
     });
   }, [packs, groupFilter, statusFilter, search, sortConfig]);
 
+  // Paged so the detail panel below the table stays close to the row that opened it.
+  const pagination = useClientPagination(filtered, {
+    resetKey: `${search}\u0000${groupFilter}\u0000${statusFilter}\u0000${sortConfig.column}\u0000${sortConfig.direction}`,
+  });
+
   const handleColumnToggle = (columnId: string) => {
     if (columnId === 'name') return;
     setColumnVisibility((current) => ({
@@ -775,22 +782,25 @@ export default function PackageInventoryPage() {
               )}
             </div>
           ) : (
-            <PackInventoryTable
-              packs={filtered}
-              columnVisibility={columnVisibility}
-              sortConfig={sortConfig}
-              requestSort={requestSort}
-              onNewVersion={(pack) => setPackToVersion({
-                id: pack.id,
-                name: pack.name,
-                version: pack.version,
-                groupId: pack.groupId,
-                groupName: pack.groupName,
-              })}
-              onDelete={(pack) => setPackToDelete(pack)}
-              selectedId={selectedId}
-              onSelect={(pack) => setSelectedId((current) => (current === pack.id ? null : pack.id))}
-            />
+            <>
+              <PackInventoryTable
+                packs={pagination.pageItems}
+                columnVisibility={columnVisibility}
+                sortConfig={sortConfig}
+                requestSort={requestSort}
+                onNewVersion={(pack) => setPackToVersion({
+                  id: pack.id,
+                  name: pack.name,
+                  version: pack.version,
+                  groupId: pack.groupId,
+                  groupName: pack.groupName,
+                })}
+                onDelete={(pack) => setPackToDelete(pack)}
+                selectedId={selectedId}
+                onSelect={(pack) => setSelectedId((current) => (current === pack.id ? null : pack.id))}
+              />
+              <ClientPaginationFooter pagination={pagination} id="distribution-sets-page-size" />
+            </>
           )}
 
           {selected && (
