@@ -67,7 +67,7 @@
     "firebase": "^13.0.0",
     "genson-js": "^0.0.8",
     "html-to-image": "^1.11.13",
-    "jsonpath-plus": "^10.3.0",
+    "jsonpath-plus": "^11.2.1",
     "jsonschema": "^1.4.0",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.59.0",
