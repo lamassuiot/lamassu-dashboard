@@ -36,4 +36,11 @@ describe('UploadProgressBar', () => {
     expect(screen.getByText(/The server is storing the file/)).toBeInTheDocument()
     expect(screen.queryByText('100%')).not.toBeInTheDocument()
   })
+
+  it('labels a download and copes with a size the server did not announce', () => {
+    render(<UploadProgressBar kind="download" progress={{ ...base, fileName: 'fw.bin', loaded: 3 * 1024 ** 2 }} />)
+    expect(screen.getByRole('progressbar', { name: 'Download progress' })).toBeInTheDocument()
+    expect(screen.getByText('3 MB downloaded')).toBeInTheDocument()
+    expect(screen.queryByText('0%')).not.toBeInTheDocument()
+  })
 })

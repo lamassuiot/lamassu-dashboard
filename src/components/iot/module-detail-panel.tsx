@@ -39,10 +39,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Package, CheckCircle2, CircleDashed, Lock, LockOpen, ShieldCheck, FileText, Boxes, Layers,
-  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2, PackagePlus, Hammer,
+  Save, Loader2, Info, X, Link2, Copy, Upload, GitBranchPlus, ArrowRight, Trash2, PackagePlus, Hammer, Download,
 } from 'lucide-react';
 import { cn, compareSemver } from '@/lib/utils';
-import { setSoftwareModuleReleaseNotes } from '@/lib/iot-api';
+import { fetchCatalogModuleFile, setSoftwareModuleReleaseNotes } from '@/lib/iot-api';
+import { useFileDownload } from '@/hooks/useFileDownload';
+import { UploadProgressBar } from '@/components/shared/UploadProgressBar';
 import type { ModuleDeliveryIntent, ReusableSoftwareModule } from '@/types/iot';
 import { sileo } from '@/lib/toast';
 
@@ -177,6 +179,26 @@ export function ModuleDetailPanel({
   const dirty = notesDirty || intentDirty;
 
   const artifacts = active?.artifacts ?? [];
+  // Files are addressed through the module's own id; a backend that does not report one cannot serve them.
+  const fileDownload = useFileDownload();
+  const downloadFile = (a: { id: string; filename: string }) => {
+    if (!active?.id) return;
+    const moduleId = active.id;
+    void fileDownload.download(a.id, a.filename, () => fetchCatalogModuleFile(moduleId, a.id));
+  };
+  const downloadButton = (a: { id: string; filename: string }) => (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 shrink-0"
+      aria-label={`Download ${a.filename}`}
+      title={active?.id ? `Download ${a.filename}` : 'This backend does not expose the module id needed to download its files.'}
+      disabled={!active?.id || fileDownload.busyId !== null}
+      onClick={() => downloadFile(a)}
+    >
+      {fileDownload.busyId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+    </Button>
+  );
   // The definitions of the version being read, for the "Defined on" choice.
   const activeDefs = module.uses.map((u, i) => ({ u, i })).filter(({ u }) => u.version === active?.version);
 
@@ -423,6 +445,7 @@ export function ModuleDetailPanel({
                     <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
                       <span className="min-w-0 truncate font-mono text-xs">{a.filename}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">{fmtSize(a.size)}</span>
+                      {downloadButton(a)}
                     </li>
                   ))}
                   {artifacts.length > 4 && (
@@ -430,6 +453,7 @@ export function ModuleDetailPanel({
                   )}
                 </ul>
               )}
+              <UploadProgressBar kind="download" progress={fileDownload.progress} />
 
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-medium text-muted-foreground">Release notes</p>
@@ -515,7 +539,8 @@ export function ModuleDetailPanel({
                     <TableHead>Version</TableHead>
                     <TableHead>Filename</TableHead>
                     {artifacts.some((a) => a.size != null) && <TableHead>Size</TableHead>}
-                    {artifacts.some((a) => a.checksum) && <TableHead className="pr-3">Checksum</TableHead>}
+                    {artifacts.some((a) => a.checksum) && <TableHead>Checksum</TableHead>}
+                    <TableHead className="w-10 pr-3"><span className="sr-only">Download</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -528,7 +553,7 @@ export function ModuleDetailPanel({
                         <TableCell className="tabular-nums text-xs">{fmtSize(a.size)}</TableCell>
                       )}
                       {artifacts.some((x) => x.checksum) && (
-                      <TableCell className="pr-3">
+                      <TableCell>
                         {a.checksum ? (
                           <button
                             type="button"
@@ -541,10 +566,12 @@ export function ModuleDetailPanel({
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       )}
+                      <TableCell className="pr-3 text-right">{downloadButton(a)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              <UploadProgressBar kind="download" progress={fileDownload.progress} className="px-3 pt-3" />
             </div>
           )}
         </TabsContent>

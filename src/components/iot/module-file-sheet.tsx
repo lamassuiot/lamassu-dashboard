@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { UploadProgressBar, type UploadProgressInfo } from '@/components/shared/UploadProgressBar';
+import { useFileDownload } from '@/hooks/useFileDownload';
 import { CheckCircle2, CircleDashed, Download, FileUp, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ModuleDeliverySelect, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
 import { ModuleLinkArtifact } from '@/components/iot/module-link-artifact';
-import { deleteCatalogModuleFile, downloadCatalogModuleFile, fetchCatalogModule, fetchUpdatePacks, updateCatalogModule } from '@/lib/iot-api';
+import { deleteCatalogModuleFile, fetchCatalogModuleFile, fetchCatalogModule, fetchUpdatePacks, updateCatalogModule } from '@/lib/iot-api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { ModuleDeliveryIntent, SoftwareModule } from '@/types/iot';
 import { sileo } from '@/lib/toast';
@@ -89,14 +90,11 @@ export function ModuleFileSheet({
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); await reload().catch(() => {}); }
     finally { setBusy(false); }
   };
-  const download = async (artifactId: string, filename: string) => {
+  const fileDownload = useFileDownload();
+  const download = (artifactId: string, filename: string) => {
     if (!current?.id) return;
-    try {
-      const blob = await downloadCatalogModuleFile(current.id, artifactId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    const moduleId = current.id;
+    void fileDownload.download(artifactId, filename, () => fetchCatalogModuleFile(moduleId, artifactId));
   };
 
   // The pack's PACKAGING decides what an uploaded file can even be. On an 'swu' pack the device's
@@ -257,9 +255,10 @@ export function ModuleFileSheet({
               {current?.artifacts.map((a) => <div key={a.id} className="flex items-center gap-2 border-b py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate" title={a.filename}>{a.filename}</span>
                 <span className="text-xs text-muted-foreground">{a.size == null ? '—' : `${a.size.toLocaleString()} B`}</span>
-                <Button variant="ghost" size="icon" aria-label={`Download ${a.filename}`} onClick={() => download(a.id, a.filename)}><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" aria-label={`Download ${a.filename}`} disabled={fileDownload.busyId !== null} onClick={() => download(a.id, a.filename)}><Download className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={busy || current.locked} aria-label={`Remove ${a.filename}`} onClick={() => remove(a.id)}><Trash2 className="h-4 w-4" /></Button>
               </div>)}
+              <UploadProgressBar kind="download" progress={fileDownload.progress} />
             </div>}
             {/* Only for a module inside a set: linking is addressed by (set, module key). */}
             {/* Not where a module builds its own deliverable: a module in a set is frozen there, and

@@ -1854,10 +1854,14 @@ export async function deleteCatalogModuleFile(moduleId: string, artifactId: stri
   const response = await apiFetch(`${catalogModuleUrl(moduleId)}/artifacts/${encodeURIComponent(artifactId)}`, { method: 'DELETE' });
   if (!response.ok) await handleApiError(response, 'Could not remove artifact');
 }
-export async function downloadCatalogModuleFile(moduleId: string, artifactId: string): Promise<Blob> {
-  const response = await apiFetch(`${catalogModuleUrl(moduleId)}/artifacts/${encodeURIComponent(artifactId)}/download`);
+/** The response itself, for saving a large file as it arrives instead of holding it in memory. */
+export async function fetchCatalogModuleFile(moduleId: string, artifactId: string, opts?: ApiCallOptions): Promise<Response> {
+  const response = await apiFetch(`${catalogModuleUrl(moduleId)}/artifacts/${encodeURIComponent(artifactId)}/download`, { signal: opts?.signal ?? undefined });
   if (!response.ok) await handleApiError(response, 'Could not download artifact');
-  return response.blob();
+  return response;
+}
+export async function downloadCatalogModuleFile(moduleId: string, artifactId: string): Promise<Blob> {
+  return (await fetchCatalogModuleFile(moduleId, artifactId)).blob();
 }
 export async function fetchCatalogModule(moduleId: string): Promise<SoftwareModule> {
   return handleApiError(await apiFetch(catalogModuleUrl(moduleId)), 'Could not load module');

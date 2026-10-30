@@ -58,6 +58,7 @@ vi.mock('@/lib/iot-api', () => ({
   // in this file on the mount effect.
   fetchUpdatePacks: fetchUpdatePacksMock,
   downloadCatalogModuleFile: downloadCatalogModuleFileMock,
+  fetchCatalogModuleFile: downloadCatalogModuleFileMock,
   deleteCatalogModuleFile: deleteCatalogModuleFileMock,
   updateCatalogModule: updateCatalogModuleMock,
   fetchCatalogModule: fetchCatalogModuleMock,
