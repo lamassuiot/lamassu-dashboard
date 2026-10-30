@@ -4,6 +4,7 @@
 
 import { get_CLIENT_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
+import { apiUpload, type UploadProgress } from './upload-with-progress';
 import { getDevicesByGroup } from './device-groups-api';
 import type { SoftwareModuleBuildPayload, UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, FirmwareUpdateStatus, DevicePackWithArtifacts, CampaignPrecondition, GroupLatestPack, DeviceLatestDrift, GroupVersionCompliance, GroupVersionStatus, UpdatesCapabilities, SoftwareModule, SoftwareModuleRef, ReusableSoftwareModule, SoftwareModuleImport } from '@/types/iot';
 
@@ -14,6 +15,11 @@ export interface ApiParams {
 
 export interface ApiCallOptions {
   signal?: AbortSignal | null;
+}
+
+/** For the uploads that can be large enough to need a progress bar (artifacts go up to 10 GiB). */
+export interface UploadCallOptions extends ApiCallOptions {
+  onProgress?: (progress: UploadProgress) => void;
 }
 
 export interface FetchUpdatePacksOptions {
@@ -435,15 +441,15 @@ export async function uploadModuleArtifactBinary(
     artifactName,
     version,
   }: ApiParams & { packName: string; moduleKey: string; moduleId?: string; file: File; artifactName?: string; version?: string },
-  opts?: ApiCallOptions
+  opts?: UploadCallOptions
 ): Promise<any> {
   const form = new FormData();
   form.append('file', file);
   form.append('artifact_name', artifactName ?? file.name.replace(/\.[^/.]+$/, ''));
   form.append('version', version ?? '');
-  const response = await apiFetch(
+  const response = await apiUpload(
     moduleId ? `${catalogModuleUrl(moduleId)}/artifacts` : `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/modules/${encodeURIComponent(moduleKey)}/artifact/upload`,
-    { method: 'POST', body: form, signal: opts?.signal ?? undefined }
+    { body: form, signal: opts?.signal, onProgress: opts?.onProgress }
   );
   return handleApiError(response, `Failed to upload the binary to module ${moduleKey}`);
 }
@@ -642,7 +648,7 @@ export async function uploadPackDescriptor(
  */
 export async function uploadPrebuiltDeliverable(
   { groupId, packName, file, isNonSwu, user }: ApiParams & { packName: string; file: File; isNonSwu?: boolean; user?: string },
-  opts?: ApiCallOptions
+  opts?: UploadCallOptions
 ): Promise<any> {
   const fd = new FormData();
   fd.append('file', file);
@@ -650,10 +656,10 @@ export async function uploadPrebuiltDeliverable(
   // The path mirrors the build action's ("…/swu" → "…/swu/upload"); both routes reach the same
   // handler, which decides what to expect from the pack's packaging rather than from the URL.
   const kind = isNonSwu ? 'package' : 'swu';
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/${kind}/upload`, {
-    method: 'POST',
+  const response = await apiUpload(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/${kind}/upload`, {
     body: fd,
-    signal: opts?.signal ?? undefined,
+    signal: opts?.signal,
+    onProgress: opts?.onProgress,
   });
   return handleApiError(response, `Failed to upload the pre-built ${kind} for pack ${packName}`);
 }
@@ -1328,16 +1334,16 @@ export async function downloadArtifact(
  */
 export async function uploadArtifact(
   { name, version, file }: { name: string; version: string; file: File },
-  opts?: ApiCallOptions,
+  opts?: UploadCallOptions,
 ): Promise<Artifact> {
   const form = new FormData();
   form.append('file', file);
   form.append('name', name);
   form.append('version', version);
-  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/artifacts`, {
-    method: 'POST',
+  const response = await apiUpload(`${get_CLIENT_UPDATES_API_BASE_URL()}/artifacts`, {
     body: form,
-    signal: opts?.signal ?? undefined,
+    signal: opts?.signal,
+    onProgress: opts?.onProgress,
   });
   const data = await handleApiError(response, `Failed to upload artifact ${name}`);
   return data.artifact;

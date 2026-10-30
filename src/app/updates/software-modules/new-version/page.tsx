@@ -28,6 +28,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info, Loader2, Lock, Plus } from 'lucide-react';
 
 import { WizardLayout, FormSection, SummaryPanel, SummaryRow } from '@/components/iot/form-wizard';
+import { UploadProgressBar, type UploadProgressInfo } from '@/components/shared/UploadProgressBar';
 import { DELIVERY_LABELS, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
@@ -61,6 +62,7 @@ export default function AddSoftwareModuleVersionPage() {
   const [version, setVersion] = useState('');
   const [releaseNotes, setReleaseNotes] = useState('');
   const [creating, setCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressInfo | null>(null);
 
   useEffect(() => {
     if (!moduleId) { setLoadError('No module was given to version.'); return; }
@@ -103,7 +105,7 @@ export default function AddSoftwareModuleVersionPage() {
       if (files.files.length) {
         await submitModuleFiles({
           groupId: '', packName: '', moduleKey: created.key, moduleId: created.id,
-          state: files, userId: user?.profile?.sub || '',
+          state: files, userId: user?.profile?.sub || '', onProgress: setUploadProgress,
         });
       }
       sileo.success({ title: 'Version added', description: `${created.name} v${created.version} is in the catalog.` });
@@ -116,6 +118,7 @@ export default function AddSoftwareModuleVersionPage() {
       if (created?.id) router.push(CATALOG);
     } finally {
       setCreating(false);
+      setUploadProgress(null);
     }
   }, [source, version, releaseNotes, files, user, router]);
 
@@ -242,6 +245,7 @@ export default function AddSoftwareModuleVersionPage() {
           {source ? (
             <div className="space-y-3">
               <ModuleFilesFields state={files} disabled={creating} versionPlaceholder={version.trim()} />
+              <UploadProgressBar progress={uploadProgress} />
               {!source.delivery_intent || source.delivery_intent === 'undecided' ? (
                 <Alert>
                   <Info className="h-4 w-4" />

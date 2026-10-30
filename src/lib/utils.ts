@@ -51,3 +51,12 @@ export function formatBytes(bytes?: number | null, decimals = 1): string {
   const value = bytes / Math.pow(k, i);
   return `${parseFloat(value.toFixed(i === 0 ? 0 : decimals))} ${sizes[i]}`;
 }
+
+/** "45 s", "3 min 10 s", "2 h 5 min" — how long an upload has left, rounded to what is worth reading. */
+export function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ${seconds % 60} s`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}

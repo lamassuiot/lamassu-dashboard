@@ -4,6 +4,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { UploadProgressBar, type UploadProgressInfo } from '@/components/shared/UploadProgressBar';
 import { CheckCircle2, CircleDashed, Download, FileUp, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ModuleDeliverySelect, ModuleFilesFields, submitModuleFiles, useModuleFiles } from '@/components/iot/module-files';
@@ -57,6 +58,7 @@ export function ModuleFileSheet({
 }) {
   const { user } = useAuth();
   const [busy, setBusy] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState<UploadProgressInfo | null>(null);
   const [current, setCurrent] = React.useState(module);
   const [intent, setIntent] = React.useState<ModuleDeliveryIntent>(module?.delivery_intent ?? 'undecided');
   const [error, setError] = React.useState<string | null>(null);
@@ -165,6 +167,7 @@ export function ModuleFileSheet({
         moduleId: module.id,
         state: files,
         userId: user?.profile?.sub || '',
+        onProgress: setUploadProgress,
       }) : ['delivery updated'];
       sileo.success({
         // Named after what ran, not what was intended: a delivery-only save built nothing.
@@ -182,6 +185,7 @@ export function ModuleFileSheet({
       });
     } finally {
       setBusy(false);
+      setUploadProgress(null);
     }
   };
 
@@ -275,6 +279,7 @@ export function ModuleFileSheet({
         </div>
 
         <SheetFooter className="border-t p-6">
+          <UploadProgressBar progress={uploadProgress} className="w-full" />
           <div className="flex w-full justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               Cancel

@@ -41,7 +41,8 @@ import { FileUpload } from '@/components/iot/file-upload';
 import { SwuSecurityFields, useSwuSecurity, type SwuSecurity } from '@/components/iot/swu-security-fields';
 import { buildCatalogModule, buildSoftwareModule, uploadCatalogModuleDescriptor, uploadModuleArtifactBinary, uploadModuleSwDescriptor } from '@/lib/iot-api';
 import { checkDescriptorFiles, type DescriptorCheck } from '@/lib/sw-descriptor';
-import { cn } from '@/lib/utils';
+import { cn, formatBytes } from '@/lib/utils';
+import type { UploadProgressInfo } from '@/components/shared/UploadProgressBar';
 import type { ModuleDeliveryIntent, SoftwareModuleBuildPayload } from '@/types/iot';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
@@ -282,6 +283,7 @@ export async function submitModuleFiles({
   moduleId,
   state,
   userId,
+  onProgress,
 }: {
   groupId: string;
   packName: string;
@@ -289,10 +291,13 @@ export async function submitModuleFiles({
   moduleId?: string;
   state: ModuleFilesController;
   userId: string;
+  /** Called while each staged file goes up; the files are sent one after the other. */
+  onProgress?: (progress: UploadProgressInfo) => void;
 }): Promise<string[]> {
   const done: string[] = [];
+  const staged = [...state.files];
 
-  for (const file of state.files) {
+  for (const [fileIndex, file] of staged.entries()) {
     await uploadModuleArtifactBinary({
       groupId,
       packName,
@@ -301,9 +306,9 @@ export async function submitModuleFiles({
       file,
       // A single staged file can be named explicitly; with several, each keeps its own name — one
       // artifact name for all of them would collide on the second upload.
-      artifactName: state.files.length === 1 ? state.artifactName.trim() || undefined : undefined,
+      artifactName: staged.length === 1 ? state.artifactName.trim() || undefined : undefined,
       version: state.version.trim() || undefined,
-    });
+    }, onProgress ? { onProgress: (progress) => onProgress({ ...progress, fileName: file.name, fileIndex, fileCount: staged.length }) } : undefined);
     state.noteUploaded();
     state.removeFile(file.name);
   }
@@ -651,12 +656,6 @@ export function ModuleFilesFields({
       ) : null}
     </div>
   );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**

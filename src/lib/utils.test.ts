@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { cn, setCookie, getCookie } from './utils'
+import { cn, setCookie, getCookie, formatDuration } from './utils'
 
 describe('utils', () => {
   describe('cn', () => {
@@ -170,5 +170,18 @@ describe('utils', () => {
       setCookie('update', 'updated')
       expect(getCookie('update')).toBe('updated')
     })
+  })
+})
+
+describe('formatDuration', () => {
+  it('reads as seconds, minutes or hours depending on the size', () => {
+    expect(formatDuration(0)).toBe('0 s')
+    expect(formatDuration(44.6)).toBe('45 s')
+    expect(formatDuration(190)).toBe('3 min 10 s')
+    expect(formatDuration(7500)).toBe('2 h 5 min')
+  })
+
+  it('never goes negative', () => {
+    expect(formatDuration(-5)).toBe('0 s')
   })
 })

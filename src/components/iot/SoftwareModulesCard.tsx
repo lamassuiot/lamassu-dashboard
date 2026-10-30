@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { UploadProgressBar, type UploadProgressInfo } from '@/components/shared/UploadProgressBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, ArrowUpDown, CheckCircle2, CircleDashed, CircleSlash, Download, Hammer, Layers, Link2, Lock, MoreVertical, Package, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -162,6 +163,7 @@ export function SoftwareModulesCard({
   const [newName, setNewName] = React.useState('');
   const [newVersion, setNewVersion] = React.useState('');
   const [adding, setAdding] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState<UploadProgressInfo | null>(null);
   const [removeTarget, setRemoveTarget] = React.useState<SoftwareModule | null>(null);
   // Importing an existing module — the *..* half of the relation. A module is not confined to one
   // distribution set: in hawkbit mode the relation is genuinely many-to-many, so importing LINKS one
@@ -294,6 +296,7 @@ export function SoftwareModulesCard({
             moduleKey: `${ADDABLE_TYPE}:${name}`,
             state: newFiles,
             userId: user?.profile?.sub || '',
+            onProgress: setUploadProgress,
           });
           sileo.success({ title: 'Software module added', description: `${ADDABLE_TYPE}:${name}: ${done.join(', ')}.` });
         } catch (upErr: any) {
@@ -315,6 +318,7 @@ export function SoftwareModulesCard({
       sileo.error({ title: 'Could not add the software module', description: err?.message ?? String(err) });
     } finally {
       setAdding(false);
+      setUploadProgress(null);
     }
   };
 
@@ -943,6 +947,7 @@ export function SoftwareModulesCard({
                 compact
                 versionPlaceholder={newVersion.trim() || packVersion}
               />
+              <UploadProgressBar progress={uploadProgress} />
               <p className="text-xs text-muted-foreground">
                 {perModuleDeliverables
                   ? 'A module with no files contributes nothing to the set and cannot be built. You can add them later from the module’s own actions.'

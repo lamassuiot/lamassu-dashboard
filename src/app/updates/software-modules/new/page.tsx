@@ -25,6 +25,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { UploadProgressBar, type UploadProgressInfo } from '@/components/shared/UploadProgressBar';
 import { useRouter } from '@/lib/router';
 
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -78,6 +79,7 @@ export default function CreateSoftwareModulePage() {
   const [targetPackId, setTargetPackId] = useState<string>(NO_PACK);
   const [packs, setPacks] = useState<UpdatePack[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressInfo | null>(null);
 
   // Built versions are left out: their composition is frozen, so adding a module to one is refused.
   useEffect(() => {
@@ -157,7 +159,7 @@ export default function CreateSoftwareModulePage() {
       if (files.files.length) {
         await submitModuleFiles({
           groupId: '', packName: '', moduleKey: created.key, moduleId: created.id,
-          state: files, userId: user?.profile?.sub || '',
+          state: files, userId: user?.profile?.sub || '', onProgress: setUploadProgress,
         });
       }
       if (targetPack) {
@@ -185,6 +187,7 @@ export default function CreateSoftwareModulePage() {
       }
     } finally {
       setCreating(false);
+      setUploadProgress(null);
     }
   }, [type, name, version, deliveryIntent, releaseNotes, targetPack, files, user, router]);
 
@@ -373,6 +376,7 @@ export default function CreateSoftwareModulePage() {
             />
           </div>
           <ModuleFilesFields state={files} disabled={creating} versionPlaceholder={version.trim()} only="files" />
+          <UploadProgressBar progress={uploadProgress} className="mt-4" />
             </div>
           </FormSection>
 

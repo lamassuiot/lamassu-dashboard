@@ -510,7 +510,7 @@ describe('standalone modules in the shared file sheet', () => {
     dropFile('firmware.bin');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'standalone-1', file: expect.any(File) })));
+    await waitFor(() => expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'standalone-1', file: expect.any(File) }), expect.objectContaining({ onProgress: expect.any(Function) })));
     expect(fetchUpdatePacksMock).not.toHaveBeenCalled();
     expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
   });
@@ -586,7 +586,7 @@ describe('standalone modules in the shared file sheet', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and build' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Upload and build' }));
     await waitFor(() => expect(buildSoftwareModuleMock).toHaveBeenCalledWith(expect.objectContaining({ groupId: 'g1', packName: 'gateway', moduleKey: standalone.key })));
-    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: standalone.id }));
+    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: standalone.id }), expect.objectContaining({ onProgress: expect.any(Function) }));
   });
   it('retries a failed build without uploading successful inputs again', async () => {
     isSupportedMock.mockReturnValue(true);
@@ -677,7 +677,7 @@ describe('building a standalone module (hawkbit)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Upload and encrypt / sign' }));
 
     await waitFor(() => expect(buildCatalogModuleMock).toHaveBeenCalledWith('raw-1', expect.objectContaining({ encryption_key_name: 'sym-1', user: 'alice' })));
-    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }));
+    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }), expect.objectContaining({ onProgress: expect.any(Function) }));
     // It is a catalog build — never the set-scoped one, which a linked (frozen) module refuses.
     expect(buildSoftwareModuleMock).not.toHaveBeenCalled();
   });
@@ -689,7 +689,7 @@ describe('building a standalone module (hawkbit)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Upload and build' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Upload and build' }));
     await waitFor(() => expect(buildCatalogModuleMock).toHaveBeenCalledTimes(1));
-    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }));
+    expect(uploadModuleArtifactBinaryMock).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'raw-1' }), expect.objectContaining({ onProgress: expect.any(Function) }));
     const opts = buildCatalogModuleMock.mock.calls[0][1];
     expect(opts.encryption_key_name).toBeFalsy();
     expect(opts.signature_key_id).toBeFalsy();

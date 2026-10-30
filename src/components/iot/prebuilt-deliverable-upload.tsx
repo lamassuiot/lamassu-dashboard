@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { FileUpload } from '@/components/iot/file-upload';
+import type { UploadProgressInfo } from '@/components/shared/UploadProgressBar';
 import { uploadPrebuiltDeliverable } from '@/lib/iot-api';
 import { sileo } from '@/lib/toast';
 
@@ -48,7 +49,7 @@ export const PrebuiltDeliverableUpload: React.FC<PrebuiltDeliverableUploadProps>
   const { user } = useAuth();
   const kindLabel = isNonSwu ? 'package' : '.swu';
 
-  const handleUpload = async (file: File): Promise<boolean> => {
+  const handleUpload = async (file: File, onProgress: (progress: UploadProgressInfo) => void): Promise<boolean> => {
     try {
       await uploadPrebuiltDeliverable({
         groupId,
@@ -56,7 +57,7 @@ export const PrebuiltDeliverableUpload: React.FC<PrebuiltDeliverableUploadProps>
         file,
         isNonSwu,
         user: user?.profile?.sub || '',
-      });
+      }, { onProgress: (progress) => onProgress({ ...progress, fileName: file.name }) });
       sileo.success({
         title: 'Deliverable attached',
         description: `${file.name} is now this version's deliverable — the pack is built and can be launched.`,
@@ -94,8 +95,9 @@ export const PrebuiltDeliverableUpload: React.FC<PrebuiltDeliverableUploadProps>
       <FileUpload
         label={`Upload a pre-built ${kindLabel}`}
         onFileUpload={handleUpload}
-        // Firmware images are routinely larger than the component's 50MB default.
-        maxFileSize={2 * 1024 * 1024 * 1024}
+        // Firmware images are routinely larger than the component's 50 MB default; 10 GiB is what the
+        // OTA service accepts out of the box (max_artifact_size_mb).
+        maxFileSize={10 * 1024 * 1024 * 1024}
       />
 
       <Alert>

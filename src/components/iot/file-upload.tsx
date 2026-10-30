@@ -5,10 +5,13 @@ import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, File as FileIcon, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress'; // Assuming you have a Progress component
+import { UploadProgressBar, type UploadProgressInfo } from '@/components/shared/UploadProgressBar';
+import { formatBytes } from '@/lib/utils';
 
 interface FileUploadProps {
-  onFileUpload: (file: File) => Promise<boolean>; // Returns true on success, false on failure
+  // Returns true on success, false on failure. Uploads that are worth a progress bar report through
+  // the callback; handlers that only read the file locally can ignore it.
+  onFileUpload: (file: File, onProgress: (progress: UploadProgressInfo) => void) => Promise<boolean>;
   maxFileSize?: number; // in bytes
   label: string;
 }
@@ -19,7 +22,7 @@ export function FileUpload({
   label,
 }: FileUploadProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressInfo | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -27,7 +30,7 @@ export function FileUpload({
     setErrorMessage(null);
     setUploadStatus('idle');
     setUploadedFile(null);
-    setUploadProgress(0);
+    setUploadProgress(null);
 
     if (fileRejections.length > 0) {
       const errors = fileRejections[0].errors.map((err: any) => err.message).join(', ');
@@ -41,23 +44,8 @@ export function FileUpload({
       setUploadedFile(file);
       setUploadStatus('uploading');
       
-      // Simulate progress for demo, replace with actual progress tracking
-      // For actual progress, you'd use XMLHttpRequest or fetch with ReadableStream
-      let currentProgress = 0;
-      const interval = setInterval(() => {
-        currentProgress += 10;
-        if (currentProgress <= 100) {
-          setUploadProgress(currentProgress);
-        } else {
-          clearInterval(interval);
-        }
-      }, 200);
-
-
       try {
-        const success = await onFileUpload(file); // This function should handle the actual upload logic
-        clearInterval(interval); // Clear simulation if onFileUpload is quick
-        setUploadProgress(100);
+        const success = await onFileUpload(file, setUploadProgress);
         if (success) {
           setUploadStatus('success');
         } else {
@@ -65,10 +53,11 @@ export function FileUpload({
           setErrorMessage('Upload failed. Please try again.');
         }
       } catch (error) {
-        clearInterval(interval);
         setUploadStatus('error');
         setErrorMessage( (error as Error).message || 'An unknown error occurred during upload.');
         console.error("Upload error:", error);
+      } finally {
+        setUploadProgress(null);
       }
     }
   }, [onFileUpload]);
@@ -82,7 +71,7 @@ export function FileUpload({
 
   const clearFile = () => {
     setUploadedFile(null);
-    setUploadProgress(0);
+    setUploadProgress(null);
     setUploadStatus('idle');
     setErrorMessage(null);
   }
@@ -110,7 +99,7 @@ export function FileUpload({
           ) : uploadedFile && uploadStatus !== 'error' ? (
             <div className="text-sm text-foreground">
               <FileIcon className="w-4 h-4 inline mr-1" />
-              {uploadedFile.name} ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+              {uploadedFile.name} ({formatBytes(uploadedFile.size, 2)})
             </div>
           ) : (
             <p className="text-muted-foreground">
@@ -118,12 +107,12 @@ export function FileUpload({
             </p>
           )}
           {/* Removed display of acceptedFileTypes */}
-          {maxFileSize && <p className="text-xs text-muted-foreground/80 mt-1">Max size: {(maxFileSize / 1024 / 1024).toFixed(0)}MB</p>}
+          {maxFileSize && <p className="text-xs text-muted-foreground/80 mt-1">Max size: {formatBytes(maxFileSize, 0)}</p>}
         </div>
       </div>
 
       {uploadStatus === 'uploading' && (
-        <Progress value={uploadProgress} className="w-full h-2 mt-2" />
+        <UploadProgressBar progress={uploadProgress} className="mt-2" />
       )}
       
       {uploadStatus === 'success' && (
