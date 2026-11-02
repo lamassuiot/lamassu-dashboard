@@ -265,8 +265,15 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                     setEvaluationResult({ match: false, message: 'Invalid JSONPath expression. Must start with "$".', error: true });
                     return;
                 }
-                const result = JSONPath<unknown[]>({ path: filterCondition, json: jsonPayload, wrap: true });
-                if (result.length > 0) {
+                let hasMatches = false;
+                JSONPath({
+                    path: filterCondition,
+                    json: jsonPayload,
+                    callback: () => {
+                        hasMatches = true;
+                    },
+                });
+                if (hasMatches) {
                     setEvaluationResult({ match: true, message: 'The filter matches this Cloud Event' });
                 } else {
                     setEvaluationResult({ match: false, message: 'The filter does not match this Cloud Event' });
