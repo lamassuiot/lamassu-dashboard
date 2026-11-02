@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Edit, Trash2, Users, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 import type { ProfileSortConfig, SortableProfileColumn } from '@/app/signing-profiles/page';
 import { cn } from '@/lib/utils';
 
@@ -113,6 +114,11 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                     {profile.honor_key_usage && <Badge variant="secondary">Honor KU</Badge>}
                     {profile.honor_extended_key_usages && <Badge variant="secondary">Honor EKU</Badge>}
                     {profile.honor_extensions && <Badge variant="secondary">Honor Ext</Badge>}
+                    {profile.related_certificate?.enabled && (
+                      <Badge variant="secondary" className="gap-1" title="Post-quantum: related certificates (RFC 9763)">
+                        <QuantumAlgorithmIcon className="h-3 w-3" /> Related Cert
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
               )}

@@ -465,6 +465,15 @@ export async function fetchDevManagerStats(): Promise<{ total: number }> {
 
 // --- Signing Profiles ---
 
+/** RFC 9763 relatedCertRequest policy of a profile (post-quantum certificate binding). */
+export interface ApiRelatedCertificate {
+    enabled: boolean;
+    /** Hosts the related certificate may be fetched from over http(s). Embedded data: URIs need no entry. */
+    allowed_hosts?: string[] | null;
+    /** Maximum age of the relatedCertRequest attribute, e.g. "5m". The backend defaults to 5m when empty. */
+    max_age?: string;
+}
+
 export interface ApiSigningProfile {
     id: string;
 	name: string;
@@ -496,6 +505,7 @@ export interface ApiSigningProfile {
         allowed_rsa_key_sizes?: number[];
         allowed_ecdsa_key_sizes?: number[];
     };
+    related_certificate?: ApiRelatedCertificate;
 }
 
 export interface ApiSigningProfileListResponse {
@@ -543,6 +553,7 @@ export interface CreateSigningProfilePayload {
         allowed_rsa_key_sizes?: number[];
         allowed_ecdsa_key_sizes?: number[];
     };
+    related_certificate?: ApiRelatedCertificate;
 }
 
 export async function createSigningProfile(payload: CreateSigningProfilePayload): Promise<ApiSigningProfile> {

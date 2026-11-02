@@ -26,6 +26,7 @@ import { Alert } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
 import { FormFieldError, FormValidationSummary, getFormErrorMessages } from './FormValidationSummary';
+import { relatedCertificateToApi } from '@/lib/related-certificate';
 
 
 export type ProfileMode = 'reuse' | 'inline' | 'create';
@@ -147,6 +148,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
             allowed_rsa_key_sizes: data.cryptoEnforcement.allowedRsaKeySizes || [],
             allowed_ecdsa_key_sizes: data.cryptoEnforcement.allowedEcdsaCurves || [],
         },
+        related_certificate: relatedCertificateToApi(data.relatedCertificate),
     };
     
     if (!data.honorSubject) {

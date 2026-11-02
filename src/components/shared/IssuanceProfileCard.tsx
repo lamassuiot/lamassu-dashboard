@@ -13,10 +13,10 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Edit, Trash2, Braces, Users, MoreVertical,
-  Clock, KeyRound, Shield, User, FileText, Layers,
+  Clock, KeyRound, Shield, User, FileText, Layers, Globe,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 import { DAY_SECONDS, HOUR_SECONDS, YEAR_SECONDS, parseDurationToSeconds } from '@/lib/duration';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
@@ -24,6 +24,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const RELATED_CERT_HINT = "Post-quantum: binds the issued certificate to a related certificate (RFC 9763)";
 
 function plural(n: number, unit: string) {
   return `${n.toLocaleString()} ${unit}${n === 1 ? '' : 's'}`;
@@ -138,7 +140,7 @@ const TokenList: React.FC<{
 };
 
 /** Small muted field label with its icon. */
-const FieldLabel: React.FC<{ icon: LucideIcon; title: string }> = ({ icon: Icon, title }) => (
+const FieldLabel: React.FC<{ icon: React.ComponentType<{ className?: string }>; title: string }> = ({ icon: Icon, title }) => (
   <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
     <Icon className="size-3.5 shrink-0" />
     <span className="truncate">{title}</span>
@@ -146,13 +148,13 @@ const FieldLabel: React.FC<{ icon: LucideIcon; title: string }> = ({ icon: Icon,
 );
 
 /** One cell of the ruled grid: label with its CSR/Enforced source on the right, value underneath. */
-const SpecCell: React.FC<{ icon: LucideIcon; title: string; honors: boolean; children: React.ReactNode }> = ({
+const SpecCell: React.FC<{ icon: React.ComponentType<{ className?: string }>; title: string; honors?: boolean; children: React.ReactNode }> = ({
   icon, title, honors, children,
 }) => (
   <div className="flex min-w-0 flex-col gap-1.5 bg-card px-5 py-3.5">
     <div className="flex items-center justify-between gap-2">
       <FieldLabel icon={icon} title={title} />
-      <SourceTag honors={honors} />
+      {honors !== undefined && <SourceTag honors={honors} />}
     </div>
     <div className="text-sm text-foreground">{children}</div>
   </div>
@@ -176,6 +178,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
   const validity = getValidity(profile);
   const cryptoTokens = getCryptoRules(profile);
   const subjectSummary = getSubjectSummary(profile);
+  const relatedCert = profile.related_certificate;
   const keyUsages = (profile.key_usage ?? []).map(humanizeUsage);
   const extendedKeyUsages = (profile.extended_key_usages ?? []).map(humanizeUsage);
   const hasActions = Boolean(onEdit || onDelete || onViewUsage);
@@ -258,6 +261,14 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
                 ? <TokenList items={cryptoTokens} mono max={4} variant="default" empty="No algorithms allowed" />
                 : <span className="text-sm">Any algorithm accepted</span>}
             </div>
+            <div className="flex flex-col gap-1.5">
+              <span title={RELATED_CERT_HINT}>
+                <FieldLabel icon={QuantumAlgorithmIcon} title="Related certs" />
+              </span>
+              {relatedCert?.enabled
+                ? <span className="text-sm">Enabled</span>
+                : <span className="text-sm text-muted-foreground">Disabled</span>}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-px @xl/profile:grid-cols-2">
@@ -289,7 +300,20 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
                 ? <span className="text-muted-foreground">Taken from the request</span>
                 : 'Request extensions ignored'}
             </SpecCell>
+
+            {relatedCert?.enabled && (
+              <>
+                <SpecCell icon={Globe} title="Allowed hosts">
+                  <TokenList items={relatedCert.allowed_hosts ?? []} mono empty="Embedded certificates only" />
+                </SpecCell>
+
+                <SpecCell icon={Clock} title="Max attribute age">
+                  <span className="tabular-nums">{relatedCert.max_age || '5m (default)'}</span>
+                </SpecCell>
+              </>
+            )}
           </div>
+
         </div>
 
         {/* ── Quick actions ── */}

@@ -12,6 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { isValidPositiveDuration } from '@/lib/duration';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { defaultRelatedCertificateValues, isValidRelatedCertMaxAge, parseAllowedHosts } from '@/lib/related-certificate';
 import { formatCertificateUsageLabel } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -63,6 +65,20 @@ export const signingProfileSchema = z.object({
     allowedEcdsaCurves: z.array(z.number()).optional().default([]),
   }),
 
+  relatedCertificate: z.object({
+    enabled: z.boolean().default(false),
+    allowedHosts: z.string().default(''),
+    maxAge: z.string().default(''),
+  }).superRefine((data, ctx) => {
+    if (!isValidRelatedCertMaxAge(data.maxAge)) {
+      ctx.addIssue({ code: 'custom', path: ['maxAge'], message: 'Max age must be a positive duration, e.g. 5m or 1h.' });
+    }
+    const invalidHost = parseAllowedHosts(data.allowedHosts).find(host => /[/:@?#]/.test(host));
+    if (invalidHost) {
+      ctx.addIssue({ code: 'custom', path: ['allowedHosts'], message: `"${invalidHost}" is not a host name. Enter host names only, without scheme or path.` });
+    }
+  }).default(defaultRelatedCertificateValues),
+
   honorKeyUsage: z.boolean().default(false),
   keyUsages: z.array(z.enum(keyUsageOptions)).optional().default([]),
 
@@ -93,6 +109,7 @@ export const defaultFormValues: SigningProfileFormValues = {
     allowedRsaKeySizes: [2048, 3072, 4096],
     allowedEcdsaCurves: [256, 384, 521],
   },
+  relatedCertificate: { ...defaultRelatedCertificateValues },
   honorKeyUsage: true,
   keyUsages: [],
   honorExtendedKeyUsages: true,
@@ -171,7 +188,7 @@ const FormSection = ({
   compact,
   children,
 }: {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   compact: boolean;
   children: React.ReactNode;
@@ -217,6 +234,7 @@ const InlineSwitchField = ({
     | "cryptoEnforcement.enabled"
     | "cryptoEnforcement.allowRsa"
     | "cryptoEnforcement.allowEcdsa"
+    | "relatedCertificate.enabled"
     | "honorKeyUsage"
     | "honorExtendedKeyUsages"
     | "honorExtensions";
@@ -249,6 +267,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
 }) => {
   // Watch form values for conditional rendering
   const watchCryptoEnforcement = form.watch("cryptoEnforcement");
+  const watchRelatedCertificate = form.watch("relatedCertificate");
   const watchHonorSubject = form.watch("honorSubject");
   const watchHonorKeyUsage = form.watch("honorKeyUsage");
   const watchHonorExtendedKeyUsages = form.watch("honorExtendedKeyUsages");
@@ -479,6 +498,62 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                   </FormItem>
                 )} />
               )}
+            </div>
+          )}
+        </div>
+      </FormSection>
+      <Separator />
+
+      {/* Related Certificates Section (RFC 9763, post-quantum) */}
+      <FormSection
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            Related Certificates
+            <span title="Post-quantum: binds the issued certificate to a related certificate (RFC 9763)">
+              <QuantumAlgorithmIcon />
+            </span>
+          </span>
+        }
+        description="Issue certificates bound to a related certificate when the CSR carries a relatedCertRequest attribute (RFC 9763). CSRs carrying the attribute are rejected when this is off."
+        compact={compact}
+      >
+        <div className="space-y-3">
+          <InlineSwitchField
+            control={form.control}
+            name="relatedCertificate.enabled"
+            label="Enable Related Certificates"
+            description="Accept the relatedCertRequest attribute and bind the issued certificate to the related certificate."
+          />
+          {watchRelatedCertificate?.enabled && (
+            <div className="space-y-4 border-t pt-3">
+              <FormField control={form.control} name="relatedCertificate.allowedHosts" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Allowed Hosts</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      rows={3}
+                      placeholder={"certs.example.com\nrepository.example.org"}
+                      className="font-mono text-sm"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    One host name per line. The server fetches related certificates over http(s) only from these hosts.
+                    Related certificates embedded in the CSR (data: URIs) are always accepted.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="relatedCertificate.maxAge" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Attribute Age</FormLabel>
+                  <FormControl><Input {...field} placeholder="5m" className="font-mono" /></FormControl>
+                  <FormDescription>
+                    Maximum age of the relatedCertRequest attribute (freshness). Leave empty for the default of 5 minutes.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
           )}
         </div>
