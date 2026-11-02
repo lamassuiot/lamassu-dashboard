@@ -22,6 +22,7 @@ import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
 import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
+import { relatedCertificateFromApi, relatedCertificateToApi } from '@/lib/related-certificate';
 
 const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Issuance Profiles', href: '/signing-profiles' }, { label: 'Edit' }];
 
@@ -83,6 +84,7 @@ export default function EditSigningProfilePage() {
         allowedRsaKeySizes: crypto.allowed_rsa_key_sizes || [],
         allowedEcdsaCurves: crypto.allowed_ecdsa_key_sizes || [],
       },
+      relatedCertificate: relatedCertificateFromApi(profile.related_certificate),
       honorKeyUsage: profile.honor_key_usage,
       keyUsages: (profile.key_usage || []) as any[],
       honorExtendedKeyUsages: profile.honor_extended_key_usages,
@@ -149,6 +151,7 @@ export default function EditSigningProfilePage() {
         allowed_rsa_key_sizes: data.cryptoEnforcement.allowedRsaKeySizes || [],
         allowed_ecdsa_key_sizes: data.cryptoEnforcement.allowedEcdsaCurves || [],
       },
+      related_certificate: relatedCertificateToApi(data.relatedCertificate),
     };
 
     if (!data.honorSubject) {

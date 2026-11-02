@@ -143,6 +143,7 @@ function SourceLine({ icon: Icon, label, fields, className }: Readonly<{
 function ProfileBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
   const subjectParts = profile.honor_subject ? [] : getSubjectParts(profile);
   const showUsages = !profile.honor_key_usage || !profile.honor_extended_key_usages;
+  const relatedCertificate = profile.related_certificate?.enabled ? profile.related_certificate : null;
   const sources = [
     { name: 'Subject', honors: profile.honor_subject },
     { name: 'Key usage', honors: profile.honor_key_usage },
@@ -154,8 +155,14 @@ function ProfileBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
 
   return (
     <>
-      {(showUsages || subjectParts.length > 0) && (
+      {(showUsages || subjectParts.length > 0 || relatedCertificate) && (
         <div className="flex flex-1 flex-col gap-3 px-3 pb-3">
+          {relatedCertificate && (
+            <CardField label="Related certificates">
+              <p className="text-xs">Enabled · Max age: {relatedCertificate.max_age || "5m (default)"}</p>
+              <p className="text-xs text-muted-foreground">{relatedCertificate.allowed_hosts?.join(", ") || "Embedded certificates only"}</p>
+            </CardField>
+          )}
           {showUsages && (
             <CardField label="Usages">
               <ChipList chips={getUsageChips(profile)} max={MAX_USAGE_CHIPS} variant="default" />

@@ -20,6 +20,7 @@ import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
 import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { relatedCertificateToApi } from '@/lib/related-certificate';
 
 
 const templateMetadata = [
@@ -96,6 +97,7 @@ export default function CreateSigningProfilePage() {
             allowed_rsa_key_sizes: data.cryptoEnforcement.allowedRsaKeySizes || [],
             allowed_ecdsa_key_sizes: data.cryptoEnforcement.allowedEcdsaCurves || [],
         },
+        related_certificate: relatedCertificateToApi(data.relatedCertificate),
     };
     
     if (!data.honorSubject) {

@@ -7,6 +7,7 @@ import {
   validateWebhookCall,
 } from '@/lib/webhook-config';
 import type { SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
+import { relatedCertificateFromApi, relatedCertificateToApi } from '@/lib/related-certificate';
 
 const INDEFINITE_DATE_API_VALUE = '9999-12-31T23:59:59.999Z';
 
@@ -183,6 +184,7 @@ export function mapIssuanceProfileToFormValues(profile: ApiSigningProfile): Sign
       allowedRsaKeySizes: profile.crypto_enforcement?.allowed_rsa_key_sizes || [],
       allowedEcdsaCurves: profile.crypto_enforcement?.allowed_ecdsa_key_sizes || [],
     },
+    relatedCertificate: relatedCertificateFromApi(profile.related_certificate),
     honorKeyUsage: profile.honor_key_usage,
     keyUsages: (profile.key_usage || []) as SigningProfileFormValues['keyUsages'],
     honorExtendedKeyUsages: profile.honor_extended_key_usages,
@@ -230,6 +232,7 @@ export function buildInlineIssuanceProfile(data: SigningProfileFormValues): ApiS
       allowed_rsa_key_sizes: data.cryptoEnforcement.allowedRsaKeySizes || [],
       allowed_ecdsa_key_sizes: data.cryptoEnforcement.allowedEcdsaCurves || [],
     },
+    related_certificate: relatedCertificateToApi(data.relatedCertificate),
   };
 }
 
