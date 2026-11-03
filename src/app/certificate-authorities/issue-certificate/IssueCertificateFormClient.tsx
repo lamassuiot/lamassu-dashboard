@@ -35,6 +35,13 @@ import {
   getPreferredKeySpecValue,
 } from '@/lib/crypto-key-fields';
 import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
+import { RelatedCertRequestSection } from '@/components/shared/RelatedCertRequestSection';
+import {
+  createEmptyRelatedCertRequestInput,
+  getRelatedCertMaxAgeSeconds,
+  resolveRelatedCertRequest,
+  type RelatedCertRequestInput,
+} from '@/lib/related-cert-request';
 
 // This specific date string is used to represent "indefinite validity" (no expiration) in the API.
 // The backend and API consumers interpret "9999-12-31T23:59:58.999Z" as a special value meaning the certificate does not expire.
@@ -115,6 +122,10 @@ export default function IssueCertificateFormClient() {
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
+  // RFC 9763: bind the certificate to a related certificate (only for stored profiles that allow it)
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+  const [relatedInput, setRelatedInput] = useState<RelatedCertRequestInput>(createEmptyRelatedCertRequestInput);
+
   const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
   const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
   const [validity, setValidity] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
@@ -149,6 +160,12 @@ export default function IssueCertificateFormClient() {
       setKeySpec(getPreferredKeySpecValue(keyType, currentKeySpecOptions));
     }
   }, [currentKeySpecOptions, keySpec, keyType]);
+
+  // The related certificate request belongs to one profile: drop it when the profile changes or stops allowing it.
+  useEffect(() => {
+    setRelatedEnabled(false);
+    setRelatedInput(createEmptyRelatedCertRequestInput());
+  }, [selectedProfileId, profileMode]);
 
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
@@ -209,9 +226,24 @@ export default function IssueCertificateFormClient() {
   const customSubjectError = profileMode === 'inline' && !honorSubject && !customSubjectCN.trim()
     ? 'Custom Common Name is required.'
     : null;
-  const validationErrors = [issuerCaError, commonNameError, csrError, profileError, validityError, customSubjectError]
+  const selectedProfile = profileMode === 'reuse' ? signingProfiles.find(p => p.id === selectedProfileId) : undefined;
+  const relatedAvailable = issuanceMode === 'generate' && Boolean(selectedProfile?.related_certificate?.enabled);
+  const relatedActive = relatedAvailable && relatedEnabled;
+  const relatedUnavailableReason = profileMode !== 'reuse'
+    ? 'Select a stored issuance profile with related certificates enabled.'
+    : !selectedProfile
+      ? 'Select an issuance profile first.'
+      : 'The selected profile does not enable related certificates.';
+  const relatedResolved = useMemo(
+    () => (relatedActive ? resolveRelatedCertRequest(relatedInput) : null),
+    [relatedActive, relatedInput],
+  );
+  const relatedErrors = relatedResolved?.errors ?? [];
+  const relatedWarnings = relatedResolved?.warnings ?? [];
+
+  const validationErrors = [issuerCaError, commonNameError, csrError, profileError, validityError, customSubjectError, ...relatedErrors]
     .filter((message): message is string => Boolean(message));
-  const validationWarnings = validityWarning ? [validityWarning] : [];
+  const validationWarnings = [...(validityWarning ? [validityWarning] : []), ...relatedWarnings];
 
   const fullChainPem = useMemo(() => {
     if (!issuedCertificate?.pem || !issuerCa?.rawApiData?.certificate?.certificate) return '';
@@ -453,6 +485,17 @@ export default function IssueCertificateFormClient() {
     if (isGenerating) return;
     if (validationErrors.length > 0) return;
 
+    if (relatedActive) {
+      const windowSeconds = getRelatedCertMaxAgeSeconds(selectedProfile);
+      if (Math.abs(Math.floor(Date.now() / 1000) - relatedInput.requestTime) > windowSeconds) {
+        sileo.error({
+          title: "Request time expired",
+          description: `The related certificate request is older than ${windowSeconds}s. Refresh the request time, sign the new data and try again.`,
+        });
+        return;
+      }
+    }
+
     setStep(2);
     setIsGenerating(true);
     setGenerationError(null);
@@ -486,6 +529,7 @@ export default function IssueCertificateFormClient() {
           signAlgorithm: pqcResult.signAlgorithm,
           publicKeyPem: pqcResult.publicKeyPem,
           signFn: pqcResult.signFn,
+          relatedCertRequest: relatedResolved?.params,
         });
       } else {
         const algorithm = keyType === 'RSA'
@@ -499,6 +543,7 @@ export default function IssueCertificateFormClient() {
           subject,
           sans: csrSans,
           keyPair,
+          relatedCertRequest: relatedResolved?.params,
         });
       }
 
@@ -517,7 +562,13 @@ export default function IssueCertificateFormClient() {
 
     } catch (e: any) {
       setGenerationError(e.message);
-      sileo.error({ title: "Issuance Failed", description: e.message });
+      const staleRelatedRequest = relatedActive && /fresh/i.test(e.message ?? '');
+      sileo.error({
+        title: "Issuance Failed",
+        description: staleRelatedRequest
+          ? `${e.message}. The request time must be within ${getRelatedCertMaxAgeSeconds(selectedProfile)}s of issuance: reset it, sign the new data and try again.`
+          : e.message,
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -868,6 +919,33 @@ export default function IssueCertificateFormClient() {
                   />
                 </div>
               </div>
+
+              {issuanceMode === 'generate' && (
+                <>
+                  <Separator />
+
+                  {/* Section: Related Certificate (RFC 9763) */}
+                  <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+                    <div>
+                      <p className="font-semibold">Related Certificate</p>
+                      <p className="text-sm text-muted-foreground mt-1">Request a certificate bound to an existing one (RFC 9763). Available when the selected profile allows it.</p>
+                    </div>
+                    <div className="lg:col-span-2">
+                      <RelatedCertRequestSection
+                        available={relatedAvailable}
+                        unavailableReason={relatedUnavailableReason}
+                        profile={selectedProfile}
+                        checked={relatedEnabled}
+                        onCheckedChange={setRelatedEnabled}
+                        value={relatedInput}
+                        onChange={setRelatedInput}
+                        resolved={relatedResolved}
+                        disabled={isGenerating}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <Separator />
 

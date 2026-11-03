@@ -10,6 +10,7 @@ export * from "./buffer-utils";
 export * from "./key-utils";
 export * from "./ecdsa-signature";
 export * from "./csr-builder";
+export * from "./related-cert-request";
 export * from "./engine";
 export * from "./cert-parser";
 export * from "./cert-file";

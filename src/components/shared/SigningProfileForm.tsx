@@ -11,6 +11,7 @@ import { Info } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
+import { DurationInput } from '@/components/shared/DurationInput';
 import { isValidPositiveDuration } from '@/lib/duration';
 import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 import { defaultRelatedCertificateValues, isValidRelatedCertMaxAge, parseAllowedHosts } from '@/lib/related-certificate';
@@ -544,16 +545,25 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="relatedCertificate.maxAge" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Max Attribute Age</FormLabel>
-                  <FormControl><Input {...field} placeholder="5m" className="font-mono" /></FormControl>
-                  <FormDescription>
-                    Maximum age of the relatedCertRequest attribute (freshness). Leave empty for the default of 5 minutes.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <FormField control={form.control} name="relatedCertificate.maxAge" render={({ field }) => {
+                const maxAgeError = form.formState.errors.relatedCertificate?.maxAge?.message;
+                return (
+                  <FormItem>
+                    <DurationInput
+                      id="profile-related-max-age"
+                      label="Max Attribute Age"
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="e.g., 5m, 1h"
+                      description="Valid units: y, w, d, h, m, s."
+                      error={maxAgeError}
+                    />
+                    <FormDescription>
+                      Maximum age of the relatedCertRequest attribute (freshness). Leave empty for the default of 5 minutes.
+                    </FormDescription>
+                  </FormItem>
+                );
+              }} />
             </div>
           )}
         </div>

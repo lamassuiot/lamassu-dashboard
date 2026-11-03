@@ -11,6 +11,7 @@ import {
 import { ipToBuffer, arrayBufferToBase64, formatAsPem } from "./buffer-utils";
 import { getKeyImportParams } from "./key-utils";
 import { rawEcdsaSigToDer } from "./ecdsa-signature";
+import { buildRelatedCertRequestAttribute, type RelatedCertRequestParams } from "./related-cert-request";
 
 /** Distinguished name fields for the CSR subject. */
 export interface CsrSubject {
@@ -41,6 +42,8 @@ export interface BuildSignedCsrParams {
   signAlgorithm: string;
   publicKeyPem: string;
   signFn: (tbsBase64: string) => Promise<string>;
+  /** Adds the RFC 9763 relatedCertRequest attribute, requesting a bound certificate. */
+  relatedCertRequest?: RelatedCertRequestParams;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +99,15 @@ function buildSubjectFields(subject: CsrSubject): pkijs.AttributeTypeAndValue[] 
     );
   }
   return fields;
+}
+
+/** Collects the CSR attributes: the SAN extensionRequest and, optionally, the relatedCertRequest. */
+function buildCsrAttributes(sans: CsrSan[], relatedCertRequest?: RelatedCertRequestParams): pkijs.Attribute[] {
+  const attributes: pkijs.Attribute[] = [];
+  const sanAttribute = buildSanAttribute(sans);
+  if (sanAttribute) attributes.push(sanAttribute);
+  if (relatedCertRequest) attributes.push(buildRelatedCertRequestAttribute(relatedCertRequest));
+  return attributes;
 }
 
 /**
@@ -162,7 +174,7 @@ function buildSanAttribute(sans: CsrSan[]): pkijs.Attribute | null {
 export async function buildSignedCsr(
   params: BuildSignedCsrParams,
 ): Promise<string> {
-  const { subject, sans, signAlgorithm, publicKeyPem, signFn } = params;
+  const { subject, sans, signAlgorithm, publicKeyPem, signFn, relatedCertRequest } = params;
 
   // --- Initialise PKCS#10 request ---
   const pkcs10 = new CertificationRequest({
@@ -207,9 +219,8 @@ export async function buildSignedCsr(
     await pkcs10.subjectPublicKeyInfo.importKey(publicKey);
   }
 
-  // --- Add SANs (if any) ---
-  const sanAttribute = buildSanAttribute(sans);
-  if (sanAttribute) pkcs10.attributes = [sanAttribute];
+  // --- Add SANs (if any) and the relatedCertRequest attribute (if requested) ---
+  pkcs10.attributes = buildCsrAttributes(sans, relatedCertRequest);
 
   // --- Set the signature algorithm ---
   const signatureOid = SIGNATURE_OID_MAP[signAlgorithm];
@@ -293,6 +304,8 @@ export interface BuildSelfSignedCsrParams {
    * Defaults to "SHA-256".
    */
   hashAlgorithm?: string;
+  /** Adds the RFC 9763 relatedCertRequest attribute, requesting a bound certificate. */
+  relatedCertRequest?: RelatedCertRequestParams;
 }
 
 /**
@@ -305,7 +318,7 @@ export interface BuildSelfSignedCsrParams {
 export async function buildSelfSignedCsr(
   params: BuildSelfSignedCsrParams,
 ): Promise<string> {
-  const { subject, sans = [], keyPair, hashAlgorithm = "SHA-256" } = params;
+  const { subject, sans = [], keyPair, hashAlgorithm = "SHA-256", relatedCertRequest } = params;
 
   const pkcs10 = new CertificationRequest({
     version: 0,
@@ -316,9 +329,8 @@ export async function buildSelfSignedCsr(
   // --- Import public key ---
   await pkcs10.subjectPublicKeyInfo.importKey(keyPair.publicKey);
 
-  // --- Add SANs if provided ---
-  const sanAttribute = buildSanAttribute(sans);
-  if (sanAttribute) pkcs10.attributes = [sanAttribute];
+  // --- Add SANs (if provided) and the relatedCertRequest attribute (if requested) ---
+  pkcs10.attributes = buildCsrAttributes(sans, relatedCertRequest);
 
   // --- Sign with the local private key ---
   await pkcs10.sign(keyPair.privateKey, hashAlgorithm);
