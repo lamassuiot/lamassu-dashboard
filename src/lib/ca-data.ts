@@ -73,6 +73,8 @@ export interface ApiResponseList {
 export interface CA {
   id: string;
   name: string;
+  /** Set when the CA certificate is bound to a related certificate (RFC 9763). */
+  relatedCertificate?: { hashAlgorithm: string; hashValue: string };
   expires: string; // ISO date string from valid_to
   issuer: string; // ID of the parent CA or "Self-signed"
   serialNumber: string;

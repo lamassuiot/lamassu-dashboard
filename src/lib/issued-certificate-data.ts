@@ -131,6 +131,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     caIssuersUrls: parsedDetails.caIssuersUrls,
     keyUsage: parsedDetails.keyUsage,
     extendedKeyUsage: parsedDetails.extendedKeyUsage,
+    relatedCertificate: parsedDetails.relatedCertificate,
   };
 }
 

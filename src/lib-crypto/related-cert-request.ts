@@ -21,6 +21,7 @@ import * as asn1js from "asn1js";
 import * as pkijs from "pkijs";
 import { concatBytes, pemToArrayBuffer } from "./buffer-utils";
 import { rawEcdsaSigToDer } from "./ecdsa-signature";
+import { HASH_ALGORITHM_OID_MAP } from "./oid-labels";
 
 /** id-aa-relatedCertRequest (RFC 9763). */
 export const RELATED_CERT_REQUEST_OID = "1.2.840.113549.1.9.16.2.60";
@@ -38,15 +39,10 @@ const TAG_SET = 0x31;
 
 /** The inputs that make up a relatedCertRequest attribute. */
 export interface RelatedCertRequestParams {
-  /** DER of the related certificate's issuer Name, embedded verbatim. */
   issuerDer: Uint8Array;
-  /** Serial number of the related certificate, as hex (no `0x`). */
   serialHex: string;
-  /** Unix seconds. Must be fresh when the server verifies it. */
   requestTime: number;
-  /** URIs where the related certificate can be retrieved (`data:` or `http(s):`). */
   locationInfo: string[];
-  /** Signature over {@link buildRelatedCertTbs}, made with the related certificate's key. */
   signature: Uint8Array;
 }
 
@@ -355,4 +351,39 @@ export function normalizeRelatedCertSignature(signature: Uint8Array, publicKeyAl
     return new Uint8Array(rawEcdsaSigToDer(signature).der);
   }
   return signature;
+}
+
+// ---------------------------------------------------------------------------
+// RelatedCertificate extension (id-pe-relatedCert, RFC 9763): read side
+// ---------------------------------------------------------------------------
+
+export const RELATED_CERT_EXTENSION_OID = "1.3.6.1.5.5.7.1.36";
+
+export interface RelatedCertificateExtension {
+  /** Hash name. The raw OID is kept when it is not one of the supported hashes. */
+  hashAlgorithm: string;
+  hashValue: string;
+}
+
+/**
+ * Decodes the extnValue of a RelatedCertificate extension:
+ * `SEQUENCE { hashAlgorithm AlgorithmIdentifier, hashValue OCTET STRING }`.
+ * Returns null when the value is malformed, so a bad extension never breaks parsing.
+ */
+export function parseRelatedCertificateExtension(extnValue: Uint8Array): RelatedCertificateExtension | null {
+  try {
+    const parsed = asn1js.fromBER(extnValue.slice().buffer);
+    if (parsed.offset === -1 || !(parsed.result instanceof asn1js.Sequence)) return null;
+    const [algorithm, digest] = parsed.result.valueBlock.value as asn1js.BaseBlock[];
+    if (!(algorithm instanceof asn1js.Sequence) || !(digest instanceof asn1js.OctetString)) return null;
+    const oidBlock = algorithm.valueBlock.value[0] as asn1js.ObjectIdentifier | undefined;
+    const oid = oidBlock?.valueBlock.toString() ?? '';
+    if (!oid) return null;
+    return {
+      hashAlgorithm: HASH_ALGORITHM_OID_MAP[oid] ?? oid,
+      hashValue: bytesToHex(new Uint8Array(digest.valueBlock.valueHexView)),
+    };
+  } catch {
+    return null;
+  }
 }

@@ -24,6 +24,8 @@ import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisual
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { RELATED_CERTIFICATE_TITLE } from '@/lib/related-certificate';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { differenceInDays, isPast, parseISO } from 'date-fns';
@@ -67,6 +69,29 @@ const getRevocationReasonLabel = (reason: string | undefined): string => {
 };
 
 /** Renders an array of URLs as small link chips. */
+/**
+ * "Related Certificate" row for bound certificates (RFC 9763). Renders nothing when the
+ * certificate is not bound.
+ */
+const RelatedCertificateRow = ({ related }: { related?: { hashAlgorithm: string; hashValue: string } }) => {
+  if (!related) return null;
+  return (
+    <DetailInfoRow
+      label={
+        <span className="inline-flex items-center gap-1.5" title={RELATED_CERTIFICATE_TITLE}>
+          Related Certificate
+          <QuantumAlgorithmIcon className="h-3.5 w-3.5" />
+        </span>
+      }
+      value={
+        <p className="font-mono text-xs text-muted-foreground break-all">
+          {related.hashAlgorithm}: {related.hashValue}
+        </p>
+      }
+    />
+  );
+};
+
 const UrlChips = ({ urls, label }: { urls: string[] | undefined; label: string }) => {
   if (!urls || urls.length === 0) return null;
   return (
@@ -306,6 +331,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   ) : 'Not Specified'
                 }
               />
+              <RelatedCertificateRow related={caDetails.relatedCertificate} />
             </DetailInfoRows>
           </div>
         </div>
@@ -585,6 +611,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                     ) : 'Not Specified'
                   }
                 />
+                <RelatedCertificateRow related={certDetails.relatedCertificate} />
               </DetailInfoRows>
           </div>
         </div>

@@ -35,6 +35,7 @@ export interface DecodedCertInfo {
   crlDistributionPoints?: string[];
   ocspUrls?: string[];
   caIssuersUrls?: string[];
+  relatedCertificate?: { hashAlgorithm: string; hashValue: string };
   error?: string;
 }
 
@@ -70,6 +71,7 @@ export async function decodeCertificatePem(pem: string): Promise<DecodedCertInfo
       crlDistributionPoints: parsed.crlDistributionPoints,
       ocspUrls: parsed.ocspUrls,
       caIssuersUrls: parsed.caIssuersUrls,
+      relatedCertificate: parsed.relatedCertificate,
     };
   } catch (e: any) {
     return { error: `Failed to parse certificate: ${e.message}` };

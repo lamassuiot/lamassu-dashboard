@@ -6,12 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { RELATED_CERTIFICATE_TITLE } from '@/lib/related-certificate';
 
 interface Props {
   certificate: CertificateData;
 }
 
-const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+const Row: React.FC<{ label: React.ReactNode; children: React.ReactNode }> = ({ label, children }) => (
   <div className="py-3 first:pt-0">
     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
     <div className="mt-1.5 text-sm font-medium">{children}</div>
@@ -59,6 +61,22 @@ export function CertificateDetailPanel({ certificate }: Props) {
               {certificate.sans.map((san) => (
                 <Badge key={san} variant="secondary">{san}</Badge>
               ))}
+            </div>
+          </Row>
+        )}
+        {certificate.relatedCertificate && (
+          <Row
+            label={
+              <span className="inline-flex items-center gap-1.5" title={RELATED_CERTIFICATE_TITLE}>
+                Related Certificate
+                <QuantumAlgorithmIcon className="h-3.5 w-3.5" />
+              </span>
+            }
+          >
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-xs text-muted-foreground break-all">
+                {certificate.relatedCertificate.hashAlgorithm}: {certificate.relatedCertificate.hashValue}
+              </span>
             </div>
           </Row>
         )}

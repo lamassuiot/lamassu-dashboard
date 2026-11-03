@@ -15,6 +15,13 @@ export const DN_ATTRIBUTE_OID_MAP: Record<string, string> = {
   "2.5.4.10": "O", "2.5.4.11": "OU",
 };
 
+/** Digest (hash) algorithm OID -> name, as used by RFC 9763 RelatedCertificate. */
+export const HASH_ALGORITHM_OID_MAP: Record<string, string> = {
+  "2.16.840.1.101.3.4.2.1": "SHA-256",
+  "2.16.840.1.101.3.4.2.2": "SHA-384",
+  "2.16.840.1.101.3.4.2.3": "SHA-512",
+};
+
 export const PUBLIC_KEY_ALGORITHM_OID_MAP: Record<string, string> = {
   "1.2.840.113549.1.1.1": "RSA", "1.2.840.10045.2.1": "EC",
   "1.2.840.10045.3.1.7": "P-256", "1.3.132.0.34": "P-384", "1.3.132.0.35": "P-521",

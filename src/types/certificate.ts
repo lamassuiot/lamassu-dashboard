@@ -29,4 +29,5 @@ export interface CertificateData {
   caIssuersUrls?: string[];
   keyUsage?: string[];
   extendedKeyUsage?: string[];
+  relatedCertificate?: { hashAlgorithm: string; hashValue: string };
 }

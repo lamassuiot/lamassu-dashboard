@@ -1,4 +1,7 @@
 import type { ApiRelatedCertificate } from '@/lib/ca-data';
+
+/** Tooltip for the "Related Certificate" marker on certificate and CA views (RFC 9763). */
+export const RELATED_CERTIFICATE_TITLE = 'Post-quantum: bound to a related certificate (RFC 9763)';
 import { isValidPositiveDuration } from '@/lib/duration';
 
 /** Form representation: hosts are edited as one-per-line text, max age as a duration string. */
