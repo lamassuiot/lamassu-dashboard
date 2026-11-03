@@ -9,7 +9,7 @@ interface DetailInfoRowsProps {
 }
 
 interface DetailInfoRowProps {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   action?: React.ReactNode;
   icon?: React.ElementType;

@@ -10,6 +10,11 @@ import {
 import { pemToDer } from "./buffer-utils";
 import type { RelativeDistinguishedNames } from "pkijs";
 import { DN_ATTRIBUTE_OID_MAP, formatDistinguishedName, formatPublicKeyInfo, resolveSignatureAlgorithmLabel } from "./oid-labels";
+import {
+  RELATED_CERT_EXTENSION_OID,
+  parseRelatedCertificateExtension,
+  type RelatedCertificateExtension,
+} from "./related-cert-request";
 
 export { formatDistinguishedName as formatSubject, formatPublicKeyInfo } from "./oid-labels";
 
@@ -163,6 +168,7 @@ export interface ParsedCertificate {
   subjectKeyId?: string;
   authorityKeyId?: string;
   fingerprintSha256?: string;
+  relatedCertificate?: RelatedCertificateExtension;
 }
 
 /**
@@ -320,6 +326,14 @@ export async function parseCertificatePem(pem: string): Promise<ParsedCertificat
     if (skiExt?.parsedValue?.valueBlock?.valueHex)
       result.subjectKeyId = abToHex(skiExt.parsedValue.valueBlock.valueHex);
   } catch (e) { console.error("parseCertificatePemDetails: Failed to parse SKI:", e); }
+
+  try {
+    const relatedExt = cert.extensions?.find(e => e.extnID === RELATED_CERT_EXTENSION_OID);
+    if (relatedExt?.extnValue?.valueBlock?.valueHexView) {
+      const related = parseRelatedCertificateExtension(new Uint8Array(relatedExt.extnValue.valueBlock.valueHexView));
+      if (related) result.relatedCertificate = related;
+    }
+  } catch (e) { console.error("parseCertificatePemDetails: Failed to parse RelatedCertificate:", e); }
 
   try {
     const akiExt = cert.extensions?.find(e => e.extnID === "2.5.29.35");

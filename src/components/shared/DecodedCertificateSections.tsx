@@ -14,6 +14,8 @@ import { formatIdentifier } from '@/components/shared/IdentifierDisplay';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate } from '@/lib-crypto';
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { RELATED_CERTIFICATE_TITLE } from '@/lib/related-certificate';
 
 export interface DecodedCertInfo {
   subjectFields?: DistinguishedNameFields;
@@ -35,6 +37,7 @@ export interface DecodedCertInfo {
   crlDistributionPoints?: string[];
   ocspUrls?: string[];
   caIssuersUrls?: string[];
+  relatedCertificate?: { hashAlgorithm: string; hashValue: string };
   error?: string;
 }
 
@@ -67,6 +70,7 @@ export function toDecodedCertInfo(parsed: ParsedCertificate): DecodedCertInfo {
     crlDistributionPoints: parsed.crlDistributionPoints,
     ocspUrls: parsed.ocspUrls,
     caIssuersUrls: parsed.caIssuersUrls,
+    relatedCertificate: parsed.relatedCertificate,
   };
 }
 
@@ -396,6 +400,18 @@ export function DecodedCertificateSections({
         />
         <UrlListField label="OCSP URLs" urls={info.ocspUrls} />
         <UrlListField label="CA Issuers URLs" urls={info.caIssuersUrls} />
+        {info.relatedCertificate && (
+          <ReadOnlyField
+            label={
+              <span className="inline-flex items-center gap-1.5" title={RELATED_CERTIFICATE_TITLE}>
+                Related Certificate
+                <QuantumAlgorithmIcon className="h-3.5 w-3.5" />
+              </span>
+            }
+            value={`${info.relatedCertificate.hashAlgorithm}: ${info.relatedCertificate.hashValue}`}
+            mono
+          />
+        )}
       </Section>
 
       {(info.crlDistributionPoints?.length ?? 0) > 0 && (
