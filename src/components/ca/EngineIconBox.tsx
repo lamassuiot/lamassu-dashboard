@@ -14,14 +14,14 @@ export function EngineIconBox({ engine, fallback: Fallback }: Readonly<{ engine?
       <CryptoEngineViewer
         engine={engine}
         iconOnly
-        className={cn('size-8 rounded-md border', getEngineIconStyle(engine.type).border)}
+        className={cn('size-6 rounded-md border', getEngineIconStyle(engine.type).border)}
       />
     );
   }
 
   return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
-      <Fallback className="size-4" />
+    <div className="flex size-6 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+      <Fallback className="size-3.5" />
     </div>
   );
 }

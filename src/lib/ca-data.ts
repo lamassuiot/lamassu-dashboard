@@ -45,6 +45,7 @@ interface ApiCertificateData {
   revocation_reason?: string;
   type?: string; // "MANAGED"
   engine_id?: string; // To be used as kmsKeyId
+  key_id?: string; // KMS key ID of the CA's signing key
   is_ca: boolean;
 }
 
@@ -78,6 +79,7 @@ export interface CA {
   status: 'active' | 'expired' | 'revoked' | 'unknown'; // Added 'unknown' for safety
   keyAlgorithm: string;
   kmsKeyId?: string;
+  keyId?: string;
   pemData?: string;
   children?: CA[];
   subjectKeyId?: string;
@@ -170,6 +172,7 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
     status,
     keyAlgorithm: keyAlgorithm,
     kmsKeyId: apiCa.certificate.engine_id,
+    keyId: apiCa.certificate.key_id,
     pemData: pemData,
     subjectKeyId: apiCa.certificate.subject_key_id,
     authorityKeyId: apiCa.certificate.authority_key_id,
