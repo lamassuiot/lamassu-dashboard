@@ -181,16 +181,16 @@ function ParentExpiryCell({ ca, parent }: Readonly<{ ca: CA; parent?: CA }>) {
   }
 
   // Badges follow the horizontal order of their markers so the row reads left to right.
-  const badgeClassName = 'h-4 px-1.5 text-[10px] font-normal';
+  const badgeClassName = 'font-normal';
   const badges = childPercent <= parentPercent ? (
     <>
-      <Badge variant={diffMs < 0 ? 'warning' : 'default'} className={badgeClassName}>this CA</Badge>
-      <Badge variant="muted" className={badgeClassName}>parent CA</Badge>
+      <Badge size="xs" variant={diffMs < 0 ? 'warning' : 'default'} className={badgeClassName}>this CA</Badge>
+      <Badge size="xs" variant="muted" className={badgeClassName}>parent CA</Badge>
     </>
   ) : (
     <>
-      <Badge variant="muted" className={badgeClassName}>parent CA</Badge>
-      <Badge variant={diffMs < 0 ? 'warning' : 'default'} className={badgeClassName}>this CA</Badge>
+      <Badge size="xs" variant="muted" className={badgeClassName}>parent CA</Badge>
+      <Badge size="xs" variant={diffMs < 0 ? 'warning' : 'default'} className={badgeClassName}>this CA</Badge>
     </>
   );
 
