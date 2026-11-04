@@ -156,10 +156,12 @@ function ParentExpiryCell({ ca, parent }: Readonly<{ ca: CA; parent?: CA }>) {
 
   // Zoom the two expiries onto a shared track, padded so a child that expires before its
   // parent leaves some trailing track and a child that outlives it does not hit the edge.
-  const trackPadding = Math.max(diffMs, -diffMs) * 0.15;
-  const trackStart = Math.min(childExpiry.getTime(), parentExpiry.getTime()) - trackPadding;
-  const trackEnd = Math.max(childExpiry.getTime(), parentExpiry.getTime()) + trackPadding;
-  const toPercent = (timeMs: number) => ((timeMs - trackStart) / (trackEnd - trackStart)) * 100;
+  // A minimum span keeps percentages finite when both expiries are identical.
+  const MIN_TRACK_SPAN_MS = 1000;
+  const span = Math.max(Math.abs(diffMs) + 2 * Math.abs(diffMs) * 0.15, MIN_TRACK_SPAN_MS);
+  const mid = (childExpiry.getTime() + parentExpiry.getTime()) / 2;
+  const trackStart = mid - span / 2;
+  const toPercent = (timeMs: number) => ((timeMs - trackStart) / span) * 100;
   const childPercent = toPercent(childExpiry.getTime());
   const parentPercent = toPercent(parentExpiry.getTime());
   const childMarkerColor = diffMs < 0 ? 'bg-amber-500' : 'bg-primary';
