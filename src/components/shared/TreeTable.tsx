@@ -34,7 +34,7 @@ interface TreeNodeCellProps {
 /** First cell of a tree-table row: indentation, expand/collapse toggle or child connector, then content. */
 export function TreeNodeCell({ level, label, hasChildren, isCollapsed, onToggle, toggleDisabled, children }: Readonly<TreeNodeCellProps>) {
   return (
-    <div className="flex min-w-0 items-start gap-1.5" style={{ paddingLeft: `${level * INDENT_PX}px` }}>
+    <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${level * INDENT_PX}px` }}>
       {hasChildren ? (
         <Button
           variant="ghost"
@@ -56,7 +56,7 @@ export function TreeNodeCell({ level, label, hasChildren, isCollapsed, onToggle,
           {level > 0 && <CornerDownRight className="h-3.5 w-3.5" />}
         </span>
       )}
-      <div className="min-w-0 pt-0.5">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

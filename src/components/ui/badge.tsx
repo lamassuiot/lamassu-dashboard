@@ -10,13 +10,18 @@ import { cn } from "@/lib/utils"
 // - Secondary: supporting attributes (algorithms, tags, usages, counts).
 //   Borderless muted pill.
 // Geometry (h-6, rounded-md, px-2, text-xs, size-3 icons) is shared and must not
-// be overridden at call sites.
+// be overridden at call sites. Use the xs size for dense contexts like table
+// cells; it keeps the same shape at a smaller footprint.
 const primaryBadge = "gap-1.5 border font-medium"
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-6 w-fit shrink-0 items-center overflow-hidden rounded-md px-2 text-xs whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&>svg]:pointer-events-none [&>svg]:size-3! [&>svg]:shrink-0",
+        "group/badge inline-flex w-fit shrink-0 items-center overflow-hidden whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&>svg]:pointer-events-none [&>svg]:shrink-0",
   {
     variants: {
+      size: {
+        default: "h-6 rounded-md px-2 text-xs [&>svg]:size-3!",
+        xs: "h-4 rounded px-1.5 text-[10px] [&>svg]:size-2.5!",
+      },
       variant: {
         default: cn(primaryBadge, "border-primary/20 bg-primary/10 text-primary [a]:hover:bg-primary/15"),
         destructive: cn(primaryBadge, "border-destructive/20 bg-destructive/10 text-destructive [a]:hover:bg-destructive/15"),
@@ -29,6 +34,7 @@ const badgeVariants = cva(
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   }
 )
@@ -43,8 +49,7 @@ function Badge({
   children,
   ...props
 }: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean; dot?: boolean }) {
-  const Comp = asChild ? Slot.Root : "span"
+  VariantProps<typeof badgeVariants> & { asChild?: boolean; dot?: boolean }) {  const Comp = asChild ? Slot.Root : "span"
 
   return (
     <Comp
