@@ -8,7 +8,7 @@ import { useRouter } from '@/lib/router';
 import { DataSet } from "vis-data/esnext";
 import { Timeline } from "vis-timeline/esnext";
 import 'vis-timeline/styles/vis-timeline-graph2d.css';
-import { addMonths, format, isPast, subMonths } from 'date-fns';
+import { addMonths, format, formatDistanceToNowStrict, isPast, subMonths } from 'date-fns';
 import { CaCard } from '@/components/ca/CaCard';
 import { parseCaExpiry } from '@/lib/ca-utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -26,6 +26,21 @@ type TimelineWithMarker = Timeline & {
   setCustomTimeMarker: (title: string, id?: string, editable?: boolean) => void;
 };
 
+interface Expiry {
+  time: number;
+  name: string;
+}
+
+/** CAs outside the visible window: how many on each side, and the nearest one beyond each edge. */
+interface Offscreen {
+  before: number;
+  after: number;
+  nextBefore: Expiry | null;
+  nextAfter: Expiry | null;
+}
+
+const NO_OFFSCREEN: Offscreen = { before: 0, after: 0, nextBefore: null, nextAfter: null };
+
 const ZOOM_RANGES = ['3m', '1y', '5y', '10y', '25y', '50y'] as const;
 type ZoomRange = typeof ZOOM_RANGES[number];
 
@@ -36,22 +51,39 @@ const legend = [
 ];
 
 /** Edge button shown when CAs lie outside the visible range; jumps to the nearest one. */
-function OffscreenButton({ side, count, onClick }: Readonly<{ side: 'before' | 'after'; count: number; onClick: () => void }>) {
+function OffscreenButton({ side, count, next, onClick }: Readonly<{
+  side: 'before' | 'after'; count: number; next: Expiry | null; onClick: () => void;
+}>) {
   const Icon = side === 'before' ? ChevronLeft : ChevronRight;
-  const label = `${count} more ${count === 1 ? 'CA' : 'CAs'} ${side === 'before' ? 'before' : 'after'} this range`;
+  const label = `${count} more ${count === 1 ? 'CA' : 'CAs'} ${side} this range`;
+  const distance = next ? formatDistanceToNowStrict(next.time, { addSuffix: true }) : null;
+  const title = next
+    ? `${label}. Nearest: ${next.name}, expires ${format(next.time, 'yyyy-MM-dd')} (${distance}). Click to jump to it.`
+    : label;
   return (
     <button
       type="button"
       onClick={onClick}
-      title={`${label} — click to jump to the nearest`}
-      aria-label={label}
+      title={title}
+      aria-label={next ? `${label}; nearest expires ${distance}` : label}
       className={cn(
-        'absolute top-1/2 z-20 flex h-8 -translate-y-1/2 items-center gap-0.5 rounded-full border border-primary/40 bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] text-xs font-semibold tabular-nums text-primary shadow-sm transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground',
-        side === 'before' ? 'left-2 pl-1.5 pr-2.5' : 'right-2 flex-row-reverse pl-2.5 pr-1.5',
+        'absolute top-1/2 z-20 flex h-8 -translate-y-1/2 items-center gap-1 rounded-full border border-primary/40 bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] text-xs tabular-nums text-primary shadow-sm transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground',
+        side === 'before' ? 'left-2 pl-1.5 pr-3' : 'right-2 pl-3 pr-1.5',
       )}
     >
-      <Icon className="h-4 w-4" />
-      {count}
+      {side === 'before' ? (
+        <>
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className="font-semibold">{count}</span>
+          {distance && <span className="font-normal opacity-80">· {distance}</span>}
+        </>
+      ) : (
+        <>
+          {distance && <span className="font-normal opacity-80">{distance} ·</span>}
+          <span className="font-semibold">{count}</span>
+          <Icon className="h-4 w-4 shrink-0" />
+        </>
+      )}
     </button>
   );
 }
@@ -64,21 +96,29 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeZoom,   setActiveZoom]   = useState<ZoomRange>('5y');
-  // CAs whose expiry falls before / after the visible window, and the sorted expiry times they come from.
-  const [offscreen, setOffscreen] = useState({ before: 0, after: 0 });
-  const expiriesRef = useRef<number[]>([]);
+  const [offscreen, setOffscreen] = useState<Offscreen>(NO_OFFSCREEN);
+  const expiriesRef = useRef<Expiry[]>([]); // sorted by time
 
   const updateOffscreen = useCallback(() => {
     const tl = instance.current;
     if (!tl) return;
     const { start, end } = tl.getWindow();
-    let before = 0;
-    let after = 0;
-    for (const time of expiriesRef.current) {
-      if (time < start.getTime()) before++;
-      else if (time > end.getTime()) after++;
+    const next: Offscreen = { ...NO_OFFSCREEN };
+    for (const expiry of expiriesRef.current) {
+      if (expiry.time < start.getTime()) {
+        next.before++;
+        next.nextBefore = expiry; // sorted ascending, so the last one is the nearest to the window
+      } else if (expiry.time > end.getTime()) {
+        next.after++;
+        next.nextAfter ??= expiry;
+      }
     }
-    setOffscreen(prev => (prev.before === before && prev.after === after ? prev : { before, after }));
+    setOffscreen(prev => (
+      prev.before === next.before && prev.after === next.after
+      && prev.nextBefore === next.nextBefore && prev.nextAfter === next.nextAfter
+        ? prev
+        : next
+    ));
   }, []);
 
   /* ── Fullscreen listener ── */
@@ -159,7 +199,10 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       return { id: ca.id, content: div, start: expiry, className: cls };
     });
 
-    expiriesRef.current = items.map(item => item.start.getTime()).filter(Number.isFinite).sort((a, b) => a - b);
+    expiriesRef.current = items
+      .map((item, index) => ({ time: item.start.getTime(), name: cas[index].name }))
+      .filter(expiry => Number.isFinite(expiry.time))
+      .sort((a, b) => a.time - b.time);
     // The window is kept as is (no fit): CAs outside it are reached with the edge buttons.
     tl.setItems(new DataSet(items) as any);
     updateOffscreen();
@@ -206,12 +249,8 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   const handleJump = (direction: 'before' | 'after') => {
     const tl = instance.current;
     if (!tl) return;
-    const { start, end } = tl.getWindow();
-    const times = expiriesRef.current;
-    const target = direction === 'after'
-      ? times.find(time => time > end.getTime())
-      : [...times].reverse().find(time => time < start.getTime());
-    if (target !== undefined) tl.moveTo(new Date(target), { animation: true });
+    const target = direction === 'after' ? offscreen.nextAfter : offscreen.nextBefore;
+    if (target) tl.moveTo(new Date(target.time), { animation: true });
   };
 
   const handleFullscreen = () => {
@@ -266,10 +305,10 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         </div>
 
         {offscreen.before > 0 && (
-          <OffscreenButton side="before" count={offscreen.before} onClick={() => handleJump('before')} />
+          <OffscreenButton side="before" count={offscreen.before} next={offscreen.nextBefore} onClick={() => handleJump('before')} />
         )}
         {offscreen.after > 0 && (
-          <OffscreenButton side="after" count={offscreen.after} onClick={() => handleJump('after')} />
+          <OffscreenButton side="after" count={offscreen.after} next={offscreen.nextAfter} onClick={() => handleJump('after')} />
         )}
 
         <div ref={timelineRef} className="h-full w-full" />
