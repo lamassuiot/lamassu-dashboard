@@ -24,6 +24,7 @@ import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisual
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
+import { publicKeySha256Hex } from '@/lib-crypto';
 import Link from '@/components/shared/RouterLink';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
@@ -109,6 +110,22 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Key ID of the certificate's key pair, derived from its SPKI the same way the
+  // backend names KMS keys. Only meaningful while the private key is available.
+  const certificateDetailsForKey = itemType === 'certificate' ? (item as CertificateData) : null;
+  const [certKeyId, setCertKeyId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (certificateDetailsForKey?.hasPrivateKey && certificateDetailsForKey.pemData) {
+      publicKeySha256Hex(certificateDetailsForKey.pemData).then((keyId) => {
+        if (!cancelled) setCertKeyId(keyId);
+      });
+    } else {
+      setCertKeyId(null);
+    }
+    return () => { cancelled = true; };
+  }, [certificateDetailsForKey?.hasPrivateKey, certificateDetailsForKey?.pemData]);
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -439,6 +456,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   // ── Certificate view ───────────────────────────────────────────────────────
   if (itemType === 'certificate' && certificateSpecific) {
     const certDetails = item as CertificateData;
+    const certKeyHref = kmsKeyDetailsHref(certKeyId);
+    const certKeyDisplay = certKeyId || 'View private key';
 
     const hasDistribution =
       (certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) ||
@@ -508,6 +527,24 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           <div className="lg:col-span-2">
             <DetailInfoRows>
               <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow
+                label="Private Key"
+                value={
+                  certKeyHref ? (
+                    <Link
+                      href={certKeyHref}
+                      className="text-primary underline-offset-2 hover:underline"
+                      title="Open private key in KMS"
+                    >
+                      {certKeyDisplay}
+                    </Link>
+                  ) : (
+                    <Badge variant={certDetails.hasPrivateKey ? 'success' : 'muted'} dot>
+                      {certDetails.hasPrivateKey ? 'Present' : 'Not available'}
+                    </Badge>
+                  )
+                }
+              />
               <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow
                 label="SHA-256 Fingerprint"

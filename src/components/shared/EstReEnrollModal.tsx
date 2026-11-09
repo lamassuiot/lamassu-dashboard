@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from "@/components/ui/button";
 import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
@@ -311,7 +312,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
 
     return (
         <Sheet open={isOpen} onOpenChange={onOpenChange}>
-            <SheetContent side="right" className={cn('w-full p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw] flex flex-col', className)}>
+            <ResizableSheetContent storageKey="est-re-enroll" side="right" className={cn('w-full p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw] flex flex-col', className)}>
                 <SheetHeader className="sr-only">
                     <SheetTitle>EST Re-Enroll</SheetTitle>
                     <SheetDescription>
@@ -319,7 +320,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
                     </SheetDescription>
                 </SheetHeader>
                 {panelContent}
-            </SheetContent>
+            </ResizableSheetContent>
         </Sheet>
     );
 };

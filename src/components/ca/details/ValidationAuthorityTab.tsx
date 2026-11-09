@@ -14,7 +14,8 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
@@ -103,7 +104,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
         caId: ca.id,
         refreshInterval: data.crl_options.refresh_interval || '24h',
         validity: data.crl_options.validity || '7d',
-        subjectKeyIDSigner: data.crl_options.subject_key_id_signer || null,
+        signerCertificateSerialNumber: data.crl_options.signer_certificate_serial_number || null,
         regenerateOnRevoke: data.crl_options.regenerate_on_revoke === true,
       };
       setConfig(newConfig);
@@ -112,10 +113,10 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
         setLatestCrl(data.latest_crl);
       }
 
-      if (newConfig.subjectKeyIDSigner) {
-        const signerSki = newConfig.subjectKeyIDSigner;
+      if (newConfig.signerCertificateSerialNumber) {
+        const signerSki = newConfig.signerCertificateSerialNumber;
         const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=subject_key_id[equal]${signerSki}&page_size=1`
+          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSki)}&page_size=1`
         });
         if (certificates.length > 0) {
           setSelectedCertificateSignerDisplay(certificates[0]);
@@ -158,7 +159,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
+      setConfig({ ...config, signerCertificateSerialNumber: certificate.serialNumber ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
@@ -166,7 +167,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
   const handleClearCertificateSigner = () => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: null });
+      setConfig({ ...config, signerCertificateSerialNumber: null });
     }
     setSelectedCertificateSignerDisplay(null);
   };
@@ -194,7 +195,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
       const payload = {
         refresh_interval: config.refreshInterval,
         validity: config.validity,
-        subject_key_id_signer: selectedCertificateSignerDisplay?.rawApiData?.subject_key_id || null,
+        signer_certificate_serial_number: selectedCertificateSignerDisplay?.serialNumber || null,
         regenerate_on_revoke: config.regenerateOnRevoke,
       };
 
@@ -407,7 +408,10 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
               )}
 
               <Sheet open={isCrlSheetOpen} onOpenChange={setIsCrlSheetOpen}>
-                <SheetContent className="overflow-y-auto p-6 sm:!w-[80vw] sm:!max-w-[80vw] lg:!w-[50vw] lg:!max-w-[50vw]">
+                <ResizableSheetContent
+                  storageKey="va-crl"
+                  className="overflow-y-auto p-6 sm:!w-[80vw] sm:!max-w-[80vw] lg:!w-[50vw] lg:!max-w-[50vw]"
+                >
                   <SheetHeader>
                     <SheetTitle className="flex items-center gap-2">
                       Fetch &amp; Show CRL
@@ -532,7 +536,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                       <p className="text-sm text-muted-foreground text-center py-4">Click "Fetch &amp; Parse CRL" to load CRL data.</p>
                     )}
                   </div>
-                </SheetContent>
+                </ResizableSheetContent>
               </Sheet>
             </div>
           </div>

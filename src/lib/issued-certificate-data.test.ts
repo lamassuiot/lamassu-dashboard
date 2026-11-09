@@ -95,6 +95,7 @@ describe('issued-certificate-data', () => {
       level: 0,
     },
     is_ca: false,
+    has_private_key: true,
   }
 
   describe('fetchIssuedCertificates', () => {

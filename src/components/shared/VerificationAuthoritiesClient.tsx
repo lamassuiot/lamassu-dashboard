@@ -106,7 +106,7 @@ export function VerificationAuthoritiesClient() {
         caId: selectedCaForConfig.id,
         refreshInterval: data.crl_options.refresh_interval || '24h',
         validity: data.crl_options.validity || '7d',
-        subjectKeyIDSigner: data.crl_options.subject_key_id_signer || null,
+        signerCertificateSerialNumber: data.crl_options.signer_certificate_serial_number || null,
         regenerateOnRevoke: data.crl_options.regenerate_on_revoke === true,
       };
       setConfig(newConfig);
@@ -115,10 +115,10 @@ export function VerificationAuthoritiesClient() {
         setLatestCrl(data.latest_crl);
       }
 
-      if (newConfig.subjectKeyIDSigner) {
-        const signerSki = newConfig.subjectKeyIDSigner;
+      if (newConfig.signerCertificateSerialNumber) {
+        const signerSki = newConfig.signerCertificateSerialNumber;
         const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=subject_key_id[equal]${signerSki}&page_size=1`
+          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSki)}&page_size=1`
         });
         if (certificates.length > 0) {
           setSelectedCertificateSignerDisplay(certificates[0]);
@@ -167,7 +167,7 @@ export function VerificationAuthoritiesClient() {
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
+      setConfig({ ...config, signerCertificateSerialNumber: certificate.serialNumber ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
@@ -175,7 +175,7 @@ export function VerificationAuthoritiesClient() {
 
   const handleClearCertificateSigner = () => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: null });
+      setConfig({ ...config, signerCertificateSerialNumber: null });
     }
     setSelectedCertificateSignerDisplay(null);
   };
@@ -203,7 +203,7 @@ export function VerificationAuthoritiesClient() {
       const payload = {
         refresh_interval: config.refreshInterval,
         validity: config.validity,
-        subject_key_id_signer: selectedCertificateSignerDisplay?.rawApiData?.subject_key_id || null,
+        signer_certificate_serial_number: selectedCertificateSignerDisplay?.serialNumber || null,
         regenerate_on_revoke: config.regenerateOnRevoke,
       };
 

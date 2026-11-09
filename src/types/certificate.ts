@@ -14,6 +14,7 @@ export interface CertificateData {
   apiStatus?: string; // To store the raw status from the API
   revocationReason?: string;
   revocationTimestamp?: string;
+  hasPrivateKey?: boolean;
   rawApiData?: any; // To store the original API response for this certificate
   // Optional fields that will be parsed on demand
   sans?: string[]; 

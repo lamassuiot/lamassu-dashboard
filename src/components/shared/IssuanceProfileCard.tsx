@@ -1,27 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import React from 'react';
+import {
+  Edit, FileInput, FileText, KeyRound, Lock, MoreVertical, ScrollText, Shield, ShieldCheck, Trash2, User, Users,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Edit, Trash2, Braces, Users, MoreVertical,
-  Clock, KeyRound, Shield, User, FileText, Layers,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { EngineIconBox } from '@/components/ca/EngineIconBox';
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { DAY_SECONDS, HOUR_SECONDS, YEAR_SECONDS, parseDurationToSeconds } from '@/lib/duration';
 import { cn } from '@/lib/utils';
-import { Button } from '../ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,250 +89,306 @@ function getSubjectSummary(profile: ApiSigningProfile) {
   return parts.length > 0 ? parts.join(', ') : null;
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
+// ─── Shared pieces ────────────────────────────────────────────────────────────
 
-/** Whether a field is taken from the CSR (caller-controlled) or pinned by the profile. */
-const SourceTag: React.FC<{ honors: boolean }> = ({ honors }) => (
-  <Badge variant={honors ? 'warning' : 'default'}>{honors ? "From CSR" : "Enforced"}</Badge>
-);
+const MAX_USAGE_CHIPS = 5;
 
-/** Wrapping chip list that collapses the tail into a "+N" chip with a tooltip. */
-const TokenList: React.FC<{
-  items: string[]; max?: number; mono?: boolean; empty?: string; variant?: 'default' | 'secondary';
-}> = ({ items, max = 3, mono, empty = "None", variant = 'secondary' }) => {
-  if (items.length === 0) {
-    return <span className="text-muted-foreground">{empty}</span>;
+type ChipKind = 'ku' | 'eku' | 'csr';
+
+const chipClass: Record<ChipKind, string> = {
+  ku: 'border-border bg-muted text-foreground',
+  eku: 'border-primary/20 bg-primary/10 text-primary',
+  csr: 'border-dashed border-amber-500/50 bg-transparent text-amber-700 dark:text-amber-400',
+};
+
+interface UsageChip {
+  key: string;
+  label: string;
+  kind: ChipKind;
+}
+
+/** Key usages and extended key usages as one chip list; a field taken from the CSR becomes a single dashed chip. */
+function getUsageChips(profile: ApiSigningProfile): UsageChip[] {
+  const chips: UsageChip[] = [];
+  if (profile.honor_key_usage) {
+    chips.push({ key: 'ku-csr', label: 'Key usage from CSR', kind: 'csr' });
+  } else {
+    chips.push(...(profile.key_usage ?? []).map(u => ({ key: `ku-${u}`, label: humanizeUsage(u), kind: 'ku' as const })));
   }
-  const shown = items.slice(0, max);
-  const overflow = items.slice(max);
+  if (profile.honor_extended_key_usages) {
+    chips.push({ key: 'eku-csr', label: 'EKU from CSR', kind: 'csr' });
+  } else {
+    chips.push(...(profile.extended_key_usages ?? []).map(u => ({ key: `eku-${u}`, label: humanizeUsage(u), kind: 'eku' as const })));
+  }
+  return chips;
+}
+
+/** Wrapping chip list; with `max`, the tail collapses into a "+N" chip with a tooltip. */
+function ChipList({ chips, max, empty = 'None' }: Readonly<{ chips: UsageChip[]; max?: number; empty?: string }>) {
+  if (chips.length === 0) return <p className="text-xs text-muted-foreground">{empty}</p>;
+  const shown = max === undefined ? chips : chips.slice(0, max);
+  const hidden = max === undefined ? [] : chips.slice(max);
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      {shown.map(item => (
-        <Badge
-          key={item}
-          variant={variant}
-          className={cn(variant === 'secondary' && "text-foreground", mono && "font-mono")}
+    <div className="flex flex-wrap gap-1">
+      {shown.map(chip => (
+        <span
+          key={chip.key}
+          className={cn('inline-flex h-5 items-center rounded border px-1.5 text-[11px]', chipClass[chip.kind])}
         >
-          {item}
-        </Badge>
+          {chip.label}
+        </span>
       ))}
-      {overflow.length > 0 && (
+      {hidden.length > 0 && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="secondary" className="cursor-default">
-                +{overflow.length}
-              </Badge>
+              <span className="inline-flex h-5 cursor-default items-center rounded border px-1.5 text-[11px] text-muted-foreground">
+                +{hidden.length}
+              </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-56">
-              {overflow.join(', ')}
+              {hidden.map(c => c.label).join(', ')}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
     </div>
   );
-};
+}
 
-/** Small muted field label with its icon. */
-const FieldLabel: React.FC<{ icon: LucideIcon; title: string }> = ({ icon: Icon, title }) => (
-  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-    <Icon className="size-3.5 shrink-0" />
-    <span className="truncate">{title}</span>
-  </span>
-);
-
-/** One cell of the ruled grid: label with its CSR/Enforced source on the right, value underneath. */
-const SpecCell: React.FC<{ icon: LucideIcon; title: string; honors: boolean; children: React.ReactNode }> = ({
-  icon, title, honors, children,
-}) => (
-  <div className="flex min-w-0 flex-col gap-1.5 bg-card px-5 py-3.5">
-    <div className="flex items-center justify-between gap-2">
-      <FieldLabel icon={icon} title={title} />
-      <SourceTag honors={honors} />
+function Field({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-0.5">{children}</div>
     </div>
-    <div className="text-sm text-foreground">{children}</div>
-  </div>
-);
+  );
+}
 
-// ─── Main component ────────────────────────────────────────────────────────────
+/** Validity and allowed key algorithms, shown at the top of both variants. */
+function ValidityAndKeys({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
+  const validity = getValidity(profile);
+  const cryptoTokens = getCryptoRules(profile);
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6">
+      <Field label="Validity">
+        <p className="text-base font-semibold leading-tight tracking-tight tabular-nums">{validity.label}</p>
+        {validity.hint && <p className="text-[11px] text-muted-foreground tabular-nums">{validity.hint}</p>}
+      </Field>
+      <Field label="Key algorithms">
+        {cryptoTokens && cryptoTokens.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {cryptoTokens.map(t => (
+              <Badge key={t} size="xs" variant="muted" className="font-mono text-foreground">{t}</Badge>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm leading-tight text-muted-foreground">
+            {cryptoTokens ? 'None allowed' : 'Any algorithm'}
+          </p>
+        )}
+      </Field>
+    </div>
+  );
+}
+
+/** Whether a field is pinned by the profile or copied from the CSR. */
+function SourceTag({ honors }: Readonly<{ honors: boolean }>) {
+  return (
+    <Badge size="xs" variant={honors ? 'warning' : 'default'}>
+      {honors ? <FileInput /> : <Lock />}
+      {honors ? 'From CSR' : 'Enforced'}
+    </Badge>
+  );
+}
+
+// ─── Variant bodies ───────────────────────────────────────────────────────────
+
+/** "Pinned · Key usage, Extensions" / "From CSR · Subject" */
+function SourceLine({ icon: Icon, label, fields, className }: Readonly<{
+  icon: LucideIcon; label: string; fields: string[]; className: string;
+}>) {
+  if (fields.length === 0) return null;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5" title={`${label}: ${fields.join(', ')}`}>
+      <Icon className={cn('size-3 shrink-0', className)} />
+      <span className={cn('shrink-0 font-medium', className)}>{label}</span>
+      <span className="truncate text-muted-foreground">{fields.join(', ')}</span>
+    </span>
+  );
+}
+
+function CompactBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
+  const subjectSummary = getSubjectSummary(profile);
+  const sources = [
+    { name: 'Subject', honors: profile.honor_subject },
+    { name: 'Key usage', honors: profile.honor_key_usage },
+    { name: 'EKU', honors: profile.honor_extended_key_usages },
+    { name: 'Extensions', honors: profile.honor_extensions },
+  ];
+  const pinned = sources.filter(s => !s.honors).map(s => s.name);
+  const fromCsr = sources.filter(s => s.honors).map(s => s.name);
+
+  return (
+    <>
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <ValidityAndKeys profile={profile} />
+        <Field label="Usages">
+          <ChipList chips={getUsageChips(profile)} max={MAX_USAGE_CHIPS} />
+        </Field>
+        {!profile.honor_subject && subjectSummary && (
+          <Field label="Subject">
+            <p className="truncate font-mono text-xs" title={subjectSummary}>{subjectSummary}</p>
+          </Field>
+        )}
+      </div>
+      <div className="mt-auto flex min-w-0 items-center gap-4 border-t bg-muted/40 px-3 py-2 text-[11px]">
+        <SourceLine icon={Lock} label="Pinned" fields={pinned} className="text-primary" />
+        <SourceLine icon={FileInput} label="From CSR" fields={fromCsr} className="text-amber-700 dark:text-amber-400" />
+      </div>
+    </>
+  );
+}
+
+/** One ruled cell: icon + label with its Enforced / From CSR tag on the right, value underneath. */
+function SpecCell({ icon: Icon, title, honors, children }: Readonly<{
+  icon: LucideIcon; title: string; honors: boolean; children: React.ReactNode;
+}>) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 bg-card px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <Icon className="size-3 shrink-0" />
+          <span className="truncate">{title}</span>
+        </span>
+        <SourceTag honors={honors} />
+      </div>
+      <div className="min-w-0 text-xs text-foreground">{children}</div>
+    </div>
+  );
+}
+
+const fromRequest = <span className="text-muted-foreground">Taken from the request</span>;
+
+function ExtendedBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
+  const subjectSummary = getSubjectSummary(profile);
+  const keyUsages = (profile.key_usage ?? []).map(u => ({ key: u, label: humanizeUsage(u), kind: 'ku' as const }));
+  const extendedKeyUsages = (profile.extended_key_usages ?? []).map(u => ({ key: u, label: humanizeUsage(u), kind: 'eku' as const }));
+
+  return (
+    <>
+      <div className="p-3">
+        <ValidityAndKeys profile={profile} />
+      </div>
+      <div className="mt-auto grid grid-cols-1 gap-px border-t bg-border @md/profile:grid-cols-2">
+        <SpecCell icon={KeyRound} title="Key usage" honors={profile.honor_key_usage}>
+          {profile.honor_key_usage ? fromRequest : <ChipList chips={keyUsages} />}
+        </SpecCell>
+        <SpecCell icon={Shield} title="Extended key usage" honors={profile.honor_extended_key_usages}>
+          {profile.honor_extended_key_usages ? fromRequest : <ChipList chips={extendedKeyUsages} />}
+        </SpecCell>
+        <SpecCell icon={User} title="Subject" honors={profile.honor_subject}>
+          {profile.honor_subject
+            ? <span className="text-muted-foreground">Copied from the request</span>
+            : 'Replaced by profile values'}
+          {!profile.honor_subject && subjectSummary && (
+            <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground" title={subjectSummary}>
+              {subjectSummary}
+            </p>
+          )}
+        </SpecCell>
+        <SpecCell icon={FileText} title="Extensions" honors={profile.honor_extensions}>
+          {profile.honor_extensions ? fromRequest : 'Request extensions ignored'}
+        </SpecCell>
+      </div>
+    </>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 interface IssuanceProfileCardProps {
   profile: ApiSigningProfile;
+  /** `compact` for lists (usages as one chip row, one-line source legend); `extended` adds a per-field breakdown. */
+  variant?: 'compact' | 'extended';
   className?: string;
   onEdit?: () => void;
   onDelete?: () => void;
   onViewUsage?: () => void;
 }
 
-export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
-  profile, className, onEdit, onDelete, onViewUsage,
-}) => {
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
-  const validity = getValidity(profile);
-  const cryptoTokens = getCryptoRules(profile);
-  const subjectSummary = getSubjectSummary(profile);
-  const keyUsages = (profile.key_usage ?? []).map(humanizeUsage);
-  const extendedKeyUsages = (profile.extended_key_usages ?? []).map(humanizeUsage);
-  const hasActions = Boolean(onEdit || onDelete || onViewUsage);
+/**
+ * Issuance-profile card in the style of the CA hierarchy card. With `onEdit` the card is
+ * clickable and opens the profile.
+ */
+export function IssuanceProfileCard({
+  profile, variant = 'extended', className, onEdit, onDelete, onViewUsage,
+}: Readonly<IssuanceProfileCardProps>) {
+  const hasMenu = Boolean(onEdit || onDelete || onViewUsage);
+  const extended = variant === 'extended';
+  const Body = onEdit ? 'button' : 'div';
 
   return (
-    <>
-      <Card
-        className={cn(
-          "@container/profile h-full gap-0 py-0 transition-shadow",
-          hasActions && "hover:shadow-md",
-          className
-        )}
+    <div
+      className={cn(
+        '@container/profile group relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-colors',
+        onEdit && 'hover:border-ring/40 hover:bg-muted/30 focus-within:border-ring/40',
+        className,
+      )}
+    >
+      <Body
+        {...(onEdit ? { type: 'button' as const, onClick: onEdit, title: `Open ${profile.name}` } : {})}
+        className="flex flex-1 flex-col text-left focus-visible:outline-none"
       >
         {/* ── Identity ── */}
-        <CardHeader className="gap-0.5 rounded-none border-b bg-muted/40 py-3 [.border-b]:pb-3">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <CardTitle className="truncate text-sm font-semibold text-primary" title={profile.name}>
-              {profile.name}
-            </CardTitle>
-            <span className="truncate font-mono text-xs text-muted-foreground" title={profile.id}>
-              {profile.id}
-            </span>
-          </div>
-          <CardDescription className="line-clamp-1 text-xs">
-            {profile.description || 'No description'}
-          </CardDescription>
-          <CardAction className="-my-0.5 flex items-center gap-1">
-            <Badge variant="muted">{profile.sign_as_ca ? 'CA' : 'End entity'}</Badge>
-            {hasActions && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="-mr-2" title="Profile actions">
-                    <MoreVertical />
-                    <span className="sr-only">Profile actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {onEdit && (
-                    <DropdownMenuItem onClick={onEdit}>
-                      <Edit className="mr-2 h-4 w-4" /> Edit profile
-                    </DropdownMenuItem>
-                  )}
-                  {onViewUsage && (
-                    <DropdownMenuItem onClick={onViewUsage}>
-                      <Users className="mr-2 h-4 w-4" /> Show usage
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => setIsDetailsModalOpen(true)}>
-                    <Braces className="mr-2 h-4 w-4" /> View raw JSON
-                  </DropdownMenuItem>
-                  {onDelete && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </CardAction>
-        </CardHeader>
-
-        {/* ── Specification: profile-wide summary rail + ruled 2×2 of certificate fields ── */}
-        <div className="grid flex-1 grid-cols-1 gap-px bg-border @xl/profile:grid-cols-[12.5rem_minmax(0,1fr)]">
-          <div className="flex flex-col gap-4 bg-card px-5 py-4">
-            <div className="flex flex-col gap-0.5">
-              <FieldLabel icon={Clock} title="Validity" />
-              <span className="mt-1 text-xl font-semibold leading-tight tracking-tight tabular-nums">
-                {validity.label}
-              </span>
-              {validity.hint && (
-                <span className="text-xs text-muted-foreground tabular-nums">{validity.hint}</span>
-              )}
+        <div className={cn('flex items-center gap-3 px-3 pt-3', hasMenu && 'pr-10')}>
+          <EngineIconBox fallback={profile.sign_as_ca ? ShieldCheck : ScrollText} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-sm font-medium leading-tight">{profile.name}</p>
+              <Badge size="xs" variant={profile.sign_as_ca ? 'default' : 'secondary'}>
+                {profile.sign_as_ca ? 'CA' : 'End entity'}
+              </Badge>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel icon={Layers} title="Key policy" />
-              {cryptoTokens
-                ? <TokenList items={cryptoTokens} mono max={4} variant="default" empty="No algorithms allowed" />
-                : <span className="text-sm">Any algorithm accepted</span>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-px @xl/profile:grid-cols-2">
-            <SpecCell icon={KeyRound} title="Key usage" honors={profile.honor_key_usage}>
-              {profile.honor_key_usage
-                ? <span className="text-muted-foreground">Taken from the request</span>
-                : <TokenList items={keyUsages} />}
-            </SpecCell>
-
-            <SpecCell icon={Shield} title="Extended key usage" honors={profile.honor_extended_key_usages}>
-              {profile.honor_extended_key_usages
-                ? <span className="text-muted-foreground">Taken from the request</span>
-                : <TokenList items={extendedKeyUsages} />}
-            </SpecCell>
-
-            <SpecCell icon={User} title="Subject" honors={profile.honor_subject}>
-              {profile.honor_subject
-                ? <span className="text-muted-foreground">Copied from the request</span>
-                : 'Replaced by profile values'}
-              {!profile.honor_subject && subjectSummary && (
-                <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={subjectSummary}>
-                  {subjectSummary}
-                </p>
-              )}
-            </SpecCell>
-
-            <SpecCell icon={FileText} title="Extensions" honors={profile.honor_extensions}>
-              {profile.honor_extensions
-                ? <span className="text-muted-foreground">Taken from the request</span>
-                : 'Request extensions ignored'}
-            </SpecCell>
+            <p className="truncate text-xs text-muted-foreground" title={profile.description || undefined}>
+              {profile.description || 'No description'}
+            </p>
           </div>
         </div>
 
-        {/* ── Quick actions ── */}
-        {hasActions && (
-          <CardFooter className="justify-between gap-2 rounded-none border-t bg-muted/40 py-3 [.border-t]:pt-3">
-            <div>
-              {onViewUsage && (
-                <Button variant="outline" size="sm" className="rounded-lg" onClick={onViewUsage}>
-                  <Users data-icon="inline-start" /> Show usage
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {onDelete && (
-                <Button
-                  variant="destructive"
-                  size="icon-sm"
-                  className="rounded-lg"
-                  title="Delete profile"
-                  onClick={onDelete}
-                >
-                  <Trash2 />
-                  <span className="sr-only">Delete profile</span>
-                </Button>
-              )}
-              {onEdit && (
-                <Button size="sm" className="rounded-lg" onClick={onEdit}>
-                  <Edit data-icon="inline-start" /> Edit
-                </Button>
-              )}
-            </div>
-          </CardFooter>
-        )}
-      </Card>
+        {extended ? <ExtendedBody profile={profile} /> : <CompactBody profile={profile} />}
+      </Body>
 
-      <Sheet open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <SheetContent side="right" className="!w-[33vw] sm:!max-w-none flex flex-col p-0">
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>Raw Profile Data</SheetTitle>
-            <SheetDescription>{profile.name}</SheetDescription>
-          </SheetHeader>
-          <ScrollArea className="flex-1 px-6 py-4">
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all">{JSON.stringify(profile, null, 2)}</pre>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
-    </>
+      {hasMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="absolute right-1.5 top-2.5" title="Profile actions">
+              <MoreVertical />
+              <span className="sr-only">Profile actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onEdit && (
+              <DropdownMenuItem onClick={onEdit}>
+                <Edit className="mr-2 h-4 w-4" /> Edit profile
+              </DropdownMenuItem>
+            )}
+            {onViewUsage && (
+              <DropdownMenuItem onClick={onViewUsage}>
+                <Users className="mr-2 h-4 w-4" /> Show usage
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
-};
+}

@@ -20,7 +20,7 @@ describe('va-api', () => {
     crl_options: {
       refresh_interval: '24h',
       validity: '168h',
-      subject_key_id_signer: null,
+      signer_certificate_serial_number: null,
       regenerate_on_revoke: true,
     },
     latest_crl: {
@@ -80,7 +80,7 @@ describe('va-api', () => {
         ...mockVaConfig,
         crl_options: {
           ...mockVaConfig.crl_options,
-          subject_key_id_signer: 'custom-signer-ski',
+          signer_certificate_serial_number: 'custom-signer-ski',
         },
       }
 
@@ -92,7 +92,7 @@ describe('va-api', () => {
 
       const result = await fetchVaConfig(testSki)
 
-      expect(result?.crl_options.subject_key_id_signer).toBe('custom-signer-ski')
+      expect(result?.crl_options.signer_certificate_serial_number).toBe('custom-signer-ski')
     })
 
     it('should send Authorization header', async () => {
@@ -148,7 +148,7 @@ describe('va-api', () => {
     const updatePayload: VaUpdatePayload = {
       refresh_interval: '48h',
       validity: '336h',
-      subject_key_id_signer: null,
+      signer_certificate_serial_number: null,
       regenerate_on_revoke: false,
     }
 
@@ -232,7 +232,7 @@ describe('va-api', () => {
     it('should handle custom signer in payload', async () => {
       const customPayload: VaUpdatePayload = {
         ...updatePayload,
-        subject_key_id_signer: 'custom-signer-123',
+        signer_certificate_serial_number: 'custom-signer-123',
       }
 
       let capturedBody: any
@@ -246,7 +246,7 @@ describe('va-api', () => {
 
       await updateVaConfig(testSki, customPayload)
 
-      expect(capturedBody.subject_key_id_signer).toBe('custom-signer-123')
+      expect(capturedBody.signer_certificate_serial_number).toBe('custom-signer-123')
     })
 
     it('should toggle regenerate_on_revoke flag', async () => {
@@ -375,7 +375,7 @@ describe('va-api', () => {
         crl_options: {
           refresh_interval: '24h',
           validity: '168h', // 7 days
-          subject_key_id_signer: null,
+          signer_certificate_serial_number: null,
           regenerate_on_revoke: true,
         },
         latest_crl: mockVaConfig.latest_crl,
@@ -455,7 +455,7 @@ describe('va-api', () => {
     const payload: VaUpdatePayload = {
       refresh_interval: '24h',
       validity: '168h',
-      subject_key_id_signer: null,
+      signer_certificate_serial_number: null,
       regenerate_on_revoke: true,
     }
 

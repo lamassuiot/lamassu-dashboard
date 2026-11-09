@@ -43,7 +43,7 @@ const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 type ProfileViewMode = 'grid' | 'list';
 
 const VIEW_MODE_OPTIONS: ViewModeOption<ProfileViewMode>[] = [
-  { value: 'grid', icon: LayoutGrid, label: 'Grid' },
+  { value: 'grid', icon: LayoutGrid, label: 'Cards' },
   { value: 'list', icon: List, label: 'List' },
 ];
 
@@ -101,7 +101,7 @@ export default function SigningProfilesPage() {
   useEffect(() => {
     if (isClientMounted) {
       const savedViewMode = getCookie('user-view-mode');
-      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
+      const newViewMode: ProfileViewMode = savedViewMode === 'list' ? 'list' : 'grid';
       setViewMode(newViewMode);
       setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
     }
@@ -307,11 +307,12 @@ export default function SigningProfilesPage() {
 
       {!isLoading && !error && profiles.length > 0 ? (
           viewMode === 'grid' ? (
-            <div className={cn("grid grid-cols-1 gap-6 xl:grid-cols-2", isLoading && "opacity-50")}>
+            <div className={cn("grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3", isLoading && "opacity-50")}>
               {profiles.map((profile) => (
                 <IssuanceProfileCard
                   key={profile.id}
                   profile={profile}
+                  variant="compact"
                   onEdit={() => handleEditProfile(profile.id)}
                   onDelete={() => handleDeleteProfileClick(profile)}
                   onViewUsage={() => handleViewUsageClick(profile)}

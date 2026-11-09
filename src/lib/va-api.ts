@@ -12,7 +12,7 @@ export interface VAConfig {
   caId: string;
   refreshInterval: string;
   validity: string;
-  subjectKeyIDSigner: string | null;
+  signerCertificateSerialNumber: string | null;
   regenerateOnRevoke: boolean;
 }
 
@@ -26,7 +26,7 @@ export interface VaApiResponse {
     crl_options: {
         refresh_interval: string;
         validity: string;
-        subject_key_id_signer: string | null;
+        signer_certificate_serial_number: string | null;
         regenerate_on_revoke: boolean;
     },
     latest_crl: LatestCrlInfo | null;
@@ -35,7 +35,7 @@ export interface VaApiResponse {
 export interface VaUpdatePayload {
     refresh_interval: string;
     validity: string;
-    subject_key_id_signer: string | null;
+    signer_certificate_serial_number: string | null;
     regenerate_on_revoke: boolean;
 }
 
@@ -43,7 +43,7 @@ export const getDefaultVAConfig = (caId: string): VAConfig => ({
   caId,
   refreshInterval: '24h',
   validity: '7d',
-  subjectKeyIDSigner: null,
+  signerCertificateSerialNumber: null,
   regenerateOnRevoke: true,
 });
 

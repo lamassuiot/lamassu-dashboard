@@ -4,12 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import dynamic from '@/components/shared/dynamic';
 import {
     Sheet,
-    SheetContent,
     SheetHeader,
     SheetTitle,
     SheetDescription,
     SheetFooter,
 } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -678,7 +678,8 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
 
     return (
         <Sheet open={isOpen} onOpenChange={onOpenChange}>
-            <SheetContent
+            <ResizableSheetContent
+                storageKey="subscribe-alert"
                 side="right"
                 className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-[70vw] data-[side=right]:lg:w-1/2 data-[side=right]:sm:max-w-none"
             >
@@ -723,7 +724,7 @@ export const SubscribeToAlertDrawer: React.FC<SubscribeToAlertDrawerProps> = ({
                         </div>
                     </div>
                 </SheetFooter>
-            </SheetContent>
+            </ResizableSheetContent>
         </Sheet>
     );
 };

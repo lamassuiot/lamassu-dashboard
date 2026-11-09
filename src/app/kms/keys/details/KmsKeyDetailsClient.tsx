@@ -193,6 +193,8 @@ export default function KmsKeyDetailsClient() {
           return new Date(certificate.validFrom).getTime();
         case 'revocationTime':
           return certificate.revocationTimestamp ? new Date(certificate.revocationTimestamp).getTime() : 0;
+        case 'hasPrivateKey':
+          return certificate.hasPrivateKey ? 1 : 0;
       }
     };
 

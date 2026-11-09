@@ -6,7 +6,7 @@ import type { CertificateData } from '@/types/certificate';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download } from 'lucide-react';
+import { MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download, Check } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +48,7 @@ const DEFAULT_COLUMN_VISIBILITY = {
   validFrom: true,
   expires: true,
   status: true,
+  hasPrivateKey: true,
   revocationTime: true,
 } as const;
 
@@ -220,6 +221,7 @@ export function CertificateList({
               {columnVisibility.validFrom && <SortableHeader column="validFrom" title="Valid From" center dateColumn className="hidden sm:table-cell" />}
               {columnVisibility.expires && <SortableHeader column="expires" title="Expires" center dateColumn />}
               {columnVisibility.status && <SortableHeader column="status" title="Status" center />}
+              {columnVisibility.hasPrivateKey && <SortableHeader column="hasPrivateKey" title="Private Key" center dateColumn className="hidden lg:table-cell" />}
               {columnVisibility.revocationTime && <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />}
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -292,6 +294,20 @@ export function CertificateList({
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                  )}
+                  {columnVisibility.hasPrivateKey && (
+                    <TableCell className="text-center hidden lg:table-cell">
+                      {cert.hasPrivateKey ? (
+                        <span
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          title="Private key present"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   )}
                   {columnVisibility.revocationTime && (

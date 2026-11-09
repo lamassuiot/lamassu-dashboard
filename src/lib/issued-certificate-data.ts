@@ -47,6 +47,7 @@ export interface ApiIssuedCertificateItem {
   type?: string;
   engine_id?: string;
   is_ca: boolean;
+  has_private_key: boolean;
 }
 
 export interface ApiIssuedCertificateListResponse {
@@ -105,6 +106,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     apiStatus: apiCert.status,
     revocationReason: apiCert.revocation_reason,
     revocationTimestamp: apiCert.revocation_timestamp,
+    hasPrivateKey: apiCert.has_private_key,
     publicKeyAlgorithm,
     fingerprintSha256: parsedDetails.fingerprintSha256,
     issuerCaId: apiCert.issuer_metadata.id,
