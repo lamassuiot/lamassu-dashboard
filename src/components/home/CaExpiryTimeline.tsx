@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -10,7 +9,7 @@ import { DataSet } from "vis-data/esnext";
 import { Timeline } from "vis-timeline/esnext";
 import 'vis-timeline/styles/vis-timeline-graph2d.css';
 import { addMonths, isPast, parseISO, subMonths } from 'date-fns';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
+import { CaCard } from '@/components/ca/CaCard';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Button } from '@/components/ui/button';
 import { Maximize, Minimize } from 'lucide-react';
@@ -90,6 +89,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
     if (!tl || !container || cas.length === 0) return;
 
     const roots: Root[] = [];
+    const enginesById = new Map(allCryptoEngines.map(engine => [engine.id, engine]));
 
     const items = cas.map((ca) => {
       const expired = isPast(parseISO(ca.expires));
@@ -99,7 +99,12 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       // React renders asynchronously via the scheduler (MessageChannel).
       // vis-timeline will pick up the populated div when tl.redraw() fires below.
       root.render(
-        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="!shadow-none" />
+        <CaCard
+          ca={ca}
+          engine={ca.kmsKeyId ? enginesById.get(ca.kmsKeyId) : undefined}
+          onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
+          className="!shadow-none"
+        />
       );
       roots.push(root);
       return { id: ca.id, content: div, start: parseISO(ca.expires), className: cls };
@@ -134,7 +139,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       cancelAnimationFrame(rafId);
       tl.off('rangechanged', paintLines);
     };
-  }, [cas, allCryptoEngines]);
+  }, [cas, allCryptoEngines, router]);
 
   /* ── Zoom helper ── */
   const handleZoom = (range: ZoomRange) => {

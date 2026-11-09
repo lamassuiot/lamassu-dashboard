@@ -23,6 +23,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
 import { caMatchesFilters, formatCaSubject, getEffectiveCaStatus, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
+import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import { getCrossSignBlocker } from '@/lib/ca-cross-sign';
 import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
@@ -242,14 +243,14 @@ function KeyCell({ ca, engine, asLink }: Readonly<{ ca: CA; engine?: ApiCryptoEn
     </div>
   );
 
-  if (!asLink || !ca.keyId || !ca.kmsKeyId) {
-    return content;
-  }
+  if (!asLink) return content;
 
-  const keyUri = `pkcs11:token-id=${encodeURIComponent(ca.kmsKeyId)};id=${encodeURIComponent(ca.keyId)};type=private`;
+  const keyUri = buildCaKmsKeyUri(ca);
+  if (!keyUri) return content;
+
   return (
     <Link
-      href={`/kms/keys/details?keyId=${encodeURIComponent(keyUri)}`}
+      href={kmsKeyDetailsHref(keyUri)!}
       className="block rounded-sm outline-none hover:underline focus-visible:underline"
     >
       {content}

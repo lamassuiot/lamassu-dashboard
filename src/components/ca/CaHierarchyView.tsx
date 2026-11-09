@@ -10,15 +10,11 @@ import {
   Position,
   useNodesState,
 } from '@xyflow/react';
-import { format, parseISO } from 'date-fns';
-import { Landmark, Network } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { getEffectiveCaStatus } from '@/lib/ca-utils';
+import { Network } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaFlowCanvas } from './CaFlowCanvas';
-import { EngineIconBox } from './EngineIconBox';
+import { CaCard, CA_CARD_HEIGHT, CA_CARD_WIDTH } from './CaCard';
 import { layoutTree } from './ca-tree-layout';
 
 interface CaHierarchyViewProps {
@@ -27,9 +23,7 @@ interface CaHierarchyViewProps {
   router: ReturnType<typeof import('@/lib/router').useRouter>;
 }
 
-const NODE_WIDTH = 380;
-const NODE_HEIGHT = 72;
-const TREE_LAYOUT = { nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT, gapX: 32, gapY: 72, rootGapX: 96 };
+const TREE_LAYOUT = { nodeWidth: CA_CARD_WIDTH, nodeHeight: CA_CARD_HEIGHT, gapX: 32, gapY: 72, rootGapX: 96 };
 const ARROW = { type: MarkerType.ArrowClosed, width: 16, height: 16 };
 
 interface CaNodeData extends Record<string, unknown> {
@@ -40,40 +34,14 @@ interface CaNodeData extends Record<string, unknown> {
 
 type CaFlowNode = Node<CaNodeData, 'ca'>;
 
-const formatExpiry = (expires: string): string => {
-  try {
-    return format(parseISO(expires), 'yyyy-MM-dd');
-  } catch {
-    return expires;
-  }
-};
-
 const CaNode = ({ data }: NodeProps<CaFlowNode>) => {
   const { ca, engine, onOpenCa } = data;
-  const isRoot = ca.issuer === 'Self-signed';
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpenCa(ca.id)}
-      title={`Open ${ca.name}`}
-      className="flex items-center gap-3 rounded-lg border bg-card px-3 text-left text-card-foreground shadow-xs transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
-      style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}
-    >
+    <CaCard ca={ca} engine={engine} onClick={() => onOpenCa(ca.id)}>
       <Handle type="target" position={Position.Top} className="opacity-0" isConnectable={false} />
-      <EngineIconBox engine={engine} fallback={Landmark} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-tight">{ca.name}</p>
-        <p className="truncate text-xs text-muted-foreground" title={`Expires ${formatExpiry(ca.expires)}`}>
-          {ca.keyAlgorithm} · exp. {formatExpiry(ca.expires)}
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <ApiStatusBadge status={getEffectiveCaStatus(ca)} />
-        <Badge variant="secondary">{isRoot ? 'Root' : 'Intermediate'}</Badge>
-      </div>
       <Handle type="source" position={Position.Bottom} className="opacity-0" isConnectable={false} />
-    </button>
+    </CaCard>
   );
 };
 

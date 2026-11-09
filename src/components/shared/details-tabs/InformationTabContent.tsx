@@ -23,6 +23,8 @@ import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
+import Link from '@/components/shared/RouterLink';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { differenceInDays, isPast, parseISO } from 'date-fns';
@@ -161,6 +163,10 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
       (caDetails.ocspUrls && caDetails.ocspUrls.length > 0) ||
       (caDetails.caIssuersUrls && caDetails.caIssuersUrls.length > 0);
 
+    const caKeyUri = buildCaKmsKeyUri(caDetails);
+    const caHasManagedKey = caKeyUri !== null && caDetails.caType !== 'IMPORTED_WITHOUT_KEY';
+    const caKeyHref = kmsKeyDetailsHref(caKeyUri);
+
     return (
       <div>
 
@@ -250,6 +256,20 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           <div className="lg:col-span-2">
             <DetailInfoRows>
               <DetailInfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
+              {caHasManagedKey && (
+                <DetailInfoRow
+                  label="Private Key"
+                  value={
+                    <Link
+                      href={caKeyHref!}
+                      className="text-primary underline-offset-2 hover:underline"
+                      title="Open private key in KMS"
+                    >
+                      {caDetails.keyId}
+                    </Link>
+                  }
+                />
+              )}
               <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} /> : 'N/A'} />
               <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} /> : 'N/A'} className="last:pb-0" />

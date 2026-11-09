@@ -479,6 +479,26 @@
     background: transparent !important;
   }
 
+  /* CA timeline polish */
+  .vis-item {
+    transition: transform 120ms ease, filter 120ms ease;
+  }
+  .vis-item:hover {
+    transform: translateY(-1px) scale(1.015);
+    z-index: 30;
+  }
+  .vis-item:has([data-ca-visualizer-card]:hover) {
+    transform: translateY(-1px) scale(1.02);
+    z-index: 40;
+  }
+  .vis-item:has([data-ca-visualizer-card]:hover) [data-ca-visualizer-card] {
+    border-color: var(--ring) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 18%, transparent), 0 8px 20px -6px rgb(0 0 0 / 0.35);
+  }
+  .vis-timeline .vis-item.vis-dot.item-active  { box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .vis-timeline .vis-item.vis-dot.item-expired { box-shadow: 0 0 0 3px color-mix(in oklab, #fb923c 22%, transparent); }
+  .vis-timeline .vis-item.vis-dot.item-revoked { box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 22%, transparent); }
+
   /* Grid lines: barely-there */
   .vis-time-axis .vis-grid.vis-major {
     border-color: hsl(var(--border)) !important;
