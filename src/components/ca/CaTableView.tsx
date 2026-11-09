@@ -400,6 +400,7 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
       <TableCell>
         <TreeNodeCell
           level={level}
+          align="center"
           label={ca.name}
           hasChildren={hasVisibleChildren}
           isCollapsed={isCollapsed}

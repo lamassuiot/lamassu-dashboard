@@ -44,6 +44,7 @@ type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>
 function Badge({
   className,
   variant = "default",
+  size = "default",
   asChild = false,
   dot = false,
   children,
@@ -55,7 +56,7 @@ function Badge({
     <Comp
       data-slot="badge"
       data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
+      className={cn(badgeVariants({ variant, size }), className)}
       {...props}
     >
       {asChild ? children : (
