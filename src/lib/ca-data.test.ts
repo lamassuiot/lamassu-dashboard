@@ -1247,6 +1247,7 @@ XQGdcNTVHA==
             issuer_metadata: { serial_number: '123456', id: 'ca-1', level: 0 },
             is_ca: true,
             engine_id: 'golang',
+            key_id: 'ski-1',
           },
           serial_number: '123456',
           metadata: {},
@@ -1292,6 +1293,8 @@ XQGdcNTVHA==
       expect(result[0].id).toBe('ca-1')
       expect(result[0].children).toHaveLength(1)
       expect(result[0].children?.[0].id).toBe('ca-2')
+      expect(result[0].keyId).toBe('ski-1')
+      expect(result[0].kmsKeyId).toBe('golang')
     })
 
     it('should handle pagination', async () => {

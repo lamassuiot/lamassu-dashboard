@@ -15,7 +15,7 @@ This is the curated list of UI building blocks that should be preferred before c
 | --- | --- | --- |
 | Buttons | `src/components/ui/button.tsx` | Use variants and sizes before introducing new button classes |
 | Cards | `src/components/ui/card.tsx` | Base for most surfaced containers |
-| Badges | `src/components/ui/badge.tsx` | Generic categorical or supporting labels |
+| Badges | `src/components/ui/badge.tsx` | Generic categorical or supporting labels. Use `size="xs"` (16px, 10px text) only in dense contexts such as table cells or timeline labels; never override badge height/padding/text size at the call site |
 | Tabs | `src/components/ui/tabs.tsx` | Base primitive for detail and tool tabs |
 | Tables | `src/components/ui/table.tsx` | Canonical data table styling |
 | Form primitives | `src/components/ui/input.tsx`, `src/components/ui/textarea.tsx`, `src/components/ui/select.tsx`, `src/components/ui/checkbox.tsx`, `src/components/ui/switch.tsx`, `src/components/ui/form.tsx` | Start here for all form controls |
@@ -80,6 +80,7 @@ This is the curated list of UI building blocks that should be preferred before c
 | Crypto engine selector | `src/components/shared/CryptoEngineSelector.tsx` | Engine selection flows |
 | KMS key selector | `src/components/shared/KmsKeySelector.tsx` | Picking existing keys |
 | KMS key viewer | `src/components/shared/KmsKeyViewer.tsx` | Key identity display |
+| CA card | `src/components/ca/CaCard.tsx` | One-card summary of a CA (engine icon, name, key algorithm and expiry, status and Root/Intermediate badges). Shared by the CA hierarchy view and the home expiry timeline; pass `children` for React Flow handles and `onClick` to make it open the CA. Use it instead of hand-building CA cards (`CaVisualizerCard` remains for pickers and forms) |
 | Issuance chain visualizer | `src/components/shared/IssuanceChainVisualizer.tsx` | Chain of trust and hierarchy presentation |
 | Certificate selector | `src/components/shared/CertificateSelectorModal.tsx` | Choosing certificates from the system |
 | CA selector | `src/components/shared/CaSelectorModal.tsx` | Choosing CAs from the system |

@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from '@/components/shared/RouterLink';
-import { format, formatDistanceStrict, parseISO } from 'date-fns';
+import { format, formatDistanceStrict } from 'date-fns';
 import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, LockKeyhole, MoreVertical, ShieldAlert, Signature, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -22,7 +22,8 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
-import { caMatchesFilters, getEffectiveCaStatus, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
+import { caMatchesFilters, formatCaSubject, getEffectiveCaStatus, hasActiveCaFilters, parseCaExpiry, type CaFilterOptions } from '@/lib/ca-utils';
+import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import { getCrossSignBlocker } from '@/lib/ca-cross-sign';
 import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
@@ -103,12 +104,24 @@ function getDisplayStatus(ca: CA): DisplayStatus {
   return getEffectiveCaStatus(ca).toUpperCase() as DisplayStatus;
 }
 
+// One 32px icon slot per row so every CA lines up; status and engine icons stay small inside it.
 function CaIcon({ status, engine }: Readonly<{ status: DisplayStatus; engine?: ApiCryptoEngine }>) {
-  if (status === 'REVOKED') return <Ban className="h-4 w-4 shrink-0 text-destructive" />;
-  if (status === 'EXPIRED') return <ShieldAlert className="h-4 w-4 shrink-0 text-destructive" />;
-  if (status === 'UNKNOWN') return <CircleHelp className="h-4 w-4 shrink-0 text-muted-foreground" />;
-  if (engine) return <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 shrink-0" />;
-  return <HardDrive className="h-4 w-4 shrink-0 text-primary" />;
+  if (status === 'REVOKED') {
+    return <span className="flex h-8 w-8 shrink-0 items-center justify-center"><Ban className="h-4 w-4 text-destructive" /></span>;
+  }
+  if (status === 'EXPIRED') {
+    return <span className="flex h-8 w-8 shrink-0 items-center justify-center"><ShieldAlert className="h-4 w-4 text-destructive" /></span>;
+  }
+  if (status === 'UNKNOWN') {
+    return <span className="flex h-8 w-8 shrink-0 items-center justify-center"><CircleHelp className="h-4 w-4 text-muted-foreground" /></span>;
+  }
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+      {engine
+        ? <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6" />
+        : <HardDrive className="h-6 w-6 text-primary" />}
+    </span>
+  );
 }
 
 function TypeCell({ caType }: Readonly<{ caType?: string }>) {
@@ -116,12 +129,15 @@ function TypeCell({ caType }: Readonly<{ caType?: string }>) {
   if (!type) return <span className="text-xs text-muted-foreground">{caType ?? '—'}</span>;
   const Icon = type.icon;
   return (
-    <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
-      <Icon className="h-3.5 w-3.5 shrink-0" />
+    <Badge variant="secondary">
+      <Icon />
       {type.label}
-    </span>
+    </Badge>
   );
 }
+
+/** Pixel width of the mini expiry-timeline rendered in the "Expires vs. parent" cell. */
+const PARENT_EXPIRY_TRACK_WIDTH = 148;
 
 /**
  * How long before its parent a CA expires. A CA that outlives its parent is flagged: once the
@@ -130,33 +146,84 @@ function TypeCell({ caType }: Readonly<{ caType?: string }>) {
 function ParentExpiryCell({ ca, parent }: Readonly<{ ca: CA; parent?: CA }>) {
   if (!parent) {
     return ca.issuer === 'Self-signed'
-      ? <span className="text-xs text-muted-foreground">Root</span>
+      ? <span className="text-xs text-muted-foreground">Self-signed · Root</span>
       : <span className="text-xs text-muted-foreground" title="The parent CA is not part of this list.">—</span>;
   }
 
-  const childExpiry = parseISO(ca.expires);
-  const parentExpiry = parseISO(parent.expires);
+  const childExpiry = parseCaExpiry(ca.expires);
+  const parentExpiry = parseCaExpiry(parent.expires);
   const diffMs = parentExpiry.getTime() - childExpiry.getTime();
   const distance = formatDistanceStrict(childExpiry, parentExpiry);
 
-  let content: React.ReactNode;
+  // Zoom the two expiries onto a shared track, padded so a child that expires before its
+  // parent leaves some trailing track and a child that outlives it does not hit the edge.
+  // A minimum span keeps percentages finite when both expiries are identical.
+  const MIN_TRACK_SPAN_MS = 1000;
+  const span = Math.max(Math.abs(diffMs) + 2 * Math.abs(diffMs) * 0.15, MIN_TRACK_SPAN_MS);
+  const mid = (childExpiry.getTime() + parentExpiry.getTime()) / 2;
+  const trackStart = mid - span / 2;
+  const toPercent = (timeMs: number) => ((timeMs - trackStart) / span) * 100;
+  const childPercent = toPercent(childExpiry.getTime());
+  const parentPercent = toPercent(parentExpiry.getTime());
+  const childMarkerColor = diffMs < 0 ? 'bg-amber-500' : 'bg-primary';
+  const overflowPercent = diffMs < 0 ? Math.min(parentPercent, 100) : 0;
+  const overflowWidthPercent = Math.abs(childPercent - overflowPercent);
+
+  let label: React.ReactNode;
   if (diffMs > 0) {
-    content = <span className="text-xs text-muted-foreground">{distance} before parent</span>;
+    label = <span className="text-xs text-muted-foreground">{distance} before parent</span>;
   } else if (diffMs < 0) {
-    content = (
+    label = (
       <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         {distance} after parent
       </span>
     );
   } else {
-    content = <span className="text-xs text-muted-foreground">Same as parent</span>;
+    label = <span className="text-xs text-muted-foreground">Same as parent</span>;
   }
+
+  // Badges follow the horizontal order of their markers so the row reads left to right.
+  const badgeClassName = 'font-normal';
+  const badges = childPercent <= parentPercent ? (
+    <>
+      <Badge size="xs" variant={diffMs < 0 ? 'warning' : 'default'} className={badgeClassName}>this CA</Badge>
+      <Badge size="xs" variant="muted" className={badgeClassName}>parent CA</Badge>
+    </>
+  ) : (
+    <>
+      <Badge size="xs" variant="muted" className={badgeClassName}>parent CA</Badge>
+      <Badge size="xs" variant={diffMs < 0 ? 'warning' : 'default'} className={badgeClassName}>this CA</Badge>
+    </>
+  );
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex cursor-default">{content}</span>
+        <span className="flex cursor-default flex-col gap-1" style={{ width: PARENT_EXPIRY_TRACK_WIDTH }}>
+          <span className="flex items-center justify-between" aria-hidden="true">{badges}</span>
+          <span className="relative h-1.5 w-full overflow-visible rounded-full bg-muted" aria-hidden="true">
+            <span
+              className="absolute inset-y-0 left-0 rounded-full bg-muted-foreground/40"
+              style={{ width: `${Math.min(parentPercent, 100)}%` }}
+            />
+            <span
+              className={cn('absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ring-2 ring-background', childMarkerColor)}
+              style={{ left: `calc(${childPercent}% - 5px)` }}
+            />
+            <span
+              className={cn('absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ring-2 ring-background', diffMs === 0 ? childMarkerColor : 'bg-muted-foreground')}
+              style={{ left: `calc(${parentPercent}% - 5px)` }}
+            />
+            {diffMs < 0 && (
+              <span
+                className="absolute inset-y-0 rounded-full bg-amber-500/40"
+                style={{ left: `calc(${overflowPercent}% - 5px)`, width: `calc(${overflowWidthPercent}% + 10px)` }}
+              />
+            )}
+          </span>
+          {label}
+        </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p>Parent {parent.name} expires {format(parentExpiry, 'PP')}.</p>
@@ -166,14 +233,28 @@ function ParentExpiryCell({ ca, parent }: Readonly<{ ca: CA; parent?: CA }>) {
   );
 }
 
-function KeyCell({ keyAlgorithm, engine }: Readonly<{ keyAlgorithm?: string; engine?: ApiCryptoEngine }>) {
-  return (
+function KeyCell({ ca, engine, asLink }: Readonly<{ ca: CA; engine?: ApiCryptoEngine; asLink: boolean }>) {
+  const content = (
     <div className="min-w-0 space-y-0.5">
-      <p className="truncate text-sm">{keyAlgorithm || '—'}</p>
+      <p className="truncate text-sm">{ca.keyAlgorithm || '—'}</p>
       {engine && (
         <p className="truncate text-xs text-muted-foreground">{engine.name || engine.type}</p>
       )}
     </div>
+  );
+
+  if (!asLink) return content;
+
+  const keyUri = buildCaKmsKeyUri(ca);
+  if (!keyUri) return content;
+
+  return (
+    <Link
+      href={kmsKeyDetailsHref(keyUri)!}
+      className="block rounded-sm outline-none hover:underline focus-visible:underline"
+    >
+      {content}
+    </Link>
   );
 }
 
@@ -227,29 +308,31 @@ interface CaNameProps {
 
 function CaName({ ca, status, engine, query, asLink, isSelected }: Readonly<CaNameProps>) {
   const childCount = ca.children?.length ?? 0;
-  const subject = [ca.subjectDN?.common_name, ca.subjectDN?.organization].filter(Boolean).join(' · ');
+  const subject = formatCaSubject(ca);
   const nameClassName = cn('truncate font-medium', status !== 'ACTIVE' && 'text-muted-foreground', isSelected && 'text-primary');
   const name = <HighlightedText text={ca.name} query={query} />;
 
   return (
-    <>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <CaIcon status={status} engine={engine} />
-        {asLink ? (
-          <Link href={caDetailsHref(ca)} className={cn(nameClassName, 'hover:underline')}>{name}</Link>
-        ) : (
-          <span className={nameClassName}>{name}</span>
-        )}
-        {childCount > 0 && (
-          <Badge variant="secondary">{childCount} sub-CA{childCount === 1 ? '' : 's'}</Badge>
+    <div className="flex min-w-0 items-center gap-2">
+      <CaIcon status={status} engine={engine} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {asLink ? (
+            <Link href={caDetailsHref(ca)} className={cn(nameClassName, 'hover:underline')}>{name}</Link>
+          ) : (
+            <span className={nameClassName}>{name}</span>
+          )}
+          {childCount > 0 && (
+            <Badge variant="secondary">{childCount} sub-CA{childCount === 1 ? '' : 's'}</Badge>
+          )}
+        </div>
+        {subject && (
+          <p className="mt-0.5 line-clamp-1 max-w-xl text-xs text-muted-foreground" title={subject}>
+            {subject}
+          </p>
         )}
       </div>
-      {subject && (
-        <p className="mt-0.5 line-clamp-1 max-w-xl text-xs text-muted-foreground" title={subject}>
-          {subject}
-        </p>
-      )}
-    </>
+    </div>
   );
 }
 
@@ -317,6 +400,7 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
       <TableCell>
         <TreeNodeCell
           level={level}
+          align="center"
           label={ca.name}
           hasChildren={hasVisibleChildren}
           isCollapsed={isCollapsed}
@@ -338,7 +422,7 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
       )}
       {isVisible('key') && (
         <TableCell className="max-w-0">
-          <KeyCell keyAlgorithm={ca.keyAlgorithm} engine={engine} />
+          <KeyCell ca={ca} engine={engine} asLink={!isPicker} />
         </TableCell>
       )}
       {isVisible('expires') && (
@@ -379,7 +463,7 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
       isMatch: isFiltering ? (ca: CA) => caMatchesFilters(ca, filters) : undefined,
       compare: (a, b) =>
         sortColumn === 'expires'
-          ? (parseISO(a.expires).getTime() - parseISO(b.expires).getTime()) * factor
+          ? (parseCaExpiry(a.expires).getTime() - parseCaExpiry(b.expires).getTime()) * factor
           : a.name.localeCompare(b.name) * factor,
     });
   }, [cas, collapsedIds, isFiltering, filters, sortColumn, sortDirection]);

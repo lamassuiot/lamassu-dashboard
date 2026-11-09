@@ -3,6 +3,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, CornerDownRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const INDENT_PX = 22;
 
@@ -28,13 +29,19 @@ interface TreeNodeCellProps {
   onToggle: () => void;
   /** Disables collapsing, e.g. while searching (every branch is forced open). */
   toggleDisabled?: boolean;
+  /** `center` aligns the toggle with single-line content; `start` (default) keeps it level with the first line. */
+  align?: 'start' | 'center';
   children: React.ReactNode;
 }
 
 /** First cell of a tree-table row: indentation, expand/collapse toggle or child connector, then content. */
-export function TreeNodeCell({ level, label, hasChildren, isCollapsed, onToggle, toggleDisabled, children }: Readonly<TreeNodeCellProps>) {
+export function TreeNodeCell({ level, label, hasChildren, isCollapsed, onToggle, toggleDisabled, align = 'start', children }: Readonly<TreeNodeCellProps>) {
+  const centered = align === 'center';
   return (
-    <div className="flex min-w-0 items-start gap-1.5" style={{ paddingLeft: `${level * INDENT_PX}px` }}>
+    <div
+      className={cn('flex min-w-0 gap-1.5', centered ? 'items-center' : 'items-start')}
+      style={{ paddingLeft: `${level * INDENT_PX}px` }}
+    >
       {hasChildren ? (
         <Button
           variant="ghost"
@@ -56,7 +63,7 @@ export function TreeNodeCell({ level, label, hasChildren, isCollapsed, onToggle,
           {level > 0 && <CornerDownRight className="h-3.5 w-3.5" />}
         </span>
       )}
-      <div className="min-w-0 pt-0.5">{children}</div>
+      <div className={cn('min-w-0', !centered && 'pt-0.5')}>{children}</div>
     </div>
   );
 }

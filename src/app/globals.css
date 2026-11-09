@@ -404,16 +404,30 @@
   }
 }
 
-/* "today" marker — target both the bar and its child handle */
-.vis-custom-time,
+/* "Today" marker on the CA expiry timeline: a primary bar with a pill label above the axis.
+   --primary is an oklch/lab color, so it is used as-is (wrapping it in hsl() makes it invalid). */
 .vis-custom-time.now-marker {
   width: 2px !important;
-  background-color: hsl(var(--primary)) !important;
+  background-color: var(--primary) !important;
   opacity: 1 !important;
   z-index: 10 !important;
+  pointer-events: none;
 }
-.vis-custom-time > .vis-custom-time-marker {
-  display: none;
+.vis-custom-time.now-marker > .vis-custom-time-marker {
+  top: auto;
+  bottom: 6px;
+  transform: translateX(-50%);
+  margin-left: 1px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 16px;
+  box-shadow: 0 0 0 2px var(--background);
 }
 
 @layer components {
@@ -478,6 +492,28 @@
     border-radius: 50% !important;
     background: transparent !important;
   }
+
+  /* CA timeline polish */
+  .vis-item {
+    transition: transform 120ms ease, filter 120ms ease;
+  }
+  /* Hovered items lift above their neighbours but must stay below the timeline controls (z-20). */
+  .vis-item:hover {
+    transform: translateY(-1px) scale(1.015);
+    z-index: 10;
+  }
+  .vis-item:has([data-ca-visualizer-card]:hover) {
+    transform: translateY(-1px) scale(1.02);
+    z-index: 11;
+  }
+  .vis-item:has([data-ca-visualizer-card]:hover) [data-ca-visualizer-card] {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent), 0 8px 20px -6px rgb(0 0 0 / 0.35);
+  }
+  /* Status glow on the axis dots. !important is needed to beat the `.vis-item` chrome reset above. */
+  .vis-timeline .vis-item.vis-dot.item-active  { box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent) !important; }
+  .vis-timeline .vis-item.vis-dot.item-expired { box-shadow: 0 0 0 3px color-mix(in oklab, hsl(var(--ca-node-expired-icon-bg)) 22%, transparent) !important; }
+  .vis-timeline .vis-item.vis-dot.item-revoked { box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 22%, transparent) !important; }
 
   /* Grid lines: barely-there */
   .vis-time-axis .vis-grid.vis-major {
