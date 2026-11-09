@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from '@/components/shared/RouterLink';
-import { format, formatDistanceStrict, parseISO } from 'date-fns';
+import { format, formatDistanceStrict } from 'date-fns';
 import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, LockKeyhole, MoreVertical, ShieldAlert, Signature, UploadCloud } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -22,7 +22,7 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { ExpandCollapseAllButton, HighlightedText, TreeNodeCell } from '@/components/shared/TreeTable';
-import { caMatchesFilters, formatCaSubject, getEffectiveCaStatus, hasActiveCaFilters, type CaFilterOptions } from '@/lib/ca-utils';
+import { caMatchesFilters, formatCaSubject, getEffectiveCaStatus, hasActiveCaFilters, parseCaExpiry, type CaFilterOptions } from '@/lib/ca-utils';
 import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import { getCrossSignBlocker } from '@/lib/ca-cross-sign';
 import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
@@ -150,8 +150,8 @@ function ParentExpiryCell({ ca, parent }: Readonly<{ ca: CA; parent?: CA }>) {
       : <span className="text-xs text-muted-foreground" title="The parent CA is not part of this list.">—</span>;
   }
 
-  const childExpiry = parseISO(ca.expires);
-  const parentExpiry = parseISO(parent.expires);
+  const childExpiry = parseCaExpiry(ca.expires);
+  const parentExpiry = parseCaExpiry(parent.expires);
   const diffMs = parentExpiry.getTime() - childExpiry.getTime();
   const distance = formatDistanceStrict(childExpiry, parentExpiry);
 
@@ -463,7 +463,7 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
       isMatch: isFiltering ? (ca: CA) => caMatchesFilters(ca, filters) : undefined,
       compare: (a, b) =>
         sortColumn === 'expires'
-          ? (parseISO(a.expires).getTime() - parseISO(b.expires).getTime()) * factor
+          ? (parseCaExpiry(a.expires).getTime() - parseCaExpiry(b.expires).getTime()) * factor
           : a.name.localeCompare(b.name) * factor,
     });
   }, [cas, collapsedIds, isFiltering, filters, sortColumn, sortDirection]);

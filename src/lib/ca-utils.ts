@@ -1,6 +1,6 @@
 // src/lib/ca-utils.ts
 
-import { formatISO } from 'date-fns';
+import { formatISO, parseISO } from 'date-fns';
 import type { CA } from './ca-data';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 
@@ -18,9 +18,19 @@ export interface CaFilterOptions {
  * `expired` even if the stored status still says `active` (the backend hasn't caught up yet, or the
  * page was loaded before it expired). Revocation always wins.
  */
+/**
+ * Parses a CA `expires` ISO string. `parseISO` rejects years above 9999 (they need the
+ * expanded `+YYYYYY` form), which would yield an Invalid Date for far-future expiries such
+ * as `10000-01-01`; those are normalised first so they sort and plot as the far future.
+ */
+export function parseCaExpiry(expires: string): Date {
+  const expanded = /^\d{5,6}-/.test(expires) ? `+${expires.padStart(expires.length + (6 - expires.indexOf('-')), '0')}` : expires;
+  return parseISO(expanded);
+}
+
 export function getEffectiveCaStatus(ca: Pick<CA, 'status' | 'expires'>, now: number = Date.now()): CaStatusFilter {
   if (ca.status === 'revoked') return 'revoked';
-  if (ca.status === 'expired' || new Date(ca.expires).getTime() <= now) return 'expired';
+  if (ca.status === 'expired' || parseCaExpiry(ca.expires).getTime() <= now) return 'expired';
   return ca.status;
 }
 

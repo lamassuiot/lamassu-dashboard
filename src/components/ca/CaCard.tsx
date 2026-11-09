@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Landmark } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { getEffectiveCaStatus } from '@/lib/ca-utils';
+import { getEffectiveCaStatus, parseCaExpiry } from '@/lib/ca-utils';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,7 @@ interface CaCardProps {
 
 const formatExpiry = (expires: string): string => {
   try {
-    return format(parseISO(expires), 'yyyy-MM-dd');
+    return format(parseCaExpiry(expires), 'yyyy-MM-dd');
   } catch {
     return expires;
   }
@@ -42,7 +42,7 @@ export function CaCard({ ca, engine, onClick, className, children }: Readonly<Ca
       onClick={onClick ? () => onClick(ca) : undefined}
       title={`Open ${ca.name}`}
       className={cn(
-        'flex items-center gap-3 rounded-lg border bg-card px-3 text-left text-card-foreground shadow-xs transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none',
+        'flex items-center gap-3 rounded-lg border bg-card px-3 text-left text-card-foreground shadow-xs transition-colors hover:border-primary hover:bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] focus-visible:border-primary focus-visible:bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] focus-visible:outline-none',
         className,
       )}
       style={{ width: CA_CARD_WIDTH, height: CA_CARD_HEIGHT }}

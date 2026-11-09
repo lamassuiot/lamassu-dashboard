@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterCaList, getEffectiveCaStatus, type CaStatusFilter } from './ca-utils'
+import { filterCaList, getEffectiveCaStatus, parseCaExpiry, type CaStatusFilter } from './ca-utils'
 import type { CA } from './ca-data'
 
 function makeCa(overrides: Partial<CA> = {}): CA {
@@ -373,5 +373,26 @@ describe('ca-utils', () => {
     it('reports revoked CAs as revoked even after they expire', () => {
       expect(getEffectiveCaStatus({ status: 'revoked', expires: '2020-01-01T00:00:00Z' }, now)).toBe('revoked')
     })
+  })
+})
+
+describe('parseCaExpiry', () => {
+  it('parses regular ISO dates', () => {
+    expect(parseCaExpiry('2031-10-09T00:00:00Z').toISOString()).toBe('2031-10-09T00:00:00.000Z')
+  })
+
+  it('parses the indefinite expiration sentinel', () => {
+    expect(parseCaExpiry('9999-12-31T23:59:59.999Z').getUTCFullYear()).toBe(9999)
+  })
+
+  it('parses years above 9999 instead of returning an Invalid Date', () => {
+    const date = parseCaExpiry('10000-01-01T00:00:00Z')
+    expect(Number.isNaN(date.getTime())).toBe(false)
+    expect(date.getUTCFullYear()).toBe(10000)
+    expect(date.getTime()).toBeGreaterThan(parseCaExpiry('9999-12-31T23:59:59.999Z').getTime())
+  })
+
+  it('treats a CA expiring in year 10000 as active', () => {
+    expect(getEffectiveCaStatus({ status: 'active', expires: '10000-01-01T00:00:00Z' })).toBe('active')
   })
 })
