@@ -497,13 +497,14 @@
   .vis-item {
     transition: transform 120ms ease, filter 120ms ease;
   }
+  /* Hovered items lift above their neighbours but must stay below the timeline controls (z-20). */
   .vis-item:hover {
     transform: translateY(-1px) scale(1.015);
-    z-index: 30;
+    z-index: 10;
   }
   .vis-item:has([data-ca-visualizer-card]:hover) {
     transform: translateY(-1px) scale(1.02);
-    z-index: 40;
+    z-index: 11;
   }
   .vis-item:has([data-ca-visualizer-card]:hover) [data-ca-visualizer-card] {
     border-color: var(--primary) !important;
@@ -511,7 +512,7 @@
   }
   /* Status glow on the axis dots. !important is needed to beat the `.vis-item` chrome reset above. */
   .vis-timeline .vis-item.vis-dot.item-active  { box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent) !important; }
-  .vis-timeline .vis-item.vis-dot.item-expired { box-shadow: 0 0 0 3px color-mix(in oklab, #fb923c 22%, transparent) !important; }
+  .vis-timeline .vis-item.vis-dot.item-expired { box-shadow: 0 0 0 3px color-mix(in oklab, hsl(var(--ca-node-expired-icon-bg)) 22%, transparent) !important; }
   .vis-timeline .vis-item.vis-dot.item-revoked { box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 22%, transparent) !important; }
 
   /* Grid lines: barely-there */

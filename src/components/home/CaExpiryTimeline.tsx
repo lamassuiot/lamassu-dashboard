@@ -61,13 +61,14 @@ function OffscreenButton({ side, count, next, onClick }: Readonly<{
     ? `${label}. Nearest: ${next.name}, expires ${format(next.time, 'yyyy-MM-dd')} (${distance}). Click to jump to it.`
     : label;
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
       onClick={onClick}
       title={title}
       aria-label={next ? `${label}; nearest expires ${distance}` : label}
       className={cn(
-        'absolute top-1/2 z-20 flex h-8 -translate-y-1/2 items-center gap-1 rounded-full border border-primary/40 bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] text-xs tabular-nums text-primary shadow-sm transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground',
+        'absolute top-1/2 z-20 h-8 -translate-y-1/2 gap-1 rounded-full border-primary/40 bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] text-xs tabular-nums text-primary shadow-sm hover:border-primary hover:bg-primary hover:text-primary-foreground dark:bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] dark:hover:bg-primary',
         side === 'before' ? 'left-2 pl-1.5 pr-3' : 'right-2 pl-3 pr-1.5',
       )}
     >
@@ -84,7 +85,7 @@ function OffscreenButton({ side, count, next, onClick }: Readonly<{
           <Icon className="h-4 w-4 shrink-0" />
         </>
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -191,7 +192,6 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         <CaCard
           ca={ca}
           engine={ca.kmsKeyId ? enginesById.get(ca.kmsKeyId) : undefined}
-          onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
           className="!shadow-none"
         />
       );
@@ -215,7 +215,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
     const paintLines = () => {
       container.querySelectorAll<HTMLElement>('.vis-line, .vis-dot').forEach(el => {
         const color = el.classList.contains('item-active')  ? 'var(--color-primary)'
-                    : el.classList.contains('item-expired') ? '#fb923c'
+                    : el.classList.contains('item-expired') ? 'hsl(var(--ca-node-expired-icon-bg))'
                     : el.classList.contains('item-revoked') ? 'var(--color-destructive)'
                     : null;
         if (!color) return;
@@ -233,7 +233,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       cancelAnimationFrame(rafId);
       tl.off('rangechanged', paintLines);
     };
-  }, [cas, allCryptoEngines, router, updateOffscreen]);
+  }, [cas, allCryptoEngines, updateOffscreen]);
 
   /* ── Zoom helper ── */
   const handleZoom = (range: ZoomRange) => {
