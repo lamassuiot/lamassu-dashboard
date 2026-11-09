@@ -9,11 +9,14 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from '@/components/shared/RouterLink';
 import { usePathname, useRouter } from '@/lib/router';
 import { getPrincipal } from '@/lib/authz-api';
 import { usePlatformAccess } from '@/hooks/usePlatformAccess';
+import { useModules } from '@/contexts/ModulesContext';
+import { CapabilitiesProvider, hasCapability } from '@/contexts/CapabilitiesContext';
+import { mergeNavigation, type NavGroup, type NavItem } from '@/lib/navigation';
 import { AccessDeniedScreen } from '@/components/shared/AccessDeniedScreen';
 import type { Principal } from '@/types/authz';
 import {
@@ -86,21 +89,6 @@ const decodeTokenClaims = (token?: string): DecodedClaims => {
     return {};
   }
 };
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-  devOnly?: boolean;
-  /** If set, the item is only shown when the user has "ui" in global_actions for this capability key (e.g. "pki.ca.ca_certificate") */
-  uiAuthzCapabilities?: string;
-}
-
-interface NavGroup {
-  label?: string;
-  items: NavItem[];
-  devOnly?: boolean;
-}
 
 const navigationConfig: NavGroup[] = [
   { items: [{ href: '/', label: 'Home', icon: HomeIcon }] },
@@ -316,23 +304,25 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
       .then(results => setMatchedPrincipals(results.filter((p): p is Principal => p !== null)));
   }, [isProfileModalOpen, matchedPrincipalIds]);
 
+  const { modules } = useModules();
+  const navGroups = useMemo(() => mergeNavigation(navigationConfig, modules), [modules]);
+
   const isNavItemVisible = useCallback((item: NavItem): boolean => {
     if (!item.uiAuthzCapabilities) return true;
-    if (globalCapabilities === null) return true;
-    return (globalCapabilities[item.uiAuthzCapabilities] ?? []).includes('ui');
+    return hasCapability(globalCapabilities, item.uiAuthzCapabilities);
   }, [globalCapabilities]);
 
   // Redirect to home if the current route requires a capability the user lacks
   useEffect(() => {
     if (globalCapabilities === null) return;
-    const allItems = navigationConfig.flatMap(g => g.items);
+    const allItems = navGroups.flatMap(g => g.items);
     const currentItem = allItems.find(item =>
       item.href !== '/' && pathname.startsWith(item.href)
     );
     if (currentItem && !isNavItemVisible(currentItem)) {
       router.replace('/');
     }
-  }, [globalCapabilities, isNavItemVisible, pathname, router]);
+  }, [globalCapabilities, isNavItemVisible, navGroups, pathname, router]);
 
   const profileClaims = (user?.profile ?? {}) as Record<string, unknown>;
   const idTokenClaims = decodeTokenClaims(user?.id_token);
@@ -595,7 +585,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
               </SidebarHeader>
               <SidebarContent className="p-2">
                 <SidebarMenu>
-                  {navigationConfig.map((group, groupIndex) => {
+                  {navGroups.map((group, groupIndex) => {
                     if (group.devOnly && !(import.meta.env.DEV || import.meta.env.VITE_FORCE_DEV_OPTIONS)) {
                       return null;
                     }
@@ -938,10 +928,18 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
   };
 
   if (isWizardMode) {
-    return <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true} {...capabilityProps}><InitializationWizard /></MainLayoutContent>;
+    return (
+      <CapabilitiesProvider value={access.globalCapabilities}>
+        <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true} {...capabilityProps}><InitializationWizard /></MainLayoutContent>
+      </CapabilitiesProvider>
+    );
   }
 
-  return <MainLayoutContent key={authenticatedAppKey} {...capabilityProps}>{children}</MainLayoutContent>;
+  return (
+    <CapabilitiesProvider value={access.globalCapabilities}>
+      <MainLayoutContent key={authenticatedAppKey} {...capabilityProps}>{children}</MainLayoutContent>
+    </CapabilitiesProvider>
+  );
 };
 
 

@@ -1,0 +1,10 @@
+{
+  "name": "mfe_template",
+  "entry": "http://localhost:9100/remoteEntry.js",
+  "basePath": "/mfe-template",
+  "nav": {
+    "group": "ENTERPRISE",
+    "label": "Template Module",
+    "icon": "puzzle"
+  }
+}

@@ -1,0 +1,9 @@
+/*
+ * Only the theme and utilities layers: the shell already applies the base styles (preflight).
+ * Every utility is prefixed (`mfe:flex`, `mfe:md:p-4`, `mfe:bg-card`) so this build can never override
+ * the dashboard's own Tailwind utilities (both end up in the same document, and the later stylesheet wins).
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme) prefix(mfe);
+@import '@lamassu/mfe-sdk/theme.css';
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(mfe);

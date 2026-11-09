@@ -1,0 +1,10 @@
+{
+  "name": "poc_service",
+  "entry": "http://localhost:9010/remoteEntry.js",
+  "basePath": "/poc-service",
+  "nav": {
+    "group": "ENTERPRISE",
+    "label": "PoC Service",
+    "icon": "flask-conical"
+  }
+}

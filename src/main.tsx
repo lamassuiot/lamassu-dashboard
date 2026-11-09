@@ -8,6 +8,8 @@ import '@fontsource-variable/jetbrains-mono/index.css';
 import '@fontsource-variable/ibm-plex-sans/index.css';
 import '@fontsource-variable/manrope/index.css';
 import RootLayout from './app/layout';
+import { ModulesProvider, useModules } from './contexts/ModulesContext';
+import { renderModuleRoutes } from './components/modules/module-routes';
 import DeviceDetailsLayout from './app/devices/details/layout';
 
 const pageModules = import.meta.glob<{ default: React.ComponentType }>('./app/**/page.tsx');
@@ -15,6 +17,9 @@ const pages = Object.entries(pageModules).map(([file, load]) => ({
   path: file.replace(/^\.\/app/, '').replace(/\/page\.tsx$/, '') || '/',
   Page: lazy(load),
 }));
+
+/** First path segments owned by built-in pages; external modules may not mount under them. */
+const reservedFirstSegments = [...new Set(pages.map(({ path }) => path.split('/')[1]).filter(Boolean))];
 
 function ScrollToTop() {
   const location = useLocation();
@@ -38,6 +43,11 @@ function PageLoader() {
 }
 
 function AppRoutes() {
+  const { status, modules } = useModules();
+
+  // Wait for the manifest so a deep link into an external module is not shown as "Page not found".
+  if (status === 'loading') return <PageLoader />;
+
   return (
     <>
       <ScrollToTop />
@@ -52,6 +62,7 @@ function AppRoutes() {
               : <Route key={path} path={path.slice('/devices/details/'.length)} element={<Page />} />
           ))}
         </Route>
+        {renderModuleRoutes(modules)}
         <Route path="*" element={<main className="p-6"><h1 className="text-lg font-semibold">Page not found</h1><Link to="/" className="text-primary underline">Go to dashboard</Link></main>} />
       </Routes>
     </>
@@ -59,6 +70,7 @@ function AppRoutes() {
 }
 
 createRoot(document.getElementById('root')!).render(
+  <ModulesProvider reservedFirstSegments={reservedFirstSegments}>
   <BrowserRouter>
     <RootLayout>
       {/* The layout renders its children inside the content area, so a page chunk that is still
@@ -67,5 +79,6 @@ createRoot(document.getElementById('root')!).render(
         <AppRoutes />
       </Suspense>
     </RootLayout>
-  </BrowserRouter>,
+  </BrowserRouter>
+  </ModulesProvider>,
 );

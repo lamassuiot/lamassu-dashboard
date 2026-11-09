@@ -12,6 +12,9 @@ COPY --from=ghcr.io/pnpm/pnpm:12.15.0 /opt/pnpm /opt/pnpm
 RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Workspace packages must exist for the frozen-lockfile install.
+COPY packages packages
+COPY microfrontends microfrontends
 
 # Install exactly the dependencies committed in the lockfile.
 RUN pnpm install --frozen-lockfile --ignore-scripts
