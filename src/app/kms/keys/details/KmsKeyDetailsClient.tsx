@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, Lock, Edit, Delete } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, X as XIcon, Lock, Edit, Trash2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Separator } from '@/components/ui/separator';
@@ -193,6 +193,8 @@ export default function KmsKeyDetailsClient() {
           return new Date(certificate.validFrom).getTime();
         case 'revocationTime':
           return certificate.revocationTimestamp ? new Date(certificate.revocationTimestamp).getTime() : 0;
+        case 'hasPrivateKey':
+          return certificate.hasPrivateKey ? 1 : 0;
       }
     };
 
@@ -743,7 +745,7 @@ export default function KmsKeyDetailsClient() {
         actions={
           <DetailHeroActionsMenu ariaLabel="Key actions" contentClassName="w-48">
             <DropdownMenuItem disabled>
-              <Delete className="mr-2 h-4 w-4" />
+              <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </DropdownMenuItem>
           </DetailHeroActionsMenu>
@@ -1003,6 +1005,8 @@ export default function KmsKeyDetailsClient() {
                           onCertificateUpdated={handleBoundCertificateUpdated}
                           sortConfig={boundCertificatesSort}
                           requestSort={handleBoundCertificatesSort}
+                          // Every certificate here is bound to this key, so the column would repeat one value.
+                          columnVisibility={{ hasPrivateKey: false }}
                         />
                       ) : (
                         <p className="text-sm text-muted-foreground py-4">No related certificates found.</p>
@@ -1032,7 +1036,7 @@ export default function KmsKeyDetailsClient() {
                 </div>
                 <div className="lg:col-span-2 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="signAlgorithm">Algorithm</Label>
                       <Select value={signAlgorithm} onValueChange={setSignAlgorithm} disabled={isSigning}>
                         <SelectTrigger id="signAlgorithm"><SelectValue /></SelectTrigger>
@@ -1043,7 +1047,7 @@ export default function KmsKeyDetailsClient() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="signMessageType">Message Type</Label>
                       <Select value={signMessageType} onValueChange={setSignMessageType} disabled={isSigning}>
                         <SelectTrigger id="signMessageType"><SelectValue /></SelectTrigger>
@@ -1055,12 +1059,12 @@ export default function KmsKeyDetailsClient() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_200px]">
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="payloadToSign">Payload to Sign</Label>
                       <Textarea id="payloadToSign" value={payloadToSign} onChange={e => setPayloadToSign(e.target.value)} placeholder="Enter data to be signed..." rows={4} disabled={isSigning} aria-invalid={!!signPayloadError} aria-describedby={signPayloadError ? 'payload-to-sign-error' : undefined} />
-                      {signPayloadError && <FormFieldError id="payload-to-sign-error" title="Payload to Sign required." description="Enter the data that will be signed." className="mt-1.5" />}
+                      {signPayloadError && <FormFieldError id="payload-to-sign-error" title="Payload to Sign required." description="Enter the data that will be signed." />}
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="signPayloadEncoding">Encoding</Label>
                       <Select value={signPayloadEncoding} onValueChange={v => setSignPayloadEncoding(v as any)} disabled={isSigning}>
                         <SelectTrigger id="signPayloadEncoding"><SelectValue /></SelectTrigger>
@@ -1093,7 +1097,7 @@ export default function KmsKeyDetailsClient() {
                 </div>
                 <div className="lg:col-span-2 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="verifyAlgorithm">Algorithm</Label>
                       <Select value={verifyAlgorithm} onValueChange={setVerifyAlgorithm} disabled={isVerifying}>
                         <SelectTrigger id="verifyAlgorithm"><SelectValue /></SelectTrigger>
@@ -1104,7 +1108,7 @@ export default function KmsKeyDetailsClient() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="verifyMessageType">Message Type</Label>
                       <Select value={verifyMessageType} onValueChange={setVerifyMessageType} disabled={isVerifying}>
                         <SelectTrigger id="verifyMessageType"><SelectValue /></SelectTrigger>
@@ -1116,12 +1120,12 @@ export default function KmsKeyDetailsClient() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_200px]">
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="unsignedPayload">Unsigned Payload</Label>
                       <Textarea id="unsignedPayload" value={unsignedPayload} onChange={e => setUnsignedPayload(e.target.value)} placeholder="Enter the original unsigned data…" rows={3} disabled={isVerifying} aria-invalid={!!verifyPayloadError} aria-describedby={verifyPayloadError ? 'unsigned-payload-error' : undefined} />
-                      {verifyPayloadError && <FormFieldError id="unsigned-payload-error" title="Unsigned Payload required." description="Enter the original data." className="mt-1.5" />}
+                      {verifyPayloadError && <FormFieldError id="unsigned-payload-error" title="Unsigned Payload required." description="Enter the original data." />}
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="verifyPayloadEncoding">Encoding</Label>
                       <Select value={verifyPayloadEncoding} onValueChange={setVerifyPayloadEncoding} disabled={isVerifying}>
                         <SelectTrigger id="verifyPayloadEncoding"><SelectValue /></SelectTrigger>
@@ -1133,10 +1137,10 @@ export default function KmsKeyDetailsClient() {
                       </Select>
                     </div>
                   </div>
-                  <div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="signatureToVerify">Signature (Base64)</Label>
                     <Textarea id="signatureToVerify" value={signatureToVerify} onChange={e => setSignatureToVerify(e.target.value)} placeholder="Enter the signature to verify…" rows={3} className="font-mono" disabled={isVerifying} aria-invalid={!!verifySignatureError} aria-describedby={verifySignatureError ? 'signature-to-verify-error' : undefined} />
-                    {verifySignatureError && <FormFieldError id="signature-to-verify-error" title="Signature required." description="Enter the Base64 signature to verify." className="mt-1.5" />}
+                    {verifySignatureError && <FormFieldError id="signature-to-verify-error" title="Signature required." description="Enter the Base64 signature to verify." />}
                   </div>
                   <FormValidationSummary errors={verifyValidationErrors} />
                   <Button onClick={handleVerify} disabled={isVerifying || verifyValidationErrors.length > 0}>
@@ -1183,7 +1187,7 @@ export default function KmsKeyDetailsClient() {
                   <p className="mt-1 text-sm text-muted-foreground">Choose the signing algorithm for the certificate request.</p>
                 </div>
                 <div className="lg:col-span-2">
-                  <div className="max-w-sm">
+                  <div className="max-w-sm space-y-1.5">
                     <Label htmlFor="csrSignAlgorithm">Algorithm</Label>
                     <Select value={csrSignAlgorithm} onValueChange={setCsrSignAlgorithm} disabled={isGeneratingCsr}>
                       <SelectTrigger id="csrSignAlgorithm" aria-invalid={!!csrAlgorithmError} aria-describedby={csrAlgorithmError ? 'csr-sign-algorithm-error' : undefined}><SelectValue placeholder="Select algorithm" /></SelectTrigger>
@@ -1193,7 +1197,7 @@ export default function KmsKeyDetailsClient() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {csrAlgorithmError && <FormFieldError id="csr-sign-algorithm-error" title="Signature Algorithm required." description="Select an algorithm for the CSR." className="mt-1.5" />}
+                    {csrAlgorithmError && <FormFieldError id="csr-sign-algorithm-error" title="Signature Algorithm required." description="Select an algorithm for the CSR." />}
                   </div>
                 </div>
               </div>
@@ -1207,31 +1211,31 @@ export default function KmsKeyDetailsClient() {
                   <p className="mt-1 text-sm text-muted-foreground">Define the subject identity and optional SAN entries for the CSR.</p>
                 </div>
                 <div className="lg:col-span-2 space-y-4">
-                  <div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="csrCommonName">Common Name (CN) *</Label>
                     <Input id="csrCommonName" value={csrCommonName || ''} onChange={e => setCsrCommonName(e.target.value)} placeholder="e.g., mydevice.example.com" required aria-invalid={!!csrCommonNameError} aria-describedby={csrCommonNameError ? 'csr-common-name-error' : undefined} />
-                    {csrCommonNameError && <FormFieldError id="csr-common-name-error" title="Common Name required." description="Enter the CSR subject CN." className="mt-1.5" />}
+                    {csrCommonNameError && <FormFieldError id="csr-common-name-error" title="Common Name required." description="Enter the CSR subject CN." />}
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="csrOrganizationalUnit">Organizational Unit (OU)</Label>
                       <Input id="csrOrganizationalUnit" value={csrOrganizationalUnit || ''} onChange={e => setCsrOrganizationalUnit(e.target.value)} placeholder="e.g., Engineering" />
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="csrOrganization">Organization (O)</Label>
                       <Input id="csrOrganization" value={csrOrganization || ''} onChange={e => setCsrOrganization(e.target.value)} placeholder="e.g., Acme Corp" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="csrLocality">Locality (L)</Label>
                       <Input id="csrLocality" value={csrLocality || ''} onChange={e => setCsrLocality(e.target.value)} placeholder="e.g., San Francisco" />
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="csrStateProvince">State / Province (ST)</Label>
                       <Input id="csrStateProvince" value={csrStateProvince || ''} onChange={e => setCsrStateProvince(e.target.value)} placeholder="e.g., California" />
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="csrCountry">Country (C)</Label>
                       <Input id="csrCountry" value={csrCountry || ''} onChange={e => setCsrCountry(e.target.value)} placeholder="e.g., US" maxLength={2} />
                     </div>
@@ -1241,7 +1245,7 @@ export default function KmsKeyDetailsClient() {
                   <div className="border-t pt-4 space-y-3">
                     <p className="text-xs font-medium text-muted-foreground">Subject Alternative Names (SANs)</p>
                     <div className="flex items-end gap-2">
-                      <div className="w-36 shrink-0">
+                      <div className="w-36 shrink-0 space-y-1.5">
                         <Label htmlFor="csr-san-type">Type</Label>
                         <Select value={csrCurrentSanType} onValueChange={(v) => setCsrCurrentSanType(v as any)}>
                           <SelectTrigger id="csr-san-type"><SelectValue /></SelectTrigger>
@@ -1253,7 +1257,7 @@ export default function KmsKeyDetailsClient() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 space-y-1.5">
                         <Label htmlFor="csr-san-value">Value</Label>
                         <Input
                           id="csr-san-value"

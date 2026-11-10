@@ -1,13 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
+import { fetchIssuedCertificate } from './issued-certificate-data'
+import type { CertificateData } from '@/types/certificate'
 import {
   fetchVaConfig,
   updateVaConfig,
   downloadCrl,
+  fetchSignerCertificateDisplay,
+  getDefaultVAConfig,
+  missingSignerCertificateDisplay,
+  toVaUpdatePayload,
   type VaApiResponse,
   type VaUpdatePayload,
 } from './va-api'
+
+vi.mock('./issued-certificate-data', () => ({
+  fetchIssuedCertificate: vi.fn(),
+}))
+
+const fetchIssuedCertificateMock = vi.mocked(fetchIssuedCertificate)
 
 const MOCK_TOKEN = 'test-access-token'
 const VA_API_BASE = 'https://api.test.lamassu.io/va/v1'
@@ -20,7 +32,7 @@ describe('va-api', () => {
     crl_options: {
       refresh_interval: '24h',
       validity: '168h',
-      subject_key_id_signer: null,
+      signer_certificate_serial_number: null,
       regenerate_on_revoke: true,
     },
     latest_crl: {
@@ -80,7 +92,7 @@ describe('va-api', () => {
         ...mockVaConfig,
         crl_options: {
           ...mockVaConfig.crl_options,
-          subject_key_id_signer: 'custom-signer-ski',
+          signer_certificate_serial_number: 'custom-signer-ski',
         },
       }
 
@@ -92,7 +104,7 @@ describe('va-api', () => {
 
       const result = await fetchVaConfig(testSki)
 
-      expect(result?.crl_options.subject_key_id_signer).toBe('custom-signer-ski')
+      expect(result?.crl_options.signer_certificate_serial_number).toBe('custom-signer-ski')
     })
 
     it('should send Authorization header', async () => {
@@ -148,7 +160,7 @@ describe('va-api', () => {
     const updatePayload: VaUpdatePayload = {
       refresh_interval: '48h',
       validity: '336h',
-      subject_key_id_signer: null,
+      signer_certificate_serial_number: null,
       regenerate_on_revoke: false,
     }
 
@@ -232,7 +244,7 @@ describe('va-api', () => {
     it('should handle custom signer in payload', async () => {
       const customPayload: VaUpdatePayload = {
         ...updatePayload,
-        subject_key_id_signer: 'custom-signer-123',
+        signer_certificate_serial_number: 'custom-signer-123',
       }
 
       let capturedBody: any
@@ -246,7 +258,7 @@ describe('va-api', () => {
 
       await updateVaConfig(testSki, customPayload)
 
-      expect(capturedBody.subject_key_id_signer).toBe('custom-signer-123')
+      expect(capturedBody.signer_certificate_serial_number).toBe('custom-signer-123')
     })
 
     it('should toggle regenerate_on_revoke flag', async () => {
@@ -375,7 +387,7 @@ describe('va-api', () => {
         crl_options: {
           refresh_interval: '24h',
           validity: '168h', // 7 days
-          subject_key_id_signer: null,
+          signer_certificate_serial_number: null,
           regenerate_on_revoke: true,
         },
         latest_crl: mockVaConfig.latest_crl,
@@ -455,7 +467,7 @@ describe('va-api', () => {
     const payload: VaUpdatePayload = {
       refresh_interval: '24h',
       validity: '168h',
-      subject_key_id_signer: null,
+      signer_certificate_serial_number: null,
       regenerate_on_revoke: true,
     }
 
@@ -638,6 +650,62 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
 
       expect(result.status).toBe('error')
       expect(result.errorDetails).toBeDefined()
+    })
+  })
+
+  describe('toVaUpdatePayload', () => {
+    it('sends the persisted signer serial number', () => {
+      expect(toVaUpdatePayload({
+        ...getDefaultVAConfig('ca-1'),
+        refreshInterval: '12h',
+        validity: '3d',
+        signerCertificateSerialNumber: '0a:1b',
+        regenerateOnRevoke: false,
+      })).toEqual({
+        refresh_interval: '12h',
+        validity: '3d',
+        signer_certificate_serial_number: '0a:1b',
+        regenerate_on_revoke: false,
+      })
+    })
+
+    it('sends null when no signer is configured', () => {
+      expect(toVaUpdatePayload(getDefaultVAConfig('ca-1')).signer_certificate_serial_number).toBeNull()
+    })
+  })
+
+  describe('missingSignerCertificateDisplay', () => {
+    it('keeps the configured serial number instead of a placeholder string', () => {
+      const display = missingSignerCertificateDisplay('0a:1b')
+      expect(display.serialNumber).toBe('0a:1b')
+      expect(display.subject).toBe('Unknown Certificate (Serial: 0a:1b)')
+    })
+  })
+
+  describe('fetchSignerCertificateDisplay', () => {
+    it('looks the signer up by serial number across all CAs', async () => {
+      // A CA's default signer is its own certificate, which its parent issued, so the lookup
+      // must not be limited to the certificates the CA itself issued.
+      const signer = { serialNumber: '0a-1b', subject: 'CN=Sub CA' } as CertificateData
+      fetchIssuedCertificateMock.mockResolvedValueOnce(signer)
+
+      await expect(fetchSignerCertificateDisplay('0a-1b')).resolves.toBe(signer)
+      expect(fetchIssuedCertificateMock).toHaveBeenCalledWith('0a-1b')
+    })
+
+    it('falls back to the unknown-certificate display when the serial does not exist', async () => {
+      fetchIssuedCertificateMock.mockResolvedValueOnce(null)
+
+      await expect(fetchSignerCertificateDisplay('0a-1b')).resolves.toEqual(missingSignerCertificateDisplay('0a-1b'))
+    })
+
+    it('keeps the serial and shows a fallback when the signer cannot be read, instead of failing', async () => {
+      // e.g. 403: the user may manage the VA without read access to the signer certificate.
+      fetchIssuedCertificateMock.mockRejectedValueOnce(new Error('Forbidden'))
+
+      const display = await fetchSignerCertificateDisplay('0a-1b')
+      expect(display.serialNumber).toBe('0a-1b')
+      expect(display.subject).toBe('Certificate details unavailable (Serial: 0a-1b)')
     })
   })
 })

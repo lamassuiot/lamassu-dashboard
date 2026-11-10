@@ -46,6 +46,7 @@ interface ApiCertificateData {
   type?: string; // "MANAGED"
   engine_id?: string; // To be used as kmsKeyId
   key_id?: string; // KMS key ID of the CA's signing key
+  has_private_key?: boolean; // Whether the KMS holds the CA's private key
   is_ca: boolean;
 }
 

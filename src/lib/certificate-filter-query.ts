@@ -20,6 +20,7 @@ export interface CertificateQueryFilters {
   engineIdFilter?: string;
   revocationReasonFilters?: readonly string[];
   isCaFilter?: 'ALL' | 'true' | 'false';
+  hasPrivateKeyFilter?: 'ALL' | 'true' | 'false';
   validFromFilter?: CertificateQueryDateFilterValue;
   validToFilter?: CertificateQueryDateFilterValue;
   revocationTimestampFilter?: CertificateQueryDateFilterValue;
@@ -44,6 +45,7 @@ export function appendCertificateQueryFilters(
     engineIdFilter = '',
     revocationReasonFilters = [],
     isCaFilter = 'ALL',
+    hasPrivateKeyFilter = 'ALL',
     validFromFilter,
     validToFilter,
     revocationTimestampFilter,
@@ -87,6 +89,10 @@ export function appendCertificateQueryFilters(
 
   if (isCaFilter !== 'ALL') {
     params.append('filter', `is_ca[equal]${isCaFilter}`);
+  }
+
+  if (hasPrivateKeyFilter !== 'ALL') {
+    params.append('filter', `has_private_key[equal]${hasPrivateKeyFilter}`);
   }
 
   appendDateFilter(params, 'valid_from', validFromFilter);

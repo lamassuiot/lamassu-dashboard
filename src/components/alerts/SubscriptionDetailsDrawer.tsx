@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   Sheet,
-  SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,7 +140,8 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
   return (
     <>
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetContent
+        <ResizableSheetContent
+          storageKey="subscription-details"
           side="right"
           className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-2/3 data-[side=right]:lg:w-1/2 data-[side=right]:xl:w-1/3 data-[side=right]:sm:max-w-none"
         >
@@ -254,7 +255,7 @@ export const SubscriptionDetailsDrawer: React.FC<SubscriptionDetailsDrawerProps>
               <Pencil data-icon="inline-start" /> Edit
             </Button>
           </SheetFooter>
-        </SheetContent>
+        </ResizableSheetContent>
       </Sheet>
 
       <AlertDialog open={isConfirmOpen} onOpenChange={(open) => { if (!isDeleting) setIsConfirmOpen(open); }}>

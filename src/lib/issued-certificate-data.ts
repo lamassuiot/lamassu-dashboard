@@ -46,7 +46,9 @@ export interface ApiIssuedCertificateItem {
   revocation_reason?: string;
   type?: string;
   engine_id?: string;
+  key_id?: string; // KMS key ID of the certificate's key, empty when the KMS does not hold it
   is_ca: boolean;
+  has_private_key: boolean;
 }
 
 export interface ApiIssuedCertificateListResponse {
@@ -105,6 +107,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     apiStatus: apiCert.status,
     revocationReason: apiCert.revocation_reason,
     revocationTimestamp: apiCert.revocation_timestamp,
+    hasPrivateKey: apiCert.has_private_key,
     publicKeyAlgorithm,
     fingerprintSha256: parsedDetails.fingerprintSha256,
     issuerCaId: apiCert.issuer_metadata.id,

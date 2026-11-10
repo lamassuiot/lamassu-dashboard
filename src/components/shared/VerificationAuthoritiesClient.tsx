@@ -17,9 +17,8 @@ import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, fetchSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
@@ -106,7 +105,7 @@ export function VerificationAuthoritiesClient() {
         caId: selectedCaForConfig.id,
         refreshInterval: data.crl_options.refresh_interval || '24h',
         validity: data.crl_options.validity || '7d',
-        subjectKeyIDSigner: data.crl_options.subject_key_id_signer || null,
+        signerCertificateSerialNumber: data.crl_options.signer_certificate_serial_number || null,
         regenerateOnRevoke: data.crl_options.regenerate_on_revoke === true,
       };
       setConfig(newConfig);
@@ -115,20 +114,9 @@ export function VerificationAuthoritiesClient() {
         setLatestCrl(data.latest_crl);
       }
 
-      if (newConfig.subjectKeyIDSigner) {
-        const signerSki = newConfig.subjectKeyIDSigner;
-        const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=subject_key_id[equal]${signerSki}&page_size=1`
-        });
-        if (certificates.length > 0) {
-          setSelectedCertificateSignerDisplay(certificates[0]);
-        } else {
-          setSelectedCertificateSignerDisplay({
-            id: signerSki,
-            serialNumber: 'Unknown',
-            subject: `Unknown Certificate (SKI: ${signerSki})`,
-          } as CertificateData);
-        }
+      if (newConfig.signerCertificateSerialNumber) {
+        const signerSerial = newConfig.signerCertificateSerialNumber;
+        setSelectedCertificateSignerDisplay(await fetchSignerCertificateDisplay(signerSerial));
       }
 
     } catch (e: any) {
@@ -167,7 +155,7 @@ export function VerificationAuthoritiesClient() {
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
+      setConfig({ ...config, signerCertificateSerialNumber: certificate.serialNumber ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
@@ -175,7 +163,7 @@ export function VerificationAuthoritiesClient() {
 
   const handleClearCertificateSigner = () => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: null });
+      setConfig({ ...config, signerCertificateSerialNumber: null });
     }
     setSelectedCertificateSignerDisplay(null);
   };
@@ -200,14 +188,7 @@ export function VerificationAuthoritiesClient() {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        refresh_interval: config.refreshInterval,
-        validity: config.validity,
-        subject_key_id_signer: selectedCertificateSignerDisplay?.rawApiData?.subject_key_id || null,
-        regenerate_on_revoke: config.regenerateOnRevoke,
-      };
-
-      await updateVaConfig(selectedCaForConfig.subjectKeyId, payload);
+      await updateVaConfig(selectedCaForConfig.subjectKeyId, toVaUpdatePayload(config));
 
       sileo.success({
         title: "Success!",

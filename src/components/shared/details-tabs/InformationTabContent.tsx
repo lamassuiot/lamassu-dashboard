@@ -23,7 +23,7 @@ import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
+import { buildCaKmsKeyUri, buildCertificateKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import Link from '@/components/shared/RouterLink';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
@@ -439,6 +439,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   // ── Certificate view ───────────────────────────────────────────────────────
   if (itemType === 'certificate' && certificateSpecific) {
     const certDetails = item as CertificateData;
+    const certKeyHref = kmsKeyDetailsHref(buildCertificateKmsKeyUri(certDetails));
+    const certKeyDisplay = certDetails.rawApiData?.key_id || 'View private key';
 
     const hasDistribution =
       (certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) ||
@@ -508,6 +510,24 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           <div className="lg:col-span-2">
             <DetailInfoRows>
               <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow
+                label="Private Key"
+                value={
+                  certKeyHref ? (
+                    <Link
+                      href={certKeyHref}
+                      className="text-primary underline-offset-2 hover:underline"
+                      title="Open private key in KMS"
+                    >
+                      {certKeyDisplay}
+                    </Link>
+                  ) : (
+                    <Badge variant={certDetails.hasPrivateKey ? 'success' : 'muted'} dot>
+                      {certDetails.hasPrivateKey ? 'Present' : 'Not available'}
+                    </Badge>
+                  )
+                }
+              />
               <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow
                 label="SHA-256 Fingerprint"

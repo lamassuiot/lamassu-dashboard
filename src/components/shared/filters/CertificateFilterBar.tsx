@@ -47,6 +47,8 @@ interface CertificateFilterBarProps {
   onRevocationReasonFiltersChange?: (value: string[]) => void;
   isCaFilter?: CertificateBooleanFilterValue;
   onIsCaFilterChange?: (value: CertificateBooleanFilterValue) => void;
+  hasPrivateKeyFilter?: CertificateBooleanFilterValue;
+  onHasPrivateKeyFilterChange?: (value: CertificateBooleanFilterValue) => void;
   validFromFilter?: CertificateDateFilterValue;
   onValidFromFilterChange?: (value: CertificateDateFilterValue) => void;
   validToFilter?: CertificateDateFilterValue;
@@ -77,6 +79,7 @@ interface CertificateFilterValues {
   extendedKeyUsageFilters: ExtendedKeyUsageOption[];
   revocationReasonFilters: string[];
   isCaFilter: CertificateBooleanFilterValue;
+  hasPrivateKeyFilter: CertificateBooleanFilterValue;
   validFromFilter: CertificateDateFilterValue;
   validToFilter: CertificateDateFilterValue;
   revocationTimestampFilter: CertificateDateFilterValue;
@@ -123,6 +126,8 @@ export function CertificateFilterBar({
   onRevocationReasonFiltersChange,
   isCaFilter = 'ALL',
   onIsCaFilterChange,
+  hasPrivateKeyFilter = 'ALL',
+  onHasPrivateKeyFilterChange,
   validFromFilter = defaultDateFilterValue,
   onValidFromFilterChange,
   validToFilter = defaultDateFilterValue,
@@ -152,6 +157,7 @@ export function CertificateFilterBar({
     extendedKeyUsageFilters,
     revocationReasonFilters,
     isCaFilter,
+    hasPrivateKeyFilter,
     validFromFilter,
     validToFilter,
     revocationTimestampFilter,
@@ -160,6 +166,7 @@ export function CertificateFilterBar({
     caIdFilter,
     engineIdFilter,
     extendedKeyUsageFilters,
+    hasPrivateKeyFilter,
     isCaFilter,
     keyUsageFilters,
     metadataFilters,
@@ -264,6 +271,21 @@ export function CertificateFilterBar({
           getClearValue: () => 'ALL',
         } satisfies GenericFilterField<CertificateFilterValues>]
       : []),
+    ...(onHasPrivateKeyFilterChange
+      ? [{
+          key: 'hasPrivateKeyFilter',
+          label: 'Private Key',
+          type: 'enum',
+          visibility: 'advanced',
+          options: [
+            { label: 'All Certificates', value: 'ALL' },
+            { label: 'With Private Key', value: 'true' },
+            { label: 'Without Private Key', value: 'false' },
+          ],
+          isActive: (value) => value !== 'ALL',
+          getClearValue: () => 'ALL',
+        } satisfies GenericFilterField<CertificateFilterValues>]
+      : []),
     ...(onRevocationReasonFiltersChange
       ? [createMultiEnumField<CertificateFilterValues>({
           key: 'revocationReasonFilters',
@@ -355,6 +377,7 @@ export function CertificateFilterBar({
     onEngineIdFilterChange,
     onExtendedKeyUsageFiltersChange,
     onIsCaFilterChange,
+    onHasPrivateKeyFilterChange,
     onKeyUsageFiltersChange,
     onMetadataFiltersChange,
     onOpenCaSelector,
@@ -406,6 +429,9 @@ export function CertificateFilterBar({
           case 'isCaFilter':
             onIsCaFilterChange?.((value as CertificateBooleanFilterValue) || 'ALL');
             break;
+          case 'hasPrivateKeyFilter':
+            onHasPrivateKeyFilterChange?.((value as CertificateBooleanFilterValue) || 'ALL');
+            break;
           case 'validFromFilter':
             onValidFromFilterChange?.((value as GenericDateFilterValue as CertificateDateFilterValue) || defaultDateFilterValue);
             break;
@@ -435,6 +461,7 @@ export function CertificateFilterBar({
         onExtendedKeyUsageFiltersChange?.([]);
         onRevocationReasonFiltersChange?.([]);
         onIsCaFilterChange?.('ALL');
+        onHasPrivateKeyFilterChange?.('ALL');
         onValidFromFilterChange?.(defaultDateFilterValue);
         onValidToFilterChange?.(defaultDateFilterValue);
         onRevocationTimestampFilterChange?.(defaultDateFilterValue);

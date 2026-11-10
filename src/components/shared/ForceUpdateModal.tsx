@@ -4,12 +4,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Sheet,
-  SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -73,7 +73,7 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="data-[side=right]:w-1/3 data-[side=right]:sm:max-w-none">
+      <ResizableSheetContent storageKey="force-update" side="right" className="data-[side=right]:w-1/3 data-[side=right]:sm:max-w-none">
         <SheetHeader>
           <SheetTitle>Force Device Update</SheetTitle>
           <SheetDescription>
@@ -201,7 +201,7 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
             Confirm Update
           </Button>
         </SheetFooter>
-      </SheetContent>
+      </ResizableSheetContent>
     </Sheet>
   );
 };

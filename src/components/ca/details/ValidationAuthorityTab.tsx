@@ -14,10 +14,10 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import { Sheet, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { downloadFile } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, fetchSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
@@ -103,7 +103,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
         caId: ca.id,
         refreshInterval: data.crl_options.refresh_interval || '24h',
         validity: data.crl_options.validity || '7d',
-        subjectKeyIDSigner: data.crl_options.subject_key_id_signer || null,
+        signerCertificateSerialNumber: data.crl_options.signer_certificate_serial_number || null,
         regenerateOnRevoke: data.crl_options.regenerate_on_revoke === true,
       };
       setConfig(newConfig);
@@ -112,20 +112,9 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
         setLatestCrl(data.latest_crl);
       }
 
-      if (newConfig.subjectKeyIDSigner) {
-        const signerSki = newConfig.subjectKeyIDSigner;
-        const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=subject_key_id[equal]${signerSki}&page_size=1`
-        });
-        if (certificates.length > 0) {
-          setSelectedCertificateSignerDisplay(certificates[0]);
-        } else {
-          setSelectedCertificateSignerDisplay({
-            id: signerSki,
-            serialNumber: 'Unknown',
-            subject: `Unknown Certificate (SKI: ${signerSki})`,
-          } as CertificateData);
-        }
+      if (newConfig.signerCertificateSerialNumber) {
+        const signerSerial = newConfig.signerCertificateSerialNumber;
+        setSelectedCertificateSignerDisplay(await fetchSignerCertificateDisplay(signerSerial));
       }
     } catch (e: any) {
       setErrorConfig(e.message || "An unknown error occurred.");
@@ -158,7 +147,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
+      setConfig({ ...config, signerCertificateSerialNumber: certificate.serialNumber ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
@@ -166,7 +155,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
   const handleClearCertificateSigner = () => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: null });
+      setConfig({ ...config, signerCertificateSerialNumber: null });
     }
     setSelectedCertificateSignerDisplay(null);
   };
@@ -191,14 +180,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        refresh_interval: config.refreshInterval,
-        validity: config.validity,
-        subject_key_id_signer: selectedCertificateSignerDisplay?.rawApiData?.subject_key_id || null,
-        regenerate_on_revoke: config.regenerateOnRevoke,
-      };
-
-      await updateVaConfig(ca.subjectKeyId, payload);
+      await updateVaConfig(ca.subjectKeyId, toVaUpdatePayload(config));
 
       sileo.success({
         title: "Success!",
@@ -407,7 +389,10 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
               )}
 
               <Sheet open={isCrlSheetOpen} onOpenChange={setIsCrlSheetOpen}>
-                <SheetContent className="overflow-y-auto p-6 sm:!w-[80vw] sm:!max-w-[80vw] lg:!w-[50vw] lg:!max-w-[50vw]">
+                <ResizableSheetContent
+                  storageKey="va-crl"
+                  className="overflow-y-auto p-6 data-[side=right]:sm:w-[80vw] data-[side=right]:sm:max-w-[80vw] data-[side=right]:lg:w-[50vw] data-[side=right]:lg:max-w-[50vw]"
+                >
                   <SheetHeader>
                     <SheetTitle className="flex items-center gap-2">
                       Fetch &amp; Show CRL
@@ -532,7 +517,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                       <p className="text-sm text-muted-foreground text-center py-4">Click "Fetch &amp; Parse CRL" to load CRL data.</p>
                     )}
                   </div>
-                </SheetContent>
+                </ResizableSheetContent>
               </Sheet>
             </div>
           </div>

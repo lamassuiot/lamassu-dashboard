@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, KeyRound, Check } from "lucide-react";
@@ -119,7 +120,7 @@ export function KmsKeySelector({
       </Button>
 
       <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <SheetContent side="right" className="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none flex flex-col">
+        <ResizableSheetContent storageKey="kms-key-selector" side="right" className="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none flex flex-col">
           <SheetHeader>
             <SheetTitle>Select KMS Key</SheetTitle>
             <SheetDescription>
@@ -197,7 +198,7 @@ export function KmsKeySelector({
               </Table>
             )}
           </div>
-        </SheetContent>
+        </ResizableSheetContent>
       </Sheet>
     </>
   );

@@ -57,6 +57,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   const [extendedKeyUsageFilters, setExtendedKeyUsageFilters] = useState<ExtendedKeyUsageOption[]>([]);
   const [revocationReasonFilters, setRevocationReasonFilters] = useState<string[]>([]);
   const [isCaFilter, setIsCaFilter] = useState<CertificateBooleanFilterValue>('ALL');
+  const [hasPrivateKeyFilter, setHasPrivateKeyFilter] = useState<CertificateBooleanFilterValue>('ALL');
   const [validFromFilter, setValidFromFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
   const [validToFilter, setValidToFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
   const [revocationTimestampFilter, setRevocationTimestampFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
@@ -107,6 +108,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
                     case 'status': sortByApiField = 'status'; break;
                     case 'validFrom': sortByApiField = 'valid_from'; break;
                     case 'revocationTime': sortByApiField = 'revocation_timestamp'; break;
+                    case 'hasPrivateKey': sortByApiField = 'has_private_key'; break;
                     default: sortByApiField = 'valid_from';
                 }
                 apiParams.append('sort_by', sortByApiField);
@@ -136,6 +138,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
               engineIdFilter,
               revocationReasonFilters,
               isCaFilter,
+              hasPrivateKeyFilter,
               validFromFilter,
               validToFilter,
               revocationTimestampFilter,
@@ -214,6 +217,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     extendedKeyUsageFilters,
     revocationReasonFilters,
     isCaFilter,
+    hasPrivateKeyFilter,
     validFromFilter,
     validToFilter,
     revocationTimestampFilter,
@@ -279,6 +283,8 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     onRevocationReasonFiltersChange: setRevocationReasonFilters,
     isCaFilter,
     onIsCaFilterChange: setIsCaFilter,
+    hasPrivateKeyFilter,
+    onHasPrivateKeyFilterChange: setHasPrivateKeyFilter,
     validFromFilter,
     onValidFromFilterChange: setValidFromFilter,
     validToFilter,
@@ -290,6 +296,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   }), [
     engineIdFilter,
     extendedKeyUsageFilters,
+    hasPrivateKeyFilter,
     isCaFilter,
     keyUsageFilters,
     metadataFilters,
@@ -318,6 +325,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     extendedKeyUsageFilters, setExtendedKeyUsageFilters,
     revocationReasonFilters, setRevocationReasonFilters,
     isCaFilter, setIsCaFilter,
+    hasPrivateKeyFilter, setHasPrivateKeyFilter,
     validFromFilter, setValidFromFilter,
     validToFilter, setValidToFilter,
     revocationTimestampFilter, setRevocationTimestampFilter,

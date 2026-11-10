@@ -5,7 +5,8 @@ import { UserRound, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { cn } from '@/lib/utils';
 import type { AlertEvent } from '@/app/alerts/page';
 
@@ -136,7 +137,8 @@ export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInf
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent
+      <ResizableSheetContent
+        storageKey="audit-user-info"
         side="right"
         className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-2/3 data-[side=right]:lg:w-1/2 data-[side=right]:xl:w-1/3 data-[side=right]:sm:max-w-none"
       >
@@ -198,7 +200,7 @@ export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInf
         <SheetFooter className="border-t px-6 py-4">
           <Button variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
         </SheetFooter>
-      </SheetContent>
+      </ResizableSheetContent>
     </Sheet>
   );
 }

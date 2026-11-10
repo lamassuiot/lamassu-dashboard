@@ -4,19 +4,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Check } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { findCaById, type CA } from '@/lib/ca-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { type ApiCertificateStatusValue, type CertificateDateFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
+import { type ApiCertificateStatusValue, type CertificateBooleanFilterValue, type CertificateDateFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { Label } from '../ui/label';
 import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
+import { Sheet, SheetClose, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -34,6 +35,8 @@ interface CertificateSelectorModalProps {
   currentSelectedCertificateId?: string | null;
   limitToCAs?: CA[];
   requiredKeyUsages?: readonly KeyUsageOption[];
+  /** Force the Private Key filter to "With Private Key" (and lock it). */
+  requirePrivateKey?: boolean;
   includeCaCertificates?: boolean;
 }
 
@@ -110,6 +113,7 @@ function caToCertificateData(ca: CA): CertificateData {
     apiStatus: rawCertificate?.status ?? ca.status.toUpperCase(),
     revocationReason: rawCertificate?.revocation_reason,
     revocationTimestamp: rawCertificate?.revocation_timestamp,
+    hasPrivateKey: rawCertificate?.has_private_key,
     rawApiData: rawCertificate ?? {
       is_ca: ca.isCa ?? true,
       subject_key_id: subjectKeyId,
@@ -134,6 +138,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   currentSelectedCertificateId,
   limitToCAs,
   requiredKeyUsages = [],
+  requirePrivateKey = false,
   includeCaCertificates = false,
 }) => {
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
@@ -152,6 +157,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
   const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
   const [engineIdFilter, setEngineIdFilter] = useState('');
+  const [hasPrivateKeyFilter, setHasPrivateKeyFilter] = useState<CertificateBooleanFilterValue>('ALL');
   const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([]);
   const [selectedExtendedKeyUsages, setSelectedExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([]);
   const [revocationReasonFilters, setRevocationReasonFilters] = useState<string[]>([]);
@@ -196,6 +202,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     statusFilters,
     subjectKeyIdFilter,
     engineIdFilter,
+    hasPrivateKeyFilter,
     selectedCaId,
     effectiveSelectedKeyUsages,
     selectedExtendedKeyUsages,
@@ -203,6 +210,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     validFromFilter,
     validToFilter,
     revocationTimestampFilter,
+    hasPrivateKeyFilter,
+    requirePrivateKey,
     isOpen,
   ]);
 
@@ -232,6 +241,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         statusFilters,
         subjectKeyIdFilter,
         engineIdFilter,
+        hasPrivateKeyFilter: requirePrivateKey ? 'true' : hasPrivateKeyFilter,
         revocationReasonFilters,
         validFromFilter,
         validToFilter,
@@ -250,11 +260,13 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
       if (includeCaCertificates && selectedCa && !bookmarkToFetch) {
         const caCertificate = caToCertificateData(selectedCa);
+        // The API results honour requirePrivateKey; the CA row is added locally, so it must too.
+        const caCertificateAllowed = !requirePrivateKey || caCertificate.hasPrivateKey === true;
         const caCertificateSerial = normalizeSerialNumber(caCertificate.serialNumber);
         const hasCaCertificate = certificates.some((cert) => (
           normalizeSerialNumber(cert.serialNumber) === caCertificateSerial
         ));
-        if (!hasCaCertificate) {
+        if (caCertificateAllowed && !hasCaCertificate) {
           certificates = [caCertificate, ...certificates];
         }
       }
@@ -276,6 +288,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     statusFilters,
     subjectKeyIdFilter,
     engineIdFilter,
+    hasPrivateKeyFilter,
+    requirePrivateKey,
     effectiveSelectedKeyUsages,
     selectedExtendedKeyUsages,
     revocationReasonFilters,
@@ -342,6 +356,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     onExtendedKeyUsageFiltersChange: setSelectedExtendedKeyUsages,
     revocationReasonFilters,
     onRevocationReasonFiltersChange: setRevocationReasonFilters,
+    hasPrivateKeyFilter: requirePrivateKey ? 'true' : hasPrivateKeyFilter,
+    onHasPrivateKeyFilterChange: requirePrivateKey ? undefined : setHasPrivateKeyFilter,
     validFromFilter,
     onValidFromFilterChange: setValidFromFilter,
     validToFilter,
@@ -351,7 +367,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   }), [
     effectiveSelectedKeyUsages,
     engineIdFilter,
+    hasPrivateKeyFilter,
     requiredKeyUsages,
+    requirePrivateKey,
     revocationReasonFilters,
     revocationTimestampFilter,
     searchField,
@@ -365,7 +383,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full p-0 sm:max-w-4xl lg:max-w-[96rem]">
+      <ResizableSheetContent storageKey="certificate-selector" side="right" className="w-full p-0 sm:max-w-4xl lg:max-w-[96rem]">
         <div className="flex h-full flex-col overflow-hidden bg-background">
           <SheetHeader className="border-b px-6 py-5 text-left">
             <SheetTitle>{title}</SheetTitle>
@@ -439,6 +457,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                         <TableHead className="text-center">Valid From</TableHead>
                         <TableHead className="text-center">Expires</TableHead>
                         <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center hidden lg:table-cell">Private Key</TableHead>
                         <TableHead className="hidden xl:table-cell text-center">Revocation Time</TableHead>
                         <TableHead className="text-right">Action</TableHead>
                       </TableRow>
@@ -492,6 +511,18 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                                   </span>
                                 )}
                               </div>
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-center">
+                              {cert.hasPrivateKey ? (
+                                <span
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                  title="Private key present"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell className="hidden xl:table-cell text-center">
                               {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
@@ -569,7 +600,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
             </SheetFooter>
           </div>
         </div>
-      </SheetContent>
+      </ResizableSheetContent>
     </Sheet>
   );
 };

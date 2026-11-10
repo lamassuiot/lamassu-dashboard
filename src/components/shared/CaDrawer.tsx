@@ -4,7 +4,8 @@ import React from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 
 interface CaDrawerProps {
   /** DOM id of the drawer panel, for `aria-controls` on the element that opens it. */
@@ -72,14 +73,19 @@ export function CaDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent id={id} side="right" className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw]">
+      <ResizableSheetContent
+        storageKey="ca-drawer"
+        id={id}
+        side="right"
+        className="p-0 data-[side=right]:w-full data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw]"
+      >
         <SheetHeader className="border-b px-6 py-5 pr-14">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
         {toolbar && <div className="border-b px-6 py-4">{toolbar}</div>}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">{body}</div>
-      </SheetContent>
+      </ResizableSheetContent>
     </Sheet>
   );
 }

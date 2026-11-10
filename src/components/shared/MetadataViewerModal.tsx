@@ -14,13 +14,13 @@ import {
 } from '@/components/ui/dialog';
 import {
   Sheet,
-  SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
   SheetFooter,
   SheetClose,
 } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { sileo } from '@/lib/toast';
@@ -240,7 +240,7 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
   if (presentation === 'sheet') {
     return (
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className={cn("w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col", sheetContentClassName)}>
+        <ResizableSheetContent storageKey="metadata-viewer" side="right" className={cn("w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col", sheetContentClassName)}>
           <SheetHeader className="border-b px-6 py-5 text-left">
             <SheetTitle>{title}</SheetTitle>
             {description && <SheetDescription>{description}</SheetDescription>}
@@ -253,7 +253,7 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
           <SheetFooter className="border-t px-6 py-4">
             {footerContent}
           </SheetFooter>
-        </SheetContent>
+        </ResizableSheetContent>
       </Sheet>
     );
   }

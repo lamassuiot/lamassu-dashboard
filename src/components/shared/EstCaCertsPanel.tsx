@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -75,7 +76,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className={cn('p-0 flex flex-col', className)} style={{ width: '50vw', maxWidth: '50vw' }}>
+      <ResizableSheetContent storageKey="est-ca-certs" side="right" className={cn('p-0 flex flex-col', className)} style={{ width: '50vw', maxWidth: '50vw' }}>
         <SheetHeader className="border-b px-6 py-5 text-left">
           <SheetTitle className="flex items-center">
             <FileText className="mr-2 h-5 w-5 text-primary" />
@@ -134,7 +135,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
         <SheetFooter className="border-t px-6 py-4">
           <Button variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
         </SheetFooter>
-      </SheetContent>
+      </ResizableSheetContent>
     </Sheet>
   );
 };

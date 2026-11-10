@@ -4,7 +4,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from '@/lib/router';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, CornerDownRight } from "lucide-react";
@@ -218,7 +219,11 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={handleSheetOpenChange}>
-        <SheetContent side="right" className="data-[side=right]:w-full data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw]">
+        <ResizableSheetContent
+          storageKey="assign-identity"
+          side="right"
+          className="data-[side=right]:w-full data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw]"
+        >
           <SheetHeader>
             <SheetTitle>Assign Identity to Device</SheetTitle>
             <SheetDescription>
@@ -245,7 +250,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
               </div>
             </div>
           </SheetFooter>
-        </SheetContent>
+        </ResizableSheetContent>
       </Sheet>
 
       <CaSelectorModal

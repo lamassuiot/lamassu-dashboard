@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -123,7 +124,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
 
     return (
         <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-            <SheetContent side="right" className="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none flex flex-col">
+            <ResizableSheetContent storageKey="ocsp-check" side="right" className="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none flex flex-col">
 
                 <SheetHeader>
                     <SheetTitle className="flex items-center gap-2">
@@ -315,7 +316,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                     <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
                 </SheetFooter>
 
-            </SheetContent>
+            </ResizableSheetContent>
         </Sheet>
     );
 };

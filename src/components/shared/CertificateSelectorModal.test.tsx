@@ -230,6 +230,66 @@ describe('CertificateSelectorModal', () => {
     expect(screen.getByText('Leaf Certificate')).toBeInTheDocument();
   });
 
+  it('does not add the selected CA certificate when a private key is required and the CA has none', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [buildCertificate('Leaf Certificate', false)],
+      nextToken: null,
+    });
+    const keylessCa = {
+      ...buildCa('ca-1', 'CA 1'),
+      rawApiData: { certificate: { has_private_key: false } },
+    } as unknown as CA;
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select CRL Signer Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        limitToCAs={[keylessCa]}
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+        requirePrivateKey
+        includeCaCertificates
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Leaf Certificate')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('ca-1-serial')).not.toBeInTheDocument();
+    expect(screen.getAllByText('CA 1')).toHaveLength(1);
+  });
+
+  it('adds the selected CA certificate when a private key is required and the CA holds it', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [buildCertificate('Leaf Certificate', false)],
+      nextToken: null,
+    });
+    const keyedCa = {
+      ...buildCa('ca-1', 'CA 1'),
+      rawApiData: { certificate: { has_private_key: true } },
+    } as unknown as CA;
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select CRL Signer Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        limitToCAs={[keyedCa]}
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+        requirePrivateKey
+        includeCaCertificates
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('CA 1').length).toBeGreaterThan(1);
+    });
+  });
+
   it('does not duplicate the selected CA certificate when serial formatting differs', async () => {
     fetchIssuedCertificatesMock.mockResolvedValue({
       certificates: [

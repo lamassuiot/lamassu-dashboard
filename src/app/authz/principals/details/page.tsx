@@ -19,12 +19,12 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Sheet,
-  SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import {
   Table,
   TableBody,
@@ -657,7 +657,8 @@ function PrincipalDetailsContent() {
           }
         }}
       >
-        <SheetContent
+        <ResizableSheetContent
+          storageKey="assign-policy"
           side="right"
           className="flex flex-col gap-0 p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-none"
         >
@@ -793,7 +794,7 @@ function PrincipalDetailsContent() {
               </Button>
             </div>
           </SheetFooter>
-        </SheetContent>
+        </ResizableSheetContent>
       </Sheet>
 
       {/* Revoke Policy Dialog */}
