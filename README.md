@@ -229,6 +229,11 @@ Notes
 - Vite embeds `VITE_FORCE_DEV_OPTIONS` in the bundle. Changing it requires a rebuild. Runtime API and OIDC settings remain in `config.js`.
 - Use dev-only items for debugging, feature preview, or tools that should not be exposed
 
+## Security
+
+To report a security vulnerability, do **not** open a public issue — follow
+[SECURITY.md](./SECURITY.md) instead.
+
 ## License
 
 This project is licensed under the Mozilla Public License 2.0 (MPL 2.0). See the `LICENSE` file for more details.
