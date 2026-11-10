@@ -698,5 +698,14 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
 
       await expect(fetchSignerCertificateDisplay('0a-1b')).resolves.toEqual(missingSignerCertificateDisplay('0a-1b'))
     })
+
+    it('keeps the serial and shows a fallback when the signer cannot be read, instead of failing', async () => {
+      // e.g. 403: the user may manage the VA without read access to the signer certificate.
+      fetchIssuedCertificateMock.mockRejectedValueOnce(new Error('Forbidden'))
+
+      const display = await fetchSignerCertificateDisplay('0a-1b')
+      expect(display.serialNumber).toBe('0a-1b')
+      expect(display.subject).toBe('Certificate details unavailable (Serial: 0a-1b)')
+    })
   })
 })

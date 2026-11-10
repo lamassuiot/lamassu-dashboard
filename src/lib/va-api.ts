@@ -60,21 +60,31 @@ export const toVaUpdatePayload = (config: VAConfig): VaUpdatePayload => ({
   regenerate_on_revoke: config.regenerateOnRevoke,
 });
 
-/** Display stand-in for a configured CRL signer whose certificate cannot be found. */
-export const missingSignerCertificateDisplay = (serialNumber: string): CertificateData => ({
+const signerCertificatePlaceholder = (serialNumber: string, label: string): CertificateData => ({
   id: serialNumber,
   serialNumber,
-  subject: `Unknown Certificate (Serial: ${serialNumber})`,
+  subject: `${label} (Serial: ${serialNumber})`,
 } as CertificateData);
+
+/** Display stand-in for a configured CRL signer whose certificate cannot be found. */
+export const missingSignerCertificateDisplay = (serialNumber: string): CertificateData =>
+  signerCertificatePlaceholder(serialNumber, 'Unknown Certificate');
 
 /**
  * Certificate to display for a VA's configured CRL signer. It is looked up by serial number
  * across all CAs, as the VA backend resolves it: the default signer is the CA's own
  * certificate, which its parent issued, so a lookup limited to the CA's issued certificates
  * would miss it. Serial numbers are the certificates' primary key, so the match is unique.
+ *
+ * Never throws: the signer only decorates the VA settings, so a certificate the user cannot
+ * read (403) or a failed request falls back to a stand-in that keeps the saved serial.
  */
 export async function fetchSignerCertificateDisplay(serialNumber: string): Promise<CertificateData> {
-  return (await fetchIssuedCertificate(serialNumber)) ?? missingSignerCertificateDisplay(serialNumber);
+  try {
+    return (await fetchIssuedCertificate(serialNumber)) ?? missingSignerCertificateDisplay(serialNumber);
+  } catch {
+    return signerCertificatePlaceholder(serialNumber, 'Certificate details unavailable');
+  }
 }
 
 
