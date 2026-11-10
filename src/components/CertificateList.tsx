@@ -36,7 +36,7 @@ interface CertificateListProps {
   requestSort: (column: SortableCertColumn) => void;
   isLoading?: boolean;
   showIssuerColumn?: boolean;
-  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
+  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'hasPrivateKey' | 'revocationTime', boolean>>;
   onColumnToggle?: (columnId: string) => void;
 }
 

@@ -5,6 +5,9 @@ import {
   fetchVaConfig,
   updateVaConfig,
   downloadCrl,
+  getDefaultVAConfig,
+  missingSignerCertificateDisplay,
+  toVaUpdatePayload,
   type VaApiResponse,
   type VaUpdatePayload,
 } from './va-api'
@@ -638,6 +641,35 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
 
       expect(result.status).toBe('error')
       expect(result.errorDetails).toBeDefined()
+    })
+  })
+
+  describe('toVaUpdatePayload', () => {
+    it('sends the persisted signer serial number', () => {
+      expect(toVaUpdatePayload({
+        ...getDefaultVAConfig('ca-1'),
+        refreshInterval: '12h',
+        validity: '3d',
+        signerCertificateSerialNumber: '0a:1b',
+        regenerateOnRevoke: false,
+      })).toEqual({
+        refresh_interval: '12h',
+        validity: '3d',
+        signer_certificate_serial_number: '0a:1b',
+        regenerate_on_revoke: false,
+      })
+    })
+
+    it('sends null when no signer is configured', () => {
+      expect(toVaUpdatePayload(getDefaultVAConfig('ca-1')).signer_certificate_serial_number).toBeNull()
+    })
+  })
+
+  describe('missingSignerCertificateDisplay', () => {
+    it('keeps the configured serial number instead of a placeholder string', () => {
+      const display = missingSignerCertificateDisplay('0a:1b')
+      expect(display.serialNumber).toBe('0a:1b')
+      expect(display.subject).toBe('Unknown Certificate (Serial: 0a:1b)')
     })
   })
 })

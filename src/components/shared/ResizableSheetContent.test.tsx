@@ -53,10 +53,28 @@ describe('ResizableSheetContent', () => {
 
     const originalWidth = window.innerWidth;
     try {
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 600 });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 700 });
       fireEvent(window, new Event('resize'));
-      // 600px viewport minus the 80px gutter.
-      expect(screen.getByRole('dialog').style.width).toBe('520px');
+      // 700px viewport minus the 80px gutter.
+      expect(screen.getByRole('dialog').style.width).toBe('620px');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+
+  it("keeps the caller's mobile width below the sm breakpoint and restores the stored width above it", () => {
+    window.localStorage.setItem('resizable-sheet:test-sheet', '900');
+    const originalWidth = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+      renderSheet({ style: { width: '100%' } });
+      expect(screen.getByRole('dialog').style.width).toBe('100%');
+      expect(screen.queryByRole('separator', { name: 'Resize panel' })).not.toBeInTheDocument();
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+      fireEvent(window, new Event('resize'));
+      expect(screen.getByRole('dialog').style.width).toBe('900px');
+      expect(screen.getByRole('separator', { name: 'Resize panel' })).toBeInTheDocument();
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
     }

@@ -4,6 +4,7 @@
 import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib-crypto';
+import type { CertificateData } from '@/types/certificate';
 
 export type { OcspResponseDetails };
 export { checkOcspStatus };
@@ -46,6 +47,24 @@ export const getDefaultVAConfig = (caId: string): VAConfig => ({
   signerCertificateSerialNumber: null,
   regenerateOnRevoke: true,
 });
+
+/**
+ * PUT payload for a VA config. The signer comes from the persisted config, not from the
+ * displayed certificate, so a signer whose certificate can no longer be found is kept as is.
+ */
+export const toVaUpdatePayload = (config: VAConfig): VaUpdatePayload => ({
+  refresh_interval: config.refreshInterval,
+  validity: config.validity,
+  signer_certificate_serial_number: config.signerCertificateSerialNumber ?? null,
+  regenerate_on_revoke: config.regenerateOnRevoke,
+});
+
+/** Display stand-in for a configured CRL signer whose certificate cannot be found. */
+export const missingSignerCertificateDisplay = (serialNumber: string): CertificateData => ({
+  id: serialNumber,
+  serialNumber,
+  subject: `Unknown Certificate (Serial: ${serialNumber})`,
+} as CertificateData);
 
 
 

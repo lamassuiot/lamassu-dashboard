@@ -29,6 +29,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         validFrom: true,
         expires: true,
         status: true,
+        hasPrivateKey: true,
         revocationTime: true,
     });
 
@@ -75,6 +76,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                                 { id: 'validFrom', label: 'Valid From', visible: columnVisibility.validFrom },
                                 { id: 'expires', label: 'Expires', visible: columnVisibility.expires },
                                 { id: 'status', label: 'Status', visible: columnVisibility.status },
+                                { id: 'hasPrivateKey', label: 'Private Key', visible: columnVisibility.hasPrivateKey },
                                 { id: 'revocationTime', label: 'Revocation Time', visible: columnVisibility.revocationTime },
                             ]}
                             onColumnToggle={handleColumnToggle}

@@ -19,6 +19,8 @@ const DEFAULT_VIEWPORT_RATIO = 0.9;
 const VIEWPORT_GUTTER = 80;
 const KEYBOARD_STEP = 16;
 const KEYBOARD_STEP_LARGE = 64;
+/** Tailwind's `sm` breakpoint. Below it the caller's (usually full-width) classes always apply. */
+const SM_BREAKPOINT_PX = 640;
 
 function readStoredWidth(storageKey: string): number | null {
   try {
@@ -38,11 +40,6 @@ function storeWidth(storageKey: string, width: number) {
   }
 }
 
-/**
- * SheetContent with a draggable inner-edge handle for side panels. The panel
- * keeps its own default width classes until the user resizes, after which an
- * inline pixel width takes over and is persisted per storageKey.
- */
 function useViewportWidth(): number {
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   useEffect(() => {
@@ -53,6 +50,11 @@ function useViewportWidth(): number {
   return viewportWidth;
 }
 
+/**
+ * SheetContent with a draggable inner-edge handle for side panels. The panel
+ * keeps its own default width classes until the user resizes, after which an
+ * inline pixel width takes over and is persisted per storageKey.
+ */
 export function ResizableSheetContent({
   storageKey,
   minWidth = 320,
@@ -72,12 +74,11 @@ export function ResizableSheetContent({
   const upperBound = Math.max(minWidth, Math.min(max, viewportWidth - VIEWPORT_GUTTER));
   const clamp = useCallback((value: number) => Math.min(Math.max(value, minWidth), upperBound), [minWidth, upperBound]);
 
-  // Re-clamp a stored or dragged width whenever the bounds move (e.g. the window shrinks).
-  useEffect(() => {
-    if (width === null) return;
-    const clamped = clamp(width);
-    if (clamped !== width) setWidth(clamped);
-  }, [clamp, width]);
+  // On small viewports the handle is hidden and the caller's width classes apply; the stored
+  // width is kept and comes back on wider viewports. It is clamped at render, so a narrower
+  // window shrinks the panel without overwriting the width the user chose.
+  const resizable = (side === 'left' || side === 'right') && viewportWidth >= SM_BREAKPOINT_PX;
+  const appliedWidth = resizable && width !== null ? clamp(width) : null;
 
   // Dragging towards the panel's open edge grows it: left for a right sheet, right for a left one.
   const growDirection = side === 'left' ? 1 : -1;
@@ -107,7 +108,7 @@ export function ResizableSheetContent({
   }, [storageKey]);
 
   const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLHRElement>) => {
-    const current = width ?? contentRef.current?.offsetWidth;
+    const current = appliedWidth ?? contentRef.current?.offsetWidth;
     if (current === undefined) return;
     const step = event.shiftKey ? KEYBOARD_STEP_LARGE : KEYBOARD_STEP;
     let next: number;
@@ -131,9 +132,7 @@ export function ResizableSheetContent({
     const clamped = clamp(next);
     setWidth(clamped);
     storeWidth(storageKey, clamped);
-  }, [clamp, growDirection, minWidth, storageKey, upperBound, width]);
-
-  const resizable = side === 'left' || side === 'right';
+  }, [appliedWidth, clamp, growDirection, minWidth, storageKey, upperBound]);
 
   return (
     <SheetContent
@@ -142,8 +141,8 @@ export function ResizableSheetContent({
       className={cn(className, resizable && 'transition-none')}
       style={{
         ...style,
-        width: width === null ? style?.width : `${width}px`,
-        maxWidth: width === null ? style?.maxWidth : `${max}px`,
+        width: appliedWidth === null ? style?.width : `${appliedWidth}px`,
+        maxWidth: appliedWidth === null ? style?.maxWidth : `${max}px`,
       }}
       {...props}
     >
@@ -160,7 +159,7 @@ export function ResizableSheetContent({
           aria-label="Resize panel"
           aria-valuemin={minWidth}
           aria-valuemax={upperBound}
-          aria-valuenow={width ?? undefined}
+          aria-valuenow={appliedWidth ?? undefined}
           className={cn(
             'absolute inset-y-0 z-20 m-0 h-auto w-1.5 cursor-ew-resize touch-none border-0 bg-transparent transition-colors hover:bg-border focus-visible:bg-ring focus-visible:outline-none',
             side === 'left' ? 'right-0' : 'left-0'

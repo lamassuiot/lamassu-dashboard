@@ -18,7 +18,7 @@ import { Sheet, SheetHeader, SheetTitle, SheetDescription } from '@/components/u
 import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, missingSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
@@ -114,18 +114,14 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
       }
 
       if (newConfig.signerCertificateSerialNumber) {
-        const signerSki = newConfig.signerCertificateSerialNumber;
+        const signerSerial = newConfig.signerCertificateSerialNumber;
         const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSki)}&page_size=1`
+          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`
         });
         if (certificates.length > 0) {
           setSelectedCertificateSignerDisplay(certificates[0]);
         } else {
-          setSelectedCertificateSignerDisplay({
-            id: signerSki,
-            serialNumber: 'Unknown',
-            subject: `Unknown Certificate (SKI: ${signerSki})`,
-          } as CertificateData);
+          setSelectedCertificateSignerDisplay(missingSignerCertificateDisplay(signerSerial));
         }
       }
     } catch (e: any) {
@@ -192,14 +188,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        refresh_interval: config.refreshInterval,
-        validity: config.validity,
-        signer_certificate_serial_number: selectedCertificateSignerDisplay?.serialNumber || null,
-        regenerate_on_revoke: config.regenerateOnRevoke,
-      };
-
-      await updateVaConfig(ca.subjectKeyId, payload);
+      await updateVaConfig(ca.subjectKeyId, toVaUpdatePayload(config));
 
       sileo.success({
         title: "Success!",

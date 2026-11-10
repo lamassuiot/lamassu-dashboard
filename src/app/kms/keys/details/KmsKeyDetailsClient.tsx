@@ -1005,6 +1005,8 @@ export default function KmsKeyDetailsClient() {
                           onCertificateUpdated={handleBoundCertificateUpdated}
                           sortConfig={boundCertificatesSort}
                           requestSort={handleBoundCertificatesSort}
+                          // Every certificate here is bound to this key, so the column would repeat one value.
+                          columnVisibility={{ hasPrivateKey: false }}
                         />
                       ) : (
                         <p className="text-sm text-muted-foreground py-4">No related certificates found.</p>
