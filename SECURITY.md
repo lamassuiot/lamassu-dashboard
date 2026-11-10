@@ -6,7 +6,7 @@
 pull requests.**
 
 Instead, please report vulnerabilities privately using
-[GitHub Security Advisories](../../security/advisories/new) for this repository. This allows
+[GitHub Security Advisories](https://github.com/lamassuiot/lamassu-dashboard/security/advisories/new) for this repository. This allows
 maintainers to assess and address the issue before it is publicly disclosed.
 
 If private vulnerability reporting is not enabled for this repository, report the vulnerability
