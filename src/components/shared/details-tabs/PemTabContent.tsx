@@ -3,7 +3,6 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Copy, Check, Download, ChevronRight, FileCode, Link2, ShieldCheck } from "lucide-react";
 import { sileo } from '@/lib/toast';
@@ -26,7 +25,7 @@ interface PemTabContentProps {
 // ── Render PEM with highlighted BEGIN/END markers ─────────────────────────────
 
 function HighlightedPem({ pem }: { pem: string }) {
-  const lines = pem.replaceAll('\\n', '\n').split('\n');
+  const lines = pem.replaceAll('\\n', '\n').trim().split('\n');
   return (
     <>
       {lines.map((line, i) => (
@@ -56,7 +55,7 @@ interface PemCardProps {
   itemName: string;
 }
 
-function PemCard({ title, subtitle, icon: Icon, badge, pem, filename }: Readonly<PemCardProps>) {
+export function PemCard({ title, subtitle, icon: Icon, badge, pem, filename }: Readonly<PemCardProps>) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -115,11 +114,11 @@ function PemCard({ title, subtitle, icon: Icon, badge, pem, filename }: Readonly
 
       {/* PEM body */}
       {pem ? (
-        <ScrollArea className="h-72 bg-muted/10 flex-1">
+        <div className="flex-1 bg-muted/10">
           <pre className="p-5 text-xs font-mono leading-relaxed whitespace-pre-wrap break-all">
             <HighlightedPem pem={pem} />
           </pre>
-        </ScrollArea>
+        </div>
       ) : (
         <div className="flex h-32 items-center justify-center text-sm text-muted-foreground bg-muted/10">
           No PEM data available.
