@@ -116,7 +116,8 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
       if (newConfig.signerCertificateSerialNumber) {
         const signerSerial = newConfig.signerCertificateSerialNumber;
         const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`
+          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`,
+          forCaId: ca.id
         });
         if (certificates.length > 0) {
           setSelectedCertificateSignerDisplay(certificates[0]);

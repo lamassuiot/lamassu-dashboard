@@ -118,7 +118,8 @@ export function VerificationAuthoritiesClient() {
       if (newConfig.signerCertificateSerialNumber) {
         const signerSerial = newConfig.signerCertificateSerialNumber;
         const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`
+          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`,
+          forCaId: selectedCaForConfig.id
         });
         if (certificates.length > 0) {
           setSelectedCertificateSignerDisplay(certificates[0]);
