@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCaKmsKeyUri, kmsKeyDetailsHref } from './kms-key-uri';
+import { buildCaKmsKeyUri, buildCertificateKmsKeyUri, kmsKeyDetailsHref } from './kms-key-uri';
 
 describe('buildCaKmsKeyUri', () => {
   it('builds the pkcs11 URI shape the KMS backend returns and resolves', () => {
@@ -10,6 +10,28 @@ describe('buildCaKmsKeyUri', () => {
   it('returns null when the engine or key id is missing', () => {
     expect(buildCaKmsKeyUri({ kmsKeyId: 'filesystem-1' })).toBeNull();
     expect(buildCaKmsKeyUri({ keyId: 'ab12cd' })).toBeNull();
+  });
+});
+
+describe('buildCertificateKmsKeyUri', () => {
+  it('names the engine so the key resolves when several engines hold it', () => {
+    expect(buildCertificateKmsKeyUri({
+      hasPrivateKey: true,
+      rawApiData: { engine_id: 'pkcs11-1', key_id: 'ab12cd' },
+    })).toBe('pkcs11:token-id=pkcs11-1;id=ab12cd;type=private');
+  });
+
+  it('returns null when the KMS does not hold the private key', () => {
+    expect(buildCertificateKmsKeyUri({
+      hasPrivateKey: false,
+      rawApiData: { engine_id: 'pkcs11-1', key_id: 'ab12cd' },
+    })).toBeNull();
+  });
+
+  it('returns null when the engine or key id is missing', () => {
+    expect(buildCertificateKmsKeyUri({ hasPrivateKey: true, rawApiData: { key_id: 'ab12cd' } })).toBeNull();
+    expect(buildCertificateKmsKeyUri({ hasPrivateKey: true, rawApiData: { engine_id: 'pkcs11-1' } })).toBeNull();
+    expect(buildCertificateKmsKeyUri({ hasPrivateKey: true })).toBeNull();
   });
 });
 

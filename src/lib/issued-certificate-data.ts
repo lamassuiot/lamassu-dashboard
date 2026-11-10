@@ -46,6 +46,7 @@ export interface ApiIssuedCertificateItem {
   revocation_reason?: string;
   type?: string;
   engine_id?: string;
+  key_id?: string; // KMS key ID of the certificate's key, empty when the KMS does not hold it
   is_ca: boolean;
   has_private_key: boolean;
 }

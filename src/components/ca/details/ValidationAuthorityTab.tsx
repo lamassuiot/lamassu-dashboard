@@ -410,7 +410,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
               <Sheet open={isCrlSheetOpen} onOpenChange={setIsCrlSheetOpen}>
                 <ResizableSheetContent
                   storageKey="va-crl"
-                  className="overflow-y-auto p-6 sm:!w-[80vw] sm:!max-w-[80vw] lg:!w-[50vw] lg:!max-w-[50vw]"
+                  className="overflow-y-auto p-6 data-[side=right]:sm:w-[80vw] data-[side=right]:sm:max-w-[80vw] data-[side=right]:lg:w-[50vw] data-[side=right]:lg:max-w-[50vw]"
                 >
                   <SheetHeader>
                     <SheetTitle className="flex items-center gap-2">

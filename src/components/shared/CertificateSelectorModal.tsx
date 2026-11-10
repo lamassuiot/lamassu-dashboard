@@ -113,6 +113,7 @@ function caToCertificateData(ca: CA): CertificateData {
     apiStatus: rawCertificate?.status ?? ca.status.toUpperCase(),
     revocationReason: rawCertificate?.revocation_reason,
     revocationTimestamp: rawCertificate?.revocation_timestamp,
+    hasPrivateKey: rawCertificate?.has_private_key,
     rawApiData: rawCertificate ?? {
       is_ca: ca.isCa ?? true,
       subject_key_id: subjectKeyId,
@@ -259,11 +260,13 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
       if (includeCaCertificates && selectedCa && !bookmarkToFetch) {
         const caCertificate = caToCertificateData(selectedCa);
+        // The API results honour requirePrivateKey; the CA row is added locally, so it must too.
+        const caCertificateAllowed = !requirePrivateKey || caCertificate.hasPrivateKey === true;
         const caCertificateSerial = normalizeSerialNumber(caCertificate.serialNumber);
         const hasCaCertificate = certificates.some((cert) => (
           normalizeSerialNumber(cert.serialNumber) === caCertificateSerial
         ));
-        if (!hasCaCertificate) {
+        if (caCertificateAllowed && !hasCaCertificate) {
           certificates = [caCertificate, ...certificates];
         }
       }

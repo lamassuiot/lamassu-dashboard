@@ -1,0 +1,64 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { Sheet, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { ResizableSheetContent } from './ResizableSheetContent';
+
+function renderSheet(props: Partial<React.ComponentProps<typeof ResizableSheetContent>> = {}) {
+  return render(
+    <Sheet open>
+      <ResizableSheetContent storageKey="test-sheet" {...props}>
+        <SheetTitle>Panel</SheetTitle>
+        <SheetDescription>Body</SheetDescription>
+      </ResizableSheetContent>
+    </Sheet>
+  );
+}
+
+describe('ResizableSheetContent', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("keeps the caller's width and max-width until the panel is resized", () => {
+    renderSheet({ style: { width: '50vw', maxWidth: '50vw' } });
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.style.width).toBe('50vw');
+    expect(dialog.style.maxWidth).toBe('50vw');
+  });
+
+  it('resizes from the keyboard, clamps to the bounds and persists the width', () => {
+    renderSheet({ minWidth: 400 });
+
+    const handle = screen.getByRole('separator', { name: 'Resize panel' });
+    expect(handle).toHaveAttribute('tabindex', '0');
+
+    fireEvent.keyDown(handle, { key: 'Home' });
+    expect(screen.getByRole('dialog').style.width).toBe('400px');
+    expect(handle).toHaveAttribute('aria-valuenow', '400');
+
+    // A right-hand sheet grows when its left edge moves left.
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' });
+    expect(screen.getByRole('dialog').style.width).toBe('416px');
+    expect(window.localStorage.getItem('resizable-sheet:test-sheet')).toBe('416');
+
+    fireEvent.keyDown(handle, { key: 'ArrowRight', shiftKey: true });
+    expect(screen.getByRole('dialog').style.width).toBe('400px');
+  });
+
+  it('shrinks a stored width when the window becomes narrower', () => {
+    window.localStorage.setItem('resizable-sheet:test-sheet', '900');
+    renderSheet();
+    expect(screen.getByRole('dialog').style.width).toBe('900px');
+
+    const originalWidth = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 600 });
+      fireEvent(window, new Event('resize'));
+      // 600px viewport minus the 80px gutter.
+      expect(screen.getByRole('dialog').style.width).toBe('520px');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+});

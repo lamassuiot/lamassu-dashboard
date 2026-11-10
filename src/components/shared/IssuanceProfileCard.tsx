@@ -5,7 +5,7 @@ import {
   Edit, FileInput, FileText, KeyRound, Lock, MoreVertical, ScrollText, Shield, ShieldCheck, Trash2, User, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -95,10 +95,10 @@ const MAX_USAGE_CHIPS = 5;
 
 type ChipKind = 'ku' | 'eku' | 'csr';
 
-const chipClass: Record<ChipKind, string> = {
-  ku: 'border-border bg-muted text-foreground',
-  eku: 'border-primary/20 bg-primary/10 text-primary',
-  csr: 'border-dashed border-amber-500/50 bg-transparent text-amber-700 dark:text-amber-400',
+const chipVariant: Record<ChipKind, BadgeVariant> = {
+  ku: 'muted',
+  eku: 'default',
+  csr: 'warning',
 };
 
 interface UsageChip {
@@ -131,20 +131,22 @@ function ChipList({ chips, max, empty = 'None' }: Readonly<{ chips: UsageChip[];
   return (
     <div className="flex flex-wrap gap-1">
       {shown.map(chip => (
-        <span
+        <Badge
           key={chip.key}
-          className={cn('inline-flex h-5 items-center rounded border px-1.5 text-[11px]', chipClass[chip.kind])}
+          size="xs"
+          variant={chipVariant[chip.kind]}
+          className={cn(chip.kind === 'csr' && 'border-dashed')}
         >
           {chip.label}
-        </span>
+        </Badge>
       ))}
       {hidden.length > 0 && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex h-5 cursor-default items-center rounded border px-1.5 text-[11px] text-muted-foreground">
+              <Badge size="xs" variant="muted" className="cursor-default">
                 +{hidden.length}
-              </span>
+              </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-56">
               {hidden.map(c => c.label).join(', ')}
