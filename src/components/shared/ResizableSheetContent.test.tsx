@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Sheet, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { ResizableSheetContent } from './ResizableSheetContent';
@@ -77,6 +77,33 @@ describe('ResizableSheetContent', () => {
       expect(screen.getByRole('separator', { name: 'Resize panel' })).toBeInTheDocument();
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+
+  it('drops an active drag when the handle disappears, so a later hover does not resize', () => {
+    // jsdom does not implement pointer capture.
+    const capture = vi.spyOn(HTMLElement.prototype, 'setPointerCapture').mockImplementation(() => {});
+    const hasCapture = vi.spyOn(HTMLElement.prototype, 'hasPointerCapture').mockReturnValue(false);
+    const originalWidth = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+      renderSheet();
+      fireEvent.pointerDown(screen.getByRole('separator', { name: 'Resize panel' }), { clientX: 1000, pointerId: 1 });
+
+      // The viewport drops below sm mid-drag: the handle unmounts before any pointerup.
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+      fireEvent(window, new Event('resize'));
+      expect(screen.queryByRole('separator', { name: 'Resize panel' })).not.toBeInTheDocument();
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+      fireEvent(window, new Event('resize'));
+      fireEvent.pointerMove(screen.getByRole('separator', { name: 'Resize panel' }), { clientX: 500, pointerId: 1 });
+
+      expect(screen.getByRole('dialog').style.width).toBe('');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+      capture.mockRestore();
+      hasCapture.mockRestore();
     }
   });
 });

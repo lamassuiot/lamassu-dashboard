@@ -16,9 +16,8 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, missingSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, fetchSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
@@ -115,15 +114,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
       if (newConfig.signerCertificateSerialNumber) {
         const signerSerial = newConfig.signerCertificateSerialNumber;
-        const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`,
-          forCaId: ca.id
-        });
-        if (certificates.length > 0) {
-          setSelectedCertificateSignerDisplay(certificates[0]);
-        } else {
-          setSelectedCertificateSignerDisplay(missingSignerCertificateDisplay(signerSerial));
-        }
+        setSelectedCertificateSignerDisplay(await fetchSignerCertificateDisplay(signerSerial));
       }
     } catch (e: any) {
       setErrorConfig(e.message || "An unknown error occurred.");

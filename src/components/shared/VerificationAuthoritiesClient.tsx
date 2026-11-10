@@ -17,9 +17,8 @@ import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, missingSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, fetchSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
@@ -117,15 +116,7 @@ export function VerificationAuthoritiesClient() {
 
       if (newConfig.signerCertificateSerialNumber) {
         const signerSerial = newConfig.signerCertificateSerialNumber;
-        const { certificates } = await fetchIssuedCertificates({
-          apiQueryString: `filter=serial_number[equal]${encodeURIComponent(signerSerial)}&page_size=1`,
-          forCaId: selectedCaForConfig.id
-        });
-        if (certificates.length > 0) {
-          setSelectedCertificateSignerDisplay(certificates[0]);
-        } else {
-          setSelectedCertificateSignerDisplay(missingSignerCertificateDisplay(signerSerial));
-        }
+        setSelectedCertificateSignerDisplay(await fetchSignerCertificateDisplay(signerSerial));
       }
 
     } catch (e: any) {

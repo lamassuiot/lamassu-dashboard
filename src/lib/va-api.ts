@@ -5,6 +5,7 @@ import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from '.
 import { apiFetch } from './api-client';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib-crypto';
 import type { CertificateData } from '@/types/certificate';
+import { fetchIssuedCertificate } from './issued-certificate-data';
 
 export type { OcspResponseDetails };
 export { checkOcspStatus };
@@ -65,6 +66,16 @@ export const missingSignerCertificateDisplay = (serialNumber: string): Certifica
   serialNumber,
   subject: `Unknown Certificate (Serial: ${serialNumber})`,
 } as CertificateData);
+
+/**
+ * Certificate to display for a VA's configured CRL signer. It is looked up by serial number
+ * across all CAs, as the VA backend resolves it: the default signer is the CA's own
+ * certificate, which its parent issued, so a lookup limited to the CA's issued certificates
+ * would miss it. Serial numbers are the certificates' primary key, so the match is unique.
+ */
+export async function fetchSignerCertificateDisplay(serialNumber: string): Promise<CertificateData> {
+  return (await fetchIssuedCertificate(serialNumber)) ?? missingSignerCertificateDisplay(serialNumber);
+}
 
 
 

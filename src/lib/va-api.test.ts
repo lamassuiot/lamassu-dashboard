@@ -1,16 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
+import { fetchIssuedCertificate } from './issued-certificate-data'
+import type { CertificateData } from '@/types/certificate'
 import {
   fetchVaConfig,
   updateVaConfig,
   downloadCrl,
+  fetchSignerCertificateDisplay,
   getDefaultVAConfig,
   missingSignerCertificateDisplay,
   toVaUpdatePayload,
   type VaApiResponse,
   type VaUpdatePayload,
 } from './va-api'
+
+vi.mock('./issued-certificate-data', () => ({
+  fetchIssuedCertificate: vi.fn(),
+}))
+
+const fetchIssuedCertificateMock = vi.mocked(fetchIssuedCertificate)
 
 const MOCK_TOKEN = 'test-access-token'
 const VA_API_BASE = 'https://api.test.lamassu.io/va/v1'
@@ -670,6 +679,24 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
       const display = missingSignerCertificateDisplay('0a:1b')
       expect(display.serialNumber).toBe('0a:1b')
       expect(display.subject).toBe('Unknown Certificate (Serial: 0a:1b)')
+    })
+  })
+
+  describe('fetchSignerCertificateDisplay', () => {
+    it('looks the signer up by serial number across all CAs', async () => {
+      // A CA's default signer is its own certificate, which its parent issued, so the lookup
+      // must not be limited to the certificates the CA itself issued.
+      const signer = { serialNumber: '0a-1b', subject: 'CN=Sub CA' } as CertificateData
+      fetchIssuedCertificateMock.mockResolvedValueOnce(signer)
+
+      await expect(fetchSignerCertificateDisplay('0a-1b')).resolves.toBe(signer)
+      expect(fetchIssuedCertificateMock).toHaveBeenCalledWith('0a-1b')
+    })
+
+    it('falls back to the unknown-certificate display when the serial does not exist', async () => {
+      fetchIssuedCertificateMock.mockResolvedValueOnce(null)
+
+      await expect(fetchSignerCertificateDisplay('0a-1b')).resolves.toEqual(missingSignerCertificateDisplay('0a-1b'))
     })
   })
 })

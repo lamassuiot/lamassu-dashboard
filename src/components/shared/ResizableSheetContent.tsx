@@ -80,6 +80,12 @@ export function ResizableSheetContent({
   const resizable = (side === 'left' || side === 'right') && viewportWidth >= SM_BREAKPOINT_PX;
   const appliedWidth = resizable && width !== null ? clamp(width) : null;
 
+  // The handle unmounts when resizing becomes unavailable, possibly mid-drag and before any
+  // pointerup; drop the drag so the next handle does not follow a pointer with no button pressed.
+  useEffect(() => {
+    if (!resizable) dragStateRef.current = null;
+  }, [resizable]);
+
   // Dragging towards the panel's open edge grows it: left for a right sheet, right for a left one.
   const growDirection = side === 'left' ? 1 : -1;
 
@@ -100,7 +106,10 @@ export function ResizableSheetContent({
   const endDrag = useCallback((event: React.PointerEvent<HTMLHRElement>) => {
     if (!dragStateRef.current) return;
     dragStateRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    // Also runs on lostpointercapture, when the capture is already gone.
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     setWidth((current) => {
       if (current !== null) storeWidth(storageKey, current);
       return current;
@@ -168,6 +177,7 @@ export function ResizableSheetContent({
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
           onKeyDown={onKeyDown}
         />
       )}
