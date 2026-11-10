@@ -4,6 +4,7 @@ import { get_CA_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 import { parseCertificatePemDetails } from './ca-data';
 import { base64ToPem } from '@/lib-crypto';
+import { parseKeyOrigin } from './key-origin';
 
 
 // API Response Structures for Issued Certificates
@@ -47,6 +48,8 @@ export interface ApiIssuedCertificateItem {
   type?: string;
   engine_id?: string;
   key_id?: string; // KMS key ID of the certificate's key, empty when the KMS does not hold it
+  /** Origin of the certificate's key in the KMS; empty when the KMS holds no key for it. */
+  key_origin?: string;
   is_ca: boolean;
   has_private_key: boolean;
 }
@@ -111,6 +114,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     publicKeyAlgorithm,
     fingerprintSha256: parsedDetails.fingerprintSha256,
     issuerCaId: apiCert.issuer_metadata.id,
+    keyOrigin: parseKeyOrigin(apiCert.key_origin),
     rawApiData: apiCert,
     // Populate fields from parsed details
     sans: parsedDetails.sans,

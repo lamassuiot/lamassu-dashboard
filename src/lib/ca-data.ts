@@ -4,6 +4,7 @@
 import { parseCertificatePemDetails, type ParsedPemDetails, abToHex, base64ToPem } from "@/lib-crypto";
 import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 import { apiFetch } from "./api-client";
+import { parseKeyOrigin, type KeyOrigin } from "./key-origin";
 
 // API Response Structures
 interface ApiKeyMetadata {
@@ -47,6 +48,7 @@ interface ApiCertificateData {
   engine_id?: string; // To be used as kmsKeyId
   key_id?: string; // KMS key ID of the CA's signing key
   has_private_key?: boolean; // Whether the KMS holds the CA's private key
+  key_origin?: string; // Origin of the CA's key in the KMS; empty when the KMS holds no key for it
   is_ca: boolean;
 }
 
@@ -91,6 +93,7 @@ export interface CA {
   level?: number; // Store the original level from API
   rawApiData?: ApiCaItem; // Optional: store raw for debugging or more details
   caType?: string;
+  keyOrigin?: KeyOrigin; // Origin of the CA's key in the KMS; undefined when the KMS holds no key
   defaultIssuanceLifetime?: string;
   defaultProfileId?: string;
   // Optional fields that will be parsed on demand
@@ -183,6 +186,7 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
     level: apiCa.level,
     rawApiData: apiCa,
     caType: apiCa.certificate.type,
+    keyOrigin: parseKeyOrigin(apiCa.certificate.key_origin),
     defaultIssuanceLifetime: defaultIssuanceLifetime, // Kept for display purposes
     defaultProfileId: apiCa.profile_id,
     // Parsed fields are intentionally left undefined for lazy parsing

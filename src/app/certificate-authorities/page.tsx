@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { filterCaList, hasActiveCaFilters } from '@/lib/ca-utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
+import { CERTIFICATE_KEY_ORIGIN_OPTIONS, type CertificateKeyOrigin } from '@/lib/key-origin';
 
 
 const CaHierarchyView = dynamic(() => 
@@ -95,6 +96,7 @@ export default function CertificateAuthoritiesPage() {
   const [filterText, setFilterText] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<CaTypeFilter[]>([]);
+  const [selectedKeyOrigins, setSelectedKeyOrigins] = useState<CertificateKeyOrigin[]>([]);
   const [focusedField, setFocusedField] = useState<'search' | null>(null);
 
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
@@ -134,7 +136,10 @@ export default function CertificateAuthoritiesPage() {
     loadData();
   }, [loadData]);
 
-  const filters = useMemo(() => ({ filterText, selectedStatuses, selectedTypes }), [filterText, selectedStatuses, selectedTypes]);
+  const filters = useMemo(
+    () => ({ filterText, selectedStatuses, selectedTypes, selectedKeyOrigins }),
+    [filterText, selectedStatuses, selectedTypes, selectedKeyOrigins],
+  );
   const filteredCAs = useMemo(() => filterCaList(cas, filters), [cas, filters]);
   const isFiltering = hasActiveCaFilters(filters);
   const needsEngines = ENGINE_VIEWS.has(viewMode);
@@ -183,7 +188,7 @@ export default function CertificateAuthoritiesPage() {
       </div>
 
           <div
-            className="grid items-end gap-3 mb-4 grid-cols-1 md:grid-cols-[minmax(180px,var(--col1))_minmax(210px,350px)_minmax(210px,350px)_auto]"
+            className="grid items-end gap-3 mb-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(180px,var(--col1))_minmax(180px,300px)_minmax(180px,300px)_minmax(180px,300px)_auto]"
             style={{
               '--col1': focusedField === 'search' ? '2.2fr' : '0.5fr',
               transition: 'grid-template-columns 300ms ease',
@@ -225,6 +230,18 @@ export default function CertificateAuthoritiesPage() {
                     selectedValues={selectedTypes}
                     onChange={setSelectedTypes as (selected: string[]) => void}
                     buttonText="All Types"
+                    className="h-9 min-h-9"
+                 />
+            </div>
+            <div className="w-full max-w-[350px] space-y-1.5">
+                 <Label htmlFor="key-origin-filter">Key Origin</Label>
+                 <MultiSelectDropdown
+                    id="key-origin-filter"
+                    options={CERTIFICATE_KEY_ORIGIN_OPTIONS}
+                    allOptionValues={CERTIFICATE_KEY_ORIGIN_OPTIONS.map(o => o.value)}
+                    selectedValues={selectedKeyOrigins}
+                    onChange={setSelectedKeyOrigins as (selected: string[]) => void}
+                    buttonText="All Key Origins"
                     className="h-9 min-h-9"
                  />
             </div>

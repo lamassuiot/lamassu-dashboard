@@ -163,6 +163,29 @@ describe('ca-utils', () => {
       expect(result[0].caType).toBe('IMPORTED_WITHOUT_KEY')
     })
 
+    it('should filter by key origin, matching CAs without a KMS key as NONE', () => {
+      const tree = [
+        makeCa({ id: 'local', name: 'Local', keyOrigin: 'LOCAL', children: [] }),
+        makeCa({ id: 'imported', name: 'Imported', keyOrigin: 'IMPORTED', children: [] }),
+        makeCa({ id: 'unknown', name: 'Unknown', keyOrigin: 'UNKNOWN', children: [] }),
+        makeCa({ id: 'no-key', name: 'No key', children: [] }),
+      ]
+
+      expect(filterCaList(tree, { selectedKeyOrigins: ['LOCAL'] }).map(ca => ca.id)).toEqual(['local'])
+      expect(filterCaList(tree, { selectedKeyOrigins: ['IMPORTED', 'UNKNOWN'] }).map(ca => ca.id)).toEqual(['imported', 'unknown'])
+      expect(filterCaList(tree, { selectedKeyOrigins: ['NONE'] }).map(ca => ca.id)).toEqual(['no-key'])
+    })
+
+    it('should keep the ancestors of a CA matching the key origin filter', () => {
+      const tree = [
+        makeCa({ id: 'root', name: 'Root', children: [makeCa({ id: 'child', name: 'Child', keyOrigin: 'LOCAL', children: [] })] }),
+      ]
+
+      const result = filterCaList(tree, { selectedKeyOrigins: ['LOCAL'] })
+      expect(result.map(ca => ca.id)).toEqual(['root'])
+      expect(result[0].children!.map(ca => ca.id)).toEqual(['child'])
+    })
+
     it('should filter by text - case insensitive match', () => {
       const result = filterCaList(mockCaTree, {
         filterText: 'intermediate',

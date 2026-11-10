@@ -30,21 +30,23 @@ import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVis
 import { useSortState } from '@/hooks/useSortState';
 import { useTreeCollapse } from '@/hooks/useTreeCollapse';
 import { cn } from '@/lib/utils';
+import { KeyOriginBadge } from '@/components/shared/KeyOriginBadge';
 
-type SortableColumn = 'name' | 'expires';
-type ColumnId = 'name' | 'status' | 'type' | 'key' | 'expires' | 'parentExpiry';
+type SortableColumn = 'name' | 'expires' | 'keyOrigin';
+type ColumnId = 'name' | 'status' | 'type' | 'key' | 'keyOrigin' | 'expires' | 'parentExpiry';
 
 const PAGE_COLUMNS: ColumnDefinition<ColumnId>[] = [
   { id: 'name', label: 'Certification Authority', alwaysVisible: true },
   { id: 'status', label: 'Status' },
   { id: 'type', label: 'Type' },
   { id: 'key', label: 'Key' },
+  { id: 'keyOrigin', label: 'Key Origin' },
   { id: 'expires', label: 'Expires' },
   { id: 'parentExpiry', label: 'Expires vs. parent' },
 ];
 
 // Pickers live in dialogs and drawers, so they start with a narrower set of columns.
-const PICKER_HIDDEN_BY_DEFAULT: ReadonlySet<ColumnId> = new Set(['type', 'parentExpiry']);
+const PICKER_HIDDEN_BY_DEFAULT: ReadonlySet<ColumnId> = new Set(['type', 'keyOrigin', 'parentExpiry']);
 const PICKER_COLUMNS: ColumnDefinition<ColumnId>[] = PAGE_COLUMNS.map((column) => ({
   ...column,
   defaultVisible: !PICKER_HIDDEN_BY_DEFAULT.has(column.id),
@@ -425,6 +427,11 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
           <KeyCell ca={ca} engine={engine} asLink={!isPicker} />
         </TableCell>
       )}
+      {isVisible('keyOrigin') && (
+        <TableCell>
+          <KeyOriginBadge origin={ca.keyOrigin} />
+        </TableCell>
+      )}
       {isVisible('expires') && (
         <TableCell>
           <DateDisplay date={ca.expires} className="text-xs" relativeClassName="text-xs" />
@@ -461,10 +468,12 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
       ...CA_TREE,
       collapsedIds,
       isMatch: isFiltering ? (ca: CA) => caMatchesFilters(ca, filters) : undefined,
-      compare: (a, b) =>
-        sortColumn === 'expires'
-          ? (parseCaExpiry(a.expires).getTime() - parseCaExpiry(b.expires).getTime()) * factor
-          : a.name.localeCompare(b.name) * factor,
+      compare: (a, b) => {
+        if (sortColumn === 'expires') return (parseCaExpiry(a.expires).getTime() - parseCaExpiry(b.expires).getTime()) * factor;
+        // CAs without a KMS key have no origin and sort first, like the API's empty key_origin.
+        if (sortColumn === 'keyOrigin') return ((a.keyOrigin ?? '').localeCompare(b.keyOrigin ?? '') || a.name.localeCompare(b.name)) * factor;
+        return a.name.localeCompare(b.name) * factor;
+      },
     });
   }, [cas, collapsedIds, isFiltering, filters, sortColumn, sortDirection]);
 
@@ -492,6 +501,9 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
               {isVisible('status') && <TableHead className="w-[110px]">Status</TableHead>}
               {isVisible('type') && <TableHead className="w-[170px]">Type</TableHead>}
               {isVisible('key') && <TableHead className="w-[180px]">Key</TableHead>}
+              {isVisible('keyOrigin') && (
+                <SortableTableHead column="keyOrigin" title="Key Origin" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" className="w-[150px]" />
+              )}
               {isVisible('expires') && (
                 <SortableTableHead column="expires" title="Expires" activeColumn={sortColumn} direction={sortDirection} onSort={requestSort} align="left" isDateColumn className="w-[160px]" />
               )}

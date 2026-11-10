@@ -43,6 +43,8 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
+import { KeyOriginBadge } from '@/components/shared/KeyOriginBadge';
+import { KEY_ORIGIN_DESCRIPTIONS, parseKeyOrigin, type KeyOrigin } from '@/lib/key-origin';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface KmsKeyDetailed {
@@ -52,6 +54,7 @@ interface KmsKeyDetailed {
   algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'Unknown';
   keySize?: string | number;
   hasPrivateKey: boolean;
+  origin: KeyOrigin;
   publicKeyPem?: string;
   cryptoEngineId?: string;
   createdAt?: string;
@@ -195,6 +198,8 @@ export default function KmsKeyDetailsClient() {
           return certificate.revocationTimestamp ? new Date(certificate.revocationTimestamp).getTime() : 0;
         case 'hasPrivateKey':
           return certificate.hasPrivateKey ? 1 : 0;
+        case 'keyOrigin':
+          return certificate.keyOrigin ?? '';
       }
     };
 
@@ -413,6 +418,7 @@ export default function KmsKeyDetailsClient() {
           algorithm: normalizedAlgorithm,
           keySize: resolvedKeySize,
           hasPrivateKey: apiKey.has_private_key,
+          origin: parseKeyOrigin(apiKey.origin) ?? 'UNKNOWN',
           publicKeyPem: pem,
           cryptoEngineId: apiKey.engine_id,
           createdAt: apiKey.creation_ts,
@@ -730,9 +736,12 @@ export default function KmsKeyDetailsClient() {
       <DetailHero
         title={keyDetails.alias}
         badges={
-          <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'warning'} dot>
-            {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
-          </Badge>
+          <>
+            <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'warning'} dot>
+              {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
+            </Badge>
+            <KeyOriginBadge origin={keyDetails.origin} />
+          </>
         }
         idLabel="Key ID"
         id={keyDetails.id}
@@ -934,7 +943,7 @@ export default function KmsKeyDetailsClient() {
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>
                   <p className="font-semibold">Technical Profile</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Algorithm, strength, access mode, and engine placement.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Algorithm, strength, access mode, origin, and engine placement.</p>
                 </div>
                 <div className="lg:col-span-2">
                   <div className="divide-y">
@@ -962,6 +971,13 @@ export default function KmsKeyDetailsClient() {
                       <Badge variant={keyDetails.hasPrivateKey ? 'success' : 'muted'}>
                         {keyDetails.hasPrivateKey ? 'Present' : 'Read Only'}
                       </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 py-3">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Key Origin</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{KEY_ORIGIN_DESCRIPTIONS[keyDetails.origin]}</p>
+                      </div>
+                      <KeyOriginBadge origin={keyDetails.origin} />
                     </div>
                     {(cryptoEngine || keyDetails.cryptoEngineId) && (
                       <div className="py-3 last:pb-0">

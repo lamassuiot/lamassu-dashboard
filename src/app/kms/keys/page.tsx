@@ -26,11 +26,15 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { format } from 'date-fns';
+import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
+import { parseKeyOrigin, type KeyOrigin } from '@/lib/key-origin';
+import { KeyOriginBadge } from '@/components/shared/KeyOriginBadge';
 
 interface KmsKey {
   id: string;
   keyTypeDisplay: string;
   hasPrivateKey: boolean;
+  origin?: KeyOrigin;
   cryptoEngineId?: string;
   algorithm: string;
   size: string;
@@ -41,7 +45,7 @@ interface KmsKey {
   creationTimestamp?: string;
 }
 
-type KmsSortColumn = 'creation_ts';
+type KmsSortColumn = 'creation_ts' | 'name' | 'algorithm' | 'has_private_key' | 'origin' | 'engine_id';
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { column: KmsSortColumn; direction: SortDirection }
 
@@ -77,6 +81,8 @@ export default function KmsKeysPage() {
   const [debouncedAlgorithmFilters, setDebouncedAlgorithmFilters] = useState<string[]>([]);
   const [privateKeyFilter, setPrivateKeyFilter] = useState<KmsPrivateKeyFilterValue>(DEFAULT_KMS_PRIVATE_KEY_FILTER);
   const [debouncedPrivateKeyFilter, setDebouncedPrivateKeyFilter] = useState<KmsPrivateKeyFilterValue>(DEFAULT_KMS_PRIVATE_KEY_FILTER);
+  const [originFilters, setOriginFilters] = useState<KeyOrigin[]>([]);
+  const [debouncedOriginFilters, setDebouncedOriginFilters] = useState<KeyOrigin[]>([]);
   const [tagsFilter, setTagsFilter] = useState<string>('');
   const [debouncedTagsFilter, setDebouncedTagsFilter] = useState<string>('');
   const [creationDateFilter, setCreationDateFilter] = useState<KmsDateFilterValue>({ operator: DEFAULT_KMS_DATE_OPERATOR });
@@ -128,6 +134,15 @@ export default function KmsKeysPage() {
 
     return () => clearTimeout(timer);
   }, [privateKeyFilter]);
+
+  // Debounce effect for origin filters
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedOriginFilters(originFilters);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [originFilters]);
 
   // Debounce effect for tags filter
   useEffect(() => {
@@ -190,6 +205,14 @@ export default function KmsKeysPage() {
         params.append('filter', `has_private_key[equal]${debouncedPrivateKeyFilter}`);
       }
 
+      // Add origin filters if provided (single -> equal, multiple -> in)
+      appendSingleOrMultiFilter(
+        params,
+        debouncedOriginFilters,
+        (value) => `origin[equal]${value}`,
+        (values) => `origin[in]${values.join(',')}`
+      );
+
       // Add tags filter if provided
       const trimmedTagsFilter = debouncedTagsFilter.trim();
       if (trimmedTagsFilter !== '') {
@@ -224,6 +247,7 @@ export default function KmsKeysPage() {
           name: apiKey.name,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
           hasPrivateKey: apiKey.has_private_key,
+          origin: parseKeyOrigin(apiKey.origin) ?? 'UNKNOWN',
           cryptoEngineId: apiKey.engine_id,
           algorithm: apiKey.algorithm,
           size: String(apiKey.size),
@@ -245,7 +269,7 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, debouncedEngineIdFilter, debouncedAlgorithmFilters, debouncedPrivateKeyFilter, debouncedTagsFilter, debouncedCreationDateFilter, pageSize, sortConfig]);
+  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, debouncedEngineIdFilter, debouncedAlgorithmFilters, debouncedPrivateKeyFilter, debouncedOriginFilters, debouncedTagsFilter, debouncedCreationDateFilter, pageSize, sortConfig]);
 
   useEffect(() => {
     // Reset pagination when page size changes
@@ -269,7 +293,7 @@ export default function KmsKeysPage() {
     // Reset pagination when metadata filters change
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [debouncedMetadataFilters, debouncedEngineIdFilter, debouncedAlgorithmFilters, debouncedPrivateKeyFilter, debouncedTagsFilter, debouncedCreationDateFilter]);
+  }, [debouncedMetadataFilters, debouncedEngineIdFilter, debouncedAlgorithmFilters, debouncedPrivateKeyFilter, debouncedOriginFilters, debouncedTagsFilter, debouncedCreationDateFilter]);
 
   useEffect(() => {
     loadData(bookmarkStack[currentPageIndex]);
@@ -404,6 +428,8 @@ export default function KmsKeysPage() {
         onAlgorithmFiltersChange={setAlgorithmFilters}
         privateKeyFilter={privateKeyFilter}
         onPrivateKeyFilterChange={setPrivateKeyFilter}
+        originFilters={originFilters}
+        onOriginFiltersChange={setOriginFilters}
         tagsFilter={tagsFilter}
         onTagsFilterChange={setTagsFilter}
         creationDateFilter={creationDateFilter}
@@ -427,11 +453,12 @@ export default function KmsKeysPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
+                  <SortableTableHead column="name" title="Name" activeColumn={sortConfig.column} direction={sortConfig.direction} onSort={requestSort} align="left" />
+                  <SortableTableHead column="algorithm" title="Type" activeColumn={sortConfig.column} direction={sortConfig.direction} onSort={requestSort} align="left" />
                   <TableHead>Strength</TableHead>
-                  <TableHead>Public/Private</TableHead>
-                  <TableHead>Crypto Engine</TableHead>
+                  <SortableTableHead column="has_private_key" title="Public/Private" activeColumn={sortConfig.column} direction={sortConfig.direction} onSort={requestSort} align="left" />
+                  <SortableTableHead column="origin" title="Origin" activeColumn={sortConfig.column} direction={sortConfig.direction} onSort={requestSort} align="left" />
+                  <SortableTableHead column="engine_id" title="Crypto Engine" activeColumn={sortConfig.column} direction={sortConfig.direction} onSort={requestSort} align="left" />
                   <TableHead>Aliases</TableHead>
                   <TableHead>Tags</TableHead>
                   <SortableTableHead
@@ -477,6 +504,9 @@ export default function KmsKeysPage() {
                             Public
                           </Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <KeyOriginBadge origin={key.origin} />
                       </TableCell>
                       <TableCell>
                         {engine ? (

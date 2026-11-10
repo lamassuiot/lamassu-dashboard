@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import type { MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
+import type { KeyOrigin } from '@/lib/key-origin';
 
 export interface CertificateQueryDateFilterValue {
   operator: 'af' | 'bf' | 'eq';
@@ -21,6 +22,7 @@ export interface CertificateQueryFilters {
   revocationReasonFilters?: readonly string[];
   isCaFilter?: 'ALL' | 'true' | 'false';
   hasPrivateKeyFilter?: 'ALL' | 'true' | 'false';
+  keyOriginFilters?: readonly KeyOrigin[];
   validFromFilter?: CertificateQueryDateFilterValue;
   validToFilter?: CertificateQueryDateFilterValue;
   revocationTimestampFilter?: CertificateQueryDateFilterValue;
@@ -46,6 +48,7 @@ export function appendCertificateQueryFilters(
     revocationReasonFilters = [],
     isCaFilter = 'ALL',
     hasPrivateKeyFilter = 'ALL',
+    keyOriginFilters = [],
     validFromFilter,
     validToFilter,
     revocationTimestampFilter,
@@ -94,6 +97,12 @@ export function appendCertificateQueryFilters(
   if (hasPrivateKeyFilter !== 'ALL') {
     params.append('filter', `has_private_key[equal]${hasPrivateKeyFilter}`);
   }
+  appendSingleOrMultiFilter(
+    params,
+    keyOriginFilters,
+    (value) => `key_origin[equal]${value}`,
+    (values) => `key_origin[in]${values.join(',')}`
+  );
 
   appendDateFilter(params, 'valid_from', validFromFilter);
   appendDateFilter(params, 'valid_to', validToFilter);

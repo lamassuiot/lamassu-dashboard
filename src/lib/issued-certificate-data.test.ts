@@ -203,6 +203,24 @@ describe('issued-certificate-data', () => {
       expect(result.certificates[0].publicKeyAlgorithm).toContain('RSA')
       expect(result.certificates[0].publicKeyAlgorithm).toContain('2048')
     })
+
+    it('should expose the key origin, leaving it undefined when the KMS holds no key', async () => {
+      server.use(
+        http.get(`${CA_API_BASE}/cas/${caId}/certificates`, () => {
+          return HttpResponse.json({
+            next: null,
+            list: [
+              { ...mockCertificate, serial_number: 'aa', key_origin: 'IMPORTED' },
+              { ...mockCertificate, serial_number: 'bb', key_origin: '' },
+            ],
+          } satisfies ApiIssuedCertificateListResponse)
+        })
+      )
+
+      const result = await fetchIssuedCertificates({ forCaId: caId, apiQueryString: '' })
+
+      expect(result.certificates.map(cert => cert.keyOrigin)).toEqual(['IMPORTED', undefined])
+    })
   })
 
   describe('findCertificateBySerialNumber', () => {

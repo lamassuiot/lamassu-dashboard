@@ -25,6 +25,7 @@ import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRow
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { buildCaKmsKeyUri, buildCertificateKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import Link from '@/components/shared/RouterLink';
+import { KeyOriginBadge } from '@/components/shared/KeyOriginBadge';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { differenceInDays, isPast, parseISO } from 'date-fns';
@@ -270,6 +271,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   }
                 />
               )}
+              <DetailInfoRow label="Key Origin" value={<KeyOriginBadge origin={caDetails.keyOrigin} />} />
               <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} /> : 'N/A'} />
               <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} /> : 'N/A'} className="last:pb-0" />
@@ -528,6 +530,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   )
                 }
               />
+              <DetailInfoRow label="Key Origin" value={<KeyOriginBadge origin={certDetails.keyOrigin} />} />
               <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
               <DetailInfoRow
                 label="SHA-256 Fingerprint"

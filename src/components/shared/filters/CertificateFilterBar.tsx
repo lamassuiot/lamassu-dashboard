@@ -13,6 +13,7 @@ import {
 import { EKU_OPTIONS, KEY_USAGE_OPTIONS } from '@/lib/form-options';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 import { revocationReasons } from '@/lib/revocation-reasons';
+import { KEY_ORIGIN_OPTIONS, type KeyOrigin } from '@/lib/key-origin';
 
 import { GenericFilterBar, type GenericFilterField, type GenericDateFilterValue } from './GenericFilterBar';
 import {
@@ -49,6 +50,8 @@ interface CertificateFilterBarProps {
   onIsCaFilterChange?: (value: CertificateBooleanFilterValue) => void;
   hasPrivateKeyFilter?: CertificateBooleanFilterValue;
   onHasPrivateKeyFilterChange?: (value: CertificateBooleanFilterValue) => void;
+  keyOriginFilters?: KeyOrigin[];
+  onKeyOriginFiltersChange?: (value: KeyOrigin[]) => void;
   validFromFilter?: CertificateDateFilterValue;
   onValidFromFilterChange?: (value: CertificateDateFilterValue) => void;
   validToFilter?: CertificateDateFilterValue;
@@ -80,6 +83,7 @@ interface CertificateFilterValues {
   revocationReasonFilters: string[];
   isCaFilter: CertificateBooleanFilterValue;
   hasPrivateKeyFilter: CertificateBooleanFilterValue;
+  keyOriginFilters: KeyOrigin[];
   validFromFilter: CertificateDateFilterValue;
   validToFilter: CertificateDateFilterValue;
   revocationTimestampFilter: CertificateDateFilterValue;
@@ -128,6 +132,8 @@ export function CertificateFilterBar({
   onIsCaFilterChange,
   hasPrivateKeyFilter = 'ALL',
   onHasPrivateKeyFilterChange,
+  keyOriginFilters = [],
+  onKeyOriginFiltersChange,
   validFromFilter = defaultDateFilterValue,
   onValidFromFilterChange,
   validToFilter = defaultDateFilterValue,
@@ -158,6 +164,7 @@ export function CertificateFilterBar({
     revocationReasonFilters,
     isCaFilter,
     hasPrivateKeyFilter,
+    keyOriginFilters,
     validFromFilter,
     validToFilter,
     revocationTimestampFilter,
@@ -168,6 +175,7 @@ export function CertificateFilterBar({
     extendedKeyUsageFilters,
     hasPrivateKeyFilter,
     isCaFilter,
+    keyOriginFilters,
     keyUsageFilters,
     metadataFilters,
     revocationReasonFilters,
@@ -286,6 +294,15 @@ export function CertificateFilterBar({
           getClearValue: () => 'ALL',
         } satisfies GenericFilterField<CertificateFilterValues>]
       : []),
+    ...(onKeyOriginFiltersChange
+      ? [createMultiEnumField<CertificateFilterValues>({
+          key: 'keyOriginFilters',
+          label: 'Key Origin',
+          visibility: 'advanced',
+          options: KEY_ORIGIN_OPTIONS,
+          buttonText: 'All Key Origins',
+        })]
+      : []),
     ...(onRevocationReasonFiltersChange
       ? [createMultiEnumField<CertificateFilterValues>({
           key: 'revocationReasonFilters',
@@ -378,6 +395,7 @@ export function CertificateFilterBar({
     onExtendedKeyUsageFiltersChange,
     onIsCaFilterChange,
     onHasPrivateKeyFilterChange,
+    onKeyOriginFiltersChange,
     onKeyUsageFiltersChange,
     onMetadataFiltersChange,
     onOpenCaSelector,
@@ -432,6 +450,9 @@ export function CertificateFilterBar({
           case 'hasPrivateKeyFilter':
             onHasPrivateKeyFilterChange?.((value as CertificateBooleanFilterValue) || 'ALL');
             break;
+          case 'keyOriginFilters':
+            onKeyOriginFiltersChange?.((Array.isArray(value) ? value : []) as KeyOrigin[]);
+            break;
           case 'validFromFilter':
             onValidFromFilterChange?.((value as GenericDateFilterValue as CertificateDateFilterValue) || defaultDateFilterValue);
             break;
@@ -462,6 +483,7 @@ export function CertificateFilterBar({
         onRevocationReasonFiltersChange?.([]);
         onIsCaFilterChange?.('ALL');
         onHasPrivateKeyFilterChange?.('ALL');
+        onKeyOriginFiltersChange?.([]);
         onValidFromFilterChange?.(defaultDateFilterValue);
         onValidToFilterChange?.(defaultDateFilterValue);
         onRevocationTimestampFilterChange?.(defaultDateFilterValue);

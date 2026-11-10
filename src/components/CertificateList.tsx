@@ -26,6 +26,7 @@ import type { CertSortConfig, SortableCertColumn } from '@/app/certificates/page
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { updateCertificateStatus } from '@/lib/issued-certificate-data';
+import { KeyOriginBadge } from '@/components/shared/KeyOriginBadge';
 
 interface CertificateListProps {
   certificates: CertificateData[];
@@ -36,7 +37,7 @@ interface CertificateListProps {
   requestSort: (column: SortableCertColumn) => void;
   isLoading?: boolean;
   showIssuerColumn?: boolean;
-  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'hasPrivateKey' | 'revocationTime', boolean>>;
+  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'hasPrivateKey' | 'revocationTime' | 'keyOrigin', boolean>>;
   onColumnToggle?: (columnId: string) => void;
 }
 
@@ -50,6 +51,8 @@ const DEFAULT_COLUMN_VISIBILITY = {
   status: true,
   hasPrivateKey: true,
   revocationTime: true,
+  // Opt-in: lists scoped to a single KMS key would repeat that key's origin on every row.
+  keyOrigin: false,
 } as const;
 
 const getCommonName = (subjectOrIssuer: string): string => {
@@ -223,6 +226,7 @@ export function CertificateList({
               {columnVisibility.status && <SortableHeader column="status" title="Status" center />}
               {columnVisibility.hasPrivateKey && <SortableHeader column="hasPrivateKey" title="Private Key" center dateColumn className="hidden lg:table-cell" />}
               {columnVisibility.revocationTime && <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />}
+              {columnVisibility.keyOrigin && <SortableHeader column="keyOrigin" title="Key Origin" center className="hidden lg:table-cell" />}
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -322,6 +326,11 @@ export function CertificateList({
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                  )}
+                  {columnVisibility.keyOrigin && (
+                    <TableCell className="hidden lg:table-cell text-center">
+                      <KeyOriginBadge origin={cert.keyOrigin} />
                     </TableCell>
                   )}
                   <TableCell className="text-right">

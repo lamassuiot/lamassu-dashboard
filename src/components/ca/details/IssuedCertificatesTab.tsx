@@ -31,6 +31,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         status: true,
         hasPrivateKey: true,
         revocationTime: true,
+        keyOrigin: true,
     });
 
     const {
@@ -78,6 +79,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                                 { id: 'status', label: 'Status', visible: columnVisibility.status },
                                 { id: 'hasPrivateKey', label: 'Private Key', visible: columnVisibility.hasPrivateKey },
                                 { id: 'revocationTime', label: 'Revocation Time', visible: columnVisibility.revocationTime },
+                                { id: 'keyOrigin', label: 'Key Origin', visible: columnVisibility.keyOrigin },
                             ]}
                             onColumnToggle={handleColumnToggle}
                             align="end"

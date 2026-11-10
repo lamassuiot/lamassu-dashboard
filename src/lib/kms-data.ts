@@ -12,6 +12,7 @@ export interface ApiKmsKey {
   aliases: string[]; // Array of key aliases
   engine_id: string; // ID of the crypto engine managing this key
   has_private_key: boolean; // Indicates if private key is available
+  origin?: string; // KeyOrigin (LOCAL/IMPORTED/UNKNOWN); parse with parseKeyOrigin. How the key came to exist in the KMS (set by the KMS, read-only)
   algorithm: string; // Key algorithm (e.g., "ECDSA", "RSA")
   size: number; // Key size in bits
   public_key: string; // Base64 encoded public key

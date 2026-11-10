@@ -30,6 +30,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
 import { parseDistinguishedName } from '@/lib-crypto';
+import { KeyOriginBadge } from '@/components/shared/KeyOriginBadge';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -413,12 +414,17 @@ export default function CertificateDetailsClient() { // Renamed component
         idLabel="Serial number"
         id={formattedSerialNumber}
         copyValue={cleanSerialNumber}
-        meta={certificateDetails.publicKeyAlgorithm && (
-          <Badge variant="secondary">
-            <KeyRound />
-            {certificateDetails.publicKeyAlgorithm}
-          </Badge>
-        )}
+        meta={
+          <>
+            {certificateDetails.publicKeyAlgorithm && (
+              <Badge variant="secondary">
+                <KeyRound />
+                {certificateDetails.publicKeyAlgorithm}
+              </Badge>
+            )}
+            <KeyOriginBadge origin={certificateDetails.keyOrigin} />
+          </>
+        }
         actions={(isOnHold || statusText !== 'REVOKED' || canDelete) && (
           <>
             {isOnHold ? (

@@ -1,4 +1,6 @@
 
+import type { KeyOrigin } from '@/lib/key-origin';
+
 export interface CertificateData {
   id: string; // Using serial number as ID from API
   fileName: string; // Synthesized
@@ -15,6 +17,7 @@ export interface CertificateData {
   revocationReason?: string;
   revocationTimestamp?: string;
   hasPrivateKey?: boolean;
+  keyOrigin?: KeyOrigin; // Origin of the certificate's key in the KMS; undefined when the KMS holds no key
   rawApiData?: any; // To store the original API response for this certificate
   // Optional fields that will be parsed on demand
   sans?: string[]; 

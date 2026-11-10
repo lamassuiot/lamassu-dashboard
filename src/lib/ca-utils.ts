@@ -3,6 +3,7 @@
 import { formatISO, parseISO } from 'date-fns';
 import type { CA } from './ca-data';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
+import { NO_KMS_KEY, type CertificateKeyOrigin } from './key-origin';
 
 export type CaStatusFilter = 'active' | 'expired' | 'revoked' | 'unknown';
 export type CaTypeFilter = 'MANAGED' | 'IMPORTED_WITH_KEY' | 'IMPORTED_WITHOUT_KEY';
@@ -11,6 +12,8 @@ export interface CaFilterOptions {
   filterText?: string;
   selectedStatuses?: CaStatusFilter[];
   selectedTypes?: CaTypeFilter[];
+  /** Origins of the CA key; NO_KMS_KEY matches CAs whose key the KMS does not hold. */
+  selectedKeyOrigins?: CertificateKeyOrigin[];
 }
 
 /**
@@ -34,16 +37,17 @@ export function getEffectiveCaStatus(ca: Pick<CA, 'status' | 'expires'>, now: nu
   return ca.status;
 }
 
-export function hasActiveCaFilters({ filterText = '', selectedStatuses = [], selectedTypes = [] }: CaFilterOptions): boolean {
-  return filterText.trim() !== '' || selectedStatuses.length > 0 || selectedTypes.length > 0;
+export function hasActiveCaFilters({ filterText = '', selectedStatuses = [], selectedTypes = [], selectedKeyOrigins = [] }: CaFilterOptions): boolean {
+  return filterText.trim() !== '' || selectedStatuses.length > 0 || selectedTypes.length > 0 || selectedKeyOrigins.length > 0;
 }
 
 /** Whether a single CA (ignoring its descendants) matches the filter criteria. */
-export function caMatchesFilters(ca: CA, { filterText = '', selectedStatuses = [], selectedTypes = [] }: CaFilterOptions): boolean {
+export function caMatchesFilters(ca: CA, { filterText = '', selectedStatuses = [], selectedTypes = [], selectedKeyOrigins = [] }: CaFilterOptions): boolean {
   const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(getEffectiveCaStatus(ca));
   const matchesType = selectedTypes.length === 0 || selectedTypes.includes(ca.caType as CaTypeFilter);
+  const matchesKeyOrigin = selectedKeyOrigins.length === 0 || selectedKeyOrigins.includes(ca.keyOrigin ?? NO_KMS_KEY);
   const matchesText = !filterText || ca.name.toLowerCase().includes(filterText.toLowerCase());
-  return matchesStatus && matchesType && matchesText;
+  return matchesStatus && matchesType && matchesKeyOrigin && matchesText;
 }
 
 /**

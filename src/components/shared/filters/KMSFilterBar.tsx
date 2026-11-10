@@ -5,6 +5,7 @@ import React, { useMemo } from 'react';
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { CryptoEngineMultiSelector } from '@/components/shared/CryptoEngineMultiSelector';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
+import { KEY_ORIGIN_OPTIONS, type KeyOrigin } from '@/lib/key-origin';
 
 import {
   GenericFilterBar,
@@ -30,6 +31,8 @@ interface KMSFilterBarProps {
   onAlgorithmFiltersChange?: (value: string[]) => void;
   privateKeyFilter?: KmsPrivateKeyFilterValue;
   onPrivateKeyFilterChange?: (value: KmsPrivateKeyFilterValue) => void;
+  originFilters?: KeyOrigin[];
+  onOriginFiltersChange?: (value: KeyOrigin[]) => void;
   tagsFilter?: string;
   onTagsFilterChange?: (value: string) => void;
   creationDateFilter?: GenericDateFilterValue;
@@ -45,6 +48,7 @@ interface KMSFilterValues {
   engineIdFilter: string[];
   algorithmFilters: string[];
   privateKeyFilter: KmsPrivateKeyFilterValue;
+  originFilters: KeyOrigin[];
   tagsFilter: string;
   creationDateFilter: GenericDateFilterValue;
 }
@@ -83,6 +87,8 @@ export function KMSFilterBar({
   onAlgorithmFiltersChange,
   privateKeyFilter = DEFAULT_KMS_PRIVATE_KEY_FILTER,
   onPrivateKeyFilterChange,
+  originFilters = [],
+  onOriginFiltersChange,
   tagsFilter = '',
   onTagsFilterChange,
   creationDateFilter = DEFAULT_CREATION_DATE_FILTER,
@@ -97,6 +103,7 @@ export function KMSFilterBar({
     engineIdFilter,
     algorithmFilters,
     privateKeyFilter,
+    originFilters,
     tagsFilter,
     creationDateFilter,
   }), [
@@ -104,6 +111,7 @@ export function KMSFilterBar({
     creationDateFilter,
     engineIdFilter,
     metadataFilters,
+    originFilters,
     privateKeyFilter,
     searchTerm,
     tagsFilter,
@@ -172,6 +180,17 @@ export function KMSFilterBar({
           getClearValue: () => DEFAULT_KMS_PRIVATE_KEY_FILTER,
         } satisfies GenericFilterField<KMSFilterValues>]
       : []),
+    ...(onOriginFiltersChange
+      ? [{
+          key: 'originFilters',
+          label: 'Origin',
+          type: 'multi-enum',
+          visibility: 'advanced',
+          options: KEY_ORIGIN_OPTIONS,
+          allOptionValues: KEY_ORIGIN_OPTIONS.map((option) => option.value),
+          buttonText: 'All Origins',
+        } satisfies GenericFilterField<KMSFilterValues>]
+      : []),
     ...(onTagsFilterChange
       ? [createSearchTextField<KMSFilterValues>({
           key: 'tagsFilter',
@@ -207,6 +226,7 @@ export function KMSFilterBar({
     onCreationDateFilterChange,
     onEngineIdFilterChange,
     onMetadataFiltersChange,
+    onOriginFiltersChange,
     onPrivateKeyFilterChange,
     onTagsFilterChange,
   ]);
@@ -232,6 +252,9 @@ export function KMSFilterBar({
           case 'privateKeyFilter':
             onPrivateKeyFilterChange?.((value as KmsPrivateKeyFilterValue) || DEFAULT_KMS_PRIVATE_KEY_FILTER);
             break;
+          case 'originFilters':
+            onOriginFiltersChange?.((Array.isArray(value) ? value : []) as KeyOrigin[]);
+            break;
           case 'tagsFilter':
             onTagsFilterChange?.(String(value ?? ''));
             break;
@@ -249,6 +272,7 @@ export function KMSFilterBar({
         onEngineIdFilterChange?.([]);
         onAlgorithmFiltersChange?.([]);
         onPrivateKeyFilterChange?.(DEFAULT_KMS_PRIVATE_KEY_FILTER);
+        onOriginFiltersChange?.([]);
         onTagsFilterChange?.('');
         onCreationDateFilterChange?.(DEFAULT_CREATION_DATE_FILTER);
       }}

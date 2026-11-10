@@ -23,7 +23,7 @@ import { CertificateFilterBar } from '@/components/shared/filters/CertificateFil
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
-export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime' | 'hasPrivateKey';
+export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime' | 'hasPrivateKey' | 'keyOrigin';
 export type SortDirection = 'asc' | 'desc';
 
 export interface CertSortConfig {
@@ -105,6 +105,7 @@ export default function CertificatesPage() {
     status: true,
     hasPrivateKey: true,
     revocationTime: true,
+    keyOrigin: true,
   });
   const handleColumnToggle = (columnId: string) => {
     setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
@@ -293,6 +294,7 @@ export default function CertificatesPage() {
                 { id: 'status',         label: 'Status',           visible: columnVisibility.status },
                 { id: 'hasPrivateKey',  label: 'Private Key',      visible: columnVisibility.hasPrivateKey },
                 { id: 'revocationTime', label: 'Revocation Time',  visible: columnVisibility.revocationTime },
+                { id: 'keyOrigin',      label: 'Key Origin',       visible: columnVisibility.keyOrigin },
               ]}
               onColumnToggle={handleColumnToggle}
               align="end"
