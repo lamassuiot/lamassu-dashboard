@@ -1,7 +1,6 @@
 import React, { lazy, Suspense, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Outlet, Route, Routes, useLocation } from 'react-router';
-import { Loader2 } from 'lucide-react';
 import '@fontsource-variable/inter/index.css';
 import '@fontsource-variable/roboto/index.css';
 import '@fontsource-variable/jetbrains-mono/index.css';
@@ -9,6 +8,7 @@ import '@fontsource-variable/ibm-plex-sans/index.css';
 import '@fontsource-variable/manrope/index.css';
 import RootLayout from './app/layout';
 import DeviceDetailsLayout from './app/devices/details/layout';
+import { LoadingBar } from '@/components/shared/LoadingBar';
 
 const pageModules = import.meta.glob<{ default: React.ComponentType }>('./app/**/page.tsx');
 const pages = Object.entries(pageModules).map(([file, load]) => ({
@@ -30,9 +30,8 @@ function ScrollToTop() {
 
 function PageLoader() {
   return (
-    <div className="flex flex-col items-center justify-center flex-1 p-8">
-      <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-      <p className="text-lg text-muted-foreground">Loading Page...</p>
+    <div role="status" aria-label="Loading page" className="flex h-full min-h-64 w-full items-center justify-center">
+      <LoadingBar />
     </div>
   );
 }

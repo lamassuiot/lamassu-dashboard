@@ -1,14 +1,10 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from '@/components/shared/StaticImage';
 import LogoFullBlue from '@/app/lamassu_full_blue.svg';
 import LogoFullWhite from '@/app/lamassu_full_white.svg';
-
-// Must match the `loader-indeterminate` animation in globals.css. It runs `alternate`, so a full
-// back-and-forth cycle takes twice the duration.
-const BAR_ANIMATION_MS = 1200;
-const BAR_CYCLE_MS = BAR_ANIMATION_MS * 2;
+import { LoadingBar } from '@/components/shared/LoadingBar';
 
 // Hints shown once the current loading sequence has been running for a while.
 const SLOW_HINTS: { afterMs: number; message: string }[] = [
@@ -53,15 +49,7 @@ interface FullPageLoaderProps {
  * phase across remounts, so switching stages only swaps the text.
  */
 export function FullPageLoader({ title, message }: Readonly<FullPageLoaderProps>) {
-  const barRef = useRef<HTMLDivElement>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
-
-  // Sync the bar to a document-wide clock so a remount doesn't restart the animation.
-  useLayoutEffect(() => {
-    if (barRef.current) {
-      barRef.current.style.animationDelay = `-${performance.now() % BAR_CYCLE_MS}ms`;
-    }
-  }, []);
 
   useEffect(() => {
     const startedAt = joinLoadingSequence(performance.now());
@@ -86,12 +74,7 @@ export function FullPageLoader({ title, message }: Readonly<FullPageLoaderProps>
       <div className="flex w-full max-w-md flex-col items-center">
         <Image src={LogoFullBlue} width={220} height={40} alt="LamassuIoT" priority className="h-10 w-[220px] dark:hidden" />
         <Image src={LogoFullWhite} width={220} height={40} alt="LamassuIoT" priority className="hidden h-10 w-[220px] dark:block" />
-        <div className="relative mt-10 h-1 w-64 overflow-hidden rounded-full bg-primary/15">
-          <div
-            ref={barRef}
-            className="absolute inset-y-0 w-2/5 rounded-full bg-primary animate-loader-indeterminate motion-reduce:animate-pulse"
-          />
-        </div>
+        <LoadingBar className="mt-10" />
         <h2 key={title} className="mt-8 h-7 truncate text-xl font-semibold animate-in fade-in duration-300">
           {title}
         </h2>
