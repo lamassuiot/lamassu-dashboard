@@ -5,7 +5,7 @@ import {
   Edit, FileInput, FileText, KeyRound, Lock, MoreVertical, ScrollText, Shield, ShieldCheck, Trash2, User, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,8 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { EngineIconBox } from '@/components/ca/EngineIconBox';
+import { CardField, ChipList, humanizeUsage, type UsageChip } from '@/components/shared/CardSpecParts';
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { DAY_SECONDS, HOUR_SECONDS, YEAR_SECONDS, parseDurationToSeconds } from '@/lib/duration';
 import { cn } from '@/lib/utils';
@@ -52,13 +52,6 @@ function getValidity(profile: ApiSigningProfile): { label: string; hint?: string
   }
 }
 
-/** "OCSPSigning" → "OCSP Signing", "DigitalSignature" → "Digital Signature" */
-function humanizeUsage(usage: string) {
-  return usage
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
-}
-
 function getCryptoRules(profile: ApiSigningProfile) {
   if (!profile.crypto_enforcement?.enabled) return null;
   const { crypto_enforcement: ce } = profile;
@@ -93,20 +86,6 @@ function getSubjectSummary(profile: ApiSigningProfile) {
 
 const MAX_USAGE_CHIPS = 5;
 
-type ChipKind = 'ku' | 'eku' | 'csr';
-
-const chipVariant: Record<ChipKind, BadgeVariant> = {
-  ku: 'muted',
-  eku: 'default',
-  csr: 'warning',
-};
-
-interface UsageChip {
-  key: string;
-  label: string;
-  kind: ChipKind;
-}
-
 /** Key usages and extended key usages as one chip list; a field taken from the CSR becomes a single dashed chip. */
 function getUsageChips(profile: ApiSigningProfile): UsageChip[] {
   const chips: UsageChip[] = [];
@@ -123,61 +102,17 @@ function getUsageChips(profile: ApiSigningProfile): UsageChip[] {
   return chips;
 }
 
-/** Wrapping chip list; with `max`, the tail collapses into a "+N" chip with a tooltip. */
-function ChipList({ chips, max, empty = 'None' }: Readonly<{ chips: UsageChip[]; max?: number; empty?: string }>) {
-  if (chips.length === 0) return <p className="text-xs text-muted-foreground">{empty}</p>;
-  const shown = max === undefined ? chips : chips.slice(0, max);
-  const hidden = max === undefined ? [] : chips.slice(max);
-  return (
-    <div className="flex flex-wrap gap-1">
-      {shown.map(chip => (
-        <Badge
-          key={chip.key}
-          size="xs"
-          variant={chipVariant[chip.kind]}
-          className={cn(chip.kind === 'csr' && 'border-dashed')}
-        >
-          {chip.label}
-        </Badge>
-      ))}
-      {hidden.length > 0 && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge size="xs" variant="muted" className="cursor-default">
-                +{hidden.length}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-56">
-              {hidden.map(c => c.label).join(', ')}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-0.5">{children}</div>
-    </div>
-  );
-}
-
 /** Validity and allowed key algorithms, shown at the top of both variants. */
 function ValidityAndKeys({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
   const validity = getValidity(profile);
   const cryptoTokens = getCryptoRules(profile);
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6">
-      <Field label="Validity">
+      <CardField label="Validity">
         <p className="text-base font-semibold leading-tight tracking-tight tabular-nums">{validity.label}</p>
         {validity.hint && <p className="text-[11px] text-muted-foreground tabular-nums">{validity.hint}</p>}
-      </Field>
-      <Field label="Key algorithms">
+      </CardField>
+      <CardField label="Key algorithms">
         {cryptoTokens && cryptoTokens.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {cryptoTokens.map(t => (
@@ -189,7 +124,7 @@ function ValidityAndKeys({ profile }: Readonly<{ profile: ApiSigningProfile }>) 
             {cryptoTokens ? 'None allowed' : 'Any algorithm'}
           </p>
         )}
-      </Field>
+      </CardField>
     </div>
   );
 }
@@ -235,13 +170,13 @@ function CompactBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
     <>
       <div className="flex flex-1 flex-col gap-3 p-3">
         <ValidityAndKeys profile={profile} />
-        <Field label="Usages">
+        <CardField label="Usages">
           <ChipList chips={getUsageChips(profile)} max={MAX_USAGE_CHIPS} />
-        </Field>
+        </CardField>
         {!profile.honor_subject && subjectSummary && (
-          <Field label="Subject">
+          <CardField label="Subject">
             <p className="truncate font-mono text-xs" title={subjectSummary}>{subjectSummary}</p>
-          </Field>
+          </CardField>
         )}
       </div>
       <div className="mt-auto flex min-w-0 items-center gap-4 border-t bg-muted/40 px-3 py-2 text-[11px]">

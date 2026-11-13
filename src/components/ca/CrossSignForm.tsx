@@ -29,7 +29,6 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { isValidPositiveDuration } from '@/lib/duration';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { CrossSignPairSelector } from './CrossSignPairSelector';
-import { generateUUID } from '@/lib-crypto/uuid';
 
 function Section({ title, description, children }: Readonly<{ title: string; description: string; children: React.ReactNode }>) {
   return (
@@ -69,7 +68,6 @@ export function CrossSignForm() {
   const [pickingRole, setPickingRole] = useState<CrossSignRole | null>(null);
   const [expiration, setExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '5y' });
   const [profileId, setProfileId] = useState<string | null>(null);
-  const [newCaId] = useState(() => generateUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [targetCheck, setTargetCheck] = useState<{ caId: string; result: CrossSignTargetCheck } | null>(null);
 
@@ -192,9 +190,10 @@ export function CrossSignForm() {
 
     setIsSubmitting(true);
     try {
-      await createCa(buildCrossSignPayload({ signer, target, id: newCaId, profileId, keyId, expiration }));
+      const created = await createCa(buildCrossSignPayload({ signer, target, profileId, keyId, expiration }));
       sileo.success({ title: 'Cross-signed', description: `"${signer.name}" issued a certificate for "${target.name}".` });
-      router.push(`/certificate-authorities/details?caId=${newCaId}`);
+      // The backend generates the ID of the new CA entry.
+      router.push(created?.id ? `/certificate-authorities/details?caId=${encodeURIComponent(created.id)}` : '/certificate-authorities');
     } catch (error: any) {
       sileo.error({ title: 'Cross-signing failed', description: error.message });
     } finally {
@@ -274,7 +273,6 @@ export function CrossSignForm() {
                 />
                 <PreviewRow label="Subject Key ID" value={currentTargetCheck?.keyId ?? target.subjectKeyId} mono />
                 <PreviewRow label="Authority Key ID" value={signer.subjectKeyId} mono />
-                <PreviewRow label="New CA ID" value={newCaId} mono />
               </dl>
             </Section>
           </>

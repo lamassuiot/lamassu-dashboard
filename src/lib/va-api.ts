@@ -1,5 +1,3 @@
-
-
 // src/lib/va-api.ts
 import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
@@ -10,13 +8,8 @@ import { fetchIssuedCertificate } from './issued-certificate-data';
 export type { OcspResponseDetails };
 export { checkOcspStatus };
 
-export interface VAConfig {
-  caId: string;
-  refreshInterval: string;
-  validity: string;
-  signerCertificateSerialNumber: string | null;
-  regenerateOnRevoke: boolean;
-}
+/** `ACTIVE` settings generate CRLs; `ARCHIVED` ones belong to a deleted CA and only serve their last CRL. */
+export type CrlSettingsStatus = 'ACTIVE' | 'ARCHIVED';
 
 export interface LatestCrlInfo {
   version: number;
@@ -24,41 +17,63 @@ export interface LatestCrlInfo {
   valid_until: string;
 }
 
-export interface VaApiResponse {
-    crl_options: {
-        refresh_interval: string;
-        validity: string;
-        signer_certificate_serial_number: string | null;
-        regenerate_on_revoke: boolean;
-    },
-    latest_crl: LatestCrlInfo | null;
-}
-
-export interface VaUpdatePayload {
+/** CRL settings of a CA as returned by `GET /v1/crl-settings/{ca-id}`. */
+export interface CrlSettingsResponse {
+  ca_id: string;
+  /** SKI the settings were keyed by before they moved to the CA ID; only migrated settings have it. */
+  legacy_ski?: string;
+  crl_options: {
     refresh_interval: string;
     validity: string;
-    signer_certificate_serial_number: string | null;
+    signer_serial_number: string;
     regenerate_on_revoke: boolean;
+  };
+  status: CrlSettingsStatus;
+  latest_crl: LatestCrlInfo | null;
 }
 
-export const getDefaultVAConfig = (caId: string): VAConfig => ({
-  caId,
-  refreshInterval: '24h',
-  validity: '7d',
-  signerCertificateSerialNumber: null,
-  regenerateOnRevoke: true,
+export interface CrlSettingsUpdatePayload {
+  refresh_interval: string;
+  validity: string;
+  signer_serial_number: string;
+  regenerate_on_revoke: boolean;
+}
+
+/** UI model of the CRL settings of a CA. */
+export interface CrlSettings {
+  caId: string;
+  refreshInterval: string;
+  validity: string;
+  signerSerialNumber: string | null;
+  regenerateOnRevoke: boolean;
+  status: CrlSettingsStatus;
+  legacySki: string | null;
+}
+
+export const toCrlSettings = (response: CrlSettingsResponse): CrlSettings => ({
+  caId: response.ca_id,
+  refreshInterval: response.crl_options.refresh_interval || '24h',
+  validity: response.crl_options.validity || '7d',
+  signerSerialNumber: response.crl_options.signer_serial_number || null,
+  regenerateOnRevoke: response.crl_options.regenerate_on_revoke === true,
+  status: response.status,
+  legacySki: response.legacy_ski || null,
 });
 
 /**
- * PUT payload for a VA config. The signer comes from the persisted config, not from the
+ * PUT payload for CRL settings. The signer comes from the persisted settings, not from the
  * displayed certificate, so a signer whose certificate can no longer be found is kept as is.
  */
-export const toVaUpdatePayload = (config: VAConfig): VaUpdatePayload => ({
-  refresh_interval: config.refreshInterval,
-  validity: config.validity,
-  signer_certificate_serial_number: config.signerCertificateSerialNumber ?? null,
-  regenerate_on_revoke: config.regenerateOnRevoke,
+export const toCrlSettingsUpdatePayload = (settings: CrlSettings): CrlSettingsUpdatePayload => ({
+  refresh_interval: settings.refreshInterval,
+  validity: settings.validity,
+  signer_serial_number: settings.signerSerialNumber ?? '',
+  regenerate_on_revoke: settings.regenerateOnRevoke,
 });
+
+/** Public URL of the latest CRL of a CA. `id` is the CA ID, or the legacy SKI of migrated settings. */
+export const getCrlUrl = (id: string): string =>
+  `${get_VA_CORE_API_BASE_URL()}/crl/${encodeURIComponent(id)}`;
 
 const signerCertificatePlaceholder = (serialNumber: string, label: string): CertificateData => ({
   id: serialNumber,
@@ -87,30 +102,26 @@ export async function fetchSignerCertificateDisplay(serialNumber: string): Promi
   }
 }
 
-
-
-
 /**
- * Fetches the VA configuration for a given CA Subject Key ID (SKI).
- * Returns null if the configuration is not found (404).
+ * Fetches the CRL settings of a CA.
+ * Returns null if the CA has no CRL settings (404): they are created asynchronously when the CA is.
  * Throws an error for other failures.
  */
-export async function fetchVaConfig(ski: string): Promise<VaApiResponse | null> {
-    const response = await apiFetch(`${get_VA_API_BASE_URL()}/roles/${ski}`);
+export async function fetchCrlSettings(caId: string): Promise<CrlSettingsResponse | null> {
+    const response = await apiFetch(`${get_VA_API_BASE_URL()}/crl-settings/${encodeURIComponent(caId)}`);
 
     if (response.status === 404) {
-        return null; // Not found, which is a valid state (means not configured yet)
+        return null;
     }
 
-    return handleApiError(response, 'Failed to fetch VA config');
+    return handleApiError(response, 'Failed to fetch CRL settings');
 }
 
-
 /**
- * Creates or updates the VA configuration for a given CA Subject Key ID (SKI).
+ * Replaces the editable CRL settings of a CA. Fails with 409 when the settings are not ACTIVE.
  */
-export async function updateVaConfig(ski: string, payload: VaUpdatePayload): Promise<void> {
-    const response = await apiFetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
+export async function updateCrlSettings(caId: string, payload: CrlSettingsUpdatePayload): Promise<CrlSettingsResponse> {
+    const response = await apiFetch(`${get_VA_API_BASE_URL()}/crl-settings/${encodeURIComponent(caId)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -118,16 +129,14 @@ export async function updateVaConfig(ski: string, payload: VaUpdatePayload): Pro
         body: JSON.stringify(payload),
     });
 
-    await handleApiError(response, 'Failed to update VA config');
+    return handleApiError(response, 'Failed to update CRL settings');
 }
 
-
 /**
- * Downloads the latest CRL for a given CA Subject Key ID (SKI).
- * Returns the CRL data as an ArrayBuffer.
+ * Downloads the latest CRL of a CA as DER.
  */
-export async function downloadCrl(ski: string): Promise<ArrayBuffer> {
-    const response = await apiFetch(`${get_VA_CORE_API_BASE_URL()}/crl/${ski}`, {
+export async function downloadCrl(caId: string): Promise<ArrayBuffer> {
+    const response = await apiFetch(getCrlUrl(caId), {
         headers: {
             'Accept': 'application/pkix-crl',
         },

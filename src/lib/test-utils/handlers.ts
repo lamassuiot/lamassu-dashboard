@@ -74,7 +74,7 @@ export const handlers = [
   }),
 
   // VA Core API handlers  
-  http.get('https://api.test.lamassu.io/va/crl/:ski', () => {
+  http.get('https://api.test.lamassu.io/va/crl/:id', () => {
     return HttpResponse.arrayBuffer(new ArrayBuffer(100))
   }),
 

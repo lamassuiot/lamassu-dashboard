@@ -299,9 +299,9 @@ export function findCaByCommonName(commonName: string | undefined | null, cas: C
 
 
 // Function to create a CA
+/** The backend always generates the CA ID; it is returned in the created CA. */
 export interface CreateCaPayload {
   parent_id: string | null;
-  id: string;
   engine_id: string;
   profile_id: string;
   subject: {
@@ -322,18 +322,19 @@ export interface CreateCaPayload {
   ca_issuance_profile?: CreateSigningProfilePayload;
 }
 
-export async function createCa(payload: CreateCaPayload): Promise<void> {
+/** Creates a CA and returns it, including the ID the backend generated. */
+export async function createCa(payload: CreateCaPayload): Promise<ApiCaItem> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  await handleApiError(response, 'Failed to create CA');
+  return handleApiError<ApiCaItem>(response, 'Failed to create CA');
 }
 
 // Function and type for importing a CA
+/** The backend always generates the CA ID; it is returned in the imported CA. */
 export interface ImportCaPayload {
-  id: string;
   engine_id: string;
   private_key: string;
   ca: string;
@@ -343,13 +344,14 @@ export interface ImportCaPayload {
   parent_id: string;
 }
 
-export async function importCa(payload: ImportCaPayload): Promise<void> {
+/** Imports a CA and returns it, including the ID the backend generated. */
+export async function importCa(payload: ImportCaPayload): Promise<ApiCaItem> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/import`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  await handleApiError(response, 'Failed to import CA');
+  return handleApiError<ApiCaItem>(response, 'Failed to import CA');
 }
 
 export interface PatchOperation {

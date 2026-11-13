@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, Loader2 } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
@@ -21,13 +20,11 @@ import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageO
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
-import { generateUUID } from '@/lib-crypto/uuid';
 
 export default function CreateCaImportFullPage() {
   const router = useRouter();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [caId, setCaId] = useState('');
 
   const [importedCaCertPem, setImportedCaCertPem] = useState('');
   const [importedPrivateKeyPem, setImportedPrivateKeyPem] = useState('');
@@ -74,10 +71,6 @@ export default function CreateCaImportFullPage() {
 
   useEffect(() => {
     initPkijsEngine();
-  }, []);
-
-  useEffect(() => {
-    setCaId(generateUUID());
   }, []);
 
   useEffect(() => {
@@ -136,7 +129,6 @@ export default function CreateCaImportFullPage() {
     const caChainPems = caChainPem.match(/-----BEGIN CERTIFICATE-----[^-]*-----END CERTIFICATE-----/g) || [];
 
     const payload: ImportCaPayload = {
-      id: caId,
       engine_id: cryptoEngineId,
       private_key: pemToBase64(importedPrivateKeyPem),
       ca: pemToBase64(importedCaCertPem),
@@ -196,13 +188,9 @@ export default function CreateCaImportFullPage() {
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
             <div>
               <p className="font-semibold">Import Settings</p>
-              <p className="text-sm text-muted-foreground mt-1">Configure the new CA identity and the engine where the private key will be stored.</p>
+              <p className="text-sm text-muted-foreground mt-1">Choose the engine where the private key will be stored.</p>
             </div>
             <div className="space-y-4 lg:col-span-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="caId">New Certification Authority ID (generated)</Label>
-                <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
-              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cryptoEngine">Crypto Engine for Private Key</Label>
                 <CryptoEngineSelector

@@ -15,6 +15,8 @@ interface DurationInputProps extends Omit<React.ComponentProps<'input'>, 'onChan
   description?: string;
   labelClassName?: string;
   error?: string;
+  /** Accept zero, including the bare "0", as a valid value. */
+  allowZero?: boolean;
 }
 
 export const DurationInput: React.FC<DurationInputProps> = ({
@@ -25,6 +27,7 @@ export const DurationInput: React.FC<DurationInputProps> = ({
   className,
   labelClassName,
   error,
+  allowZero = false,
   ...props
 }) => {
   const [isInvalid, setIsInvalid] = useState(false);
@@ -34,20 +37,20 @@ export const DurationInput: React.FC<DurationInputProps> = ({
 
   useEffect(() => {
     // An empty value is not considered invalid.
-    if (!value) {
+    if (!value || (allowZero && value === '0')) {
       setIsInvalid(false);
       setIsZero(false);
     } else if (!isValidDuration(value)) {
       setIsInvalid(true);
       setIsZero(false);
-    } else if (isZeroDuration(value)) {
+    } else if (isZeroDuration(value) && !allowZero) {
       setIsInvalid(true);
       setIsZero(true);
     } else {
       setIsInvalid(false);
       setIsZero(false);
     }
-  }, [value]);
+  }, [value, allowZero]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(e.target.value);

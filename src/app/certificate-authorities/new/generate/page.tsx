@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
-import { generateUUID } from '@/lib-crypto/uuid';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -56,7 +55,6 @@ export default function CreateCaGeneratePage() {
   const [caType, setCaType] = useState('root');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
   const [selectedParentCa, setSelectedParentCa] = useState<CA | null>(null);
-  const [caId] = useState(() => generateUUID());
   const [caName, setCaName] = useState('');
 
   const [keyType, setKeyType] = useState('RSA');
@@ -343,7 +341,6 @@ export default function CreateCaGeneratePage() {
 
     const payload: CreateCaPayload = {
       parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
-      id: caId,
       engine_id: cryptoEngineId,
       subject: {
         country: country || undefined,
@@ -379,7 +376,7 @@ export default function CreateCaGeneratePage() {
 
       // Simplified inline profile with forced values
       const inlineProfile: CreateSigningProfilePayload = {
-        name: `Inline CA Profile - ${caId}`, // Temporary name for inline profile
+        name: `Inline CA Profile - ${caName}`, // Temporary name for inline profile
         description: 'Inline profile for CA certificate',
         validity: validityPayload,
         sign_as_ca: true, // Forced to true for CA certificates
@@ -547,10 +544,6 @@ export default function CreateCaGeneratePage() {
                 <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
               </div>
             )}
-            <div className="space-y-1.5">
-              <Label htmlFor="caId">CA ID (auto-generated)</Label>
-              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="caName">CA Name (Common Name)</Label>
               <Input
