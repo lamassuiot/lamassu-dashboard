@@ -29,17 +29,50 @@ export const workflowLabel = (name: string): string => {
 // to state out loud: batching, thresholds and the canary device are expressed by hawkBit ROLLOUT
 // GROUPS (rollout_type/rollout_value/auto/test_device_id), not by this field — so picking "Canary"
 // here still gives you canary batching, but its action type is the same as Direct's.
-const HAWKBIT_ACTION_NOTE: Record<string, string> = {
-  direct: 'hawkBit action type "forced" — the device installs as soon as it polls.',
-  phased: 'hawkBit action type "soft" — the device may confirm or postpone the install.',
-};
-const HAWKBIT_FALLBACK_NOTE =
-  'hawkBit has no action type for this; it is sent as "forced", the same as Direct. Batching and the canary device come from the rollout groups, not from this choice.';
+//
+// So in hawkbit mode the choice is presented as what it is — an install mode — with these two terms.
+// The values stay the workflow names the backend maps, so nothing changes in what is sent.
+export interface InstallMode {
+  value: string;
+  label: string;
+  description: string;
+}
+
+export const HAWKBIT_INSTALL_MODES: InstallMode[] = [
+  {
+    value: 'wfx.workflow.dau.direct',
+    label: 'Forced',
+    description: 'The device installs as soon as it polls, without asking (hawkBit action type "forced").',
+  },
+  {
+    value: 'wfx.workflow.dau.phased',
+    label: 'Soft',
+    description: 'The update is offered to the device, which may confirm or postpone the install (hawkBit action type "soft").',
+  },
+];
+
+/** The install mode a workflow value is sent as in hawkbit mode: phased is Soft, anything else Forced. */
+export function installModeOf(workflowName?: string): InstallMode {
+  const short = (workflowName ?? '').replace(/^wfx\.workflow\.(dau\.)?/, '').toLowerCase();
+  return short === 'phased' ? HAWKBIT_INSTALL_MODES[1] : HAWKBIT_INSTALL_MODES[0];
+}
+
+/** Whether a workflow value is one of the two install modes, rather than one hawkBit cannot express. */
+function isInstallModeValue(workflowName: string): boolean {
+  const short = workflowName.replace(/^wfx\.workflow\.(dau\.)?/, '').toLowerCase();
+  return short === 'direct' || short === 'phased';
+}
+
+/** What the launch choice is called: "Install mode" where there is no WFX (hawkbit), "Workflow" otherwise. */
+export function useLaunchModeLabel(): string {
+  const { isSupported } = useUpdatesCapabilities();
+  return isSupported('workflows') ? 'Workflow' : 'Install mode';
+}
 
 // hawkbitActionNote returns the note for one workflow value, or undefined outside hawkbit mode.
 export function hawkbitActionNote(workflowName: string): string {
-  const short = workflowName.replace(/^wfx\.workflow\.dau\./, '').toLowerCase();
-  return HAWKBIT_ACTION_NOTE[short] ?? HAWKBIT_FALLBACK_NOTE;
+  if (isInstallModeValue(workflowName)) return installModeOf(workflowName).description;
+  return `${installModeOf(workflowName).description} This workflow has no install mode of its own in hawkBit, so it is sent as Forced; batching and the canary device come from the rollout groups.`;
 }
 
 // In NATIVE mode (real WFX workflows), a pack's packaging and its launch workflow are two separate
@@ -115,11 +148,15 @@ export function WorkflowSelect({
         <SelectTrigger id={id}>
           <span className="flex items-center gap-2 truncate">
             <GitBranch className="h-4 w-4 text-muted-foreground" />
-            <SelectValue placeholder="Select a workflow" />
+            <SelectValue placeholder={isHawkbitStyle ? 'Select an install mode' : 'Select a workflow'} />
           </span>
         </SelectTrigger>
         <SelectContent>
-          {workflows.length > 0 ? (
+          {isHawkbitStyle ? (
+            HAWKBIT_INSTALL_MODES.map((m) => (
+              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+            ))
+          ) : workflows.length > 0 ? (
             workflows.map((wf) => (
               <SelectItem key={wf.name} value={wf.name}>{workflowLabel(wf.name)}</SelectItem>
             ))

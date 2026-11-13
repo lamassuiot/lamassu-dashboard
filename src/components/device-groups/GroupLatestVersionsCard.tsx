@@ -12,7 +12,7 @@ import { CheckCircle2, RefreshCw, ArrowRight, AlertTriangle, Search, CircleSlash
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { getGroupVersionStatus, forceDeviceVersion } from '@/lib/iot-api';
-import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
+import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW, useLaunchModeLabel } from '@/components/devices/WorkflowSelect';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import type { DevicePackVersionStatus } from '@/types/iot';
 import { sileo } from '@/lib/toast';
@@ -22,6 +22,8 @@ import { sileo } from '@/lib/toast';
 // pushed to the released version from here. "Released" is the version the group's latest successful
 // campaign rolled out (see the backend's reconcileReleasedVersions), not the newest version that exists.
 export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
+  // "Install mode" in hawkbit mode, where the choice is hawkBit's action type rather than a WFX workflow.
+  const launchModeLabel = useLaunchModeLabel();
   const { isSupported, isLoading: capabilitiesLoading } = useUpdatesCapabilities();
   // GetGroupVersionStatus (the data this whole card is built on) has no hawkBit translation — see
   // pkg/updates.CapabilityVersionCompliance. Without this check the card would always render its
@@ -340,7 +342,7 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
           </DialogHeader>
 
           <div className="space-y-1.5 py-2">
-            <label htmlFor="group-latest-workflow" className="text-sm font-medium">Workflow</label>
+            <label htmlFor="group-latest-workflow" className="text-sm font-medium">{launchModeLabel}</label>
             <WorkflowSelect id="group-latest-workflow" value={workflow} onChange={setWorkflow} />
           </div>
 

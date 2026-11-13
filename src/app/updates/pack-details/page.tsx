@@ -30,6 +30,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { fetchKmsKey, type ApiKmsKey } from '@/lib/kms-data';
+import { apiFetch } from '@/lib/api-client';
 import { GenerateSwuDialog } from '@/components/iot/generate-swu-dialog';
 import { GeneratePackageDialog } from '@/components/iot/generate-package-dialog';
 import { TargetedUpdateDialog } from '@/components/iot/targeted-update-dialog';
@@ -456,7 +457,7 @@ export default function UpdatePackDetailsPage() {
     if (!groupId || !packName || !user?.access_token) return;
     try {
       const url = getPerDeviceSwuDownloadUrl(groupId, packName, deviceId);
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) throw new Error(`Status ${response.status}`);
       const blob = await response.blob();
       triggerBlobDownload(blob, `${packName}-${deviceId}.${deliverableExt}`);
@@ -491,7 +492,7 @@ export default function UpdatePackDetailsPage() {
       // built without ever populating `uri` (see downloadCurrentBuild's comment).
       const blob = updatePack.uri
         ? await (async () => {
-            const response = await fetch(updatePack.uri!);
+            const response = await apiFetch(updatePack.uri!);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.blob();
           })()
@@ -505,7 +506,7 @@ export default function UpdatePackDetailsPage() {
 
   const handleDownloadArtifact = async (fileName: string) => {
     try {
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifacts/${fileName}`);
+      const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/distribution-sets/${packName}/artifacts/${fileName}`);
       if (!response.ok) throw new Error(`Failed to download ${fileName}`);
       const blob = await response.blob();
       triggerBlobDownload(blob, fileName);

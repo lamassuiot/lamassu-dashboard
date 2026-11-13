@@ -36,6 +36,7 @@ import {
   isPhasedWorkflow, isDirectWorkflow, extractWfxEligibleTransitions,
   CampaignProgressCell, CampaignStatusCell, TestDeviceBadge, getTestDeviceStatus,
 } from '@/components/iot/campaign-cells';
+import { installModeOf } from '@/components/devices/WorkflowSelect';
 import { sileo } from '@/lib/toast';
 
 // Human-readable label for an arbitrary workflow type, e.g.
@@ -56,10 +57,10 @@ function getWorkflowLabel(workflowType?: string): string {
   return prettifyWorkflowType(workflowType);
 }
 
-function WorkflowBadge({ workflowType, className }: { workflowType?: string; className?: string }) {
+function WorkflowBadge({ workflowType, installMode, className }: { workflowType?: string; installMode?: boolean; className?: string }) {
   return (
     <Badge variant="secondary" className={className}>
-      {getWorkflowLabel(workflowType)}
+      {installMode ? installModeOf(workflowType).label : getWorkflowLabel(workflowType)}
     </Badge>
   );
 }
@@ -676,6 +677,8 @@ export default function CampaignDetailsPage() {
   const { availableDms } = useDms();
   const { isSupported: isUpdatesCapabilitySupported } = useUpdatesCapabilities();
   const canEditRolloutStrategy = isUpdatesCapabilitySupported('launch_strategy_update');
+  // No WFX (hawkbit mode): a campaign's workflow is really hawkBit's install mode — Forced or Soft.
+  const showInstallMode = !isUpdatesCapabilitySupported('workflows');
 
   const groupId = searchParams.get('groupId');
   const campaignId = searchParams.get('campaignId');
@@ -902,7 +905,7 @@ export default function CampaignDetailsPage() {
         id={campaign.id}
         meta={
           <>
-            <WorkflowBadge workflowType={campaign.workflow_type} />
+            <WorkflowBadge workflowType={campaign.workflow_type} installMode={showInstallMode} />
             {campaign.rollout_type && (
               <Badge variant="secondary">
                 {campaign.rollout_type.charAt(0).toUpperCase() + campaign.rollout_type.slice(1)}
@@ -1107,30 +1110,34 @@ export default function CampaignDetailsPage() {
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>
                   <p className="font-semibold">Rollout Configuration</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Workflow, rollout method, and automation settings for this campaign.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{showInstallMode ? 'Install mode' : 'Workflow'}, rollout method, and automation settings for this campaign.</p>
                 </div>
                 <div className="lg:col-span-2">
                   <div className="divide-y">
                     {/* Workflow Type */}
                     <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground">Workflow Type</p>
-                        <p className="mt-1 text-sm">{campaign.workflow_type || 'Not Set'}</p>
+                        <p className="text-xs font-medium text-muted-foreground">{showInstallMode ? 'Install mode' : 'Workflow Type'}</p>
+                        <p className="mt-1 text-sm">
+                          {showInstallMode ? installModeOf(campaign.workflow_type).description : campaign.workflow_type || 'Not Set'}
+                        </p>
                       </div>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>
-                              <WorkflowBadge workflowType={campaign.workflow_type} className="cursor-help" />
+                              <WorkflowBadge workflowType={campaign.workflow_type} installMode={showInstallMode} className="cursor-help" />
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>
-                              {isDirectWorkflow(campaign.workflow_type)
-                                ? 'Direct: Updates are downloaded, installed, and activated automatically on the device.'
-                                : isPhasedWorkflow(campaign.workflow_type)
-                                  ? 'Phased: Updates require developer approval at key stages before proceeding.'
-                                  : 'A simple download-and-install workflow.'}
+                              {showInstallMode
+                                ? installModeOf(campaign.workflow_type).description
+                                : isDirectWorkflow(campaign.workflow_type)
+                                  ? 'Direct: Updates are downloaded, installed, and activated automatically on the device.'
+                                  : isPhasedWorkflow(campaign.workflow_type)
+                                    ? 'Phased: Updates require developer approval at key stages before proceeding.'
+                                    : 'A simple download-and-install workflow.'}
                             </p>
                           </TooltipContent>
                         </Tooltip>

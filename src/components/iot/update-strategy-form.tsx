@@ -25,7 +25,7 @@ import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { fetchWorkflows, fetchGroupDevices, fetchPackPreconditions, type WfxWorkflow, type GroupDeviceRef } from '@/lib/iot-api';
 import { preconditionTargetLabel } from '@/components/iot/precondition-rows';
-import { packagingMismatchNote } from '@/components/devices/WorkflowSelect';
+import { packagingMismatchNote, HAWKBIT_INSTALL_MODES, installModeOf } from '@/components/devices/WorkflowSelect';
 import { cn, truncateText } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 
@@ -301,6 +301,7 @@ export function UpdateStrategyForm({
         {groupName && <SummaryItem label="Device group">{groupName}</SummaryItem>}
         {driver && <SummaryItem label="Driver">{driver}</SummaryItem>}
         {workflowsSupported && workflowType && <SummaryItem label="Workflow">{getWorkflowLabel(workflowType)}</SummaryItem>}
+        {!workflowsSupported && workflowType && <SummaryItem label="Install mode">{installModeOf(workflowType).label}</SummaryItem>}
         {groupId && !groupDevicesLoading && (
           <SummaryItem label="Matching devices">
             <span className={cn('tabular-nums', groupHasNoDevices && 'text-destructive')}>{matchingDevices}</span>
@@ -412,13 +413,16 @@ export function UpdateStrategyForm({
                   name="workflowType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Workflow</FormLabel>
+                      {/* In hawkbit mode there is no WFX: the choice is hawkBit's install mode (its action type). */}
+                      <FormLabel>{workflowsSupported ? 'Workflow' : 'Install mode'}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select workflow" /></SelectTrigger>
+                          <SelectTrigger className="w-full"><SelectValue placeholder={workflowsSupported ? 'Select workflow' : 'Select an install mode'} /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {workflows.length > 0 ? (
+                          {!workflowsSupported ? (
+                            HAWKBIT_INSTALL_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)
+                          ) : workflows.length > 0 ? (
                             workflows.map(wf => <SelectItem key={wf.name} value={wf.name}>{getWorkflowLabel(wf.name)}</SelectItem>)
                           ) : (
                             <>
@@ -428,6 +432,9 @@ export function UpdateStrategyForm({
                           )}
                         </SelectContent>
                       </Select>
+                      {!workflowsSupported && field.value && (
+                        <p className="text-xs text-muted-foreground">{installModeOf(field.value).description}</p>
+                      )}
                       {workflowsSupported && (() => {
                         const mismatch = packagingMismatchNote(field.value, selectedPack?.packaging);
                         return mismatch ? (

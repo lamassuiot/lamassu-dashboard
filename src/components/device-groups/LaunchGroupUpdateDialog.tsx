@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Loader2, Rocket, Package } from 'lucide-react';
 import { fetchUpdatePacks, fetchUpdatePackVersions, forceDeviceVersion } from '@/lib/iot-api';
-import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW } from '@/components/devices/WorkflowSelect';
+import { WorkflowSelect, DEFAULT_LAUNCH_WORKFLOW, useLaunchModeLabel } from '@/components/devices/WorkflowSelect';
 import { sileo } from '@/lib/toast';
 
 // LaunchGroupUpdateDialog lets an operator update MANY selected devices at once: pick one of the
@@ -25,6 +25,8 @@ export function LaunchGroupUpdateDialog({
   onClose: () => void;
   onLaunched?: () => void;
 }) {
+  // "Install mode" in hawkbit mode, where the choice is hawkBit's action type rather than a WFX workflow.
+  const launchModeLabel = useLaunchModeLabel();
   const [packId, setPackId] = React.useState('');
   const [version, setVersion] = React.useState('');
   const [workflow, setWorkflow] = React.useState(DEFAULT_LAUNCH_WORKFLOW);
@@ -160,7 +162,7 @@ export function LaunchGroupUpdateDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="group-update-workflow" className="text-sm font-medium">Workflow</label>
+            <label htmlFor="group-update-workflow" className="text-sm font-medium">{launchModeLabel}</label>
             <WorkflowSelect id="group-update-workflow" value={workflow} onChange={setWorkflow} />
           </div>
         </div>
