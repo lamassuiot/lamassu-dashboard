@@ -32,6 +32,8 @@ export const DurationInput: React.FC<DurationInputProps> = ({
 }) => {
   const [isInvalid, setIsInvalid] = useState(false);
   const [isZero, setIsZero] = useState(false);
+  // Format errors only show once the user has left the field, not while they are still typing.
+  const [touched, setTouched] = useState(false);
   const componentId = useId();
   const inputId = props.id || componentId;
 
@@ -56,9 +58,19 @@ export const DurationInput: React.FC<DurationInputProps> = ({
       onChange(e.target.value);
   }
 
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    setTouched(true);
+    props.onBlur?.(e);
+  };
+
+  const errorId = `${inputId}-error`;
+  const showFormatError = isInvalid && touched;
+  const showExternalError = !showFormatError && !!error;
+  const hasVisibleError = showFormatError || showExternalError;
+
   return (
     <div className="space-y-1.5">
-      {label && <Label htmlFor={inputId} className={cn(labelClassName, (isInvalid || error) && 'text-destructive')}>
+      {label && <Label htmlFor={inputId} className={cn(labelClassName, hasVisibleError && 'text-destructive')}>
         {label}
       </Label>}
       <Input
@@ -66,19 +78,21 @@ export const DurationInput: React.FC<DurationInputProps> = ({
         id={inputId}
         value={value}
         onChange={handleInputChange}
-        aria-invalid={isInvalid || !!error}
-        aria-describedby={error ? `${inputId}-error` : props['aria-describedby']}
-        className={cn((isInvalid || error) && 'border-destructive focus-visible:ring-destructive', className)}
+        onBlur={handleBlur}
+        aria-invalid={hasVisibleError}
+        aria-describedby={hasVisibleError ? errorId : props['aria-describedby']}
+        className={cn(hasVisibleError && 'border-destructive focus-visible:ring-destructive', className)}
       />
-      {description && !isInvalid && !error && (
+      {description && !hasVisibleError && (
         <p className="text-xs text-muted-foreground">{description}</p>
       )}
-      {isInvalid && (
+      {showFormatError && (
         <FormFieldError
+          id={errorId}
           title={isZero ? 'Must be a duration greater than zero.' : "Invalid format. Use combined units like '1y6m30s'."}
         />
       )}
-      {!isInvalid && error && <FormFieldError id={`${inputId}-error`} title={error} />}
+      {!showFormatError && error && <FormFieldError id={errorId} title={error} />}
     </div>
   );
 };

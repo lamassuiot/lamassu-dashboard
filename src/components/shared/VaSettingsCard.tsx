@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -22,10 +22,20 @@ interface VaSettingsCardProps {
   limitToCAs?: CA[];
 }
 
-export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
+export function VaSettingsCard({ state, limitToCAs }: Readonly<VaSettingsCardProps>) {
   const [isSignerModalOpen, setIsSignerModalOpen] = useState(false);
+  // Errors only show for fields the user has left, or for all of them after a failed save.
+  const [touched, setTouched] = useState({ refreshInterval: false, validity: false, signer: false });
   const { settings, signerDisplay, isSubmitting, isLoading, isReadOnly } = state;
+  const caId = settings?.caId;
+
+  useEffect(() => {
+    setTouched({ refreshInterval: false, validity: false, signer: false });
+  }, [caId]);
+
   if (!settings) return null;
+
+  const touch = (field: keyof typeof touched) => setTouched((current) => (current[field] ? current : { ...current, [field]: true }));
 
   const disabled = isSubmitting || isReadOnly;
   // "0" disables interval-based regeneration: the CRL is then only regenerated before it expires.
@@ -39,8 +49,24 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
   const signerError = !signerDisplay || !settings.signerSerialNumber
     ? 'CRL signer certificate is required.'
     : null;
-  const validationErrors = isReadOnly ? [] : [refreshIntervalError, validityError, signerError]
-    .filter((message): message is string => Boolean(message));
+  const allErrors = isReadOnly ? [] : [
+    { field: 'refreshInterval' as const, id: 'va-refreshInterval', message: refreshIntervalError },
+    { field: 'validity' as const, id: 'va-validity', message: validityError },
+    { field: 'signer' as const, id: 'va-crlSigner', message: signerError },
+  ].filter((entry): entry is typeof entry & { message: string } => Boolean(entry.message));
+  const visibleErrors = allErrors.filter(({ field }) => touched[field]);
+  const visibleError = (field: keyof typeof touched) => visibleErrors.find((entry) => entry.field === field)?.message;
+
+  const handleSave = () => {
+    if (allErrors.length > 0) {
+      setTouched({ refreshInterval: true, validity: true, signer: true });
+      // The browser would focus the first invalid field on a failed submit; do the same here.
+      const firstInvalid = document.getElementById(allErrors[0].id);
+      firstInvalid?.focus();
+      return;
+    }
+    state.save();
+  };
 
   const handleSignerSelected = (certificate: CertificateData) => {
     state.selectSigner(certificate);
@@ -58,7 +84,8 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
           placeholder="e.g., 24h, 30m, 7d, or 0 to disable"
           allowZero
           description="Time since the latest CRL after which a new one is generated. Use 0 to disable."
-          error={isReadOnly ? undefined : refreshIntervalError || undefined}
+          onBlur={() => touch('refreshInterval')}
+          error={visibleError('refreshInterval')}
         />
         {refreshIntervalDisabled && (
           <Alert>
@@ -81,7 +108,8 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
           disabled={disabled}
           placeholder="e.g., 7d, 48h"
           description="Maximum time to consider a cached CRL valid."
-          error={isReadOnly ? undefined : validityError || undefined}
+          onBlur={() => touch('validity')}
+          error={visibleError('validity')}
         />
 
         <div className="space-y-1">
@@ -97,7 +125,10 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  onClick={state.clearSigner}
+                  onClick={() => {
+                    state.clearSigner();
+                    touch('signer');
+                  }}
                   disabled={disabled}
                   className="text-muted-foreground hover:text-destructive"
                   title="Clear CRL signer certificate"
@@ -126,8 +157,8 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
               onClick={() => setIsSignerModalOpen(true)}
               className="w-full justify-start text-left font-normal"
               disabled={disabled}
-              aria-invalid={!!signerError}
-              aria-describedby={signerError ? 'va-crl-signer-error' : undefined}
+              aria-invalid={!!visibleError('signer')}
+              aria-describedby={visibleError('signer') ? 'va-crl-signer-error' : undefined}
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -136,7 +167,7 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
               )}
             </Button>
           )}
-          {signerError && !isReadOnly && <FormFieldError id="va-crl-signer-error" title={signerError} />}
+          {visibleError('signer') && <FormFieldError id="va-crl-signer-error" title={visibleError('signer')!} />}
         </div>
 
         <div className="flex flex-row items-center justify-between gap-3">
@@ -159,7 +190,10 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
 
         <CertificateSelectorModal
           isOpen={isSignerModalOpen}
-          onOpenChange={setIsSignerModalOpen}
+          onOpenChange={(open) => {
+            setIsSignerModalOpen(open);
+            if (!open) touch('signer');
+          }}
           title="Select CRL Signer Certificate"
           description="Choose the certificate whose public key will be used for the SubjectKeyIdentifier in the CRLs of this CA."
           onCertificateSelected={handleSignerSelected}
@@ -170,9 +204,9 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
           includeCaCertificates
         />
 
-        <FormValidationSummary errors={validationErrors} />
+        <FormValidationSummary errors={visibleErrors.map(({ message }) => message)} />
         <div className="flex items-center gap-2">
-          <Button onClick={state.save} disabled={disabled || validationErrors.length > 0}>
+          <Button onClick={handleSave} disabled={disabled}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSubmitting ? 'Saving...' : 'Save CRL Settings'}
           </Button>
@@ -186,7 +220,7 @@ export function VaSettingsCard({ state, limitToCAs }: VaSettingsCardProps) {
 }
 
 /** Shown for `ARCHIVED` CRL settings, which cannot be edited. */
-export function ArchivedCrlSettingsAlert({ className }: { className?: string }) {
+export function ArchivedCrlSettingsAlert({ className }: Readonly<{ className?: string }>) {
   return (
     <Alert variant="warning" className={className}>
       <Archive className="h-4 w-4" />
@@ -202,7 +236,7 @@ export function ArchivedCrlSettingsAlert({ className }: { className?: string }) 
  * Shown for CRL settings migrated from the SKI-keyed model: certificates issued back then point
  * their CDP at `/crl/<ski>`, which keeps resolving to the CRL of this CA.
  */
-export function LegacyCrlUrlNote({ legacySki }: { legacySki: string | null }) {
+export function LegacyCrlUrlNote({ legacySki }: Readonly<{ legacySki: string | null }>) {
   if (!legacySki) return null;
   return (
     <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
