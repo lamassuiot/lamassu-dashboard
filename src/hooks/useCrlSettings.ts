@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
 import { sileo } from '@/lib/toast';
@@ -33,6 +33,12 @@ export function useCrlSettings(ca: CA | null) {
   const startRequest = useLatestRequest();
 
   const caId = ca?.id ?? null;
+  // The CA currently shown, so a save that finishes after the user moved to another CA
+  // does not overwrite the settings of the new one.
+  const currentCaId = useRef(caId);
+  useEffect(() => {
+    currentCaId.current = caId;
+  }, [caId]);
 
   const reload = useCallback(async () => {
     const isLatest = startRequest();
@@ -93,10 +99,12 @@ export function useCrlSettings(ca: CA | null) {
 
   const save = async () => {
     if (!ca || !settings) return;
+    const savedCaId = ca.id;
+    const isStillShown = () => currentCaId.current === savedCaId;
     setIsSubmitting(true);
     try {
-      const saved = await updateCrlSettings(ca.id, toCrlSettingsUpdatePayload(settings));
-      if (saved) {
+      const saved = await updateCrlSettings(savedCaId, toCrlSettingsUpdatePayload(settings));
+      if (saved && isStillShown()) {
         setSettings(toCrlSettings(saved));
         setLatestCrl(saved.latest_crl ?? null);
       }
@@ -104,7 +112,7 @@ export function useCrlSettings(ca: CA | null) {
     } catch (e: any) {
       sileo.error({ title: 'Save Failed', description: e?.message });
       // A 409 means the settings stopped being ACTIVE: reload to show their current state.
-      if (e?.status === 409) reload();
+      if (e?.status === 409 && isStillShown()) reload();
     } finally {
       setIsSubmitting(false);
     }

@@ -11,6 +11,7 @@ interface DateDisplayProps {
   className?: string;
   showRelative?: boolean; // Whether to show relative time, defaults to true
   relativeClassName?: string; // Additional className for relative time
+  dateClassName?: string; // Additional className for the absolute date
   highlightExpired?: boolean; // Whether to highlight expired dates in red, defaults to false
 }
 
@@ -19,6 +20,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
   className,
   showRelative = true,
   relativeClassName,
+  dateClassName,
   highlightExpired = false
 }) => {
   const { displayTime } = useIdentifierDisplay();
@@ -33,7 +35,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
     const formattedDate = format(parsedDate, effectiveFormatString);
 
     if (!showRelative) {
-      return <span className={cn("date-cell", className)}>{formattedDate}</span>;
+      return <span className={cn("date-cell", className, dateClassName)}>{formattedDate}</span>;
     }
 
     const relativeTime = formatDistanceToNow(parsedDate, { addSuffix: true });
@@ -41,7 +43,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
 
     return (
       <div className={cn("flex flex-col items-start", className)}>
-        <span className={cn("date-cell font-medium", highlightExpired && isExpired && "text-red-500")}>{formattedDate}</span>
+        <span className={cn("date-cell font-medium", dateClassName, highlightExpired && isExpired && "text-red-500")}>{formattedDate}</span>
         <span
           className={cn(
             "text-xs text-muted-foreground",

@@ -28,7 +28,7 @@ export interface UsageChip {
 export function humanizeUsage(usage: string) {
   return usage
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+    .replace(/([A-Z])(?=[A-Z][a-z])/g, '$1 ');
 }
 
 /** Wrapping chip list; with `max`, the tail collapses into a "+N" chip with a tooltip. */

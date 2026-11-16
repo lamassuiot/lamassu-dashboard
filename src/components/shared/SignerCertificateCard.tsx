@@ -1,16 +1,15 @@
 'use client';
 
 import React from 'react';
-import { format, formatDistanceToNow, isPast, parseISO } from 'date-fns';
 import { FileSignature } from 'lucide-react';
 import Link from '@/components/shared/RouterLink';
 import { Badge } from '@/components/ui/badge';
 import { EngineIconBox } from '@/components/ca/EngineIconBox';
 import { getApiStatusBadgeVariant } from '@/components/shared/ApiStatusBadge';
 import { CardField, ChipList, type UsageChip } from '@/components/shared/CardSpecParts';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { formatCertificateUsageLabel } from '@/lib/cert-utils';
-import { getDisplayDateFormat } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
 
@@ -29,16 +28,6 @@ function getUsageChips(certificate: CertificateData): UsageChip[] {
   ];
 }
 
-/** "Mar 3, 2027" plus "in 4 months" / "expired 2 days ago", or null when the date is unknown. */
-function getExpiry(validTo: string | undefined): { label: string; hint: string; expired: boolean } | null {
-  if (!validTo) return null;
-  const date = parseISO(validTo);
-  if (Number.isNaN(date.getTime())) return null;
-  const expired = isPast(date);
-  const distance = formatDistanceToNow(date, { addSuffix: true });
-  return { label: format(date, getDisplayDateFormat()), hint: expired ? `Expired ${distance}` : `Expires ${distance}`, expired };
-}
-
 interface SignerCertificateCardProps {
   certificate: CertificateData;
   /** Rendered at the top-right corner (e.g. a clear button). */
@@ -52,7 +41,6 @@ interface SignerCertificateCardProps {
 export function SignerCertificateCard({ certificate, topRight, action, className }: Readonly<SignerCertificateCardProps>) {
   const name = getCommonName(certificate.subject) || certificate.subject || certificate.serialNumber;
   const issuerName = getCommonName(certificate.issuer);
-  const expiry = getExpiry(certificate.validTo);
   const hasSerial = Boolean(certificate.serialNumber) && certificate.serialNumber !== 'Unknown';
 
   return (
@@ -107,16 +95,13 @@ export function SignerCertificateCard({ certificate, topRight, action, className
       <div className="flex flex-1 flex-col gap-3 p-3">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6">
           <CardField label="Valid until">
-            {expiry ? (
-              <>
-                <p className="text-base font-semibold leading-tight tracking-tight tabular-nums">{expiry.label}</p>
-                <p className={cn('text-[11px] tabular-nums', expiry.expired ? 'text-destructive' : 'text-muted-foreground')}>
-                  {expiry.hint}
-                </p>
-              </>
-            ) : (
-              <p className="text-base font-semibold leading-tight">—</p>
-            )}
+            <DateDisplay
+              date={certificate.validTo}
+              highlightExpired
+              className="tabular-nums"
+              dateClassName="text-base font-semibold leading-tight tracking-tight"
+              relativeClassName="text-[11px]"
+            />
           </CardField>
           <CardField label="Key algorithm">
             {certificate.publicKeyAlgorithm ? (
