@@ -65,7 +65,7 @@ export function VaSettingsCard({ state, limitToCAs }: Readonly<VaSettingsCardPro
       firstInvalid?.focus();
       return;
     }
-    state.save();
+    void state.save();
   };
 
   const handleSignerSelected = (certificate: CertificateData) => {
