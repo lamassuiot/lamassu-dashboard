@@ -101,12 +101,22 @@ export function useCrlSettings(ca: CA | null) {
     if (!ca || !settings) return;
     const savedCaId = ca.id;
     const isStillShown = () => currentCaId.current === savedCaId;
+    const signerAtSave = signerDisplay;
     setIsSubmitting(true);
     try {
       const saved = await updateCrlSettings(savedCaId, toCrlSettingsUpdatePayload(settings));
       if (saved && isStillShown()) {
-        setSettings(toCrlSettings(saved));
+        // A reload started before the update finished may have read the old settings:
+        // supersede it so its late response cannot overwrite the saved ones.
+        startRequest();
+        setIsLoading(false);
+        const savedSettings = toCrlSettings(saved);
+        setSettings(savedSettings);
         setLatestCrl(saved.latest_crl ?? null);
+        // That reload also cleared the signer display; restore it while it is still the saved signer.
+        if (signerAtSave && signerAtSave.serialNumber === savedSettings.signerSerialNumber) {
+          setSignerDisplay(signerAtSave);
+        }
       }
       sileo.success({ title: 'Success!', description: `CRL settings for "${ca.name}" have been saved.` });
     } catch (e: any) {
