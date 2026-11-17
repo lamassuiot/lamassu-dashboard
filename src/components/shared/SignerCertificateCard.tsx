@@ -9,6 +9,7 @@ import { getApiStatusBadgeVariant } from '@/components/shared/ApiStatusBadge';
 import { CardField, ChipList, type UsageChip } from '@/components/shared/CardSpecParts';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCertificateUsageLabel } from '@/lib/cert-utils';
 import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
@@ -26,6 +27,45 @@ function getUsageChips(certificate: CertificateData): UsageChip[] {
     ...(certificate.keyUsage ?? []).map(u => ({ key: `ku-${u}`, label: formatCertificateUsageLabel(u), kind: 'ku' as const })),
     ...(certificate.extendedKeyUsage ?? []).map(u => ({ key: `eku-${u}`, label: formatCertificateUsageLabel(u), kind: 'eku' as const })),
   ];
+}
+
+/**
+ * Issuer common name, wrapping instead of truncating. When the full DN says more than the
+ * name, it is shown in a tooltip that opens on hover and on keyboard focus.
+ */
+function IssuerName({ name, dn, caId }: Readonly<{ name: string; dn?: string; caId?: string }>) {
+  const fullDn = dn?.trim();
+  const hasMoreDetail = Boolean(fullDn) && fullDn !== name;
+  const link = caId ? (
+    <Link
+      href={`/certificate-authorities/details?caId=${encodeURIComponent(caId)}`}
+      className="hover:text-foreground hover:underline"
+    >
+      {name}
+    </Link>
+  ) : null;
+
+  if (!hasMoreDetail) return link ?? <>{name}</>;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {link ?? (
+            <button
+              type="button"
+              className="cursor-default rounded-sm text-left underline decoration-dotted underline-offset-2 hover:text-foreground"
+            >
+              {name}
+            </button>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-80 break-words font-mono">
+          {fullDn}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 interface SignerCertificateCardProps {
@@ -72,18 +112,11 @@ export function SignerCertificateCard({ certificate, topRight, action, className
               </Badge>
             )}
           </div>
-          <p className="truncate text-xs text-muted-foreground" title={certificate.issuer || undefined}>
+          <p className="break-words text-xs text-muted-foreground">
             {issuerName ? (
               <>
                 Issued by{' '}
-                {certificate.issuerCaId ? (
-                  <Link
-                    href={`/certificate-authorities/details?caId=${encodeURIComponent(certificate.issuerCaId)}`}
-                    className="hover:text-foreground hover:underline"
-                  >
-                    {issuerName}
-                  </Link>
-                ) : issuerName}
+                <IssuerName name={issuerName} dn={certificate.issuer} caId={certificate.issuerCaId} />
               </>
             ) : 'Issuer unknown'}
           </p>
