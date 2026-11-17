@@ -1,7 +1,7 @@
 
 
 // Define the CA data structure
-import { parseCertificatePemDetails, type ParsedPemDetails, abToHex, base64ToPem } from "@/lib-crypto";
+import { parseCertificatePemDetails, type ParsedPemDetails, abToHex, base64ToPem, generateUUID } from "@/lib-crypto";
 import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 import { apiFetch } from "./api-client";
 
@@ -503,6 +503,14 @@ export async function fetchSigningProfiles(params?: URLSearchParams): Promise<Ap
     }
     const response = await apiFetch(url.toString());
     return handleApiError(response, 'Failed to fetch signing profiles');
+}
+
+/**
+ * Name of the signing profile created for a CA defined with an inline profile. CA common names
+ * can repeat, so a generated suffix keeps each profile name unique.
+ */
+export function inlineCaProfileName(caName: string): string {
+    return `Inline CA Profile - ${caName} - ${generateUUID()}`;
 }
 
 export interface CreateSigningProfilePayload {

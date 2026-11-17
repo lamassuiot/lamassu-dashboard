@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
 import {
+  inlineCaProfileName,
   ab2hex,
   getCaDisplayName,
   findCaById,
@@ -1659,5 +1660,15 @@ XQGdcNTVHA==
 
       expect(result[0].pemData).toBeDefined()
     })
+  })
+})
+
+describe('inlineCaProfileName', () => {
+  it('keeps the CA name and adds a unique suffix', () => {
+    const first = inlineCaProfileName('Edge CA')
+    const second = inlineCaProfileName('Edge CA')
+
+    expect(first).toMatch(/^Inline CA Profile - Edge CA - [0-9a-f-]{36}$/)
+    expect(second).not.toBe(first)
   })
 })

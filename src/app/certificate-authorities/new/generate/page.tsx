@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, findCaById, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
+import { fetchAndProcessCAs, findCaById, createCa, inlineCaProfileName, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
@@ -376,7 +376,7 @@ export default function CreateCaGeneratePage() {
 
       // Simplified inline profile with forced values
       const inlineProfile: CreateSigningProfilePayload = {
-        name: `Inline CA Profile - ${caName}`, // Temporary name for inline profile
+        name: inlineCaProfileName(caName),
         description: 'Inline profile for CA certificate',
         validity: validityPayload,
         sign_as_ca: true, // Forced to true for CA certificates
