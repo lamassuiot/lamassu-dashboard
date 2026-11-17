@@ -33,7 +33,7 @@ import {
   Info, ArrowRight, Construction, TriangleAlert, Users, XCircle,
 } from 'lucide-react';
 import { cn, truncateText } from '@/lib/utils';
-import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useAdaptiveRefresh } from '@/hooks/useAdaptiveRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
@@ -43,7 +43,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import {
   deriveCampaignStatus, deriveCampaignDeviceStats, isActiveCampaign, isScheduledCampaign, campaignAttentionReasons,
-  CAMPAIGN_STATUS_VARIANT,
+  CAMPAIGN_STATUS_VARIANT, campaignsSignature,
 } from '@/components/iot/campaign-cells';
 import type { CampaignItem, DevicePackUpdate, DevicePackVersionStatus } from '@/types/iot';
 
@@ -324,6 +324,7 @@ export default function OtaDashboardPage() {
       setCampaigns(campaignSets.flat());
       setVersionRows(versionSets.flat());
       setLastRefreshed(new Date());
+      return `${campaignsSignature(campaignSets.flat())}#${attempts.map((a) => `${a.id}:${a.status}`).sort().join('|')}`;
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -346,7 +347,8 @@ export default function OtaDashboardPage() {
   );
 
   // The overview of a rollout that is running: refresh while any campaign still has devices to update.
-  useAutoRefresh(() => load({ silent: true }), activeCampaigns.length > 0, 10000);
+  // Slows down once nothing changes, so a campaign whose devices stopped reporting does not keep it polling.
+  useAdaptiveRefresh(() => load({ silent: true }), activeCampaigns.length > 0, { fastMs: 10_000, slowMs: 60_000 });
 
   // Soonest first. Every scheduled campaign counts in the tile; the panel lists the next 7 days.
   const scheduledCampaigns = useMemo(() => {

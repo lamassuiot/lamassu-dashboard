@@ -7,6 +7,7 @@ import { fetchDeviceEventsPaginated, type ApiDeviceEventItem } from '@/lib/devic
 import { UpdateStatusTab } from '@/components/devices/UpdateStatusTab';
 import { OtaUpdateStatus } from '@/components/devices/OtaUpdateStatus';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
+import { IndividualUpdateCancelBanner } from '@/components/iot/individual-updates';
 import { useDeviceDetails } from '../DeviceContext';
 
 export default function UpdateStatusPage() {
@@ -18,6 +19,8 @@ export default function UpdateStatusPage() {
 
   const [allRawEvents, setAllRawEvents] = useState<ApiDeviceEventItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Bumped by a cancel in the banner, so the status below re-reads what the device is doing.
+  const [statusVersion, setStatusVersion] = useState(0);
 
   const fetchAllEvents = useCallback(async () => {
     if (!deviceId || !user?.access_token) return;
@@ -47,11 +50,18 @@ export default function UpdateStatusPage() {
     }
   }, [deviceId, user?.access_token]);
 
+  const onCancelled = useCallback(() => {
+    setStatusVersion(v => v + 1);
+    if (!hawkbit) fetchAllEvents();
+  }, [hawkbit, fetchAllEvents]);
+
   useEffect(() => {
     if (device && deviceId && !capabilitiesLoading && !hawkbit) fetchAllEvents();
   }, [device, deviceId, fetchAllEvents, capabilitiesLoading, hawkbit]);
 
-  if (hawkbit && deviceId) return <OtaUpdateStatus deviceId={deviceId} />;
+  const banner = deviceId ? <IndividualUpdateCancelBanner deviceId={deviceId} onCancelled={onCancelled} /> : null;
+
+  if (hawkbit && deviceId) return <>{banner}<OtaUpdateStatus key={statusVersion} deviceId={deviceId} /></>;
 
   if (isLoading || capabilitiesLoading) {
     return (
@@ -62,5 +72,5 @@ export default function UpdateStatusPage() {
     );
   }
 
-  return <UpdateStatusTab allRawEvents={allRawEvents} />;
+  return <>{banner}<UpdateStatusTab allRawEvents={allRawEvents} /></>;
 }

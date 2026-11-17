@@ -1,7 +1,7 @@
 // src/app/updates/details/page.tsx
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,9 @@ import {
 } from '@/components/iot/campaign-cells';
 import { installModeOf } from '@/components/devices/WorkflowSelect';
 import { sileo } from '@/lib/toast';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useClientPagination } from '@/hooks/useClientPagination';
+import { ClientPaginationFooter } from '@/components/shared/ClientPaginationFooter';
 
 // Human-readable label for an arbitrary workflow type, e.g.
 // "wfx.workflow.dau.canary" -> "Canary". Used for the neutral badge shown for
@@ -312,7 +315,8 @@ interface DeviceJobStatusRowProps {
   groupId: string;
   deviceId: string;
   accessToken: string | null;
-  jobs: DeviceJob[] | undefined;
+  /** This device's job in the campaign (its newest one when it has several). */
+  job: DeviceJob | undefined;
   isDeviceActive: boolean;
   onJobsChanged: () => void;
   /** What the job delivers when its own definition names no artifact: hawkbit-mode jobs carry no WFX
@@ -320,13 +324,9 @@ interface DeviceJobStatusRowProps {
   deliversLabel?: string;
 }
 
-function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActive, onJobsChanged, deliversLabel }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ groupId, deviceId, accessToken, job: relevantJob, isDeviceActive, onJobsChanged, deliversLabel }: DeviceJobStatusRowProps) {
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
-  // jobs is already scoped to this campaign server-side; match on clientId to pick this device's row.
-  const relevantJob = jobs?.find(job =>
-    (job.clientId || job.status?.clientId) === deviceId
-  );
 
   const wfxTransitions = React.useMemo(() => {
     if (!relevantJob?.workflow) return [];
@@ -492,6 +492,13 @@ function DeviceJobStatusRow({ groupId, deviceId, accessToken, jobs, isDeviceActi
   );
 }
 
+const JOBS_REFRESH_MS = 5000;
+
+/** A completed or cancelled campaign: its jobs and counts no longer change. Unloaded is not finished. */
+function isCampaignFinished(campaign: CampaignItem | undefined): boolean {
+  return campaign?.status === 'completed' || campaign?.status === 'cancelled';
+}
+
 interface DeviceJobsSectionProps {
   campaign: CampaignItem;
   groupId: string;
@@ -550,11 +557,25 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
     refetchJobs();
   }, [accessToken, hasDevices, refetchJobs]);
 
+  // Jobs only change while the campaign is live; once it ends, one last read shows its final state.
+  const isCampaignOver = isCampaignFinished(campaign);
+  useAutoRefresh(refetchJobs, !!accessToken && hasDevices && !isCampaignOver, JOBS_REFRESH_MS);
   useEffect(() => {
-    if (!accessToken || !hasDevices) return;
-    const id = setInterval(refetchJobs, 5000);
-    return () => clearInterval(id);
-  }, [accessToken, hasDevices, refetchJobs]);
+    if (isCampaignOver) refetchJobs();
+  }, [isCampaignOver, refetchJobs]);
+
+  // One row per device, keyed by device: the first job listed is the device's newest one.
+  const jobByDevice = useMemo(() => {
+    const byDevice = new Map<string, DeviceJob>();
+    for (const job of jobs ?? []) {
+      const deviceId = job.clientId || job.status?.clientId || '';
+      if (!byDevice.has(deviceId)) byDevice.set(deviceId, job);
+    }
+    return byDevice;
+  }, [jobs]);
+  const deviceRows = useMemo(() => Array.from(jobByDevice.entries()), [jobByDevice]);
+  const pagination = useClientPagination(deviceRows, { defaultPageSize: '25', resetKey: campaign.id });
+  const deliversLabel = campaign.distribution_set_name ? `${campaign.distribution_set_name}${campaign.version ? ` v${campaign.version}` : ''}` : undefined;
 
   const refreshDeviceJobs = useCallback(() => {
     refetchJobs();
@@ -630,21 +651,18 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoadingJobs && !jobsError && (jobs ?? []).map(job => {
-                const deviceId = job.clientId || job.status?.clientId || '';
-                return (
-                  <DeviceJobStatusRow
-                    key={deviceId || job.id}
-                    groupId={groupId}
-                    deviceId={deviceId}
-                    accessToken={accessToken}
-                    jobs={jobs}
-                    isDeviceActive={false}
-                    onJobsChanged={refreshDeviceJobs}
-                    deliversLabel={campaign.distribution_set_name ? `${campaign.distribution_set_name}${campaign.version ? ` v${campaign.version}` : ''}` : undefined}
-                  />
-                );
-              })}
+              {!isLoadingJobs && !jobsError && pagination.pageItems.map(([deviceId, job]) => (
+                <DeviceJobStatusRow
+                  key={deviceId || job.id}
+                  groupId={groupId}
+                  deviceId={deviceId}
+                  accessToken={accessToken}
+                  job={job}
+                  isDeviceActive={false}
+                  onJobsChanged={refreshDeviceJobs}
+                  deliversLabel={deliversLabel}
+                />
+              ))}
               {!isLoadingJobs && !jobsError && (campaign.pending_count || 0) > 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-xs text-muted-foreground italic py-3">
@@ -654,6 +672,7 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
               )}
             </TableBody>
           </Table>
+          {!isLoadingJobs && !jobsError && <ClientPaginationFooter pagination={pagination} id="campaign-device-jobs-page-size" />}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">No devices associated with this campaign.</p>
@@ -737,11 +756,9 @@ export default function CampaignDetailsPage() {
     refetchCampaign();
   }, [refetchCampaign]);
 
-  useEffect(() => {
-    if (!user?.access_token || !groupId || !campaignId) return;
-    const id = setInterval(refetchCampaign, pollingInterval);
-    return () => clearInterval(id);
-  }, [refetchCampaign, pollingInterval, user?.access_token, groupId, campaignId]);
+  // A finished or cancelled campaign no longer changes, unless it was just executed from here.
+  const keepRefreshingCampaign = !isCampaignFinished(campaign) || shouldPollAggressively;
+  useAutoRefresh(refetchCampaign, !!user?.access_token && !!groupId && !!campaignId && keepRefreshingCampaign, pollingInterval);
 
   // Rollout edit — PUTs the strategy with the chosen type + value, preserving every other field.
   const [isEditRolloutPending, setIsEditRolloutPending] = useState(false);

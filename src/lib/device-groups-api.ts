@@ -23,7 +23,8 @@ export async function getDeviceGroups(
 ): Promise<GetDeviceGroupsResponse> {
   const queryParams = new URLSearchParams();
   
-  if (params?.pageSize) queryParams.append('limit', params.pageSize.toString());
+  // Lamassu reads page_size; an unknown 'limit' was ignored and every page came back at the default 25.
+  if (params?.pageSize) queryParams.append('page_size', params.pageSize.toString());
   if (params?.bookmark) queryParams.append('bookmark', params.bookmark);
   if (params?.sortBy) queryParams.append('sort_by', params.sortBy);
   if (params?.sortMode) queryParams.append('sort_mode', params.sortMode);
@@ -155,7 +156,8 @@ export async function getDevicesByGroup(
 ): Promise<GetDevicesByGroupResponse> {
   const queryParams = new URLSearchParams();
   
-  if (params?.pageSize) queryParams.append('limit', params.pageSize.toString());
+  // Lamassu reads page_size; an unknown 'limit' was ignored and every page came back at the default 25.
+  if (params?.pageSize) queryParams.append('page_size', params.pageSize.toString());
   if (params?.bookmark) queryParams.append('bookmark', params.bookmark);
   if (params?.sortBy) queryParams.append('sort_by', params.sortBy);
   if (params?.sortMode) queryParams.append('sort_mode', params.sortMode);

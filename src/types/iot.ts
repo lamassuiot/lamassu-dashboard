@@ -236,7 +236,15 @@ export interface DevicePackUpdate {
   /** When the attempt was created (dispatched) — set even while it is still pending. Absent on
    *  attempts recorded before the backend tracked it. */
   created_at?: string | null;
+  /** Set only on attempts sent outside any fleet campaign: a direct install, or (hawkBit) a campaign's retry. */
+  origin?: IndividualUpdateOrigin;
+  /** The campaign whose "retry failed devices" sent a 'retry' attempt. */
+  retry_of_launch_id?: string;
+  /** The backend would cancel this individual attempt now. */
+  cancellable?: boolean;
 }
+
+export type IndividualUpdateOrigin = 'direct' | 'retry';
 
 // One artifact a pack version delivers. Since a device installs a whole pack version (an immutable
 // manifest), the artifact's installed version IS the version the manifest declares; checksum/size

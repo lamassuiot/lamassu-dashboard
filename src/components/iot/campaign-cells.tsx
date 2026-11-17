@@ -195,6 +195,15 @@ export function isActiveCampaign(campaign: CampaignItem): boolean {
   return (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
 }
 
+/** What a refresh of these campaigns would show differently: status and counts per campaign. Pages
+ *  watching campaigns slow their polling down while it stays the same (see useAdaptiveRefresh). */
+export function campaignsSignature(campaigns: CampaignItem[]): string {
+  return campaigns
+    .map((c) => `${c.id}:${c.status}:${c.completed_count ?? 0}:${c.failed_count ?? 0}:${c.active_count ?? 0}:${c.pending_count ?? 0}`)
+    .sort()
+    .join('|');
+}
+
 /** A campaign that was created but never started: nothing dispatched, and not merely waiting for a
  *  scheduled start in the future (that one is Scheduled, which is expected). */
 export function isNotStartedCampaign(campaign: CampaignItem): boolean {

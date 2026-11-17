@@ -68,7 +68,7 @@ import {
 } from 'lucide-react';
 import { cn, truncateText } from '@/lib/utils';
 import { attemptTime, newestAttemptByDevice } from '@/lib/device-update-attempts';
-import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useAdaptiveRefresh } from '@/hooks/useAdaptiveRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
@@ -78,7 +78,7 @@ import {
 } from '@/lib/iot-api';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
 import { LaunchGroupUpdateDialog } from '@/components/device-groups/LaunchGroupUpdateDialog';
-import type { DevicePackVersion, DevicePackUpdate, FirmwareUpdateStatus } from '@/types/iot';
+import type { DevicePackVersion, DevicePackUpdate, DevicePackVersionStatus, FirmwareUpdateStatus } from '@/types/iot';
 
 const ALL = '__all__';
 const PAGE_SIZES = [10, 25, 50];
@@ -349,6 +349,150 @@ function LastUpdateCell({ set: s }: { set: DeviceSetRow }) {
   );
 }
 
+interface FleetMembership { group: { id: string; name: string }; ids: string[] }
+interface GroupTargets { groupId: string; rows: DevicePackVersionStatus[] }
+interface LiveData { packs: DevicePackVersion[]; attempts: DevicePackUpdate[] }
+
+/** Live refreshes between two reads of the targets. */
+const TARGETS_EVERY_LIVE_TICKS = 4;
+
+/** What a live refresh would show differently: each attempt's status and each installed version. */
+function liveSignature({ packs, attempts }: LiveData): string {
+  return [
+    ...attempts.map((a) => `a:${a.id}:${a.status}`),
+    ...packs.map((p) => `p:${p.device_id}:${p.distribution_set_name}:${p.version}`),
+  ].sort().join('|');
+}
+
+/** Folds the fleet, its targets, the installed sets and the newest attempts into the table's rows. */
+function buildDeviceRows(
+  membership: FleetMembership[],
+  targets: GroupTargets[],
+  { packs, attempts: latestAttempts }: LiveData,
+  campaignNames: Map<string, string>,
+  groupNames: Map<string, string>,
+): DeviceRow[] {
+  // Targets keyed per (device, pack) — by id and by name, since pack rows and compliance rows don't
+  // always agree on which identifier is populated — and per (group, pack name), for a set the device
+  // installed after the targets were last read.
+  const targetByDevice = new Map<string, string>();
+  const targetByGroup = new Map<string, string>();
+  for (const { groupId, rows } of targets) {
+    for (const row of rows) {
+      targetByDevice.set(`${row.device_id}::${row.distribution_set_id}`, row.latest_version);
+      targetByDevice.set(`${row.device_id}::name::${row.distribution_set_name}`, row.latest_version);
+      targetByGroup.set(`${groupId}::${row.distribution_set_name}`, row.latest_version);
+    }
+  }
+  const groupsByDevice = new Map<string, string[]>();
+  for (const { group, ids } of membership) {
+    for (const id of ids) {
+      const list = groupsByDevice.get(id) ?? [];
+      if (!list.includes(group.id)) list.push(group.id);
+      groupsByDevice.set(id, list);
+    }
+  }
+  const targetOf = (deviceId: string, packId: string, packName: string): string | null =>
+    targetByDevice.get(`${deviceId}::${packId}`) ??
+    targetByDevice.get(`${deviceId}::name::${packName}`) ??
+    (groupsByDevice.get(deviceId) ?? []).map((g) => targetByGroup.get(`${g}::${packName}`)).find((t) => t !== undefined) ??
+    null;
+  const campaignNameById = campaignNames;
+
+  // The newest attempt per (device, set NAME) comes straight from the backend; per device, the
+  // newest of those (newestAttemptByDevice). A cancelled attempt is left out (see attemptStatusOf).
+  const jobByDevicePack = new Map<string, DeviceJobInfo>();
+  const attemptByDevicePack = new Map(latestAttempts.map((a) => [`${a.device_id}::${a.distribution_set_name}`, a]));
+  for (const a of latestAttempts) {
+    const status = attemptStatusOf(a.status);
+    if (!status) continue;
+    const launchId = a.launch_id ?? '';
+    const info: DeviceJobInfo = {
+      campaignId: launchId,
+      campaignName: launchId ? (campaignNameById.get(launchId) ?? `Campaign ${launchId}`) : 'Direct update',
+      status,
+      mtime: attemptTime(a),
+    };
+    jobByDevicePack.set(`${a.device_id}::${a.distribution_set_name}`, info);
+  }
+  // The same info object as the set row's, which is how the device cell tells whether its job is
+  // already shown on one of its set rows.
+  const jobByDevice = new Map<string, DeviceJobInfo>();
+  for (const [deviceId, a] of newestAttemptByDevice(latestAttempts)) {
+    const info = jobByDevicePack.get(`${deviceId}::${a.distribution_set_name}`);
+    if (info) jobByDevice.set(deviceId, info);
+  }
+
+  // Installed sets per device.
+  const setsByDevice = new Map<string, DeviceSetRow[]>();
+  for (const row of packs) {
+    const target = targetOf(row.device_id, row.distribution_set_id, row.distribution_set_name);
+    const setJob = jobByDevicePack.get(`${row.device_id}::${row.distribution_set_name}`) ?? null;
+    const set: DeviceSetRow = {
+      packId: row.distribution_set_id,
+      packName: row.distribution_set_name,
+      current: row.version,
+      target,
+      // An exact version match, as both backends define in_sync; recomputed here so a live refresh of the
+      // installed versions updates it without re-reading the targets.
+      status: target === null ? 'no-target' : row.version === target ? 'up-to-date' : 'outdated',
+      packaging: row.packaging,
+      installedAt: row.installed_at,
+      job: setJob,
+      attempt: attemptByDevicePack.get(`${row.device_id}::${row.distribution_set_name}`) ?? null,
+      // The attempt's timestamp is preferred because it is the one hawkBit actually records: its
+      // /devices/distribution-sets rows carry a zero installed_at, so without this the column would be empty
+      // for the whole fleet in hawkbit mode.
+      lastUpdate: setJob && isRealDate(setJob.mtime)
+        ? setJob.mtime
+        : isRealDate(row.installed_at) ? row.installed_at : '',
+    };
+    const list = setsByDevice.get(row.device_id) ?? [];
+    list.push(set);
+    setsByDevice.set(row.device_id, list);
+  }
+
+  // Fold everything onto the real device list. Group membership is the spine; a device with
+  // pack rows but no group still appears, so nothing the updates service knows is dropped.
+  for (const deviceId of [...setsByDevice.keys(), ...jobByDevice.keys()]) {
+    if (!groupsByDevice.has(deviceId)) groupsByDevice.set(deviceId, []);
+  }
+
+  return [...groupsByDevice.entries()].map(([deviceId, groupIds]) => {
+    const sets = (setsByDevice.get(deviceId) ?? []).sort((a, b) => a.packName.localeCompare(b.packName));
+    const job = jobByDevice.get(deviceId) ?? null;
+
+    // Live job state first, then installed-vs-target, then "nothing reported".
+    let status: DeviceStatus;
+    if (job) status = job.status;
+    else if (sets.length === 0) status = 'no-data';
+    else if (sets.some((s) => s.status === 'outdated')) status = 'outdated';
+    else if (sets.some((s) => s.status === 'up-to-date')) status = 'up-to-date';
+    else status = 'no-target';
+
+    const stamps = [
+      ...(job && isRealDate(job.mtime) ? [job.mtime] : []),
+      ...sets.filter((s) => isRealDate(s.installedAt)).map((s) => s.installedAt),
+    ];
+    // What the Last Update column shows, folded to the device. The live job is left out on
+    // purpose: its mtime moves with every download tick, which would reshuffle the list while
+    // devices update and put it out of step with the column the operator is reading.
+    const updated = sets.filter((s) => isRealDate(s.lastUpdate)).map((s) => s.lastUpdate);
+    return {
+      newestUpdate: updated.sort().at(-1) ?? '',
+      deviceId,
+      groupIds,
+      groupLabel: groupIds.map((id) => groupNames.get(id) ?? id).join(', '),
+      sets,
+      job,
+      status,
+      lastActivity: stamps.sort().at(-1) ?? '',
+    };
+  // Newest update first (ISO timestamps compare lexicographically); devices that never had one
+  // follow, by id.
+  }).sort((a, b) => b.newestUpdate.localeCompare(a.newestUpdate) || a.deviceId.localeCompare(b.deviceId));
+}
+
 export default function OtaDevicesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -386,6 +530,82 @@ export default function OtaDevicesPage() {
 
   const groupIdsKey = availableDms.map((g) => g.id).join(',');
 
+  // A full load reads the fleet and its targets; a live refresh only what moves (installed sets and
+  // update attempts). Each part is kept so a refresh can rebuild the table from the parts it did not re-read.
+  const fleetRef = React.useRef<{ membership: FleetMembership[]; targets: GroupTargets[] } | null>(null);
+  const liveRef = React.useRef<LiveData | null>(null);
+  const campaignNamesRef = React.useRef(new Map<string, string>());
+  const namesRequestedRef = React.useRef(new Set<string>());
+  const liveTicksRef = React.useRef(0);
+
+  const rebuild = useCallback(() => {
+    const fleet = fleetRef.current;
+    const live = liveRef.current;
+    if (!fleet || !live) return;
+    const groupNames = new Map(availableDms.map((g) => [g.id, g.name]));
+    setDevices(buildDeviceRows(fleet.membership, fleet.targets, live, campaignNamesRef.current, groupNames));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupIdsKey]);
+
+  // The fleet, by group. Paged; a device may appear under several groups.
+  const fetchMembership = useCallback(() => Promise.all(availableDms.map(async (g) => {
+    const ids: string[] = [];
+    let bookmark: string | undefined;
+    for (let i = 0; i < 20; i++) {
+      const res = await getDevicesByGroup(g.id, { pageSize: 100, bookmark });
+      ids.push(...(res.list ?? []).map((d) => d.id));
+      if (!res.next) break;
+      bookmark = res.next;
+    }
+    return { group: g, ids };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [groupIdsKey]);
+
+  // Server-side current-vs-latest compliance, only for groups that have devices: an empty group has no rows.
+  const fetchTargets = useCallback((membership: FleetMembership[]): Promise<GroupTargets[]> => (
+    targetsSupported
+      ? Promise.all(membership.filter((m) => m.ids.length > 0).map(({ group }) =>
+          getGroupVersionStatus({ groupId: group.id })
+            .then((r) => ({ groupId: group.id, rows: r.rows ?? [] }))
+            .catch(() => ({ groupId: group.id, rows: [] }))))
+      : Promise.resolve([])
+  ), [targetsSupported]);
+
+  // Installed pack versions and the newest update attempt per (device, set), fleet-wide.
+  const fetchLive = useCallback(async (): Promise<LiveData> => {
+    const [packs, attempts] = await Promise.all([
+      (async () => {
+        const all: DevicePackVersion[] = [];
+        let bookmark: string | undefined;
+        for (let i = 0; i < 50; i++) {
+          const { list, next } = await fetchAllDevicePackVersions({ pageSize: 200, bookmark });
+          all.push(...list);
+          if (!next) break;
+          bookmark = next;
+        }
+        return all;
+      })(),
+      fetchLatestDevicePackUpdates().catch(() => [] as DevicePackUpdate[]),
+    ]);
+    return { packs, attempts };
+  }, []);
+
+  // Campaign names only label attempts, so they are looked up after the table shows, once per campaign,
+  // and only in the groups whose attempts name a campaign not seen yet — not every group on every load.
+  const nameCampaigns = useCallback(async (attempts: DevicePackUpdate[]) => {
+    const groups = new Set<string>();
+    for (const a of attempts) {
+      const id = a.launch_id;
+      if (!id || !a.group_id || campaignNamesRef.current.has(id) || namesRequestedRef.current.has(id)) continue;
+      namesRequestedRef.current.add(id);
+      groups.add(a.group_id);
+    }
+    if (groups.size === 0) return;
+    const lists = await Promise.all([...groups].map((groupId) => fetchAllCampaigns({ groupId }).catch(() => [])));
+    for (const c of lists.flat()) campaignNamesRef.current.set(c.id, c.name);
+    rebuild();
+  }, [rebuild]);
+
   // silent: a background refresh — no spinner and no error state, so the table updates in place. An options object, so a click event can't read as silent.
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.access_token || availableDms.length === 0) return;
@@ -395,172 +615,50 @@ export default function OtaDevicesPage() {
       setLoadError(null);
     }
     try {
-      const [membership, packPages, targetPages, campaignPages, latestAttempts] = await Promise.all([
-        // 1. The real fleet, by group. Paged; a device may appear under several groups.
-        Promise.all(availableDms.map(async (g) => {
-          const ids: string[] = [];
-          let bookmark: string | undefined;
-          for (let i = 0; i < 20; i++) {
-            const res = await getDevicesByGroup(g.id, { pageSize: 100, bookmark });
-            ids.push(...(res.list ?? []).map((d) => d.id));
-            if (!res.next) break;
-            bookmark = res.next;
-          }
-          return { group: g, ids };
-        })),
-        // 2. Installed pack versions, fleet-wide.
-        (async () => {
-          const all: DevicePackVersion[] = [];
-          let bookmark: string | undefined;
-          for (let i = 0; i < 50; i++) {
-            const { list, next } = await fetchAllDevicePackVersions({ pageSize: 200, bookmark });
-            all.push(...list);
-            if (!next) break;
-            bookmark = next;
-          }
-          return all;
-        })(),
-        // 3. Server-side current-vs-latest compliance per (device, pack).
-        targetsSupported
-          ? Promise.all(availableDms.map((g) =>
-              getGroupVersionStatus({ groupId: g.id }).then((r) => r.rows ?? []).catch(() => [])))
-          : Promise.resolve([]),
-        // 4. Campaigns per group — only to name and link the campaign behind an attempt.
-        Promise.all(availableDms.map((g) =>
-          fetchAllCampaigns({ groupId: g.id }).catch(() => []))),
-        // 5. The newest update attempt per (device, set), fleet-wide, with its outcome.
-        fetchLatestDevicePackUpdates().catch(() => []),
+      const [fleet, live] = await Promise.all([
+        fetchMembership().then(async (membership) => ({ membership, targets: await fetchTargets(membership) })),
+        fetchLive(),
       ]);
-
-      // Compliance keyed per (device, pack) — keyed by id and by name, since pack rows and
-      // compliance rows don't always agree on which identifier is populated.
-      const compliance = new Map<string, { latest: string; inSync: boolean }>();
-      for (const row of targetPages.flat()) {
-        const entry = { latest: row.latest_version, inSync: row.in_sync };
-        compliance.set(`${row.device_id}::${row.distribution_set_id}`, entry);
-        compliance.set(`${row.device_id}::name::${row.distribution_set_name}`, entry);
-      }
-
-      const campaignNameById = new Map(campaignPages.flat().map((c) => [c.id, c.name]));
-
-      // The newest attempt per (device, set NAME) comes straight from the backend; per device, the
-      // newest of those (newestAttemptByDevice). A cancelled attempt is left out (see attemptStatusOf).
-      const jobByDevicePack = new Map<string, DeviceJobInfo>();
-      const attemptByDevicePack = new Map(latestAttempts.map((a) => [`${a.device_id}::${a.distribution_set_name}`, a]));
-      for (const a of latestAttempts) {
-        const status = attemptStatusOf(a.status);
-        if (!status) continue;
-        const launchId = a.launch_id ?? '';
-        const info: DeviceJobInfo = {
-          campaignId: launchId,
-          campaignName: launchId ? (campaignNameById.get(launchId) ?? `Campaign ${launchId}`) : 'Direct update',
-          status,
-          mtime: attemptTime(a),
-        };
-        jobByDevicePack.set(`${a.device_id}::${a.distribution_set_name}`, info);
-      }
-      // The same info object as the set row's, which is how the device cell tells whether its job is
-      // already shown on one of its set rows.
-      const jobByDevice = new Map<string, DeviceJobInfo>();
-      for (const [deviceId, a] of newestAttemptByDevice(latestAttempts)) {
-        const info = jobByDevicePack.get(`${deviceId}::${a.distribution_set_name}`);
-        if (info) jobByDevice.set(deviceId, info);
-      }
-
-      // Installed sets per device.
-      const setsByDevice = new Map<string, DeviceSetRow[]>();
-      for (const row of packPages) {
-        const comp =
-          compliance.get(`${row.device_id}::${row.distribution_set_id}`) ??
-          compliance.get(`${row.device_id}::name::${row.distribution_set_name}`) ??
-          null;
-        const setJob = jobByDevicePack.get(`${row.device_id}::${row.distribution_set_name}`) ?? null;
-        const set: DeviceSetRow = {
-          packId: row.distribution_set_id,
-          packName: row.distribution_set_name,
-          current: row.version,
-          target: comp?.latest ?? null,
-          // Trust the backend's own in_sync rather than re-deriving it from a string compare.
-          status: !comp ? 'no-target' : comp.inSync ? 'up-to-date' : 'outdated',
-          packaging: row.packaging,
-          installedAt: row.installed_at,
-          job: setJob,
-          attempt: attemptByDevicePack.get(`${row.device_id}::${row.distribution_set_name}`) ?? null,
-          // The attempt's timestamp is preferred because it is the one hawkBit actually records: its
-          // /devices/distribution-sets rows carry a zero installed_at, so without this the column would be empty
-          // for the whole fleet in hawkbit mode.
-          lastUpdate: setJob && isRealDate(setJob.mtime)
-            ? setJob.mtime
-            : isRealDate(row.installed_at) ? row.installed_at : '',
-        };
-        const list = setsByDevice.get(row.device_id) ?? [];
-        list.push(set);
-        setsByDevice.set(row.device_id, list);
-      }
-
-      // Fold everything onto the real device list. Group membership is the spine; a device with
-      // pack rows but no group still appears, so nothing the updates service knows is dropped.
-      const groupsByDevice = new Map<string, string[]>();
-      for (const { group, ids } of membership) {
-        for (const id of ids) {
-          const list = groupsByDevice.get(id) ?? [];
-          if (!list.includes(group.id)) list.push(group.id);
-          groupsByDevice.set(id, list);
-        }
-      }
-      for (const deviceId of [...setsByDevice.keys(), ...jobByDevice.keys()]) {
-        if (!groupsByDevice.has(deviceId)) groupsByDevice.set(deviceId, []);
-      }
-      const groupNames = new Map(availableDms.map((g) => [g.id, g.name]));
-
-      const rows: DeviceRow[] = [...groupsByDevice.entries()].map(([deviceId, groupIds]) => {
-        const sets = (setsByDevice.get(deviceId) ?? []).sort((a, b) => a.packName.localeCompare(b.packName));
-        const job = jobByDevice.get(deviceId) ?? null;
-
-        // Live job state first, then installed-vs-target, then "nothing reported".
-        let status: DeviceStatus;
-        if (job) status = job.status;
-        else if (sets.length === 0) status = 'no-data';
-        else if (sets.some((s) => s.status === 'outdated')) status = 'outdated';
-        else if (sets.some((s) => s.status === 'up-to-date')) status = 'up-to-date';
-        else status = 'no-target';
-
-        const stamps = [
-          ...(job && isRealDate(job.mtime) ? [job.mtime] : []),
-          ...sets.filter((s) => isRealDate(s.installedAt)).map((s) => s.installedAt),
-        ];
-        // What the Last Update column shows, folded to the device. The live job is left out on
-        // purpose: its mtime moves with every download tick, which would reshuffle the list while
-        // devices update and put it out of step with the column the operator is reading.
-        const updated = sets.filter((s) => isRealDate(s.lastUpdate)).map((s) => s.lastUpdate);
-        return {
-          newestUpdate: updated.sort().at(-1) ?? '',
-          deviceId,
-          groupIds,
-          groupLabel: groupIds.map((id) => groupNames.get(id) ?? id).join(', '),
-          sets,
-          job,
-          status,
-          lastActivity: stamps.sort().at(-1) ?? '',
-        };
-      // Newest update first (ISO timestamps compare lexicographically); devices that never had one
-      // follow, by id.
-      }).sort((a, b) => b.newestUpdate.localeCompare(a.newestUpdate) || a.deviceId.localeCompare(b.deviceId));
-
-      setDevices(rows);
+      fleetRef.current = fleet;
+      liveRef.current = live;
+      liveTicksRef.current = 0;
+      rebuild();
+      void nameCampaigns(live.attempts);
     } catch (err) {
       if (!silent) setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
       if (!silent) setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.access_token, groupIdsKey, targetsSupported]);
+  }, [user?.access_token, groupIdsKey, fetchMembership, fetchTargets, fetchLive, rebuild, nameCampaigns]);
 
   useEffect(() => { load(); }, [load]);
 
-  // The fleet's live state while an update is moving: refresh whenever a device is queued or installing.
+  // A live refresh re-reads what moves; every few ticks the targets too, since a finished campaign can
+  // release a new target version. Group membership and campaign names are left alone.
+  const refreshLive = useCallback(async (): Promise<string | undefined> => {
+    const fleet = fleetRef.current;
+    if (!fleet) return undefined;
+    try {
+      const tick = ++liveTicksRef.current;
+      const [live, targets] = await Promise.all([
+        fetchLive(),
+        tick % TARGETS_EVERY_LIVE_TICKS === 0 ? fetchTargets(fleet.membership) : Promise.resolve(fleet.targets),
+      ]);
+      fleetRef.current = { ...fleet, targets };
+      liveRef.current = live;
+      rebuild();
+      void nameCampaigns(live.attempts);
+      return liveSignature(live);
+    } catch {
+      return undefined;
+    }
+  }, [fetchLive, fetchTargets, rebuild, nameCampaigns]);
+
+  // The fleet's live state while an update is moving: refresh whenever a device is queued or installing,
+  // slowing down once nothing changes (devices that never report again keep it "queued" forever).
   const updateInFlight = devices.some((d) => d.status === 'queued' || d.status === 'installing');
-  useAutoRefresh(() => load({ silent: true }), updateInFlight, 8000);
+  useAdaptiveRefresh(refreshLive, updateInFlight, { fastMs: 8000, slowMs: 60_000 });
 
   const packOptions = useMemo(
     () => [...new Set(devices.flatMap((d) => d.sets.map((s) => s.packName)))].filter(Boolean).sort(),

@@ -754,7 +754,8 @@ export async function fetchUpdatePackDescriptor({ groupId, packName }: ApiParams
 
 export async function fetchCurrentCampaigns({ groupId, limit, bookmark }: ApiParams & { limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<CampaignListResponse> {
   const params = new URLSearchParams();
-  if (limit) params.set('limit', limit.toString());
+  // The updates API reads page_size; 'limit' was ignored.
+  if (limit) params.set('page_size', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
 
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch${params.toString() ? '?' + params.toString() : ''}`;
@@ -950,6 +951,24 @@ export async function cancelCampaign({ groupId, campaignId }: ApiParams & { camp
   return handleApiError(response, `Failed to cancel campaign ${campaignId}`);
 }
 
+// A group's update attempts sent outside any fleet campaign (direct installs, hawkBit retries), newest first.
+export async function fetchIndividualUpdates({ groupId }: ApiParams, opts?: ApiCallOptions): Promise<DevicePackUpdate[]> {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/individual-updates`, {
+    signal: opts?.signal ?? undefined,
+  });
+  const data = await handleApiError(response, `Failed to fetch individual updates of group ${groupId}`);
+  return data?.list || [];
+}
+
+// Withdraw one individual update that has not finished.
+export async function cancelIndividualUpdate({ groupId, updateId }: ApiParams & { updateId: string }, opts?: ApiCallOptions): Promise<any> {
+  const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${encodeURIComponent(groupId)}/individual-updates/${encodeURIComponent(updateId)}/cancel`, {
+    method: 'POST',
+    signal: opts?.signal ?? undefined,
+  });
+  return handleApiError(response, `Failed to cancel update ${updateId}`);
+}
+
 // Mark a campaign as completed (terminal).
 export async function completeCampaign({ groupId, campaignId }: ApiParams & { campaignId: string }, opts?: ApiCallOptions): Promise<any> {
   const response = await apiFetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${campaignId}/complete`, {
@@ -995,7 +1014,8 @@ export async function fetchDeviceJobsPaginated({
   bookmark 
 }: ApiParams & { deviceId: string; limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<PaginatedJobsResponse> {
   const params = new URLSearchParams();
-  if (limit) params.set('limit', limit.toString());
+  // The updates API reads page_size; 'limit' was ignored.
+  if (limit) params.set('page_size', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
   
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/device/${deviceId}/jobs${params.toString() ? '?' + params.toString() : ''}`;

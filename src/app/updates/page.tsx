@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   PlayCircle, AlertTriangle, RefreshCw, Loader2, ArrowLeft, Ban, Rocket, Boxes, Pause, Play, RotateCcw,
   Plus, CalendarClock, TrendingUp, CheckCircle2, AlertCircle, PauseCircle, Circle, MoreVertical, ShieldCheck,
-  ChevronLeft, ChevronRight, FlaskConical, Eye,
+  ChevronLeft, ChevronRight, FlaskConical, Eye, Layers,
 } from 'lucide-react';
-import type { CampaignItem } from '@/types/iot';
+import type { CampaignItem, DevicePackUpdate } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,18 +27,20 @@ import { useUpdatesCapabilities } from '@/contexts/UpdatesCapabilitiesContext';
 import { cn, truncateText } from '@/lib/utils';
 import {
   fetchUpdatePacks, fetchAllCampaigns, pauseCampaign, resumeCampaign, cancelCampaign, retryFailedDevices,
-  triggerItemRollout,
+  triggerItemRollout, fetchIndividualUpdates,
 } from '@/lib/iot-api';
+import { CancelIndividualUpdateDialog, IndividualUpdateRow, UpdateKindBadge, NAME_CELL_MAX, SET_CELL_MAX, GROUP_CELL_MAX, POLICY_CELL_MAX } from '@/components/iot/individual-updates';
 import { useDms } from '@/contexts/DmsContext';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
   CampaignStatusCell, CampaignProgressCell, TestDeviceBadge, BatchProgress, getTestDeviceStatus,
   deriveCampaignStatus, deriveBatchPlan, isScheduledCampaign, isActiveCampaign, campaignAttentionReasons, isNotStartedCampaign, campaignRolloutPolicy,
+  campaignsSignature,
   type CampaignDisplayStatus,
 } from '@/components/iot/campaign-cells';
 import { CampaignBatchesPanel } from '@/components/iot/campaign-batches-panel';
 import { sileo } from '@/lib/toast';
-import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useAdaptiveRefresh } from '@/hooks/useAdaptiveRefresh';
 
 interface CampaignItemWithDms extends CampaignItem {
   dmsName: string;
@@ -49,13 +51,45 @@ type PackRef = { id: string; name: string; version: string; groupId: string };
 type ViewFilter = 'all' | 'active' | 'scheduled' | 'rolling' | 'attention' | 'completed' | 'history';
 
 const VIEW_LABEL: Record<ViewFilter, string> = {
-  all: 'All campaigns',
+  all: 'All statuses',
   active: 'Active',
   scheduled: 'Scheduled',
   rolling: 'Rolling out',
   attention: 'Requires attention',
   completed: 'Completed',
   history: 'Finished',
+};
+
+// Fleet campaigns roll a set out to a group; individual updates went to one device outside any campaign.
+type KindFilter = 'all' | 'fleet' | 'individual';
+
+// The table's title for each kind.
+const KIND_HEADING: Record<KindFilter, string> = {
+  all: 'Campaigns & individual updates',
+  fleet: 'Fleet campaigns',
+  individual: 'Individual updates',
+};
+
+// One row of the table: a fleet campaign, or an update sent to one device outside any campaign.
+type TableRowItem =
+  | { kind: 'campaign'; key: string; at: number; campaign: CampaignItemWithDms }
+  | { kind: 'individual'; key: string; at: number; update: DevicePackUpdate };
+
+const KIND_LABEL: Record<KindFilter, string> = {
+  all: 'Fleet & individual',
+  fleet: 'Fleet campaigns',
+  individual: 'Individual updates',
+};
+
+// The status views, read for an individual update's own status ('scheduled' has no counterpart).
+const INDIVIDUAL_VIEW: Record<ViewFilter, (u: DevicePackUpdate) => boolean> = {
+  all: () => true,
+  active: (u) => u.status === 'pending' || u.status === 'running',
+  scheduled: () => false,
+  rolling: (u) => u.status === 'running',
+  attention: (u) => u.status === 'failed',
+  completed: (u) => u.status === 'success',
+  history: (u) => u.status === 'success' || u.status === 'failed' || u.status === 'cancelled',
 };
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
@@ -129,6 +163,11 @@ export default function UpdatesPage() {
   const [viewFilter, setViewFilter] = React.useState<ViewFilter>(() => {
     const fromUrl = searchParams.get('view');
     return fromUrl && fromUrl in VIEW_LABEL ? (fromUrl as ViewFilter) : 'all';
+  });
+  // Deep link: ?kind=individual opens the individual updates directly.
+  const [kindFilter, setKindFilter] = React.useState<KindFilter>(() => {
+    const fromUrl = searchParams.get('kind');
+    return fromUrl && fromUrl in KIND_LABEL ? (fromUrl as KindFilter) : 'all';
   });
   const [pageSize, setPageSize] = React.useState<string>('10');
   const [page, setPage] = React.useState(0);
@@ -211,6 +250,7 @@ export default function UpdatesPage() {
   useEffect(() => { fetchAllPacks(); }, [fetchAllPacks]);
 
   const [allCampaigns, setAllCampaigns] = useState<CampaignItemWithDms[]>([]);
+  const [allIndividual, setAllIndividual] = useState<DevicePackUpdate[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
   const [campaignsError, setCampaignsError] = useState<Error | null>(null);
 
@@ -226,23 +266,32 @@ export default function UpdatesPage() {
     }
     try {
       const dmsToQuery = dmsIdFilter ? availableDms.filter(dms => dms.id === dmsIdFilter) : availableDms;
-      const perGroup = await Promise.all(
-        dmsToQuery.map(dms =>
-          fetchAllCampaigns({ groupId: dms.id })
-            .then(campaigns => campaigns.map(campaign => ({ ...campaign, dmsName: dms.name })))
-            .catch(() => [] as CampaignItemWithDms[])
-        )
-      );
+      const [perGroup, individualPerGroup] = await Promise.all([
+        Promise.all(
+          dmsToQuery.map(dms =>
+            fetchAllCampaigns({ groupId: dms.id })
+              .then(campaigns => campaigns.map(campaign => ({ ...campaign, dmsName: dms.name })))
+              .catch(() => [] as CampaignItemWithDms[])
+          )
+        ),
+        // A backend without the endpoint just has no individual updates to show.
+        Promise.all(dmsToQuery.map(dms => fetchIndividualUpdates({ groupId: dms.id }).catch(() => [] as DevicePackUpdate[]))),
+      ]);
       let merged = perGroup.flat();
+      let individual = individualPerGroup.flat();
       if (packNameFilter) {
         merged = merged.filter(campaign => campaign.name.includes(packNameFilter));
+        individual = individual.filter(u => (u.distribution_set_name || '').includes(packNameFilter));
       }
       setAllCampaigns(merged);
+      setAllIndividual(individual);
+      return { campaigns: merged, individual };
     } catch (err) {
       if (!silent) setCampaignsError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       if (!silent) setIsLoadingCampaigns(false);
     }
+    return undefined;
   }, [user?.access_token, availableDms.map(d => d.id).join(','), packNameFilter, dmsIdFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { refetchAllCampaigns(); }, [refetchAllCampaigns]);
@@ -251,8 +300,16 @@ export default function UpdatesPage() {
   // just started here and the next poll has not caught up yet), and go quiet once everything is done.
   const anyCampaignMoving = allCampaigns.some(
     (c) => c.status !== 'cancelled' && c.status !== 'completed' && ((c.pending_count || 0) + (c.active_count || 0)) > 0,
+  ) || allIndividual.some(u => u.status === 'pending' || u.status === 'running');
+  // A campaign whose devices stopped reporting stays "moving" forever, so polling slows down once nothing changes.
+  useAdaptiveRefresh(
+    async () => {
+      const read = await refetchAllCampaigns({ silent: true });
+      return read ? `${campaignsSignature(read.campaigns)}|${read.individual.map(u => `${u.id}:${u.status}`).join(',')}` : undefined;
+    },
+    anyCampaignMoving || startedCampaigns.size > 0,
+    { fastMs: 4000, slowMs: 60_000 },
   );
-  useAutoRefresh(() => refetchAllCampaigns({ silent: true }), anyCampaignMoving || startedCampaigns.size > 0, 4000);
 
   // ── Lifecycle actions ────────────────────────────────────────────────────────
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
@@ -371,12 +428,36 @@ export default function UpdatesPage() {
   }, [groups]);
 
   const filtered = groups[viewFilter];
+  const showFleet = kindFilter !== 'individual';
+  const showIndividual = kindFilter !== 'fleet';
+
+  const visibleIndividual = React.useMemo(() => allIndividual
+    .filter(u => (filterDmsId === 'all' || u.group_id === filterDmsId) && INDIVIDUAL_VIEW[viewFilter](u))
+    .slice()
+    .sort((a, b) => new Date(b.created_at || b.timestamp_init || 0).getTime() - new Date(a.created_at || a.timestamp_init || 0).getTime()),
+  [allIndividual, filterDmsId, viewFilter]);
+  const groupNameOf = React.useCallback((groupId: string) => availableDms.find(d => d.id === groupId)?.name, [availableDms]);
+  const campaignNameOf = React.useCallback(
+    (groupId: string, campaignId: string) => allCampaigns.find(c => c.group_id === groupId && c.id === campaignId)?.name,
+    [allCampaigns],
+  );
+  // Campaigns and individual updates share one table, newest first.
+  const tableRows = React.useMemo<TableRowItem[]>(() => [
+    ...(showFleet ? filtered.map(c => ({ kind: 'campaign' as const, key: `c:${campaignKey(c)}`, at: new Date(startTimeOf(c) || 0).getTime(), campaign: c })) : []),
+    ...(showIndividual ? visibleIndividual.map(u => ({ kind: 'individual' as const, key: `i:${u.group_id}::${u.id}`, at: new Date(u.created_at || u.timestamp_init || 0).getTime(), update: u })) : []),
+  ].sort((a, b) => b.at - a.at), [showFleet, showIndividual, filtered, visibleIndividual]);
+
   const numericPageSize = parseInt(pageSize, 10) || 10;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / numericPageSize));
-  const pageRows = filtered.slice(page * numericPageSize, page * numericPageSize + numericPageSize);
+  const pageCount = Math.max(1, Math.ceil(tableRows.length / numericPageSize));
+  const pageItems = tableRows.slice(page * numericPageSize, page * numericPageSize + numericPageSize);
+  const pageRows = React.useMemo(
+    () => pageItems.flatMap(r => (r.kind === 'campaign' ? [r.campaign] : [])),
+    [pageItems],
+  );
+  const [cancelIndividualTarget, setCancelIndividualTarget] = React.useState<DevicePackUpdate | null>(null);
 
   React.useEffect(() => { setPage(prev => Math.min(prev, pageCount - 1)); }, [pageCount]);
-  React.useEffect(() => { setPage(0); }, [filterDmsId, viewFilter, pageSize]);
+  React.useEffect(() => { setPage(0); }, [filterDmsId, viewFilter, pageSize, kindFilter]);
 
   // The panel below the table follows the selected row; until one is picked it shows the first
   // active campaign on screen, which is the one an operator is most likely watching.
@@ -474,8 +555,9 @@ export default function UpdatesPage() {
   // Up to five page buttons, centred on the current page.
   const windowStart = Math.max(0, Math.min(page - 2, pageCount - 5));
   const pageWindow = Array.from({ length: Math.min(5, pageCount) }, (_, i) => windowStart + i);
-  const firstRow = filtered.length === 0 ? 0 : page * numericPageSize + 1;
-  const lastRow = Math.min(filtered.length, (page + 1) * numericPageSize);
+  const firstRow = tableRows.length === 0 ? 0 : page * numericPageSize + 1;
+  const lastRow = Math.min(tableRows.length, (page + 1) * numericPageSize);
+  const rowNoun = kindFilter === 'fleet' ? 'campaign' : 'update';
 
   return (
     <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Campaigns' }]} className="space-y-6">
@@ -526,7 +608,7 @@ export default function UpdatesPage() {
             <RefreshCw className="mr-2 h-4 w-4" /> Retry
           </Button>
         </div>
-      ) : allCampaigns.length === 0 ? (
+      ) : allCampaigns.length === 0 && allIndividual.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border bg-muted/20 py-16 text-center">
           <Rocket className="mb-4 h-12 w-12 text-muted-foreground" />
           <p className="text-lg font-medium">No campaigns yet</p>
@@ -544,7 +626,7 @@ export default function UpdatesPage() {
       ) : (
         <>
           {/* Summary strip — each figure filters the table */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {showFleet && <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <KpiTile
               label="Active campaigns" value={groups.active.length} icon={TrendingUp}
               tone="bg-primary/10 text-primary"
@@ -575,44 +657,62 @@ export default function UpdatesPage() {
               sub={kpi.updatedDevices > 0 ? `${kpi.updatedDevices} device${kpi.updatedDevices === 1 ? '' : 's'} updated` : undefined}
               active={viewFilter === 'completed'} onClick={() => toggleView('completed')}
             />
+          </div>}
+
+          {/* Filters — shared by the fleet campaigns and the individual updates below */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as KindFilter)}>
+              <SelectTrigger className="w-[190px]" aria-label="Update kind">
+                <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                  <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <SelectValue />
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(KIND_LABEL) as KindFilter[]).map(k => (
+                  <SelectItem key={k} value={k}>{KIND_LABEL[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={viewFilter} onValueChange={(v) => setViewFilter(v as ViewFilter)}>
+              <SelectTrigger className="w-[180px]" aria-label="Status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(VIEW_LABEL) as ViewFilter[]).map(v => (
+                  <SelectItem key={v} value={v}>{VIEW_LABEL[v]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!packNameFilter && availableDms.length > 1 && (
+              <Select value={filterDmsId} onValueChange={setFilterDmsId}>
+                <SelectTrigger className="w-auto max-w-[240px]">
+                  <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                    <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <SelectValue placeholder="All device groups" className="truncate" />
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All device groups</SelectItem>
+                  {availableDms.map((dms) => <SelectItem key={dms.id} value={dms.id} title={dms.name}>{truncateText(dms.name, 40)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Campaigns table */}
           <section>
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
-              <h2 className="text-base font-semibold">
-                {VIEW_LABEL[viewFilter]} <span className="font-normal text-muted-foreground">({filtered.length})</span>
-              </h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={viewFilter} onValueChange={(v) => setViewFilter(v as ViewFilter)}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(VIEW_LABEL) as ViewFilter[]).map(v => (
-                      <SelectItem key={v} value={v}>{VIEW_LABEL[v]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!packNameFilter && availableDms.length > 1 && (
-                  <Select value={filterDmsId} onValueChange={setFilterDmsId}>
-                    <SelectTrigger className="w-auto max-w-[240px]">
-                      <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
-                        <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <SelectValue placeholder="All device groups" className="truncate" />
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All device groups</SelectItem>
-                      {availableDms.map((dms) => <SelectItem key={dms.id} value={dms.id} title={dms.name}>{truncateText(dms.name, 40)}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
+            <h2 className="pb-3 text-base font-semibold">
+              {KIND_HEADING[kindFilter]}{' '}
+              <span className="font-normal text-muted-foreground">
+                {viewFilter !== 'all' && `· ${VIEW_LABEL[viewFilter]} `}({tableRows.length})
+              </span>
+            </h2>
 
-            {filtered.length === 0 ? (
+            {tableRows.length === 0 ? (
               <p className="border-t py-10 text-center text-sm text-muted-foreground">
-                No {VIEW_LABEL[viewFilter].toLowerCase()} campaigns.{' '}
-                <button type="button" className="text-primary hover:underline" onClick={() => setViewFilter('all')}>Show all</button>
+                {viewFilter === 'all' ? `No ${KIND_HEADING[kindFilter].toLowerCase()}.` : `No ${VIEW_LABEL[viewFilter].toLowerCase()} ${KIND_HEADING[kindFilter].toLowerCase()}.`}{' '}
+                {viewFilter !== 'all' && (
+                  <button type="button" className="text-primary hover:underline" onClick={() => setViewFilter('all')}>Show all</button>
+                )}
               </p>
             ) : (
               <>
@@ -632,7 +732,20 @@ export default function UpdatesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pageRows.map((c) => {
+                      {pageItems.map((item) => {
+                        if (item.kind === 'individual') {
+                          const u = item.update;
+                          return (
+                            <IndividualUpdateRow
+                              key={item.key}
+                              update={u}
+                              groupName={groupNameOf(u.group_id)}
+                              campaignName={u.retry_of_launch_id ? campaignNameOf(u.group_id, u.retry_of_launch_id) : undefined}
+                              onCancel={setCancelIndividualTarget}
+                            />
+                          );
+                        }
+                        const c = item.campaign;
                         const status = deriveCampaignStatus(c);
                         const { icon: StatusIcon, cls: statusCls } = STATUS_ICON[status];
                         const pack = c.distribution_set_id ? packsById.get(`${c.group_id}::${c.distribution_set_id}`) : undefined;
@@ -652,10 +765,11 @@ export default function UpdatesPage() {
                             <TableCell>
                               <div className="flex items-start gap-2.5">
                                 <StatusIcon className={cn('mt-0.5 h-5 w-5 shrink-0', statusCls)} aria-hidden />
-                                <div className="min-w-0">
+                                <div className={cn('min-w-0', NAME_CELL_MAX)}>
                                   <Link
                                     href={detailsHref(c)}
                                     onClick={(e) => e.stopPropagation()}
+                                    title={c.name}
                                     className="block truncate font-medium hover:text-primary hover:underline"
                                   >
                                     {c.name}
@@ -677,20 +791,25 @@ export default function UpdatesPage() {
                                 <Link
                                   href={`/updates/pack-details?groupId=${encodeURIComponent(c.group_id)}&packName=${encodeURIComponent(packName)}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="text-sm hover:text-primary hover:underline"
+                                  title={packName}
+                                  className={cn('block truncate text-sm hover:text-primary hover:underline', SET_CELL_MAX)}
                                 >
                                   {packName}
                                 </Link>
                               )}
                             </TableCell>
                             <TableCell>
-                              <Link
-                                href={`/device-groups/details?groupId=${encodeURIComponent(c.group_id)}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-sm hover:text-primary hover:underline"
-                              >
-                                {c.dmsName}
-                              </Link>
+                              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                <Link
+                                  href={`/device-groups/details?groupId=${encodeURIComponent(c.group_id)}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={c.dmsName}
+                                  className={cn('min-w-0 truncate text-sm hover:text-primary hover:underline', GROUP_CELL_MAX)}
+                                >
+                                  {c.dmsName}
+                                </Link>
+                                <UpdateKindBadge kind="fleet" />
+                              </div>
                             </TableCell>
                             <TableCell className="whitespace-nowrap">
                               {start && (
@@ -731,7 +850,7 @@ export default function UpdatesPage() {
                             <TableCell>
                               <div className="flex items-start gap-1.5">
                                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                <div className="text-xs">
+                                <div className={cn('whitespace-normal text-xs', POLICY_CELL_MAX)}>
                                   <div className="font-medium">{policy.label}</div>
                                   {policy.details.map(d => <div key={d} className="text-muted-foreground">{d}</div>)}
                                 </div>
@@ -750,7 +869,7 @@ export default function UpdatesPage() {
                 {/* Pagination */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
                   <span className="text-muted-foreground">
-                    Showing {firstRow} to {lastRow} of {filtered.length} campaign{filtered.length === 1 ? '' : 's'}
+                    Showing {firstRow} to {lastRow} of {tableRows.length} {rowNoun}{tableRows.length === 1 ? '' : 's'}
                   </span>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -783,9 +902,15 @@ export default function UpdatesPage() {
             )}
           </section>
 
-          {selected && <CampaignBatchesPanel key={campaignKey(selected)} campaign={selected} backend={backend} />}
+          {showFleet && selected && <CampaignBatchesPanel key={campaignKey(selected)} campaign={selected} backend={backend} />}
         </>
       )}
+
+      <CancelIndividualUpdateDialog
+        update={cancelIndividualTarget}
+        onClose={() => setCancelIndividualTarget(null)}
+        onCancelled={() => refetchAllCampaigns()}
+      />
 
       {/* Cancel Campaign Confirmation Dialog */}
       <AlertDialog open={!!cancelCampaignTarget} onOpenChange={(open) => !open && setCancelCampaignTarget(null)}>

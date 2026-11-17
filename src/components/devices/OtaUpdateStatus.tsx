@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { UpdateStatusBadge } from '@/components/devices/DeviceUpdatePacksTab';
+import { IndividualOrigin } from '@/components/iot/individual-updates';
 import { fetchDevicePackUpdates } from '@/lib/iot-api';
 import { cn } from '@/lib/utils';
 import type { DevicePackUpdate } from '@/types/iot';
@@ -40,6 +41,8 @@ function transition(u: DevicePackUpdate): string {
 }
 
 function CampaignLink({ u }: { u: DevicePackUpdate }) {
+  // A campaign's retry has no launch of its own in hawkBit; it still names the campaign it retried.
+  if (u.origin === 'retry') return <IndividualOrigin update={u} />;
   if (!u.launch_id) return <span className="text-muted-foreground">Sent directly, not by a campaign</span>;
   if (!u.group_id) return <span>Campaign {u.launch_id}</span>;
   return (
