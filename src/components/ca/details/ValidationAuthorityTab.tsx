@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/lib/router';
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -9,19 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2, AlertTriangle as AlertTriangleIcon, Download, RefreshCw, Eye } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import type { CertificateData } from '@/types/certificate';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { downloadFile } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, fetchSignerCertificateDisplay, toVaUpdatePayload, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { getCrlUrl } from '@/lib/va-api';
+import { useCrlSettings } from '@/hooks/useCrlSettings';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
-import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
+import { VaSettingsCard, ArchivedCrlSettingsAlert, LegacyCrlUrlNote } from '@/components/shared/VaSettingsCard';
 import * as asn1js from "asn1js";
 import { CertificateRevocationList, getCrypto, setEngine } from "pkijs";
 
@@ -60,14 +58,8 @@ interface ValidationAuthorityTabProps {
 export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   const router = useRouter();
 
-  const [config, setConfig] = useState<VAConfig | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCertificateSignerModalOpen, setIsCertificateSignerModalOpen] = useState(false);
-  const [selectedCertificateSignerDisplay, setSelectedCertificateSignerDisplay] = useState<CertificateData | null>(null);
-  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
-  const [errorConfig, setErrorConfig] = useState<string | null>(null);
-  const [latestCrl, setLatestCrl] = useState<LatestCrlInfo | null>(null);
-  const [isDownloadingCrl, setIsDownloadingCrl] = useState(false);
+  const crlSettings = useCrlSettings(ca);
+  const { settings, latestCrl, isLoading: isLoadingConfig, error: errorConfig, notFound, isDownloadingCrl } = crlSettings;
 
   // CRL viewer state
   const [isCrlSheetOpen, setIsCrlSheetOpen] = useState(false);
@@ -77,66 +69,9 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   const [rawCrlDer, setRawCrlDer] = useState<ArrayBuffer | null>(null);
   const [showHttpWarning, setShowHttpWarning] = useState(false);
 
-  const fetchCurrentVaConfig = useCallback(async () => {
-    if (!ca.subjectKeyId ) {
-      setConfig(null);
-      setSelectedCertificateSignerDisplay(null);
-      setLatestCrl(null);
-      return;
-    }
-
-    setIsLoadingConfig(true);
-    setErrorConfig(null);
-    setSelectedCertificateSignerDisplay(null);
-    setLatestCrl(null);
-
-    try {
-      const data = await fetchVaConfig(ca.subjectKeyId);
-
-      if (data === null) {
-        setConfig(getDefaultVAConfig(ca.id));
-        setLatestCrl(null);
-        return;
-      }
-
-      const newConfig: VAConfig = {
-        caId: ca.id,
-        refreshInterval: data.crl_options.refresh_interval || '24h',
-        validity: data.crl_options.validity || '7d',
-        signerCertificateSerialNumber: data.crl_options.signer_certificate_serial_number || null,
-        regenerateOnRevoke: data.crl_options.regenerate_on_revoke === true,
-      };
-      setConfig(newConfig);
-
-      if (data.latest_crl) {
-        setLatestCrl(data.latest_crl);
-      }
-
-      if (newConfig.signerCertificateSerialNumber) {
-        const signerSerial = newConfig.signerCertificateSerialNumber;
-        setSelectedCertificateSignerDisplay(await fetchSignerCertificateDisplay(signerSerial));
-      }
-    } catch (e: any) {
-      setErrorConfig(e.message || "An unknown error occurred.");
-      setConfig(null);
-      setLatestCrl(null);
-    } finally {
-      setIsLoadingConfig(false);
-    }
-  }, [ca]);
-
-  useEffect(() => {
-    fetchCurrentVaConfig();
-  }, [fetchCurrentVaConfig]);
-
   // Init CRL URL when CA changes
   useEffect(() => {
-    if (ca.subjectKeyId) {
-      const baseUrl = get_VA_CORE_API_BASE_URL();
-      setCrlUrl(`${baseUrl}/crl/${ca.subjectKeyId}`);
-    } else {
-      setCrlUrl('');
-    }
+    setCrlUrl(getCrlUrl(ca.id));
     setCrlDetails(null);
     setRawCrlDer(null);
   }, [ca]);
@@ -144,74 +79,6 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   useEffect(() => {
     setShowHttpWarning(crlUrl.startsWith('http://'));
   }, [crlUrl]);
-
-  const handleCertificateSignerSelected = (certificate: CertificateData) => {
-    if (config) {
-      setConfig({ ...config, signerCertificateSerialNumber: certificate.serialNumber ?? null });
-      setSelectedCertificateSignerDisplay(certificate);
-    }
-    setIsCertificateSignerModalOpen(false);
-  };
-
-  const handleClearCertificateSigner = () => {
-    if (config) {
-      setConfig({ ...config, signerCertificateSerialNumber: null });
-    }
-    setSelectedCertificateSignerDisplay(null);
-  };
-
-  const handleInputChange = (key: 'refreshInterval' | 'validity', value: string) => {
-    if (config) {
-      setConfig({ ...config, [key]: value });
-    }
-  };
-
-  const handleSwitchChange = (key: 'regenerateOnRevoke') => {
-    if (config) {
-      setConfig({ ...config, [key]: !config[key] });
-    }
-  };
-
-  const handleSaveConfig = async () => {
-    if (!config || !ca.subjectKeyId ) {
-      sileo.error({ title: "Save Error", description: "Missing required data: CA Subject Key ID or active session." });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await updateVaConfig(ca.subjectKeyId, toVaUpdatePayload(config));
-
-      sileo.success({
-        title: "Success!",
-        description: `VA configuration for "${ca.name}" has been saved.`
-      });
-    } catch (e: any) {
-      sileo.error({
-        title: "Save Failed",
-        description: e.message
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDownloadCrl = async () => {
-    if (!ca.subjectKeyId ) {
-      sileo.error({ title: "Download Error", description: "Cannot download CRL. Missing CA info or active session." });
-      return;
-    }
-    setIsDownloadingCrl(true);
-    try {
-      const crlData = await downloadCrl(ca.subjectKeyId);
-      downloadFile(crlData, `${ca.subjectKeyId}.crl`, 'application/pkix-crl');
-      sileo.success({ title: "Success", description: "CRL download has started." });
-    } catch (e: any) {
-      sileo.error({ title: "Download Failed", description: e.message });
-    } finally {
-      setIsDownloadingCrl(false);
-    }
-  };
 
   const handleFetchAndParseCrl = async () => {
     if (!crlUrl) {
@@ -281,7 +148,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     return (
       <div className="flex items-center justify-center rounded-xl border bg-muted/30 p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">Loading VA Configuration...</p>
+        <p className="ml-3 text-muted-foreground">Loading CRL Settings...</p>
       </div>
     );
   }
@@ -291,10 +158,10 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
       <div className="space-y-4">
         <Alert variant="destructive">
           <AlertTriangleIcon className="h-4 w-4" />
-          <AlertTitle>Error Loading Configuration</AlertTitle>
+          <AlertTitle>Error Loading CRL Settings</AlertTitle>
           <AlertDescription>{errorConfig}</AlertDescription>
         </Alert>
-        <Button variant="secondary" onClick={fetchCurrentVaConfig}>
+        <Button variant="secondary" onClick={crlSettings.reload}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
@@ -302,41 +169,36 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     );
   }
 
-  if (!ca.subjectKeyId) {
+  if (notFound) {
     return (
-      <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-8 text-center">
-        <h3 className="text-lg font-semibold text-muted-foreground">No Subject Key ID</h3>
-        <p className="text-sm text-muted-foreground">This CA does not have a Subject Key ID, which is required for VA configuration.</p>
+      <div className="space-y-4 rounded-xl border-2 border-dashed border-border bg-muted/20 p-8 text-center">
+        <div>
+          <h3 className="text-lg font-semibold text-muted-foreground">No CRL Settings</h3>
+          <p className="text-sm text-muted-foreground">
+            CRL settings are created when the CA is. If the CA was created just now, they may still be initializing.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={crlSettings.reload}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Retry
+        </Button>
       </div>
     );
   }
 
   return (
     <div>
-      {config && (
+      {settings && (
         <>
           {/* Section: CRL Configuration */}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
             <div>
               <p className="font-semibold">CRL Configuration</p>
-              <p className="text-sm text-muted-foreground mt-1">Configure the Certificate Revocation List generation settings for this Validation Authority.</p>
+              <p className="text-sm text-muted-foreground mt-1">Configure how the Certificate Revocation List of this CA is generated.</p>
             </div>
             <div className="lg:col-span-2">
-              <VaSettingsCard
-                config={config}
-                onInputChange={handleInputChange}
-                onSwitchChange={handleSwitchChange}
-                selectedCertificateSignerDisplay={selectedCertificateSignerDisplay}
-                onCertificateSignerSelected={handleCertificateSignerSelected}
-                onClearCertificateSigner={handleClearCertificateSigner}
-                isCertificateSignerModalOpen={isCertificateSignerModalOpen}
-                onCertificateSignerModalOpenChange={setIsCertificateSignerModalOpen}
-                isSubmitting={isSubmitting}
-                isLoadingConfig={isLoadingConfig}
-                onSave={handleSaveConfig}
-                onRefresh={fetchCurrentVaConfig}
-                limitToCAs={[ca]}
-              />
+              {crlSettings.isReadOnly && <ArchivedCrlSettingsAlert className="mb-6" />}
+              <VaSettingsCard state={crlSettings} limitToCAs={[ca]} />
             </div>
           </div>
 
@@ -346,12 +208,12 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
             <div>
               <p className="font-semibold">Latest Generated CRL</p>
-              <p className="text-sm text-muted-foreground mt-1">Review the newest Certificate Revocation List generated by this Validation Authority.</p>
+              <p className="text-sm text-muted-foreground mt-1">Review the newest Certificate Revocation List generated for this CA.</p>
             </div>
             <div className="space-y-4 lg:col-span-2">
               <div className="flex flex-wrap items-center gap-2">
                 {latestCrl && (
-                  <Button variant="secondary" onClick={handleDownloadCrl} disabled={isDownloadingCrl}>
+                  <Button variant="secondary" onClick={crlSettings.download} disabled={isDownloadingCrl}>
                     {isDownloadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                     Download CRL
                   </Button>
@@ -385,8 +247,9 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm italic text-muted-foreground">No CRL has been generated for this VA role yet.</p>
+                <p className="text-sm italic text-muted-foreground">No CRL has been generated for this CA yet.</p>
               )}
+              <LegacyCrlUrlNote legacySki={settings.legacySki} />
 
               <Sheet open={isCrlSheetOpen} onOpenChange={setIsCrlSheetOpen}>
                 <ResizableSheetContent
@@ -415,9 +278,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                         className="mt-1 font-mono text-xs"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        {ca.subjectKeyId
-                          ? `Auto-generated from base URL + CA SKI: ${ca.subjectKeyId}`
-                          : 'Enter the CRL URL manually'}
+                        Auto-generated from base URL + CA ID: {ca.id}
                       </p>
                     </div>
 

@@ -191,8 +191,6 @@ export function outlivesSigner(expiration: ExpirationConfig, signer: CA, now: Da
 interface CrossSignPayloadInput {
   signer: CA;
   target: CA;
-  /** ID of the CA entry that will hold the cross certificate. */
-  id: string;
   /** Default issuance profile for certificates issued by the new CA entry. */
   profileId: string;
   /** KMS key ID of the target's key pair, from {@link getKmsKeyId}. */
@@ -201,9 +199,8 @@ interface CrossSignPayloadInput {
 }
 
 /** Create-CA request for the target's key, subject unchanged, issued by the signer. */
-export function buildCrossSignPayload({ signer, target, id, profileId, keyId, expiration }: CrossSignPayloadInput): CreateCaPayload {
+export function buildCrossSignPayload({ signer, target, profileId, keyId, expiration }: CrossSignPayloadInput): CreateCaPayload {
   return {
-    id,
     parent_id: signer.id,
     engine_id: target.kmsKeyId ?? '',
     profile_id: profileId,

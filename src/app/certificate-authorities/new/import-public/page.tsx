@@ -15,7 +15,6 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { pemToBase64 } from '@/lib-crypto';
-import { generateUUID } from '@/lib-crypto/uuid';
 
 export default function CreateCaImportPublicPage() {
   const router = useRouter();
@@ -51,7 +50,6 @@ export default function CreateCaImportPublicPage() {
     }
 
     const payload: ImportCaPayload = {
-      id: generateUUID(),
       engine_id: '',
       private_key: '',
       ca: pemToBase64(importedCaCertPem),

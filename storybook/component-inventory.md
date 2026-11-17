@@ -78,6 +78,8 @@ This is the curated list of UI building blocks that should be preferred before c
 | Signing profile selector | `src/components/shared/SigningProfileSelector.tsx` | Reuse/select/create profile flows |
 | Signing profile form | `src/components/shared/SigningProfileForm.tsx` | Multi-section issuance profile creation/editing |
 | Issuance profile card | `src/components/shared/IssuanceProfileCard.tsx` | Summary presentation for signing profiles |
+| CRL signer certificate card | `src/components/shared/SignerCertificateCard.tsx` | Spec-style summary of a CRL signer certificate (name, issuer, expiry via `DateDisplay`, key algorithm, usages, serial). Props: `certificate`, `topRight?` (e.g. a clear button), `action?` (footer slot, e.g. "Change certificate"), `className?`. Used by `VaSettingsCard` |
+| Spec card building blocks | `src/components/shared/CardSpecParts.tsx` | Shared by `IssuanceProfileCard` and `SignerCertificateCard`: `CardField` (small uppercase label over a value), `ChipList` (wrapping KU/EKU/CSR usage chips; with `max`, the rest collapse into a "+N" chip with a tooltip) and `humanizeUsage` ("DigitalSignature" → "Digital Signature"). Use them for new spec-style cards instead of restyling labels and chips locally |
 | Crypto engine selector | `src/components/shared/CryptoEngineSelector.tsx` | Engine selection flows |
 | KMS key selector | `src/components/shared/KmsKeySelector.tsx` | Picking existing keys |
 | KMS key viewer | `src/components/shared/KmsKeyViewer.tsx` | Key identity display |

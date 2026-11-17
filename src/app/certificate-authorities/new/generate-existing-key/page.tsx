@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from '@/lib/router';
-import { generateUUID } from '@/lib-crypto/uuid';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchAndProcessCAs, createCa, inlineCaProfileName, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines, type ApiKmsKey } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
@@ -42,7 +41,6 @@ export default function CreateCaExistingKeyPage() {
 
   const [caType, setCaType] = useState('root');
   const [selectedParentCa, setSelectedParentCa] = useState<CA | null>(null);
-  const [caId] = useState(() => generateUUID());
   const [caName, setCaName] = useState('');
 
   const [selectedKeyId, setSelectedKeyId] = useState<string | undefined>(undefined);
@@ -247,7 +245,6 @@ export default function CreateCaExistingKeyPage() {
 
     const payload: CreateCaPayload = {
       parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
-      id: caId,
       engine_id: selectedKeyData.engine_id,
       subject: {
         country: country || undefined,
@@ -278,7 +275,7 @@ export default function CreateCaExistingKeyPage() {
         validityPayload = { type: 'Date', time: INDEFINITE_CA_EXPIRATION };
       }
       const inlineProfile: CreateSigningProfilePayload = {
-        name: `Inline CA Profile - ${caId}`,
+        name: inlineCaProfileName(caName),
         description: 'Inline profile for CA certificate',
         validity: validityPayload,
         sign_as_ca: true,
@@ -422,10 +419,6 @@ export default function CreateCaExistingKeyPage() {
                   <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
                 </div>
               )}
-              <div className="space-y-1.5">
-                <Label htmlFor="caId">CA ID (auto-generated)</Label>
-                <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
-              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="caName">CA Name (Common Name)</Label>
                 <Input

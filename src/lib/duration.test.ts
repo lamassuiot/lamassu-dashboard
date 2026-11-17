@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isValidDurationOrZero,
+  isZeroOrZeroDuration,
   addDuration,
   formatDuration,
   isValidDuration,
@@ -40,5 +42,23 @@ describe('duration', () => {
   it('formats for humans', () => {
     expect(formatDuration('1y2d')).toBe('1 year, 2 days');
     expect(formatDuration('30m')).toBe('30 minutes');
+  });
+
+  describe('zero durations', () => {
+    it('accepts the bare "0" and zero durations with units', () => {
+      expect(isValidDurationOrZero('0')).toBe(true);
+      expect(isValidDurationOrZero('0s')).toBe(true);
+      expect(isValidDurationOrZero('24h')).toBe(true);
+      expect(isValidDurationOrZero('')).toBe(false);
+      expect(isValidDurationOrZero('00')).toBe(false);
+    });
+
+    it('detects zero, including the "0s" the backend returns', () => {
+      expect(isZeroOrZeroDuration('0')).toBe(true);
+      expect(isZeroOrZeroDuration('0s')).toBe(true);
+      expect(isZeroOrZeroDuration('0d0h')).toBe(true);
+      expect(isZeroOrZeroDuration('1h')).toBe(false);
+      expect(isZeroOrZeroDuration('abc')).toBe(false);
+    });
   });
 });

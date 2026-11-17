@@ -4,15 +4,16 @@ import { server } from './test-utils/msw-server'
 import { fetchIssuedCertificate } from './issued-certificate-data'
 import type { CertificateData } from '@/types/certificate'
 import {
-  fetchVaConfig,
-  updateVaConfig,
+  fetchCrlSettings,
+  updateCrlSettings,
   downloadCrl,
   fetchSignerCertificateDisplay,
-  getDefaultVAConfig,
+  getCrlUrl,
   missingSignerCertificateDisplay,
-  toVaUpdatePayload,
-  type VaApiResponse,
-  type VaUpdatePayload,
+  toCrlSettings,
+  toCrlSettingsUpdatePayload,
+  type CrlSettingsResponse,
+  type CrlSettingsUpdatePayload,
 } from './va-api'
 
 vi.mock('./issued-certificate-data', () => ({
@@ -26,13 +27,15 @@ const VA_API_BASE = 'https://api.test.lamassu.io/va/v1'
 const VA_CORE_API_BASE = 'https://api.test.lamassu.io/va'
 
 describe('va-api', () => {
-  const testSki = 'abcd1234'
+  const testCaId = '018f2d6e-7b3a-7c1e-9a4b-0123456789ab'
 
-  const mockVaConfig: VaApiResponse = {
+  const mockCrlSettings: CrlSettingsResponse = {
+    ca_id: testCaId,
+    status: 'ACTIVE',
     crl_options: {
       refresh_interval: '24h',
       validity: '168h',
-      signer_certificate_serial_number: null,
+      signer_serial_number: 'signer-serial',
       regenerate_on_revoke: true,
     },
     latest_crl: {
@@ -42,15 +45,15 @@ describe('va-api', () => {
     },
   }
 
-  describe('fetchVaConfig', () => {
-    it('should fetch VA config successfully', async () => {
+  describe('fetchCrlSettings', () => {
+    it('should fetch CRL settings successfully', async () => {
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
-          return HttpResponse.json(mockVaConfig)
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
+          return HttpResponse.json(mockCrlSettings)
         })
       )
 
-      const result = await fetchVaConfig(testSki)
+      const result = await fetchCrlSettings(testCaId)
 
       expect(result).toBeDefined()
       expect(result?.crl_options.refresh_interval).toBe('24h')
@@ -59,72 +62,72 @@ describe('va-api', () => {
 
     it('should return null for 404 not found', async () => {
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return new HttpResponse(null, { status: 404 })
         })
       )
 
-      const result = await fetchVaConfig(testSki)
+      const result = await fetchCrlSettings(testCaId)
 
       expect(result).toBeNull()
     })
 
-    it('should handle VA config with null latest_crl', async () => {
-      const configWithNoCrl: VaApiResponse = {
-        ...mockVaConfig,
+    it('should handle CRL settings with null latest_crl', async () => {
+      const configWithNoCrl: CrlSettingsResponse = {
+        ...mockCrlSettings,
         latest_crl: null,
       }
 
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(configWithNoCrl)
         })
       )
 
-      const result = await fetchVaConfig(testSki)
+      const result = await fetchCrlSettings(testCaId)
 
       expect(result).toBeDefined()
       expect(result?.latest_crl).toBeNull()
     })
 
-    it('should handle VA config with custom signer', async () => {
-      const configWithSigner: VaApiResponse = {
-        ...mockVaConfig,
+    it('should handle CRL settings with custom signer', async () => {
+      const configWithSigner: CrlSettingsResponse = {
+        ...mockCrlSettings,
         crl_options: {
-          ...mockVaConfig.crl_options,
-          signer_certificate_serial_number: 'custom-signer-ski',
+          ...mockCrlSettings.crl_options,
+          signer_serial_number: 'custom-signer-ski',
         },
       }
 
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(configWithSigner)
         })
       )
 
-      const result = await fetchVaConfig(testSki)
+      const result = await fetchCrlSettings(testCaId)
 
-      expect(result?.crl_options.signer_certificate_serial_number).toBe('custom-signer-ski')
+      expect(result?.crl_options.signer_serial_number).toBe('custom-signer-ski')
     })
 
     it('should send Authorization header', async () => {
       let capturedHeaders: Headers | undefined
 
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, ({ request }) => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, ({ request }) => {
           capturedHeaders = request.headers
-          return HttpResponse.json(mockVaConfig)
+          return HttpResponse.json(mockCrlSettings)
         })
       )
 
-      await fetchVaConfig(testSki)
+      await fetchCrlSettings(testCaId)
 
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
     })
 
     it('should handle fetch error for non-404 status', async () => {
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(
             { err: 'Internal server error' },
             { status: 500 }
@@ -132,61 +135,71 @@ describe('va-api', () => {
         })
       )
 
-      await expect(fetchVaConfig(testSki)).rejects.toThrow(
-        'Failed to fetch VA config'
+      await expect(fetchCrlSettings(testCaId)).rejects.toThrow(
+        'Failed to fetch CRL settings'
       )
     })
 
-    it('should handle different SKI formats', async () => {
+    it('should handle different CA ID formats', async () => {
       const skis = ['abc123', 'ski-with-dashes', 'SKI_UPPER_CASE']
 
       for (const ski of skis) {
         let capturedUrl: URL | undefined
 
         server.use(
-          http.get(`${VA_API_BASE}/roles/${ski}`, ({ request }) => {
+          http.get(`${VA_API_BASE}/crl-settings/${ski}`, ({ request }) => {
             capturedUrl = new URL(request.url)
-            return HttpResponse.json(mockVaConfig)
+            return HttpResponse.json(mockCrlSettings)
           })
         )
 
-        await fetchVaConfig(ski)
-        expect(capturedUrl?.pathname).toContain(`/roles/${ski}`)
+        await fetchCrlSettings(ski)
+        expect(capturedUrl?.pathname).toContain(`/crl-settings/${ski}`)
       }
     })
   })
 
-  describe('updateVaConfig', () => {
-    const updatePayload: VaUpdatePayload = {
+  describe('updateCrlSettings', () => {
+    const updatePayload: CrlSettingsUpdatePayload = {
       refresh_interval: '48h',
       validity: '336h',
-      signer_certificate_serial_number: null,
+      signer_serial_number: 'signer-serial',
       regenerate_on_revoke: false,
     }
 
-    it('should update VA config successfully', async () => {
+    it('should update CRL settings successfully', async () => {
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, () => {
-          return new HttpResponse(null, { status: 204 })
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
+          return HttpResponse.json(mockCrlSettings)
         })
       )
 
       await expect(
-        updateVaConfig(testSki, updatePayload)
-      ).resolves.toBeUndefined()
+        updateCrlSettings(testCaId, updatePayload)
+      ).resolves.toEqual(mockCrlSettings)
+    })
+
+    it('should reject with status 409 when the settings are not ACTIVE', async () => {
+      server.use(
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
+          return HttpResponse.json({ err: 'CRL settings are not active' }, { status: 409 })
+        })
+      )
+
+      await expect(updateCrlSettings(testCaId, updatePayload)).rejects.toMatchObject({ status: 409 })
     })
 
     it('should send correct payload', async () => {
       let capturedBody: any
 
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, async ({ request }) => {
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, async ({ request }) => {
           capturedBody = await request.json()
           return new HttpResponse(null, { status: 204 })
         })
       )
 
-      await updateVaConfig(testSki, updatePayload)
+      await updateCrlSettings(testCaId, updatePayload)
 
       expect(capturedBody).toEqual(updatePayload)
     })
@@ -195,13 +208,13 @@ describe('va-api', () => {
       let capturedHeaders: Headers | undefined
 
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, ({ request }) => {
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, ({ request }) => {
           capturedHeaders = request.headers
           return new HttpResponse(null, { status: 204 })
         })
       )
 
-      await updateVaConfig(testSki, updatePayload)
+      await updateCrlSettings(testCaId, updatePayload)
 
       expect(capturedHeaders?.get('Content-Type')).toBe('application/json')
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
@@ -209,7 +222,7 @@ describe('va-api', () => {
 
     it('should handle update error', async () => {
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(
             { err: 'Invalid configuration' },
             { status: 400 }
@@ -218,8 +231,8 @@ describe('va-api', () => {
       )
 
       await expect(
-        updateVaConfig(testSki, updatePayload)
-      ).rejects.toThrow('Failed to update VA config')
+        updateCrlSettings(testCaId, updatePayload)
+      ).rejects.toThrow('Failed to update CRL settings')
     })
 
     it('should handle different refresh intervals', async () => {
@@ -229,36 +242,36 @@ describe('va-api', () => {
         let capturedInterval: string | undefined
 
         server.use(
-          http.put(`${VA_API_BASE}/roles/${testSki}`, async ({ request }) => {
-            const body = await request.json() as VaUpdatePayload
+          http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, async ({ request }) => {
+            const body = await request.json() as CrlSettingsUpdatePayload
             capturedInterval = body.refresh_interval
             return new HttpResponse(null, { status: 204 })
           })
         )
 
-        await updateVaConfig(testSki, { ...updatePayload, refresh_interval: interval })
+        await updateCrlSettings(testCaId, { ...updatePayload, refresh_interval: interval })
         expect(capturedInterval).toBe(interval)
       }
     })
 
     it('should handle custom signer in payload', async () => {
-      const customPayload: VaUpdatePayload = {
+      const customPayload: CrlSettingsUpdatePayload = {
         ...updatePayload,
-        signer_certificate_serial_number: 'custom-signer-123',
+        signer_serial_number: 'custom-signer-123',
       }
 
       let capturedBody: any
 
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, async ({ request }) => {
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, async ({ request }) => {
           capturedBody = await request.json()
           return new HttpResponse(null, { status: 204 })
         })
       )
 
-      await updateVaConfig(testSki, customPayload)
+      await updateCrlSettings(testCaId, customPayload)
 
-      expect(capturedBody.signer_certificate_serial_number).toBe('custom-signer-123')
+      expect(capturedBody.signer_serial_number).toBe('custom-signer-123')
     })
 
     it('should toggle regenerate_on_revoke flag', async () => {
@@ -266,14 +279,14 @@ describe('va-api', () => {
         let capturedFlag: boolean | undefined
 
         server.use(
-          http.put(`${VA_API_BASE}/roles/${testSki}`, async ({ request }) => {
-            const body = await request.json() as VaUpdatePayload
+          http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, async ({ request }) => {
+            const body = await request.json() as CrlSettingsUpdatePayload
             capturedFlag = body.regenerate_on_revoke
             return new HttpResponse(null, { status: 204 })
           })
         )
 
-        await updateVaConfig(testSki, { ...updatePayload, regenerate_on_revoke: regenerate })
+        await updateCrlSettings(testCaId, { ...updatePayload, regenerate_on_revoke: regenerate })
         expect(capturedFlag).toBe(regenerate)
       }
     })
@@ -284,14 +297,14 @@ describe('va-api', () => {
       const mockCrlData = new ArrayBuffer(512)
 
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return HttpResponse.arrayBuffer(mockCrlData, {
             headers: { 'Content-Type': 'application/pkix-crl' },
           })
         })
       )
 
-      const result = await downloadCrl(testSki)
+      const result = await downloadCrl(testCaId)
 
       expect(result).toBeInstanceOf(ArrayBuffer)
       expect(result.byteLength).toBe(512)
@@ -301,13 +314,13 @@ describe('va-api', () => {
       let capturedHeaders: Headers | undefined
 
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, ({ request }) => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, ({ request }) => {
           capturedHeaders = request.headers
           return HttpResponse.arrayBuffer(new ArrayBuffer(100))
         })
       )
 
-      await downloadCrl(testSki)
+      await downloadCrl(testCaId)
 
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
       expect(capturedHeaders?.get('Accept')).toBe('application/pkix-crl')
@@ -315,7 +328,7 @@ describe('va-api', () => {
 
     it('should handle download error with JSON response', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return HttpResponse.json(
             { err: 'CRL not found' },
             { status: 404 }
@@ -323,14 +336,14 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow(
+      await expect(downloadCrl(testCaId)).rejects.toThrow(
         'CRL not found'
       )
     })
 
     it('should handle download error with message field', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return HttpResponse.json(
             { message: 'CRL generation failed' },
             { status: 500 }
@@ -338,19 +351,19 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow(
+      await expect(downloadCrl(testCaId)).rejects.toThrow(
         'CRL generation failed'
       )
     })
 
     it('should handle non-JSON error response', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return HttpResponse.text('Service Unavailable', { status: 503 })
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow(
+      await expect(downloadCrl(testCaId)).rejects.toThrow(
         'Failed to download CRL: Service Unavailable (HTTP 503)'
       )
     })
@@ -360,67 +373,67 @@ describe('va-api', () => {
 
       for (const size of sizes) {
         server.use(
-          http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+          http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
             return HttpResponse.arrayBuffer(new ArrayBuffer(size))
           })
         )
 
-        const result = await downloadCrl(testSki)
+        const result = await downloadCrl(testCaId)
         expect(result.byteLength).toBe(size)
       }
     })
 
     it('should handle network error', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return HttpResponse.error()
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow()
+      await expect(downloadCrl(testCaId)).rejects.toThrow()
     })
   })
 
   describe('CRL configuration scenarios', () => {
     it('should handle daily CRL refresh with weekly validity', async () => {
-      const dailyConfig: VaApiResponse = {
+      const dailyConfig: CrlSettingsResponse = {
+        ...mockCrlSettings,
         crl_options: {
           refresh_interval: '24h',
           validity: '168h', // 7 days
-          signer_certificate_serial_number: null,
+          signer_serial_number: 'signer-serial',
           regenerate_on_revoke: true,
         },
-        latest_crl: mockVaConfig.latest_crl,
       }
 
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(dailyConfig)
         })
       )
 
-      const result = await fetchVaConfig(testSki)
+      const result = await fetchCrlSettings(testCaId)
 
       expect(result?.crl_options.refresh_interval).toBe('24h')
       expect(result?.crl_options.validity).toBe('168h')
     })
 
     it('should handle CRL configuration without regeneration on revoke', async () => {
-      const noRegenConfig: VaApiResponse = {
-        ...mockVaConfig,
+      const noRegenConfig: CrlSettingsResponse = {
+        ...mockCrlSettings,
         crl_options: {
-          ...mockVaConfig.crl_options,
+          ...mockCrlSettings.crl_options,
           regenerate_on_revoke: false,
         },
       }
 
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(noRegenConfig)
         })
       )
 
-      const result = await fetchVaConfig(testSki)
+      const result = await fetchCrlSettings(testCaId)
 
       expect(result?.crl_options.regenerate_on_revoke).toBe(false)
     })
@@ -429,7 +442,7 @@ describe('va-api', () => {
   describe('downloadCrl error scenarios', () => {
     it('should handle CRL download failure with JSON error response', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return HttpResponse.json(
             { err: 'CRL not found' },
             { status: 404 }
@@ -437,43 +450,43 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow(
+      await expect(downloadCrl(testCaId)).rejects.toThrow(
         'Failed to download CRL: CRL not found (HTTP 404)'
       )
     })
 
     it('should handle CRL download failure with non-JSON response', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return new HttpResponse('Internal Server Error', { status: 500 })
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow('Failed to download CRL')
+      await expect(downloadCrl(testCaId)).rejects.toThrow('Failed to download CRL')
     })
 
     it('should include status code in error message', async () => {
       server.use(
-        http.get(`${VA_CORE_API_BASE}/crl/${testSki}`, () => {
+        http.get(`${VA_CORE_API_BASE}/crl/${testCaId}`, () => {
           return new HttpResponse(null, { status: 403 })
         })
       )
 
-      await expect(downloadCrl(testSki)).rejects.toThrow('403')
+      await expect(downloadCrl(testCaId)).rejects.toThrow('403')
     })
   })
 
-  describe('updateVaConfig error scenarios', () => {
-    const payload: VaUpdatePayload = {
+  describe('updateCrlSettings error scenarios', () => {
+    const payload: CrlSettingsUpdatePayload = {
       refresh_interval: '24h',
       validity: '168h',
-      signer_certificate_serial_number: null,
+      signer_serial_number: 'signer-serial',
       regenerate_on_revoke: true,
     }
 
     it('should handle update failure with error message', async () => {
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(
             { err: 'Invalid configuration' },
             { status: 400 }
@@ -482,27 +495,27 @@ describe('va-api', () => {
       )
 
       await expect(
-        updateVaConfig(testSki, payload)
+        updateCrlSettings(testCaId, payload)
       ).rejects.toThrow()
     })
 
     it('should handle server error during update', async () => {
       server.use(
-        http.put(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.put(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return new HttpResponse(null, { status: 500 })
         })
       )
 
       await expect(
-        updateVaConfig(testSki, payload)
+        updateCrlSettings(testCaId, payload)
       ).rejects.toThrow()
     })
   })
 
-  describe('fetchVaConfig error handling', () => {
+  describe('fetchCrlSettings error handling', () => {
     it('should handle server error', async () => {
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return HttpResponse.json(
             { err: 'Internal server error' },
             { status: 500 }
@@ -510,17 +523,17 @@ describe('va-api', () => {
         })
       )
 
-      await expect(fetchVaConfig(testSki)).rejects.toThrow()
+      await expect(fetchCrlSettings(testCaId)).rejects.toThrow()
     })
 
     it('should handle unauthorized error', async () => {
       server.use(
-        http.get(`${VA_API_BASE}/roles/${testSki}`, () => {
+        http.get(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
           return new HttpResponse(null, { status: 401 })
         })
       )
 
-      await expect(fetchVaConfig(testSki)).rejects.toThrow()
+      await expect(fetchCrlSettings(testCaId)).rejects.toThrow()
     })
   })
 
@@ -653,24 +666,44 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
     })
   })
 
-  describe('toVaUpdatePayload', () => {
-    it('sends the persisted signer serial number', () => {
-      expect(toVaUpdatePayload({
-        ...getDefaultVAConfig('ca-1'),
+  describe('toCrlSettings', () => {
+    it('maps the API model, including the read-only status and legacy SKI', () => {
+      expect(toCrlSettings({ ...mockCrlSettings, status: 'ARCHIVED', legacy_ski: 'a1b2' })).toEqual({
+        caId: testCaId,
+        refreshInterval: '24h',
+        validity: '168h',
+        signerSerialNumber: 'signer-serial',
+        regenerateOnRevoke: true,
+        status: 'ARCHIVED',
+        legacySki: 'a1b2',
+      })
+    })
+
+    it('has no legacy SKI for settings created by CA ID', () => {
+      expect(toCrlSettings(mockCrlSettings).legacySki).toBeNull()
+    })
+  })
+
+  describe('toCrlSettingsUpdatePayload', () => {
+    it('sends the persisted signer serial number and only the editable fields', () => {
+      expect(toCrlSettingsUpdatePayload({
+        ...toCrlSettings(mockCrlSettings),
         refreshInterval: '12h',
         validity: '3d',
-        signerCertificateSerialNumber: '0a:1b',
+        signerSerialNumber: '0a:1b',
         regenerateOnRevoke: false,
       })).toEqual({
         refresh_interval: '12h',
         validity: '3d',
-        signer_certificate_serial_number: '0a:1b',
+        signer_serial_number: '0a:1b',
         regenerate_on_revoke: false,
       })
     })
+  })
 
-    it('sends null when no signer is configured', () => {
-      expect(toVaUpdatePayload(getDefaultVAConfig('ca-1')).signer_certificate_serial_number).toBeNull()
+  describe('getCrlUrl', () => {
+    it('builds the public CRL URL from the CA ID', () => {
+      expect(getCrlUrl(testCaId)).toBe(`${VA_CORE_API_BASE}/crl/${testCaId}`)
     })
   })
 

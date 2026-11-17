@@ -53,6 +53,16 @@ export function isValidPositiveDuration(value: string): boolean {
   return isValidDuration(value) && !isZeroDuration(value);
 }
 
+/** Whether the string is a well-formed duration or zero, including the bare "0" the backend accepts. */
+export function isValidDurationOrZero(value: string): boolean {
+  return value === '0' || isValidDuration(value);
+}
+
+/** Whether the string is a zero duration, including the bare "0". */
+export function isZeroOrZeroDuration(value: string): boolean {
+  return value === '0' || (isValidDuration(value) && isZeroDuration(value));
+}
+
 function sumSeconds(value: string): number {
   return durationParts(value).reduce((total, [n, unit]) => total + n * UNIT_SECONDS[unit], 0);
 }

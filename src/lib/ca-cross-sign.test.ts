@@ -112,13 +112,11 @@ describe('buildCrossSignPayload', () => {
     const payload = buildCrossSignPayload({
       signer,
       target: t,
-      id: 'new-id',
       profileId: 'profile-1',
       keyId: 'kms-key-target',
       expiration: { type: 'Duration', durationValue: '5y' },
     })
     expect(payload).toEqual({
-      id: 'new-id',
       parent_id: 'signer',
       engine_id: 'engine-target',
       profile_id: 'profile-1',
