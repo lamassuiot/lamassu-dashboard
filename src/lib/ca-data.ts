@@ -354,6 +354,25 @@ export async function importCa(payload: ImportCaPayload): Promise<ApiCaItem> {
   return handleApiError<ApiCaItem>(response, 'Failed to import CA');
 }
 
+/**
+ * ID of the only CA that uses the given issuance profile, or '' when there is not exactly one or
+ * the lookup fails. It reads the flat CA list, so intermediate CAs are found too.
+ */
+export async function findCaIdByProfileId(profileId: string): Promise<string> {
+  try {
+    const url = new URL(`${get_CA_API_BASE_URL()}/cas`);
+    url.searchParams.append('filter', `profile_id[equal]${profileId}`);
+    // Two results are enough to tell "exactly one" apart from "several".
+    url.searchParams.set('page_size', '2');
+    const response = await apiFetch(url.toString());
+    const page = await handleApiError<ApiResponseList>(response, 'Failed to fetch CAs');
+    const cas = page?.list ?? [];
+    return cas.length === 1 ? cas[0].id : '';
+  } catch {
+    return '';
+  }
+}
+
 export interface PatchOperation {
   op: "add" | "remove" | "replace";
   path: string;

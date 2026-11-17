@@ -13,6 +13,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import {
   createCa,
   fetchAndProcessCAs,
+  findCaIdByProfileId,
   parseCertificatePemDetails,
   revokeCa,
   deleteCa,
@@ -50,16 +51,6 @@ interface ValidationError {
     url: string;
 }
 
-
-/** ID of the only CA that uses the given issuance profile, or '' when there is not exactly one. */
-async function findCaIdByProfile(profileId: string): Promise<string> {
-    try {
-        const cas = await fetchAndProcessCAs(`filter=profile_id[equal]${profileId}`);
-        return cas.length === 1 ? cas[0].id : '';
-    } catch {
-        return '';
-    }
-}
 
 export const InitializationWizard: React.FC = () => {
     const router = useRouter();
@@ -202,7 +193,7 @@ export const InitializationWizard: React.FC = () => {
                 });
                 // The backend generates the ID. If the response does not carry it, find the CA
                 // through the issuance profile created for this run so it can still be cleaned up.
-                testCaId = testCa?.id || await findCaIdByProfile(testProfileId);
+                testCaId = testCa?.id || await findCaIdByProfileId(testProfileId);
                 if (testCaId) {
                     addLog("Dummy CA created successfully.", 'success', `CA ID: ${testCaId}`);
                     createdCa = true;

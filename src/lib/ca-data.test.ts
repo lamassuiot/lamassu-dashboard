@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
 import {
   inlineCaProfileName,
+  findCaIdByProfileId,
   ab2hex,
   getCaDisplayName,
   findCaById,
@@ -1670,5 +1671,37 @@ describe('inlineCaProfileName', () => {
 
     expect(first).toMatch(/^Inline CA Profile - Edge CA - [0-9a-f-]{36}$/)
     expect(second).not.toBe(first)
+  })
+})
+
+describe('findCaIdByProfileId', () => {
+  const caWithId = (id: string) => ({ id })
+
+  it('returns the ID of the only CA that uses the profile', async () => {
+    let filter: string | null = null
+    server.use(
+      http.get(`${CA_API_BASE}/cas`, ({ request }) => {
+        filter = new URL(request.url).searchParams.get('filter')
+        return HttpResponse.json({ next: null, list: [caWithId('ca-1')] })
+      })
+    )
+
+    await expect(findCaIdByProfileId('profile-1')).resolves.toBe('ca-1')
+    expect(filter).toBe('profile_id[equal]profile-1')
+  })
+
+  it.each([
+    ['no CA', []],
+    ['several CAs', [caWithId('ca-1'), caWithId('ca-2')]],
+  ])('returns an empty string when %s uses the profile', async (_label, list) => {
+    server.use(http.get(`${CA_API_BASE}/cas`, () => HttpResponse.json({ next: null, list })))
+
+    await expect(findCaIdByProfileId('profile-1')).resolves.toBe('')
+  })
+
+  it('returns an empty string when the lookup fails', async () => {
+    server.use(http.get(`${CA_API_BASE}/cas`, () => HttpResponse.json({ message: 'boom' }, { status: 500 })))
+
+    await expect(findCaIdByProfileId('profile-1')).resolves.toBe('')
   })
 })
