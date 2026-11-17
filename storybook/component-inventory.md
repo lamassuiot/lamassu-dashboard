@@ -101,6 +101,7 @@ Prefer the existing shared modal when the workflow already exists:
 - `src/components/shared/AkiCaSelectorModal.tsx`
 - `src/components/shared/ForceUpdateModal.tsx`
 - `src/components/shared/MetadataViewerModal.tsx`
+- `src/components/shared/CrlViewerSheet.tsx`: fetches a CRL (the CA's own by default, or any URL), shows the issuer, update window and revocation counts with the detail-hero stats, and lists the revoked certificates with a filter
 
 If a new flow is just a small variant of one of these, extend the existing component instead of creating a parallel modal.
 

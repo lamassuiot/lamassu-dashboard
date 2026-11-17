@@ -51,6 +51,13 @@ interface ValidityStatProps {
   validTo?: string;
   /** Used in the progress bar's accessible label, e.g. "certificate". */
   subject?: string;
+  /** Cell label; defaults to "Validity period". */
+  label?: string;
+  /** Labels of the start and end dates; default to "Issued" and "Expires". */
+  fromLabel?: string;
+  toLabel?: string;
+  /** The remaining time turns red when this many days or fewer are left; defaults to 30. */
+  warnWithinDays?: number;
 }
 
 function remainingLabel({ expired, daysLeft }: { expired: boolean; daysLeft: number }): string {
@@ -78,12 +85,20 @@ function computeValidity(validFrom?: string, validTo?: string) {
 }
 
 /** Hero strip cell with a validity progress bar, remaining days and issued/expires dates. */
-export function ValidityStat({ validFrom, validTo, subject = 'certificate' }: Readonly<ValidityStatProps>) {
+export function ValidityStat({
+  validFrom,
+  validTo,
+  subject = 'certificate',
+  label = 'Validity period',
+  fromLabel = 'Issued',
+  toLabel = 'Expires',
+  warnWithinDays = 30,
+}: Readonly<ValidityStatProps>) {
   const validity = computeValidity(validFrom, validTo);
 
   if (!validity || !validFrom || !validTo) {
     return (
-      <DetailHeroStat label="Validity period">
+      <DetailHeroStat label={label}>
         <span className="text-muted-foreground">Unavailable</span>
       </DetailHeroStat>
     );
@@ -91,11 +106,11 @@ export function ValidityStat({ validFrom, validTo, subject = 'certificate' }: Re
 
   return (
     <DetailHeroStat
-      label="Validity period"
+      label={label}
       aside={
         <span className={cn(
           'text-xs font-medium tabular-nums',
-          validity.expired || validity.daysLeft <= 30 ? 'text-destructive' : 'text-muted-foreground'
+          validity.expired || validity.daysLeft <= warnWithinDays ? 'text-destructive' : 'text-muted-foreground'
         )}>
           {remainingLabel(validity)}
         </span>
@@ -109,11 +124,11 @@ export function ValidityStat({ validFrom, validTo, subject = 'certificate' }: Re
         />
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs text-muted-foreground">Issued</p>
+            <p className="text-xs text-muted-foreground">{fromLabel}</p>
             <DateDisplay date={validFrom} className="text-xs" />
           </div>
           <div className="text-right">
-            <p className="text-xs text-muted-foreground">Expires</p>
+            <p className="text-xs text-muted-foreground">{toLabel}</p>
             <DateDisplay date={validTo} highlightExpired className="items-end text-xs" />
           </div>
         </div>
