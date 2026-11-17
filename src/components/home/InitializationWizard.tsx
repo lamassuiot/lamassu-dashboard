@@ -51,6 +51,16 @@ interface ValidationError {
 }
 
 
+/** ID of the only CA that uses the given issuance profile, or '' when there is not exactly one. */
+async function findCaIdByProfile(profileId: string): Promise<string> {
+    try {
+        const cas = await fetchAndProcessCAs(`filter=profile_id[equal]${profileId}`);
+        return cas.length === 1 ? cas[0].id : '';
+    } catch {
+        return '';
+    }
+}
+
 export const InitializationWizard: React.FC = () => {
     const router = useRouter();
 
@@ -179,21 +189,35 @@ export const InitializationWizard: React.FC = () => {
         // --- Step 2: Create Dummy CA ---
         if (testProfileId) {
             addLog(`2. Creating dummy Root CA...`, 'info', `Using engine: ${engineId}`);
+            const testCaCommonName = `Lamassu Test CA ${new Date().toLocaleTimeString()}`;
             try {
                 const testCa = await createCa({
                     parent_id: null,
                     engine_id: engineId,
                     profile_id: testProfileId,
-                    subject: { common_name: `Lamassu Test CA ${new Date().toLocaleTimeString()}`, country: "XX", organization: "Lamassu Test" },
+                    subject: { common_name: testCaCommonName, country: "XX", organization: "Lamassu Test" },
                     key_metadata: { type: "ECDSA", bits: 256 },
                     ca_expiration: { type: "Duration", duration: "24h" },
                     ca_type: "MANAGED",
                 });
-                if (!testCa?.id) throw new Error('The backend did not return the ID of the created CA.');
-                testCaId = testCa.id;
-                addLog("Dummy CA created successfully.", 'success', `CA ID: ${testCaId}`);
-                createdCa = true;
-                
+                // The backend generates the ID. If the response does not carry it, find the CA
+                // through the issuance profile created for this run so it can still be cleaned up.
+                testCaId = testCa?.id || await findCaIdByProfile(testProfileId);
+                if (testCaId) {
+                    addLog("Dummy CA created successfully.", 'success', `CA ID: ${testCaId}`);
+                    createdCa = true;
+                } else {
+                    addLog(
+                        'Dummy CA was created, but the backend did not return its ID and it could not be found. It cannot be used or cleaned up.',
+                        'error',
+                        `Delete the CA "${testCaCommonName}" manually.`,
+                    );
+                }
+            } catch (e: any) {
+                addLog(`Failed to create CA: ${e.message}`, 'error');
+            }
+
+            if (createdCa) {
                 // --- Step 2a: Verify CA cert ---
                 addLog(`2a. Verifying dummy CA certificate...`, 'info');
                 try {
@@ -211,9 +235,6 @@ export const InitializationWizard: React.FC = () => {
                 } catch(e: any) {
                     addLog(`CA certificate verification failed: ${e.message}`, 'error');
                 }
-
-            } catch (e: any) {
-                addLog(`Failed to create CA: ${e.message}`, 'error');
             }
         } else {
             addLog("2. Skipping CA creation due to profile creation failure.", 'error');
