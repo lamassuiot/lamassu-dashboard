@@ -11,7 +11,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { getCrlUrl } from '@/lib/va-api';
 import { useCrlSettings } from '@/hooks/useCrlSettings';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { VaSettingsCard, ArchivedCrlSettingsAlert, LegacyCrlUrlNote } from '@/components/shared/VaSettingsCard';
+import { VaSettingsCard, CrlSettingsStatusBadge, InactiveCrlSettingsAlert, LegacyCrlUrlNote } from '@/components/shared/VaSettingsCard';
 import { CrlViewerSheet } from '@/components/shared/CrlViewerSheet';
 
 interface ValidationAuthorityTabProps {
@@ -71,20 +71,6 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     <div>
       {settings && (
         <>
-          {/* Section: CRL Configuration */}
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-            <div>
-              <p className="font-semibold">CRL Configuration</p>
-              <p className="text-sm text-muted-foreground mt-1">Configure how the Certificate Revocation List of this CA is generated.</p>
-            </div>
-            <div className="lg:col-span-2">
-              {crlSettings.isReadOnly && <ArchivedCrlSettingsAlert className="mb-6" />}
-              <VaSettingsCard state={crlSettings} limitToCAs={[ca]} />
-            </div>
-          </div>
-
-          <Separator />
-
           {/* Section: Latest Generated CRL */}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
             <div>
@@ -92,6 +78,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
               <p className="text-sm text-muted-foreground mt-1">Review the newest Certificate Revocation List generated for this CA.</p>
             </div>
             <div className="space-y-4 lg:col-span-2">
+              {crlSettings.isReadOnly && <InactiveCrlSettingsAlert status={settings.status} />}
               <div className="flex flex-wrap items-center gap-2">
                 {latestCrl && (
                   <Button variant="secondary" onClick={crlSettings.download} disabled={isDownloadingCrl}>
@@ -104,24 +91,31 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                   Fetch &amp; Show CRL
                 </Button>
               </div>
-              {latestCrl ? (
-                <div className="divide-y">
-                  <div className="py-3 first:pt-0">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Version</p>
-                    <p className="mt-1 text-sm font-medium">{latestCrl.version}</p>
-                  </div>
-                  <div className="py-3">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
-                    <DateDisplay date={latestCrl.valid_from} showRelative={true} className="mt-1 text-sm font-medium" />
-                  </div>
-                  <div className="py-3 last:pb-0">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
-                    <DateDisplay date={latestCrl.valid_until} showRelative={true} className="mt-1 text-sm font-medium" />
+              <div className="divide-y">
+                <div className="py-3 first:pt-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</p>
+                  <div className="mt-1">
+                    <CrlSettingsStatusBadge status={settings.status} />
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm italic text-muted-foreground">No CRL has been generated for this CA yet.</p>
-              )}
+                {latestCrl && (
+                  <>
+                    <div className="py-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Version</p>
+                      <p className="mt-1 text-sm font-medium">{latestCrl.version}</p>
+                    </div>
+                    <div className="py-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
+                      <DateDisplay date={latestCrl.valid_from} showRelative={true} className="mt-1 text-sm font-medium" />
+                    </div>
+                    <div className="py-3 last:pb-0">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
+                      <DateDisplay date={latestCrl.valid_until} showRelative={true} className="mt-1 text-sm font-medium" />
+                    </div>
+                  </>
+                )}
+              </div>
+              {!latestCrl && <p className="text-sm italic text-muted-foreground">No CRL has been generated for this CA yet.</p>}
               <LegacyCrlUrlNote legacySki={settings.legacySki} />
 
               <CrlViewerSheet
@@ -130,6 +124,19 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                 defaultUrl={getCrlUrl(ca.id)}
                 downloadFileName={`${ca.id}.crl`}
               />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Section: CRL Configuration */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+            <div>
+              <p className="font-semibold">CRL Configuration</p>
+              <p className="text-sm text-muted-foreground mt-1">Configure how the Certificate Revocation List of this CA is generated.</p>
+            </div>
+            <div className="lg:col-span-2">
+              <VaSettingsCard state={crlSettings} limitToCAs={[ca]} />
             </div>
           </div>
         </>

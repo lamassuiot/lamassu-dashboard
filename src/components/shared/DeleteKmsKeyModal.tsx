@@ -46,7 +46,7 @@ export const DeleteKmsKeyModal: React.FC<DeleteKmsKeyModalProps> = ({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="sm:max-w-xl md:max-w-2xl lg:max-w-4xl xl:max-w-5xl">
+      <AlertDialogContent className="data-[size=default]:sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center text-xl">
             <AlertTriangle className="mr-2 h-6 w-6 text-destructive" />
@@ -61,7 +61,7 @@ export const DeleteKmsKeyModal: React.FC<DeleteKmsKeyModalProps> = ({
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Warning: Irreversible Action</AlertTitle>
           <AlertDescription>
-            You are about to permanently delete the KMS key "<strong>{keyName}</strong>" with ID "<strong>{keyId}</strong>". This will remove it from the system entirely and cannot be reversed.
+            You are about to permanently delete the KMS key "<strong>{keyName}</strong>" with ID "<strong className="break-all">{keyId}</strong>". This will remove it from the system entirely and cannot be reversed.
           </AlertDescription>
         </Alert>
 

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, X, RefreshCw, Archive, History, Info } from 'lucide-react';
@@ -14,7 +15,7 @@ import { DurationInput } from '@/components/shared/DurationInput';
 import { isValidDurationOrZero, isValidPositiveDuration, isZeroOrZeroDuration } from '@/lib/duration';
 import { cn } from '@/lib/utils';
 import type { CrlSettingsState } from '@/hooks/useCrlSettings';
-import { getCrlUrl } from '@/lib/va-api';
+import { getCrlUrl, type CrlSettingsStatus } from '@/lib/va-api';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 
 interface VaSettingsCardProps {
@@ -219,14 +220,30 @@ export function VaSettingsCard({ state, limitToCAs }: Readonly<VaSettingsCardPro
   );
 }
 
-/** Shown for `ARCHIVED` CRL settings, which cannot be edited. */
-export function ArchivedCrlSettingsAlert({ className }: Readonly<{ className?: string }>) {
+const CRL_SETTINGS_STATUS_BADGES: Record<CrlSettingsStatus, { label: string; variant: 'success' | 'warning' | 'muted' }> = {
+  ACTIVE: { label: 'Active', variant: 'success' },
+  FINAL: { label: 'Final', variant: 'warning' },
+  ARCHIVED: { label: 'Archived', variant: 'muted' },
+};
+
+/** Status of CRL settings: `ACTIVE`, `FINAL` (revoked or expired CA) or `ARCHIVED` (deleted CA). */
+export function CrlSettingsStatusBadge({ status }: Readonly<{ status: CrlSettingsStatus }>) {
+  const badge = CRL_SETTINGS_STATUS_BADGES[status];
+  if (!badge) return <Badge variant="muted">{status}</Badge>;
+  return <Badge variant={badge.variant}>{badge.label}</Badge>;
+}
+
+/** Shown for CRL settings that are not `ACTIVE`, which cannot be edited. */
+export function InactiveCrlSettingsAlert({ status, className }: Readonly<{ status: CrlSettingsStatus; className?: string }>) {
+  const isFinal = status === 'FINAL';
   return (
     <Alert variant="warning" className={className}>
       <Archive className="h-4 w-4" />
-      <AlertTitle>Archived CRL Settings</AlertTitle>
+      <AlertTitle>{isFinal ? 'Final CRL Settings' : 'Archived CRL Settings'}</AlertTitle>
       <AlertDescription>
-        These settings belong to a CA that no longer exists. Its last CRL is still served, but it is never regenerated and the settings cannot be edited.
+        {isFinal
+          ? 'The CA these settings belong to was revoked or has expired. Its final CRL, if any, has been published and no new CRL is generated, so the settings cannot be edited.'
+          : 'These settings belong to a CA that no longer exists. Its last CRL is still served, but it is never regenerated and the settings cannot be edited.'}
       </AlertDescription>
     </Alert>
   );

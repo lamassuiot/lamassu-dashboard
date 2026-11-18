@@ -8,8 +8,11 @@ import { fetchIssuedCertificate } from './issued-certificate-data';
 export type { OcspResponseDetails };
 export { checkOcspStatus };
 
-/** `ACTIVE` settings generate CRLs; `ARCHIVED` ones belong to a deleted CA and only serve their last CRL. */
-export type CrlSettingsStatus = 'ACTIVE' | 'ARCHIVED';
+/**
+ * `ACTIVE` settings generate CRLs. `FINAL` ones belong to a revoked or expired CA: its final CRL, if any,
+ * is published and no new one is generated. `ARCHIVED` ones belong to a deleted CA and only serve their last CRL.
+ */
+export type CrlSettingsStatus = 'ACTIVE' | 'FINAL' | 'ARCHIVED';
 
 export interface LatestCrlInfo {
   version: number;
@@ -118,6 +121,30 @@ export async function fetchCrlSettings(caId: string): Promise<CrlSettingsRespons
 }
 
 /**
+ * Lists the CRL settings of every CA, following the pagination bookmarks. It is the only way to reach
+ * `ARCHIVED` settings, whose CA no longer exists.
+ */
+export async function fetchCrlSettingsList(): Promise<CrlSettingsResponse[]> {
+    const items: CrlSettingsResponse[] = [];
+    let bookmark: string | null = null;
+
+    do {
+        const url = new URL(`${get_VA_API_BASE_URL()}/crl-settings`);
+        url.searchParams.set('page_size', '100');
+        if (bookmark) url.searchParams.set('bookmark', bookmark);
+
+        const response = await apiFetch(url.toString());
+        const page: { next?: string | null; list?: CrlSettingsResponse[] } | null =
+            await handleApiError(response, 'Failed to fetch CRL settings');
+
+        items.push(...(page?.list ?? []));
+        bookmark = page?.next ?? null;
+    } while (bookmark);
+
+    return items;
+}
+
+/**
  * Replaces the editable CRL settings of a CA. Fails with 409 when the settings are not ACTIVE.
  */
 export async function updateCrlSettings(caId: string, payload: CrlSettingsUpdatePayload): Promise<CrlSettingsResponse> {
@@ -130,6 +157,18 @@ export async function updateCrlSettings(caId: string, payload: CrlSettingsUpdate
     });
 
     return handleApiError(response, 'Failed to update CRL settings');
+}
+
+/**
+ * Purges the CRL settings of a deleted CA. Fails with 409 unless they are ARCHIVED; the CRLs
+ * already published stay in the bucket but stop being served.
+ */
+export async function deleteCrlSettings(caId: string): Promise<void> {
+    const response = await apiFetch(`${get_VA_API_BASE_URL()}/crl-settings/${encodeURIComponent(caId)}`, {
+        method: 'DELETE',
+    });
+
+    await handleApiError(response, 'Failed to delete CRL settings');
 }
 
 /**
