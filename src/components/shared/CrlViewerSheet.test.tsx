@@ -65,6 +65,18 @@ describe('CrlViewerSheet', () => {
     expect(screen.getByText('Out of date')).toBeInTheDocument()
   })
 
+  it('shows complete issuer values containing commas in its heading and DN chips', async () => {
+    fetchMock.mockResolvedValue(crlResponse(await buildCrlDer({
+      issuerCommonName: 'Edge, CN=Branch CA', issuerOrganization: 'Acme, Inc.',
+    })))
+
+    renderSheet()
+
+    expect(await screen.findByRole('heading', { name: 'Edge, CN=Branch CA' })).toBeInTheDocument()
+    expect(screen.getByText('Acme, Inc.', { selector: 'dd' })).toBeInTheDocument()
+    expect(screen.getByText('Edge, CN=Branch CA', { selector: 'dd' })).toBeInTheDocument()
+  })
+
   it('shows the HTTP error and retries', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 404 }))
     renderSheet()

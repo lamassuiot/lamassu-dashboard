@@ -25,6 +25,7 @@ export interface CrlEntryOptions {
 
 export interface CrlOptions {
   issuerCommonName?: string
+  issuerOrganization?: string
   thisUpdate?: Date
   /** `null` builds a CRL without nextUpdate. */
   nextUpdate?: Date | null
@@ -43,6 +44,7 @@ const extension = (extnID: string, value: asn1js.BaseBlock) =>
 
 export async function buildCrlDer({
   issuerCommonName = 'Example CA',
+  issuerOrganization,
   thisUpdate = new Date('2026-11-01T10:00:00Z'),
   nextUpdate = new Date('2026-11-08T10:00:00Z'),
   crlNumberHex,
@@ -55,6 +57,7 @@ export async function buildCrlDer({
   crl.issuer = new RelativeDistinguishedNames({
     typesAndValues: [
       new AttributeTypeAndValue({ type: '2.5.4.3', value: new asn1js.Utf8String({ value: issuerCommonName }) }),
+      ...(issuerOrganization ? [new AttributeTypeAndValue({ type: '2.5.4.10', value: new asn1js.Utf8String({ value: issuerOrganization }) })] : []),
     ],
   })
   crl.thisUpdate = new Time({ value: thisUpdate })

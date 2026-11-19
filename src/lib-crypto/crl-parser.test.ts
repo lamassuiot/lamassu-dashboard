@@ -3,6 +3,18 @@ import { parseCrl } from '@/lib-crypto'
 import { buildCrlDer } from '@/lib-crypto/test-utils/fixtures/crl'
 
 describe('crl-parser', () => {
+  it('preserves commas and attribute-like text inside structured issuer values', async () => {
+    const parsed = await parseCrl(await buildCrlDer({
+      issuerCommonName: 'Edge, CN=Branch CA', issuerOrganization: 'Acme, Inc.',
+    }))
+
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.issuerParts).toEqual([
+      { label: 'CN', value: 'Edge, CN=Branch CA' },
+      { label: 'O', value: 'Acme, Inc.' },
+    ])
+  })
+
   it('parses the issuer, ISO dates and a revoked certificate', async () => {
     const parsed = await parseCrl(await buildCrlDer())
 

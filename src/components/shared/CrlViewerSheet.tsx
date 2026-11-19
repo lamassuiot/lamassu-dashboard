@@ -22,7 +22,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
-import { parseCrl, parseDistinguishedName, type ParsedCrl, type RevokedCertEntry } from '@/lib-crypto';
+import { parseCrl, type ParsedCrl, type RevokedCertEntry } from '@/lib-crypto';
 import { cn, downloadFile } from '@/lib/utils';
 
 /** Rows rendered at once; a CRL can list thousands of certificates. */
@@ -380,7 +380,7 @@ function CrlResult({ state, filter, onFilterChange, onRetry, downloadFileName, c
 
 /** Name (last CN) and parsed DN of the CRL issuer. */
 function describeIssuer(crl: ParsedCrl) {
-  const parts = parseDistinguishedName(crl.issuer);
+  const parts = crl.issuerParts;
   const name = parts.findLast(part => part.label === 'CN')?.value || crl.issuer || 'Unknown issuer';
   return { name, parts };
 }

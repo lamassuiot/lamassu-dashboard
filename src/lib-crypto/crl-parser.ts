@@ -1,6 +1,6 @@
 import * as asn1js from "asn1js";
 import { CertificateRevocationList } from "pkijs";
-import { abToHex, formatSubject } from "./cert-parser";
+import { abToHex, distinguishedNameParts, formatSubject } from "./cert-parser";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -20,6 +20,8 @@ export interface RevokedCertEntry {
 export interface ParsedCrl {
   /** Issuer DN, e.g. `CN=Root CA, O=ACME`. */
   issuer: string;
+  /** Structured issuer attributes; values may contain commas or DN-like text. */
+  issuerParts: { label: string; value: string }[];
   /** ISO 8601 timestamp. */
   thisUpdate: string;
   /** ISO 8601 timestamp, absent when the CRL does not set one. */
@@ -101,6 +103,7 @@ export async function parseCrl(der: ArrayBuffer): Promise<ParsedCrl> {
 
     return {
       issuer: formatSubject(crl.issuer),
+      issuerParts: distinguishedNameParts(crl.issuer),
       thisUpdate: crl.thisUpdate.value.toISOString(),
       nextUpdate: crl.nextUpdate?.value.toISOString(),
       crlNumber: getCrlNumber(crl),
@@ -110,6 +113,7 @@ export async function parseCrl(der: ArrayBuffer): Promise<ParsedCrl> {
     console.error("parseCrl failed:", e);
     return {
       issuer: "",
+      issuerParts: [],
       thisUpdate: "",
       revokedCertificates: [],
       error: e.message ?? "An unknown error occurred.",

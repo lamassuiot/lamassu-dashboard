@@ -134,7 +134,6 @@ Use this for most forms, details sections, summaries, and viewers.
 
 Reference implementations:
 
-- `src/components/shared/DetailSectionCard.tsx`
 - `src/components/shared/FormComponents.tsx`
 - `src/components/shared/SigningProfileForm.tsx`
 - `src/components/shared/details-tabs/PemTabContent.tsx`

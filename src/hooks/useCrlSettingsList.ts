@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useLatestRequest } from '@/hooks/useLatestRequest';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { flattenCaTree, formatCaSubject } from '@/lib/ca-utils';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -32,6 +33,7 @@ export function useCrlSettingsList() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyCaIds, setBusyCaIds] = useState<ReadonlySet<string>>(() => new Set());
+  const startRequest = useLatestRequest();
 
   const setBusy = (caId: string, busy: boolean) => {
     setBusyCaIds((current) => {
@@ -43,6 +45,7 @@ export function useCrlSettingsList() {
   };
 
   const reload = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError(null);
     try {
@@ -52,6 +55,7 @@ export function useCrlSettingsList() {
         fetchAndProcessCAs().catch(() => []),
         fetchCryptoEngines().catch(() => []),
       ]);
+      if (!isLatest()) return;
       const caById = new Map(flattenCaTree(cas).map((ca) => [ca.id, ca]));
       const engineById = new Map(engines.map((engine) => [engine.id, engine]));
       setItems(settingsList.map((settings) => {
@@ -64,12 +68,13 @@ export function useCrlSettingsList() {
         };
       }));
     } catch (e: any) {
+      if (!isLatest()) return;
       setItems([]);
       setError(e?.message || 'An unknown error occurred.');
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, []);
+  }, [startRequest]);
 
   useEffect(() => {
     void reload();
@@ -92,6 +97,10 @@ export function useCrlSettingsList() {
     setBusy(caId, true);
     try {
       await deleteCrlSettings(caId);
+      // A refresh started before this deletion committed may still contain this CA.
+      startRequest();
+      setIsLoading(false);
+      setError(null);
       setItems((current) => current.filter((item) => item.settings.ca_id !== caId));
       sileo.success({ title: 'CRL Settings Deleted', description: `The archived CRL settings of "${caId}" have been deleted.` });
     } catch (e: any) {
