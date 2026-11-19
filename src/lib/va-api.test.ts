@@ -6,6 +6,8 @@ import type { CertificateData } from '@/types/certificate'
 import {
   fetchCrlSettings,
   updateCrlSettings,
+  deleteCrlSettings,
+  fetchCrlSettingsList,
   downloadCrl,
   fetchSignerCertificateDisplay,
   getCrlUrl,
@@ -289,6 +291,59 @@ describe('va-api', () => {
         await updateCrlSettings(testCaId, { ...updatePayload, regenerate_on_revoke: regenerate })
         expect(capturedFlag).toBe(regenerate)
       }
+    })
+  })
+
+  describe('fetchCrlSettingsList', () => {
+    it('should list the settings of every page, following the bookmarks', async () => {
+      const requests: URL[] = []
+      server.use(
+        http.get(`${VA_API_BASE}/crl-settings`, ({ request }) => {
+          const url = new URL(request.url)
+          requests.push(url)
+          return url.searchParams.get('bookmark')
+            ? HttpResponse.json({ next: null, list: [{ ...mockCrlSettings, ca_id: 'ca-2', status: 'ARCHIVED' }] })
+            : HttpResponse.json({ next: 'page-2', list: [{ ...mockCrlSettings, ca_id: 'ca-1' }] })
+        })
+      )
+
+      const items = await fetchCrlSettingsList()
+
+      expect(items.map((item) => item.ca_id)).toEqual(['ca-1', 'ca-2'])
+      expect(requests).toHaveLength(2)
+      expect(requests[0].searchParams.get('bookmark')).toBeNull()
+      expect(requests[1].searchParams.get('bookmark')).toBe('page-2')
+    })
+
+    it('should return an empty list when there are none', async () => {
+      server.use(http.get(`${VA_API_BASE}/crl-settings`, () => HttpResponse.json({ next: null, list: [] })))
+
+      await expect(fetchCrlSettingsList()).resolves.toEqual([])
+    })
+  })
+
+  describe('deleteCrlSettings', () => {
+    it('should delete the settings of the CA', async () => {
+      let called = false
+      server.use(
+        http.delete(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
+          called = true
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await expect(deleteCrlSettings(testCaId)).resolves.toBeUndefined()
+      expect(called).toBe(true)
+    })
+
+    it('should reject with status 409 when the settings are not ARCHIVED', async () => {
+      server.use(
+        http.delete(`${VA_API_BASE}/crl-settings/${testCaId}`, () => {
+          return HttpResponse.json({ err: 'CRL settings are not archived' }, { status: 409 })
+        })
+      )
+
+      await expect(deleteCrlSettings(testCaId)).rejects.toMatchObject({ status: 409 })
     })
   })
 

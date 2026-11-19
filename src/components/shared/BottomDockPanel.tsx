@@ -84,6 +84,8 @@ export interface BottomDockPanelProps {
   icon?: React.ReactNode;
   /** Badges or short context shown next to the title. */
   meta?: React.ReactNode;
+  /** Compact content at the right of the header, before the panel controls. */
+  aside?: React.ReactNode;
   /** Unique key used to persist the panel height across sessions. */
   storageKey: string;
   /** Initial height as a fraction of the scroll area, used until the user resizes. */
@@ -106,6 +108,7 @@ export function BottomDockPanel({
   description,
   icon,
   meta,
+  aside,
   storageKey,
   defaultHeightRatio = 0.5,
   minHeight = 220,
@@ -256,6 +259,7 @@ export function BottomDockPanel({
           </div>
           {description && <p className="truncate text-xs text-muted-foreground">{description}</p>}
         </div>
+        {aside && <div className="shrink-0">{aside}</div>}
         <div className="flex shrink-0 items-center gap-0.5">
           {isCollapsed ? (
             <DockIconButton label="Expand panel" icon={ChevronsUpDown} onClick={() => setMode('normal')} />

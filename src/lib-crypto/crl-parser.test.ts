@@ -1,75 +1,62 @@
 import { describe, it, expect } from 'vitest'
-import * as asn1js from 'asn1js'
-import {
-  CertificateRevocationList,
-  RelativeDistinguishedNames,
-  AlgorithmIdentifier,
-  RevokedCertificate,
-  AttributeTypeAndValue,
-  Time,
-  getCrypto,
-  setEngine,
-} from 'pkijs'
 import { parseCrl } from '@/lib-crypto'
-
-async function makeCrlDer() {
-  const crl = new CertificateRevocationList()
-  crl.version = 1
-  crl.signature = new AlgorithmIdentifier({ algorithmId: '1.2.840.113549.1.1.11' })
-  crl.signatureAlgorithm = new AlgorithmIdentifier({ algorithmId: '1.2.840.113549.1.1.11' })
-
-  crl.issuer = new RelativeDistinguishedNames({
-    typesAndValues: [
-      new AttributeTypeAndValue({
-        type: '2.5.4.10',
-        value: new asn1js.Utf8String({ value: 'Example CA' }),
-      }),
-    ],
-  })
-
-  crl.thisUpdate = new Time({ value: new Date() })
-  crl.nextUpdate = new Time({ value: new Date(Date.now() + 1000 * 60 * 60) })
-
-  const revoked = new RevokedCertificate({
-    userCertificate: new asn1js.Integer({ value: 0x1234 }),
-    revocationDate: new Time({ value: new Date() }),
-  })
-
-  crl.revokedCertificates = [revoked]
-
-  // Sign the CRL so it is structurally valid for parsing
-  const cryptoEngine = getCrypto()
-  if (cryptoEngine) setEngine('webcrypto', cryptoEngine)
-
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: 'SHA-256',
-    },
-    true,
-    ['sign', 'verify'],
-  )
-
-  await crl.sign(keyPair.privateKey, 'SHA-256')
-  return crl.toSchema().toBER(false)
-}
+import { buildCrlDer } from '@/lib-crypto/test-utils/fixtures/crl'
 
 describe('crl-parser', () => {
-  it('should parse a CRL with a revoked certificate', async () => {
-    const der = await makeCrlDer()
-    const parsed = await parseCrl(der)
+  it('preserves commas and attribute-like text inside structured issuer values', async () => {
+    const parsed = await parseCrl(await buildCrlDer({
+      issuerCommonName: 'Edge, CN=Branch CA', issuerOrganization: 'Acme, Inc.',
+    }))
 
-    // parseCrl uses raw OIDs for subject fields (no OID mapping)
-    expect(parsed.issuer).toContain('2.5.4.10=Example CA')
-    expect(parsed.revokedCertificates).toHaveLength(1)
-    expect(parsed.revokedCertificates[0].serialNumber).toMatch(/[0-9a-f]+/)
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.issuerParts).toEqual([
+      { label: 'CN', value: 'Edge, CN=Branch CA' },
+      { label: 'O', value: 'Acme, Inc.' },
+    ])
   })
 
-  it('should return error on invalid DER', async () => {
-    // totally invalid DER
+  it('parses the issuer, ISO dates and a revoked certificate', async () => {
+    const parsed = await parseCrl(await buildCrlDer())
+
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.issuer).toBe('CN=Example CA')
+    expect(parsed.thisUpdate).toBe('2026-11-01T10:00:00.000Z')
+    expect(parsed.nextUpdate).toBe('2026-11-08T10:00:00.000Z')
+    expect(parsed.crlNumber).toBeUndefined()
+    expect(parsed.revokedCertificates).toEqual([
+      { serialNumber: '1234', revocationDate: '2026-10-31T09:30:00.000Z', reason: 'N/A' },
+    ])
+  })
+
+  it('reads the revocation reason and the CRL number', async () => {
+    const parsed = await parseCrl(await buildCrlDer({
+      entries: [{ serialHex: '1234', reasonCode: 1 }],
+      crlNumberHex: '2a',
+    }))
+
+    expect(parsed.revokedCertificates[0].reason).toBe('KeyCompromise')
+    expect(parsed.crlNumber).toBe('42')
+  })
+
+  it('keeps the full serial number and a CRL number beyond 2^53', async () => {
+    const serialHex = '7f' + '11'.repeat(19)
+    const crlNumberHex = '0123456789abcdef01'
+
+    const parsed = await parseCrl(await buildCrlDer({ entries: [{ serialHex }], crlNumberHex }))
+
+    expect(parsed.revokedCertificates[0].serialNumber).toBe(serialHex)
+    expect(parsed.crlNumber).toBe(BigInt(`0x${crlNumberHex}`).toString())
+  })
+
+  it('leaves nextUpdate unset when the CRL has none', async () => {
+    const parsed = await parseCrl(await buildCrlDer({ nextUpdate: null }))
+
+    expect(parsed.nextUpdate).toBeUndefined()
+  })
+
+  it('returns an error on invalid DER', async () => {
     const parsed = await parseCrl(new Uint8Array([0, 1, 2, 3]).buffer)
+
     expect(parsed.error).toBeDefined()
   })
 })

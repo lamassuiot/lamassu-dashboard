@@ -33,7 +33,6 @@ This is the curated list of UI building blocks that should be preferred before c
 | Certificate hero stats | `src/components/shared/CertificateHeroStats.tsx` | `IssuerStat` (DN chips + View CA link) and `ValidityStat` (progress, remaining days, issued/expires) for certificate and CA heroes |
 | Main area plus side panel | `src/components/shared/SplitPanelLayout.tsx` | Hand-rolled desktop/sidebar/mobile drawer layouts |
 | Resizable side sheet | `src/components/shared/ResizableSheetContent.tsx` | Plain `SheetContent` for left/right drawers. Drop-in replacement inside `<Sheet>` that adds a draggable, keyboard-operable (←/→, Shift for larger steps, Home/End) edge handle. Props: `storageKey` (required, unique per drawer: the resized width is saved in `localStorage` as `resizable-sheet:<storageKey>`), `minWidth?` (default 320px), `maxWidth?` (default 90% of the viewport). The width is always clamped to the viewport minus an 80px gutter, including on window resize. Below the `sm` breakpoint (640px) the handle is hidden and the caller's width classes apply (e.g. full width on phones); the stored width returns on wider viewports. Set the default width with `data-[side=right]:` / `data-[side=left]:` width classes (or `style.width`); avoid `!important` width classes, which override the dragged width |
-| Detail section card | `src/components/shared/DetailSectionCard.tsx` | Repeating KMS-style section card shells |
 | Detail info rows | `src/components/shared/DetailInfoRows.tsx` | Repeating label/value row groups inside detail cards |
 | Section header | `src/components/shared/FormComponents.tsx` | One-off icon/title/description headers |
 | Switch row field | `src/components/shared/FormComponents.tsx` | Locally styled switch rows |
@@ -101,6 +100,7 @@ Prefer the existing shared modal when the workflow already exists:
 - `src/components/shared/AkiCaSelectorModal.tsx`
 - `src/components/shared/ForceUpdateModal.tsx`
 - `src/components/shared/MetadataViewerModal.tsx`
+- `src/components/shared/CrlViewerSheet.tsx`: fetches a CRL (the CA's own by default, or any URL), shows the issuer, update window and revocation counts with the detail-hero stats, and lists the revoked certificates with a filter
 
 If a new flow is just a small variant of one of these, extend the existing component instead of creating a parallel modal.
 

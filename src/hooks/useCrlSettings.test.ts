@@ -48,6 +48,15 @@ describe('useCrlSettings', () => {
     )
   })
 
+  it.each(['FINAL', 'ARCHIVED'] as const)('is read-only when the settings are %s', async (status) => {
+    vi.mocked(fetchCrlSettings).mockResolvedValue({ ...settingsFor(caA.id, '1h'), status })
+
+    const { result } = renderHook(() => useCrlSettings(caA))
+
+    await waitFor(() => expect(result.current.settings?.status).toBe(status))
+    expect(result.current.isReadOnly).toBe(true)
+  })
+
   it('ignores a save that finishes after another CA was selected', async () => {
     const { result, rerender } = renderHook(({ ca }) => useCrlSettings(ca), { initialProps: { ca: caA } })
     await waitFor(() => expect(result.current.settings?.caId).toBe(caA.id))

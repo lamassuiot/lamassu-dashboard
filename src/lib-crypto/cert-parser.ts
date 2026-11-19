@@ -77,9 +77,17 @@ export function abToHex(
  * DN string, e.g. `CN=example.com, O=ACME, C=US`.
  */
 export function formatSubject(subject: RelativeDistinguishedNames): string {
-  return subject.typesAndValues
-    .map(tv => `${OID_MAP[tv.type] ?? tv.type}=${(tv.value as any).valueBlock.value}`)
+  return distinguishedNameParts(subject)
+    .map(({ label, value }) => `${label}=${value}`)
     .join(", ");
+}
+
+/** Structured DN attributes, preserving order, repeated attributes and commas in values. */
+export function distinguishedNameParts(name: RelativeDistinguishedNames): { label: string; value: string }[] {
+  return name.typesAndValues.map(tv => ({
+    label: OID_MAP[tv.type] ?? tv.type,
+    value: String((tv.value as any).valueBlock.value),
+  }));
 }
 
 /** The common attributes of a distinguished name; repeated attributes are joined with ", ". */
