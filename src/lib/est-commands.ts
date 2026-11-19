@@ -1,0 +1,159 @@
+// Builders for the shell snippets shown in the EST enroll / re-enroll / cacerts panels.
+// Every multi-flag command is split one option per line with `\` continuations so it
+// reads like documentation and still pastes cleanly into a POSIX shell.
+
+export interface KeyParams {
+  /** 'RSA' or 'ECDSA' (see KEY_TYPE_OPTIONS). */
+  type: string;
+  /** RSA key size in bits, or an OpenSSL curve name such as `P-256`. */
+  spec: string;
+}
+
+const INDENT = '  ';
+
+/** Joins command parts as `head \` + indented continuation lines. */
+export function continued(head: string, ...args: string[]): string {
+  return [head, ...args.map((a) => `${INDENT}${a}`)].join(' \\\n');
+}
+
+/** Joins snippet sections with a blank line between them. */
+export function sections(...parts: string[]): string {
+  return parts.filter(Boolean).join('\n\n');
+}
+
+export function newKeyArgs({ type, spec }: KeyParams): string {
+  return type === 'RSA' ? `-newkey rsa:${spec}` : `-newkey ec -pkeyopt ec_paramgen_curve:${spec}`;
+}
+
+/** EST transports PKCS#10 bodies as bare base64, so drop the PEM armor lines. */
+export function stripPemCommand(pemFile: string, outFile: string): string {
+  return `# EST expects the base64 body without the PEM header/footer\nsed '/-----/d' ${pemFile} > ${outFile}`;
+}
+
+type CsrKey =
+  | { generate: KeyParams; keyOut: string }
+  | { existing: string };
+
+export interface CsrCommandOptions {
+  commonName: string;
+  key: CsrKey;
+  csrFile: string;
+  strippedFile: string;
+}
+
+export function csrCommands({ commonName, key, csrFile, strippedFile }: CsrCommandOptions): string {
+  const keyArgs = 'existing' in key
+    ? [`-key ${key.existing}`]
+    : [newKeyArgs(key.generate), `-nodes -keyout ${key.keyOut}`];
+
+  return sections(
+    continued('openssl req -new', ...keyArgs, `-subj "/CN=${commonName}"`, `-out ${csrFile}`),
+    stripPemCommand(csrFile, strippedFile),
+  );
+}
+
+/**
+ * Server-side key generation still needs a CSR to carry the subject; its private key is
+ * discarded straight to /dev/null.
+ */
+export function placeholderCsrCommands(commonName: string, csrFile: string, strippedFile: string): string {
+  return sections(
+    continued(
+      'openssl req -new',
+      '-newkey rsa:2048 -nodes -keyout /dev/null',
+      `-subj "/CN=${commonName}"`,
+      `-out ${csrFile}`,
+    ),
+    stripPemCommand(csrFile, strippedFile),
+  );
+}
+
+/** Resolves host and port of the EST endpoint; relative URLs are resolved against `origin`. */
+export function resolveEndpoint(estBaseUrl: string, origin?: string): { host: string; port: string } {
+  try {
+    const url = new URL(estBaseUrl, origin);
+    const port = url.port || (url.protocol === 'http:' ? '80' : '443');
+    return { host: url.hostname, port };
+  } catch {
+    return { host: 'lamassu.example.com', port: '443' };
+  }
+}
+
+export function serverChainCommand(estBaseUrl: string, outFile: string, origin?: string): string {
+  const { host, port } = resolveEndpoint(estBaseUrl, origin);
+  return `# Save the certificate chain presented by the EST server\n${continued(
+    'openssl s_client -showcerts',
+    `-connect ${host}:${port}`,
+    `-servername ${host}`,
+    '</dev/null 2>/dev/null',
+    `| sed -n '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ${outFile}`,
+  )}`;
+}
+
+export interface EstRequestOptions {
+  url: string;
+  cert: string;
+  key: string;
+  /** CA bundle used to verify the server; when omitted TLS verification is disabled. */
+  caFile?: string;
+  body: string;
+  output: string;
+}
+
+export function estRequestCommand({ url, cert, key, caFile, body, output }: EstRequestOptions): string {
+  return continued(
+    'curl --fail --silent --show-error',
+    `--cert ${cert}`,
+    `--key ${key}`,
+    caFile ? `--cacert ${caFile}` : '--insecure',
+    '--header "Content-Type: application/pkcs10"',
+    `--data-binary @${body}`,
+    `--output ${output}`,
+    `"${url}"`,
+  );
+}
+
+export function decodeCertificateCommands(p7File: string, certFile: string): string {
+  return sections(
+    `# Convert the PKCS#7 response into a PEM certificate\n${continued(
+      `openssl base64 -d -in ${p7File}`,
+      `| openssl pkcs7 -inform DER -print_certs -out ${certFile}`,
+    )}`,
+    inspectCertificateCommand(certFile),
+  );
+}
+
+export function inspectCertificateCommand(certFile: string): string {
+  return `# Inspect the issued certificate\nopenssl x509 -in ${certFile} -noout -subject -issuer -serial -dates`;
+}
+
+const MULTIPART_BOUNDARY = '--estServerLamassuBoundary';
+
+const extractPart = (contentType: string, multipartFile: string, outFile: string) =>
+  `awk '/Content-Type: ${contentType.replace('/', '\\/')}/{f=1; next} /${MULTIPART_BOUNDARY}/{f=0} f' ${multipartFile} > ${outFile}`;
+
+export function serverKeygenParseCommands(multipartFile: string, keyOut: string, certOut: string): string {
+  const keyB64 = `${keyOut}.b64`;
+  const certB64 = `${certOut}.p7`;
+  return sections(
+    `# Split the multipart response into its key and certificate parts\n${extractPart('application/pkcs8', multipartFile, keyB64)}\n${extractPart('application/pkcs7-mime', multipartFile, certB64)}`,
+    `# Decode the PKCS#8 private key\n${continued(
+      `openssl base64 -d -in ${keyB64}`,
+      `| openssl pkey -inform DER -out ${keyOut}`,
+    )}`,
+    decodeCertificateCommands(certB64, certOut),
+  );
+}
+
+/** One-liners that recreate PEM files from their base64 body. */
+export function writePemFilesCommand(files: { filename: string; base64: string }[]): string {
+  return files.map(({ filename, base64 }) => `echo '${base64}' | base64 -d > ${filename}`).join('\n');
+}
+
+export function cacertsCommand(estBaseUrl: string, raId: string, accept: 'application/x-pem-file' | 'application/pkcs7-mime'): string {
+  return continued(
+    'curl --fail --silent --show-error',
+    `--header "Accept: ${accept}"`,
+    `"${estBaseUrl}/${raId}/cacerts"`,
+  );
+}

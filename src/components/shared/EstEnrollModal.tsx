@@ -19,7 +19,9 @@ import { DurationInput } from './DurationInput';
 import { isValidPositiveDuration } from '@/lib/duration';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
-import { CodeBlock } from './CodeBlock';
+import { CodeSnippet, ShellCommand } from './CodeSnippet';
+import { CommandStep, CommandSteps, InlineCode } from './CommandSteps';
+import { csrCommands, decodeCertificateCommands, estRequestCommand, placeholderCsrCommands, serverChainCommand, serverKeygenParseCommands, writePemFilesCommand } from '@/lib/est-commands';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -302,44 +304,46 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     const finalDeviceId = deviceId || 'device-id'; // Fallback for display
 
-    let keygenCommandPart = '';
-    if (keygenType === 'RSA') {
-        keygenCommandPart = `-newkey rsa:${keygenSpec}`;
-    } else { // EC
-        keygenCommandPart = `-newkey ec -pkeyopt ec_paramgen_curve:${keygenSpec}`;
-    }
-    const opensslCombinedCommand = `openssl req -new ${keygenCommandPart} -nodes -keyout ${finalDeviceId}.key -out ${finalDeviceId}.csr -subj "/CN=${finalDeviceId}"\ncat ${finalDeviceId}.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d'  | sed '/-----END CERTIFICATE REQUEST-----/d'> ${finalDeviceId}.stripped.csr`;
+    const estBaseUrl = get_EST_API_BASE_URL();
+    const estEndpoint = (operation: string) => `${estBaseUrl}/${ra?.id}/${operation}`;
+    const serverCaFile = validateServerCert ? 'root-ca.pem' : undefined;
+    const strippedCsrFile = `${finalDeviceId}.stripped.csr`;
 
-    const serverCertCommand = `echo "Fetching server root CA for validation..."\nLAMASSU_SERVER=lab.lamassu.io\nopenssl s_client -showcerts -servername $LAMASSU_SERVER -connect $LAMASSU_SERVER:443 2>/dev/null </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > root-ca.pem`;
+    const deviceCsrCommand = csrCommands({
+        commonName: finalDeviceId,
+        key: { generate: { type: keygenType, spec: keygenSpec }, keyOut: `${finalDeviceId}.key` },
+        csrFile: `${finalDeviceId}.csr`,
+        strippedFile: strippedCsrFile,
+    });
 
-    const curlValidationFlag = validateServerCert ? '--cacert root-ca.pem' : '-k';
+    const serverCertCommand = serverChainCommand(estBaseUrl, 'root-ca.pem', typeof window !== 'undefined' ? window.location.origin : undefined);
 
-    const finalEnrollCommand = [
-      `echo "Performing enrollment..."`,
-      `curl -v --cert bootstrap.crt --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.stripped.csr   -o ${finalDeviceId}.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simpleenroll"`,
-      `echo "Extracting new certificate..."`,
-      `openssl base64 -d -in ${finalDeviceId}.p7 | openssl pkcs7 -inform DER -outform PEM -print_certs -out ${finalDeviceId}.crt`,
-      `echo "Verifying new certificate..."`,
-      `openssl x509 -text -in ${finalDeviceId}.crt`
-    ].join('\n\n');
+    const bootstrapFilesCommand = writePemFilesCommand([
+        { filename: 'bootstrap.crt', base64: pemToBase64(bootstrapCertificate) },
+        { filename: 'bootstrap.key', base64: pemToBase64(bootstrapPrivateKey) },
+    ]);
 
-    // New commands for server-side keygen
-    const dummyKeygenCommand = `openssl req -new -newkey rsa:2048 -nodes -keyout dummy.key -out dummy.csr -subj "/CN=${finalDeviceId}"`;
-    const dummyStripCommand = `cat dummy.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d'  | sed '/-----END CERTIFICATE REQUEST-----/d'> dummy.stripped.csr`;
-    const dummyCombinedCommand = `${dummyKeygenCommand}\n\n# Strip header/footer from CSR for cURL\n${dummyStripCommand}`;
+    const enrollRequestCommand = estRequestCommand({
+        url: estEndpoint('simpleenroll'),
+        cert: 'bootstrap.crt',
+        key: 'bootstrap.key',
+        caFile: serverCaFile,
+        body: strippedCsrFile,
+        output: `${finalDeviceId}.p7`,
+    });
+    const enrollDecodeCommand = decodeCertificateCommands(`${finalDeviceId}.p7`, `${finalDeviceId}.crt`);
 
-    const serverKeygenCurlCommand = `curl -v --cert bootstrap.crt --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @dummy.stripped.csr -o ${finalDeviceId}.multipart "${get_EST_API_BASE_URL()}/${ra?.id}/serverkeygen"`;
-
-    const serverKeygenParseCommands = [
-        `# 3. Extract Private Key`,
-        `awk '/Content-Type: application\\/pkcs8/{f=1; next} /--estServerLamassuBoundary/{f=0} f' ${finalDeviceId}.multipart > key.b64`,
-        `openssl base64 -d -in key.b64 | openssl pkcs8 -inform DER -outform PEM -out ${finalDeviceId}.key`,
-        `\n# 4. Extract Certificate`,
-        `awk '/Content-Type: application\\/pkcs7-mime/{f=1; next} /--estServerLamassuBoundary/{f=0} f' ${finalDeviceId}.multipart > cert.b64`,
-        `openssl base64 -d -in cert.b64 | openssl pkcs7 -inform DER -print_certs -out ${finalDeviceId}.crt`,
-        `\n# 5. Verify the new certificate`,
-        `openssl x509 -text -noout -in ${finalDeviceId}.crt`
-    ].join('\n');
+    // Server-side keygen: the CSR only carries the subject, the server generates the key.
+    const placeholderCsrCommand = placeholderCsrCommands(finalDeviceId, 'placeholder.csr', 'placeholder.stripped.csr');
+    const serverKeygenRequestCommand = estRequestCommand({
+        url: estEndpoint('serverkeygen'),
+        cert: 'bootstrap.crt',
+        key: 'bootstrap.key',
+        caFile: serverCaFile,
+        body: 'placeholder.stripped.csr',
+        output: `${finalDeviceId}.multipart`,
+    });
+    const serverKeygenParseCommand = serverKeygenParseCommands(`${finalDeviceId}.multipart`, `${finalDeviceId}.key`, `${finalDeviceId}.crt`);
 
 
     const panelContent = (
@@ -434,12 +438,12 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                                 </Select>
                                             </div>
                                         </div>
-                                        <div>
+                                        <div className="space-y-2">
                                             <Label>Generate Key &amp; CSR</Label>
-                                            <p className="text-xs text-muted-foreground mb-1">
-                                                Run the following command on your device to generate a private key (`{finalDeviceId}.key`) and a CSR (`{finalDeviceId}.csr`).
+                                            <p className="text-sm text-muted-foreground">
+                                                Run on the device to create the private key <InlineCode>{finalDeviceId}.key</InlineCode> and the request <InlineCode>{strippedCsrFile}</InlineCode>.
                                             </p>
-                                            <CodeBlock content={opensslCombinedCommand} textareaClassName="h-28" />
+                                            <ShellCommand title="Generate key and CSR" command={deviceCsrCommand} />
                                         </div>
                                     </div>
                                 )}
@@ -559,79 +563,103 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                         )}
                         {step === 4 && (
                             <div className="space-y-4">
-                                <div>
-                                    <Label>Bootstrap Certificate</Label>
-                                    <CodeBlock content={bootstrapCertificate} showDownload downloadFilename="bootstrap.crt" textareaClassName="h-48" />
-                                </div>
-                                <div>
-                                    <Label>Bootstrap Private Key</Label>
-                                    <Alert variant="warning" className="mb-2">
+                                <CodeSnippet
+                                    language="pem"
+                                    title="Bootstrap Certificate"
+                                    subtitle="bootstrap.crt"
+                                    content={bootstrapCertificate}
+                                    downloadFilename="bootstrap.crt"
+                                    maxHeight="16rem"
+                                />
+                                <div className="space-y-2">
+                                    <Alert variant="warning">
                                         <AlertTriangle className="h-4 w-4" />
                                         <AlertTitle>Save Your Private Key</AlertTitle>
                                         <AlertDescUI>This is your only chance to save the private key. It will not be stored and cannot be recovered.</AlertDescUI>
                                     </Alert>
-                                    <CodeBlock content={bootstrapPrivateKey} showDownload downloadFilename="bootstrap.key" textareaClassName="h-48"/>
-                                </div>
-                                <div>
-                                    <Label>Base64 Encoded Bootstrap Commands</Label>
-                                    <p className="text-sm text-muted-foreground mb-2">
-                                        Copy and paste these commands to quickly create your bootstrap files:
-                                    </p>
-                                    <CodeBlock
-                                        content={`echo "${pemToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${pemToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`}
-                                        textareaClassName="h-24"
+                                    <CodeSnippet
+                                        language="pem"
+                                        title="Bootstrap Private Key"
+                                        subtitle="bootstrap.key"
+                                        content={bootstrapPrivateKey}
+                                        downloadFilename="bootstrap.key"
+                                        maxHeight="16rem"
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Write Files from the Shell</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Alternatively, recreate <InlineCode>bootstrap.crt</InlineCode> and <InlineCode>bootstrap.key</InlineCode> directly on the device.
+                                    </p>
+                                    <ShellCommand title="Create bootstrap files" command={bootstrapFilesCommand} wrap />
                                 </div>
                             </div>
                         )}
                          {step === 5 && (
-                            <div className="space-y-4">
-                                <div className="flex items-center space-x-2">
-                                    <Switch
-                                        id="validate-server-cert"
-                                        checked={validateServerCert}
-                                        onCheckedChange={setValidateServerCert}
-                                    />
-                                    <Label htmlFor="validate-server-cert">Validate Server Certificate (Recommended)</Label>
-                                </div>
-                                 {validateServerCert && (
-                                    <div>
-                                        <Label>1. Obtain Server Root CA</Label>
-                                        <p className="text-xs text-muted-foreground mb-1">
-                                            First, obtain the root certificate used by the server and save it as `root-ca.pem`.
+                            <div className="space-y-6">
+                                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                                    <p className="text-sm text-muted-foreground">
+                                        Run the commands from a directory containing{' '}
+                                        <InlineCode>bootstrap.crt</InlineCode>, <InlineCode>bootstrap.key</InlineCode>
+                                        {keygenMethod === 'device' && <>{' '}and <InlineCode>{strippedCsrFile}</InlineCode></>}.
+                                    </p>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch
+                                            id="validate-server-cert"
+                                            checked={validateServerCert}
+                                            onCheckedChange={setValidateServerCert}
+                                        />
+                                        <Label htmlFor="validate-server-cert">Validate server certificate (recommended)</Label>
+                                    </div>
+                                    {!validateServerCert && (
+                                        <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                            TLS verification is disabled; curl runs with <InlineCode>--insecure</InlineCode>.
                                         </p>
-                                        <CodeBlock content={serverCertCommand} textareaClassName="h-28" />
-                                    </div>
-                                )}
+                                    )}
+                                </div>
 
-                                {keygenMethod === 'device' ? (
-                                    <div>
-                                        <Label>{validateServerCert ? '2. ' : '1. '}Enrollment Command</Label>
-                                        <CodeBlock content={finalEnrollCommand} textareaClassName="h-48" />
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div>
-                                            <Label>{validateServerCert ? '2. ' : '1. '}Generate Dummy CSR</Label>
-                                            <p className="text-xs text-muted-foreground mb-1">
-                                                First, generate a temporary CSR. The private key will be discarded.
-                                            </p>
-                                            <CodeBlock content={dummyCombinedCommand} textareaClassName="h-28" />
-                                        </div>
-                                        <div>
-                                            <Label>3. Request Server-Side Key and Certificate</Label>
-                                            <CodeBlock content={serverKeygenCurlCommand} textareaClassName="h-24" />
-                                        </div>
-                                        <div>
-                                            <Label>4. Parse Response</Label>
-                                            <CodeBlock content={serverKeygenParseCommands} textareaClassName="h-48" />
-                                        </div>
-                                    </>
-                                )}
-
-                                <p className="text-sm text-muted-foreground">
-                                    {`Note: This command assumes you have the required files (\`bootstrap.crt\`, \`bootstrap.key\`, \`${finalDeviceId}.stripped.csr\`, and optionally \`root-ca.pem\`) in the same directory.`}
-                                </p>
+                                <CommandSteps>
+                                    {validateServerCert && (
+                                        <CommandStep
+                                            title="Trust the EST server"
+                                            description={<>Store the TLS chain presented by the server as <InlineCode>root-ca.pem</InlineCode>.</>}
+                                        >
+                                            <ShellCommand title="Fetch server chain" command={serverCertCommand} />
+                                        </CommandStep>
+                                    )}
+                                    {keygenMethod === 'device' && (
+                                        <CommandStep
+                                            title="Request the certificate"
+                                            description="Authenticate with the bootstrap certificate and submit the CSR to the RA."
+                                        >
+                                            <ShellCommand title="simpleenroll" command={enrollRequestCommand} />
+                                        </CommandStep>
+                                    )}
+                                    {keygenMethod === 'device' && (
+                                        <CommandStep title="Decode and inspect" description="The RA answers with a base64 PKCS#7 bundle.">
+                                            <ShellCommand title="Extract certificate" command={enrollDecodeCommand} />
+                                        </CommandStep>
+                                    )}
+                                    {keygenMethod === 'server' && (
+                                        <CommandStep
+                                            title="Create a placeholder CSR"
+                                            description="It only carries the subject; its private key is discarded."
+                                        >
+                                            <ShellCommand title="Placeholder CSR" command={placeholderCsrCommand} />
+                                        </CommandStep>
+                                    )}
+                                    {keygenMethod === 'server' && (
+                                        <CommandStep title="Request key and certificate" description="The RA generates the key pair and returns it with the certificate as a multipart response.">
+                                            <ShellCommand title="serverkeygen" command={serverKeygenRequestCommand} />
+                                        </CommandStep>
+                                    )}
+                                    {keygenMethod === 'server' && (
+                                        <CommandStep title="Extract key and certificate">
+                                            <ShellCommand title="Parse multipart response" command={serverKeygenParseCommand} />
+                                        </CommandStep>
+                                    )}
+                                </CommandSteps>
                             </div>
                         )}
                     </div>

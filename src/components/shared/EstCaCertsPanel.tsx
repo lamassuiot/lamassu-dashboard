@@ -6,7 +6,8 @@ import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CodeBlock } from '@/components/shared/CodeBlock';
+import { CodeSnippet, ShellCommand } from '@/components/shared/CodeSnippet';
+import { cacertsCommand } from '@/lib/est-commands';
 import { fetchEstCaCerts } from '@/lib/est-api';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
@@ -66,12 +67,12 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
 
   const curlPem = useMemo(() => {
     if (!ra?.id) return '';
-    return `curl ${get_EST_API_BASE_URL()}/${ra.id}/cacerts \\\n  -H "Accept: application/x-pem-file"`;
+    return cacertsCommand(get_EST_API_BASE_URL(), ra.id, 'application/x-pem-file');
   }, [ra?.id]);
 
   const curlPkcs7 = useMemo(() => {
     if (!ra?.id) return '';
-    return `curl ${get_EST_API_BASE_URL()}/${ra.id}/cacerts \\\n  -H "Accept: application/pkcs7-mime"`;
+    return cacertsCommand(get_EST_API_BASE_URL(), ra.id, 'application/pkcs7-mime');
   }, [ra?.id]);
 
   return (
@@ -108,11 +109,8 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
               <TabsContent value="pem" className="mt-4 h-[calc(100%-3rem)]">
                 <ScrollArea className="h-full pr-2">
                   <div className="space-y-3">
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">Obtain CA certs using cURL</p>
-                      <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPem}</pre>
-                    </div>
-                    <CodeBlock content={pemCerts} />
+                    <ShellCommand title="Fetch CA certificates" command={curlPem} />
+                    <CodeSnippet language="pem" title="CA certificates" content={pemCerts} downloadFilename="cacerts.pem" />
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -120,11 +118,8 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
               <TabsContent value="pkcs7" className="mt-4 h-[calc(100%-3rem)]">
                 <ScrollArea className="h-full pr-2">
                   <div className="space-y-3">
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">Obtain CA certs using cURL</p>
-                      <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPkcs7}</pre>
-                    </div>
-                    <CodeBlock content={pkcs7Certs} />
+                    <ShellCommand title="Fetch CA certificates" command={curlPkcs7} />
+                    <CodeSnippet language="base64" title="CA certificates" languageLabel="pkcs#7 · base64" content={pkcs7Certs} downloadFilename="cacerts.p7b.b64" />
                   </div>
                 </ScrollArea>
               </TabsContent>

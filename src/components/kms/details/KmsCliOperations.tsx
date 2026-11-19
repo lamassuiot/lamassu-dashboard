@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CodeBlock } from '@/components/shared/CodeBlock';
+import { ShellCommand } from '@/components/shared/CodeSnippet';
 import { Terminal, AlertCircleIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertExpandableContent, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
@@ -193,7 +193,10 @@ export OPENSSL_CONF=$(pwd)/openssl-pkcs11-provider.conf`;
         return inputType === 'digest'
             ? `echo -n "your-data-to-sign" | openssl dgst -${hashAlgorithm} -binary -out digest.bin
 
-openssl pkeyutl -sign -inkey "pkcs11:label=${keyAliasSanitized};type=private" ${pssOption} ${opensslFlags} -in digest.bin -out signature.bin
+openssl pkeyutl -sign \\
+  -inkey "pkcs11:label=${keyAliasSanitized};type=private" ${pssOption} \\
+  ${opensslFlags} \\
+  -in digest.bin -out signature.bin
 
 echo "signed data digest: $(cat digest.bin | hexdump -v -e '/1 "%02x"')"
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
@@ -258,7 +261,12 @@ openssl dgst -${hashAlgorithm} -verify public-key.pem \\
 ${isDigestMode ? `
 openssl dgst -${hashAlgorithm} -binary -out digest.bin data-to-sign.txt` : ''}
 
-pkcs11-tool --module ./lms-pkcs11-x86.so --sign ${commandFlags} --signature-format openssl --label "${keyAliasSanitized}" --input-file ${pkcs11InFile} --output-file signature.bin
+pkcs11-tool --module ./lms-pkcs11-x86.so --sign \\
+  ${commandFlags} \\
+  --signature-format openssl \\
+  --label "${keyAliasSanitized}" \\
+  --input-file ${pkcs11InFile} \\
+  --output-file signature.bin
 
 ${optionalPostSignCommand}
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
@@ -279,17 +287,17 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                         <div>
                             <h4 className="font-medium mb-2">Authentication Setup</h4>
                             <p className="text-sm text-muted-foreground mb-2">Export your bearer token to authenticate CLI operations:</p>
-                            <CodeBlock content={bearerTokenExport} title="Bearer Token Export" showDownload={false} textareaClassName="h-12 font-mono text-xs" />
+                            <ShellCommand command={bearerTokenExport} title="Bearer Token Export" />
                         </div>
                         <div>
                             <h4 className="font-medium mb-2">PKCS11 KMS Configuration</h4>
                             <p className="text-sm text-muted-foreground mb-2">Create a configuration file for PKCS11 KMS operations:</p>
-                            <CodeBlock content={configFileCommands} title="Create pkcs11-kms.config" showDownload={false} textareaClassName="h-48 font-mono text-xs" />
+                            <ShellCommand command={configFileCommands} title="Create pkcs11-kms.config" />
                         </div>
                         <div>
                             <h4 className="font-medium mb-2">OpenSSL Configuration</h4>
                             <p className="text-sm text-muted-foreground mb-2">Check your OpenSSL version first:</p>
-                            <CodeBlock content={opensslVersionCommand} title="Check OpenSSL Version" showDownload={false} textareaClassName="h-2 font-mono text-xs" />
+                            <ShellCommand command={opensslVersionCommand} title="Check OpenSSL Version" />
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                                 <div>
                                     <p className="text-sm font-semibold mb-2">OpenSSL &lt; 3.0.0</p>
@@ -298,7 +306,7 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                                         <AlertTitle variant="warning">Third-party library required</AlertTitle>
                                         <AlertDescription>Requires a PKCS11-enabled OpenSSL engine such as <a href="https://github.com/OpenSC/libp11" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>libp11</a>.</AlertDescription>
                                     </Alert>
-                                    <CodeBlock content={opensslEngineCommands} title="Create openssl-pkcs11-engine.conf" showDownload={false} textareaClassName="h-64 font-mono text-xs" />
+                                    <ShellCommand command={opensslEngineCommands} title="Create openssl-pkcs11-engine.conf" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold mb-2">OpenSSL &gt;= 3.0.0</p>
@@ -307,7 +315,7 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                                         <AlertTitle variant="warning">Third-party library required</AlertTitle>
                                         <AlertDescription>Requires a PKCS11-enabled OpenSSL provider such as <a href="https://github.com/latchset/pkcs11-provider" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>pkcs11-provider</a>.</AlertDescription>
                                     </Alert>
-                                    <CodeBlock content={opensslProviderCommands} title="Create openssl-pkcs11-provider.conf" showDownload={false} textareaClassName="h-64 font-mono text-xs" />
+                                    <ShellCommand command={opensslProviderCommands} title="Create openssl-pkcs11-provider.conf" />
                                 </div>
                             </div>
                         </div>
@@ -356,30 +364,18 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                             <TabsTrigger value="provider">Provider (&gt;= 3.0.0)</TabsTrigger>
                         </TabsList>
                         <TabsContent value="engine" className="mt-4 space-y-3">
-                            <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Sign</p>
-                                <CodeBlock content={opensslSignEngineCommand} showDownload={false} textareaClassName="font-mono text-xs" />
-                            </div>
-                            <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Verify</p>
-                                <CodeBlock content={opensslVerifyEngineCommand} showDownload={false} textareaClassName="font-mono text-xs" />
-                            </div>
+                            <ShellCommand command={opensslSignEngineCommand} title="Sign" />
+                            <ShellCommand command={opensslVerifyEngineCommand} title="Verify" />
                         </TabsContent>
                         <TabsContent value="provider" className="mt-4 space-y-3">
-                            <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Sign</p>
-                                <CodeBlock content={opensslSignProviderCommand} showDownload={false} textareaClassName="font-mono text-xs" />
-                            </div>
-                            <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Verify</p>
-                                <CodeBlock content={opensslVerifyProviderCommand} showDownload={false} textareaClassName="font-mono text-xs" />
-                            </div>
+                            <ShellCommand command={opensslSignProviderCommand} title="Sign" />
+                            <ShellCommand command={opensslVerifyProviderCommand} title="Verify" />
                         </TabsContent>
                     </Tabs>
                 </TabsContent>
 
                 <TabsContent value="pkcs11" className="mt-4">
-                    <CodeBlock content={pkcs11SignCommand} showDownload={false} textareaClassName="font-mono text-xs" />
+                    <ShellCommand command={pkcs11SignCommand} title="Sign with pkcs11-tool" />
                 </TabsContent>
             </Tabs>
 

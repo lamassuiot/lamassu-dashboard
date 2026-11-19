@@ -11,12 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { CardSelector } from '@/components/shared/CardSelector';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { CodeSnippet } from "@/components/shared/CodeSnippet";
 import { Separator } from "@/components/ui/separator";
 import {
     Loader2, CheckCircle2, AlertTriangle, KeyRound, UploadCloud,
-    FileText, ChevronsUpDown, Copy, Check,
-    Download as DownloadIcon,
+    FileText, ChevronsUpDown,
 } from "lucide-react";
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
@@ -61,7 +60,6 @@ export default function CreateCertificateClient() {
     const [processingError, setProcessingError] = useState<string | null>(null);
     const [issuedCertPem, setIssuedCertPem] = useState<string | null>(null);
     const [issuedSerialNumber, setIssuedSerialNumber] = useState<string | null>(null);
-    const [certCopied, setCertCopied] = useState(false);
     const [issuedKeyId, setIssuedKeyId] = useState<string | null>(null);
 
     // CA state
@@ -137,26 +135,6 @@ export default function CreateCertificateClient() {
 
     const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
         setSelectedEkus(prev => checked ? [...prev, usage as ExtendedKeyUsageOption] : prev.filter(u => u !== usage));
-    };
-
-    const handleCopy = async (text: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            setCertCopied(true);
-            setTimeout(() => setCertCopied(false), 2000);
-        } catch {
-            sileo.error({ title: "Copy Failed", description: "Could not copy to clipboard." });
-        }
-    };
-
-    const handleDownload = (text: string, filename: string) => {
-        const blob = new Blob([text], { type: 'application/x-pem-file' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
     };
 
     const validate = (): string | null => {
@@ -556,30 +534,14 @@ export default function CreateCertificateClient() {
                     </div>
 
                     {issuedCertPem && (
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-muted-foreground" />
-                                    <span className="text-sm font-medium">Issued Certificate PEM</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button type="button" variant="secondary" onClick={() => handleCopy(issuedCertPem)}>
-                                        {certCopied
-                                            ? <><Check className="mr-1 h-4 w-4 text-green-500" /> Copied</>
-                                            : <><Copy className="mr-1 h-4 w-4" /> Copy</>}
-                                    </Button>
-                                    <Button type="button" variant="secondary" onClick={() => handleDownload(issuedCertPem, 'certificate.pem')}>
-                                        <DownloadIcon className="mr-1 h-4 w-4" /> Download
-                                    </Button>
-                                </div>
-                            </div>
-                            <Textarea
-                                readOnly
-                                value={issuedCertPem}
-                                rows={10}
-                                className="font-mono bg-muted/50 resize-none"
-                            />
-                        </div>
+                        <CodeSnippet
+                            language="pem"
+                            icon={FileText}
+                            title="Issued certificate"
+                            content={issuedCertPem}
+                            downloadFilename="certificate.pem"
+                            maxHeight="24rem"
+                        />
                     )}
                 </div>
             )}

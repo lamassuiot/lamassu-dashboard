@@ -33,7 +33,7 @@ import {
   buildSignedCsr,
   type CsrSan,
 } from '@/lib-crypto';
-import { CodeBlock } from '@/components/shared/CodeBlock';
+import { CodeSnippet } from '@/components/shared/CodeSnippet';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
@@ -1082,7 +1082,7 @@ export default function KmsKeyDetailsClient() {
                     {isSigning ? 'Signing…' : 'Sign'}
                   </Button>
                   {generatedSignature && (
-                    <CodeBlock content={generatedSignature} title="Generated Signature (Base64)" showDownload downloadFilename="signature.sig" downloadMimeType="text/plain" />
+                    <CodeSnippet language="base64" title="Generated signature" content={generatedSignature} downloadFilename="signature.sig" />
                   )}
                 </div>
               </div>
@@ -1301,7 +1301,7 @@ export default function KmsKeyDetailsClient() {
                     {isGeneratingCsr ? 'Generating…' : 'Generate CSR'}
                   </Button>
                   {generatedCsr && (
-                    <CodeBlock content={generatedCsr} title="Generated CSR (PEM)" showDownload downloadFilename="certificate-request.csr" downloadMimeType="application/pkcs10" />
+                    <CodeSnippet language="pem" title="Generated CSR" content={generatedCsr} downloadFilename="certificate-request.csr" downloadMimeType="application/pkcs10" />
                   )}
                 </div>
               </div>

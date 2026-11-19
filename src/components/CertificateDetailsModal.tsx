@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { CodeSnippet } from '@/components/shared/CodeSnippet';
 
 interface CertificateDetailsModalProps {
   certificate: CertificateData | null;
@@ -76,12 +77,13 @@ export function CertificateDetailsModal({ certificate, isOpen, onClose }: Certif
 
             <Separator className="my-3"/>
 
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">PEM Data</h3>
-              <pre className="text-xs whitespace-pre-wrap break-all font-mono h-48 w-full rounded-md border p-3 bg-muted/30 overflow-y-auto">
-                {certificate.pemData}
-              </pre>
-            </div>
+            <CodeSnippet
+              language="pem"
+              title="Certificate"
+              content={certificate.pemData ?? ''}
+              downloadFilename={certificate.fileName || 'certificate.pem'}
+              maxHeight="14rem"
+            />
           </div>
         </ScrollArea>
         

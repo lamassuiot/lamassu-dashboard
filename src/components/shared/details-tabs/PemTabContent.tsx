@@ -1,11 +1,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
+import React from 'react';
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
-import { Copy, Check, Download, ChevronRight, FileCode, Link2, ShieldCheck } from "lucide-react";
-import { sileo } from '@/lib/toast';
+import { ChevronRight, FileCode, Link2, ShieldCheck, type LucideIcon } from "lucide-react";
+import { CodeSnippet } from '@/components/shared/CodeSnippet';
 import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 
@@ -22,109 +21,30 @@ interface PemTabContentProps {
   };
 }
 
-// ── Render PEM with highlighted BEGIN/END markers ─────────────────────────────
-
-function HighlightedPem({ pem }: { pem: string }) {
-  const lines = pem.replaceAll('\\n', '\n').trim().split('\n');
-  return (
-    <>
-      {lines.map((line, i) => (
-        <span
-          key={i}
-          className={cn(
-            'block',
-            line.startsWith('-----') ? 'text-primary/80 font-semibold' : 'text-foreground/60'
-          )}
-        >
-          {line || ' '}
-        </span>
-      ))}
-    </>
-  );
-}
-
 // ── Individual PEM export card ─────────────────────────────────────────────────
 
 interface PemCardProps {
   title: string;
   subtitle: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   badge?: React.ReactNode;
   pem: string | undefined;
   filename: string;
   itemName: string;
 }
 
-export function PemCard({ title, subtitle, icon: Icon, badge, pem, filename }: Readonly<PemCardProps>) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    if (!pem) return sileo.error({ title: 'Copy Failed', description: 'No PEM data found.' });
-    try {
-      await navigator.clipboard.writeText(pem.replaceAll('\\n', '\n'));
-      setCopied(true);
-      sileo.success({ title: 'Copied!', description: `${title} copied to clipboard.` });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      sileo.error({ title: 'Copy Failed', description: `Could not copy ${title}.` });
-    }
-  };
-
-  const download = () => {
-    if (!pem) return sileo.error({ title: 'Download Failed', description: 'No PEM data found.' });
-    const blob = new Blob([pem.replace(/\\n/g, '\n')], { type: 'application/x-pem-file' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    sileo.success({ title: 'Downloaded', description: `${filename} downloaded.` });
-  };
-
+export function PemCard({ title, subtitle, icon, badge, pem, filename }: Readonly<PemCardProps>) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border">
-      {/* Card header */}
-      <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-semibold leading-none">{title}</p>
-              {badge}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" className="h-7 px-2.5 text-xs gap-1.5" onClick={copy} disabled={!pem}>
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? 'Copied' : 'Copy'}
-          </Button>
-          <Button variant="ghost" className="h-7 px-2.5 text-xs gap-1.5" onClick={download} disabled={!pem}>
-            <Download className="h-3.5 w-3.5" />
-            .pem
-          </Button>
-        </div>
-      </div>
-
-      {/* PEM body */}
-      {pem ? (
-        <div className="flex-1 bg-muted/10">
-          <pre className="p-5 text-xs font-mono leading-relaxed whitespace-pre-wrap break-all">
-            <HighlightedPem pem={pem} />
-          </pre>
-        </div>
-      ) : (
-        <div className="flex h-32 items-center justify-center text-sm text-muted-foreground bg-muted/10">
-          No PEM data available.
-        </div>
-      )}
-    </div>
+    <CodeSnippet
+      language="pem"
+      content={(pem ?? '').replaceAll('\\n', '\n').trim()}
+      title={title}
+      subtitle={subtitle}
+      icon={icon}
+      badge={badge}
+      downloadFilename={filename}
+      emptyMessage="No PEM data available."
+    />
   );
 }
 
@@ -177,7 +97,7 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
   const chainCount = itemPathToRootCount ?? 0;
 
   return (
-    <div className="py-6 space-y-4">
+    <div className="pb-6 space-y-4">
 
       {/* Chain strip — only when chain data is available */}
       {hasChain && certificateChain && currentCertificate && (

@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CodeSnippet } from "@/components/shared/CodeSnippet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, CheckCircle2, Download as DownloadIcon, X as XIcon, KeyRound, FileText, UploadCloud } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, CheckCircle2, X as XIcon, KeyRound, FileText, UploadCloud } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
@@ -126,8 +127,6 @@ export default function IssueCertificateFormClient() {
   const [issuedCertificate, setIssuedCertificate] = useState<{ pem: string; serial: string } | null>(null);
 
   // UX State for copy buttons
-  const [privateKeyCopied, setPrivateKeyCopied] = useState(false);
-  const [issuedCertCopied, setIssuedCertCopied] = useState(false);
   const [certDisplayTab, setCertDisplayTab] = useState<'leaf' | 'chain'>('leaf');
 
   const validityWarning = useMemo(() => {
@@ -352,31 +351,6 @@ export default function IssueCertificateFormClient() {
   const handleBack = () => {
     setGenerationError(null);
     setStep(1);
-  };
-
-  const handleCopy = async (text: string, type: string, setCopied: (v: boolean) => void) => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text.replace(/\\n/g, '\n'));
-      setCopied(true);
-      sileo.success({ title: "Copied!", description: `${type} PEM copied to clipboard.` });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      sileo.error({ title: "Copy Failed", description: `Could not copy ${type} PEM.` });
-    }
-  };
-
-  const handleDownload = (content: string, filename: string, mime: string) => {
-    if (!content) return;
-    const blob = new Blob([content.replace(/\\n/g, '\n')], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   const handleCsrFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -906,61 +880,47 @@ export default function IssueCertificateFormClient() {
               </div>
 
               <div className={cn('grid gap-6', generatedPrivateKeyPem && 'xl:grid-cols-2 xl:items-start')}>
-                <div className="overflow-hidden rounded-lg border bg-background">
-                  <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h4 className="flex items-center text-base font-semibold">
-                        <FileText className="mr-3 h-5 w-5 text-primary" />
-                        Issued Certificate PEM
-                    </h4>
-                    <div className="flex flex-wrap gap-2 sm:justify-end">
-                      <Button type="button" variant="secondary" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
-                        {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
-                        {issuedCertCopied ? 'Copied' : 'Copy'}
-                      </Button>
-                      <Button type="button" variant="secondary" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
-                        <DownloadIcon className="mr-1 h-4 w-4" />Download
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-3 p-4">
-                    <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
-                        <TabsTrigger value="chain">Full Chain</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="leaf" className="mt-3">
-                        <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50" />
-                      </TabsContent>
-                      <TabsContent value="chain" className="mt-3">
-                        <Textarea readOnly value={fullChainPem} rows={14} className="font-mono bg-muted/50" />
-                      </TabsContent>
-                    </Tabs>
-                  </div>
-                </div>
+                <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
+                    <TabsTrigger value="chain">Full Chain</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="leaf" className="mt-3">
+                    <CodeSnippet
+                      language="pem"
+                      icon={FileText}
+                      title="Issued certificate"
+                      content={(issuedCertificate?.pem || '').replace(/\\n/g, '\n')}
+                      downloadFilename="certificate.pem"
+                      maxHeight="24rem"
+                    />
+                  </TabsContent>
+                  <TabsContent value="chain" className="mt-3">
+                    <CodeSnippet
+                      language="pem"
+                      icon={FileText}
+                      title="Full chain"
+                      subtitle="Leaf-to-root bundle"
+                      content={fullChainPem.replace(/\\n/g, '\n')}
+                      downloadFilename="certificate-chain.pem"
+                      maxHeight="24rem"
+                    />
+                  </TabsContent>
+                </Tabs>
 
                 {generatedPrivateKeyPem && (
-                  <div className="overflow-hidden rounded-lg border bg-background">
-                    <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <h4 className="flex items-center text-base font-semibold">
-                          <KeyRound className="mr-3 h-5 w-5 text-primary" />
-                          Generated Private Key
-                      </h4>
-                      <div className="flex flex-wrap gap-2 sm:justify-end">
-                        <Button type="button" variant="secondary" onClick={() => handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
-                          {privateKeyCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
-                          {privateKeyCopied ? 'Copied' : 'Copy'}
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
-                          <DownloadIcon className="mr-1 h-4 w-4" />Download
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-3 p-4">
-                      <Alert variant="warning">
-                        <AlertDescription>This is your only chance to save the private key. Store it securely.</AlertDescription>
-                      </Alert>
-                      <Textarea readOnly value={generatedPrivateKeyPem} rows={8} className="font-mono bg-muted/50" />
-                    </div>
+                  <div className="space-y-3">
+                    <Alert variant="warning">
+                      <AlertDescription>This is your only chance to save the private key. Store it securely.</AlertDescription>
+                    </Alert>
+                    <CodeSnippet
+                      language="pem"
+                      icon={KeyRound}
+                      title="Generated private key"
+                      content={generatedPrivateKeyPem}
+                      downloadFilename="private_key.pem"
+                      maxHeight="24rem"
+                    />
                   </div>
                 )}
               </div>

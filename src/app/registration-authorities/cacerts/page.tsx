@@ -5,11 +5,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from '@/lib/router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, FileText, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
-import { CodeBlock } from '@/components/shared/CodeBlock';
+import { CodeSnippet, ShellCommand } from '@/components/shared/CodeSnippet';
+import { cacertsCommand } from '@/lib/est-commands';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { fetchEstCaCerts } from '@/lib/est-api';
@@ -111,8 +112,8 @@ export default function EstCaCertsPage() {
         fetchData();
     }, [fetchData]);
 
-    const curlPkcs7 = `curl ${get_EST_API_BASE_URL()}/${raId}/cacerts \\ \n  -H "Accept: application/pkcs7-mime"`;
-    const curlPem = `curl ${get_EST_API_BASE_URL()}/${raId}/cacerts \\ \n  -H "Accept: application/x-pem-file"`;
+    const curlPkcs7 = cacertsCommand(get_EST_API_BASE_URL(), raId ?? '', 'application/pkcs7-mime');
+    const curlPem = cacertsCommand(get_EST_API_BASE_URL(), raId ?? '', 'application/x-pem-file');
 
     if (isLoading) {
         return (
@@ -198,12 +199,8 @@ export default function EstCaCertsPage() {
                             <TabsContent value="pem" className="mt-4">
                                 <Card>
                                     <CardContent className="space-y-3">
-                                        <Alert>
-                                            <Info className="h-4 w-4" />
-                                            <AlertDescription>Obtain CACerts using cURL</AlertDescription>
-                                            <pre className="text-xs mt-1 bg-muted p-2 rounded-md font-mono overflow-x-auto">{curlPem}</pre>
-                                        </Alert>
-                                        <CodeBlock content={pemCerts} />
+                                        <ShellCommand title="Fetch CA certificates" command={curlPem} />
+                                        <CodeSnippet language="pem" title="CA certificates" content={pemCerts} downloadFilename="cacerts.pem" />
                                     </CardContent>
                                 </Card>
                             </TabsContent>
@@ -211,12 +208,8 @@ export default function EstCaCertsPage() {
                             <TabsContent value="pkcs7" className="mt-4">
                                 <Card>
                                     <CardContent className="space-y-3">
-                                        <Alert>
-                                            <Info className="h-4 w-4" />
-                                            <AlertDescription>Obtain CACerts using cURL</AlertDescription>
-                                            <pre className="text-xs mt-1 bg-muted p-2 rounded-md font-mono overflow-x-auto">{curlPkcs7}</pre>
-                                        </Alert>
-                                        <CodeBlock content={pkcs7Certs} />
+                                        <ShellCommand title="Fetch CA certificates" command={curlPkcs7} />
+                                        <CodeSnippet language="base64" title="CA certificates" languageLabel="pkcs#7 · base64" content={pkcs7Certs} downloadFilename="cacerts.p7b.b64" />
                                     </CardContent>
                                 </Card>
                             </TabsContent>

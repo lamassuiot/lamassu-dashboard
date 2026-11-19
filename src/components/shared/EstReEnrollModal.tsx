@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Info, RefreshCw as RefreshCwIcon, Search, AlertTriangle, Loader2, HelpCircle, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
-import { CodeBlock } from './CodeBlock';
+import { ShellCommand } from './CodeSnippet';
+import { CommandStep, CommandSteps, InlineCode } from './CommandSteps';
+import { csrCommands, decodeCertificateCommands, estRequestCommand, serverChainCommand } from '@/lib/est-commands';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -130,23 +132,29 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
 
     const finalDeviceId = foundDevice?.id || 'device-id';
 
-    const keygenCommandForRekey = keygenType === 'RSA' 
-        ? `-newkey rsa:${keygenSpec} -keyout ${finalDeviceId}.new.key`
-        : `-newkey ec -pkeyopt ec_paramgen_curve:${keygenSpec} -keyout ${finalDeviceId}.new.key`;
-    
-    const opensslCombinedCommand = rekey
-        ? `echo "Generating new key and CSR for re-enrollment..."\nopenssl req -new ${keygenCommandForRekey} -nodes -out ${finalDeviceId}.new.csr -subj "/CN=${finalDeviceId}"\n\n# Strip header/footer from CSR for cURL\ncat ${finalDeviceId}.new.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d' | sed '/-----END CERTIFICATE REQUEST-----/d' > ${finalDeviceId}.new.stripped.csr`
-        : `echo "Generating CSR using existing key..."\nopenssl req -new -key ${finalDeviceId}.existing.key -out ${finalDeviceId}.new.csr -subj "/CN=${finalDeviceId}"\n\n# Strip header/footer from CSR for cURL\ncat ${finalDeviceId}.new.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d' | sed '/-----END CERTIFICATE REQUEST-----/d' > ${finalDeviceId}.new.stripped.csr`;
+    const estBaseUrl = get_EST_API_BASE_URL();
+    const strippedCsrFile = `${finalDeviceId}.new.stripped.csr`;
 
+    const reenrollCsrCommand = csrCommands({
+        commonName: finalDeviceId,
+        key: rekey
+            ? { generate: { type: keygenType, spec: keygenSpec }, keyOut: `${finalDeviceId}.new.key` }
+            : { existing: `${finalDeviceId}.existing.key` },
+        csrFile: `${finalDeviceId}.new.csr`,
+        strippedFile: strippedCsrFile,
+    });
 
-    const serverCertCommand = `echo "Fetching server root CA for validation..."\nLAMASSU_SERVER=lab.lamassu.io\nopenssl s_client -showcerts -servername $LAMASSU_SERVER -connect $LAMASSU_SERVER:443 2>/dev/null </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > root-ca.pem`;
-    
-    const curlValidationFlag = validateServerCert ? '--cacert root-ca.pem' : '-k';
-    const finalReEnrollCommand = [
-      `echo "Performing re-enrollment..."\ncurl -v --cert ${finalDeviceId}.existing.crt --key ${finalDeviceId}.existing.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.new.stripped.csr -o ${finalDeviceId}.new.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simplereenroll"`,
-      `echo "Extracting new certificate..."\nopenssl base64 -d -in ${finalDeviceId}.new.p7 | openssl pkcs7 -inform DER -outform PEM -print_certs -out ${finalDeviceId}.new.crt`,
-      `echo "Verifying new certificate..."\nopenssl x509 -text -noout -in ${finalDeviceId}.new.crt`
-    ].join('\n\n');
+    const serverCertCommand = serverChainCommand(estBaseUrl, 'root-ca.pem', typeof window !== 'undefined' ? window.location.origin : undefined);
+
+    const reenrollRequestCommand = estRequestCommand({
+        url: `${estBaseUrl}/${ra?.id}/simplereenroll`,
+        cert: `${finalDeviceId}.existing.crt`,
+        key: `${finalDeviceId}.existing.key`,
+        caFile: validateServerCert ? 'root-ca.pem' : undefined,
+        body: strippedCsrFile,
+        output: `${finalDeviceId}.new.p7`,
+    });
+    const reenrollDecodeCommand = decodeCertificateCommands(`${finalDeviceId}.new.p7`, `${finalDeviceId}.new.crt`);
 
     const panelContent = (
         <>
@@ -202,7 +210,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
                                 <Info className="h-4 w-4"/>
                                 <AlertTitle>Prerequisites</AlertTitle>
                                 <AlertDescUI>
-                                    This process assumes you have the device's current, valid certificate and private key (e.g., `{finalDeviceId}.existing.crt` and `{finalDeviceId}.existing.key`).
+                                    Run from a directory containing the device&apos;s current certificate and key, <InlineCode>{finalDeviceId}.existing.crt</InlineCode> and <InlineCode>{finalDeviceId}.existing.key</InlineCode>.
                                     {!rekey && ' The existing private key will be used to generate the new CSR.'}
                                     {' '}The existing certificate is always accepted if it was issued by the RA&apos;s Enrollment CA; certificates from other CAs are accepted only if they are configured as re-enrollment validation CAs.
                                 </AlertDescUI>
@@ -246,34 +254,48 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
                                 </div>
                             )}
                             
-                            <div>
-                                <Label>1. Generate CSR</Label>
-                                <p className="mb-1 text-xs text-muted-foreground">
-                                    Run this on your device to generate a new CSR.
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="validate-server-cert-reenroll"
+                                    checked={validateServerCert}
+                                    onCheckedChange={setValidateServerCert}
+                                />
+                                <Label htmlFor="validate-server-cert-reenroll">Validate server certificate (recommended)</Label>
+                            </div>
+                            {!validateServerCert && (
+                                <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                    TLS verification is disabled; curl runs with <InlineCode>--insecure</InlineCode>.
                                 </p>
-                                <CodeBlock content={opensslCombinedCommand} textareaClassName="h-32" />
-                            </div>
+                            )}
 
-                                <div>
-                                <Label>2. Run Re-enrollment Command</Label>
-                                <div className="my-2 flex items-center space-x-2">
-                                    <Switch
-                                        id="validate-server-cert-reenroll"
-                                        checked={validateServerCert}
-                                        onCheckedChange={setValidateServerCert}
-                                    />
-                                    <Label htmlFor="validate-server-cert-reenroll">Validate Server Certificate (Recommended)</Label>
-                                </div>
+                            <CommandSteps className="pt-2">
+                                <CommandStep
+                                    title="Generate the CSR"
+                                    description={rekey
+                                        ? <>Creates a new key <InlineCode>{finalDeviceId}.new.key</InlineCode> on the device.</>
+                                        : <>Reuses the current key <InlineCode>{finalDeviceId}.existing.key</InlineCode>.</>}
+                                >
+                                    <ShellCommand title="Generate CSR" command={reenrollCsrCommand} />
+                                </CommandStep>
                                 {validateServerCert && (
-                                    <div className="mb-2">
-                                        <p className="mb-1 text-xs text-muted-foreground">
-                                            First, obtain the server's root CA certificate.
-                                        </p>
-                                        <CodeBlock content={serverCertCommand} textareaClassName="h-28" />
-                                    </div>
+                                    <CommandStep
+                                        title="Trust the EST server"
+                                        description={<>Store the TLS chain presented by the server as <InlineCode>root-ca.pem</InlineCode>.</>}
+                                    >
+                                        <ShellCommand title="Fetch server chain" command={serverCertCommand} />
+                                    </CommandStep>
                                 )}
-                                <CodeBlock content={finalReEnrollCommand} textareaClassName="h-40" />
-                            </div>
+                                <CommandStep
+                                    title="Request the new certificate"
+                                    description="Authenticate with the current device certificate."
+                                >
+                                    <ShellCommand title="simplereenroll" command={reenrollRequestCommand} />
+                                </CommandStep>
+                                <CommandStep title="Decode and inspect" description="The RA answers with a base64 PKCS#7 bundle.">
+                                    <ShellCommand title="Extract certificate" command={reenrollDecodeCommand} />
+                                </CommandStep>
+                            </CommandSteps>
                         </div>
                     )}
                 </div>
