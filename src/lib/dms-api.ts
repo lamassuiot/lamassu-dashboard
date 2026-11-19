@@ -82,6 +82,10 @@ export interface ApiRaSettings {
     };
     issuance_profile_id?: string;
     issuance_profile?: ApiSigningProfile | null;
+    /** The DMS Manager keeps the authz principal `dms:<id>` that trusts every certificate of the Enrollment CA. Absent on RAs stored before it existed. */
+    authz_principal_settings?: {
+        enabled: boolean;
+    };
 }
 export interface ApiRaItem {
     id: string;
