@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { buildCrlDer } from '@/lib/test-utils/fixtures/crl'
+import { buildCrlDer } from '@/lib-crypto/test-utils/fixtures/crl'
 import { CrlViewerSheet } from './CrlViewerSheet'
 
 vi.mock('@/components/shared/DateDisplay', () => ({

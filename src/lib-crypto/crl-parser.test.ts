@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseCrl } from '@/lib-crypto'
-import { buildCrlDer } from '@/lib/test-utils/fixtures/crl'
+import { buildCrlDer } from '@/lib-crypto/test-utils/fixtures/crl'
 
 describe('crl-parser', () => {
   it('parses the issuer, ISO dates and a revoked certificate', async () => {
