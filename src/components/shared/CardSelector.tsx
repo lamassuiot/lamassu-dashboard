@@ -9,6 +9,10 @@ export interface CardSelectorOption<T extends string = string> {
   label: string;
   description?: string;
   icon: React.ElementType;
+  /** Disables just this option (e.g. a feature the backend has not enabled). */
+  disabled?: boolean;
+  /** Shown under the description, e.g. to explain why the option is disabled. */
+  badge?: React.ReactNode;
 }
 
 interface CardSelectorProps<T extends string = string> {
@@ -44,18 +48,20 @@ export function CardSelector<T extends string = string>({
         {options.map((opt) => {
           const Icon = opt.icon;
           const selected = value === opt.value;
+          const isDisabled = disabled || !!opt.disabled;
           return (
             <button
               key={opt.value}
               type="button"
-              onClick={() => !disabled && onChange(opt.value)}
-              disabled={disabled}
+              onClick={() => !isDisabled && onChange(opt.value)}
+              disabled={isDisabled}
+              aria-pressed={selected}
               className={cn(
                 "flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 selected
                   ? "border-primary bg-primary/5"
                   : "border-border bg-background hover:border-muted-foreground/50 hover:bg-muted/30",
-                disabled && "opacity-50 cursor-not-allowed"
+                isDisabled && "opacity-60 cursor-not-allowed hover:border-border hover:bg-background"
               )}
             >
               <div className="flex items-center gap-2">
@@ -67,6 +73,7 @@ export function CardSelector<T extends string = string>({
               {opt.description && (
                 <p className="text-xs text-muted-foreground leading-snug">{opt.description}</p>
               )}
+              {opt.badge && <div className="mt-1">{opt.badge}</div>}
             </button>
           );
         })}

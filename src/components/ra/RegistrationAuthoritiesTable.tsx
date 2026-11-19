@@ -7,11 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, Settings2 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10 } from "lucide-react";
 import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortDirection } from '@/app/registration-authorities/page';
-import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
+import { RaIcon } from '@/components/shared/RaIcon';
 import { useRouter } from '@/lib/router';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { CA } from '@/lib/ca-data';
@@ -40,6 +40,8 @@ interface RegistrationAuthoritiesTableProps {
   onEdit: (raId: string) => void;
   onViewDevices: (raId: string) => void;
   onShowMetadata: (ra: ApiRaItem) => void;
+  /** RA whose EST panel is open; its row is highlighted. */
+  selectedRaId?: string | null;
   onOpenEnrollModal: (ra: ApiRaItem) => void;
   onOpenReEnrollModal: (ra: ApiRaItem) => void;
   onOpenCaCertsPanel: (ra: ApiRaItem) => void;
@@ -87,6 +89,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onEdit,
   onViewDevices,
   onShowMetadata,
+  selectedRaId,
   onOpenEnrollModal,
   onOpenReEnrollModal,
   onOpenCaCertsPanel,
@@ -114,25 +117,15 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
         </TableHeader>
         <TableBody>
           {ras.map((ra) => (
-            <TableRow key={ra.id}>
+            <TableRow key={ra.id} data-state={selectedRaId === ra.id ? 'selected' : undefined}>
               {columnVisibility.icon && (
                 <TableCell className="w-12">
                   <div className="flex justify-center">
-                    {(() => {
-                      const profile = ra.settings.enrollment_settings.device_provisioning_profile;
-                      const IconComponent = getLucideIconByName(profile.icon);
-                      const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
-                      
-                      return (
-                        <div className="p-2 rounded-md flex-shrink-0" style={{ backgroundColor: bgColor }}>
-                          {IconComponent ? (
-                            <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
-                          ) : (
-                            <Settings2 className="h-5 w-5 text-primary" />
-                          )}
-                        </div>
-                      );
-                    })()}
+                    <RaIcon
+                      icon={ra.settings.enrollment_settings.device_provisioning_profile.icon}
+                      iconColor={ra.settings.enrollment_settings.device_provisioning_profile.icon_color}
+                      size="md"
+                    />
                   </div>
                 </TableCell>
               )}

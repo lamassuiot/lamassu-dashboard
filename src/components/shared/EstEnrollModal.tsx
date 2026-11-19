@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info, ChevronsUpDown } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, Info, ChevronsUpDown, Cpu, KeyRound, Server } from "lucide-react";
+import { BottomDockPanel } from './BottomDockPanel';
 import { cn } from "@/lib/utils";
 import type { CA } from '@/lib/ca-data';
 import { findCaById, signCertificate, fetchAndProcessCAs } from '@/lib/ca-data';
@@ -27,7 +28,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { Switch } from '@/components/ui/switch';
 import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, base64ToPem, formatAsPem, pemToBase64 } from "@/lib-crypto";
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { CardSelector } from './CardSelector';
+import { RaIconFor } from './RaIcon';
+import { DockedWizardLayout } from './DockedWizardLayout';
+import { InlineNote } from './InlineNote';
 import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -47,6 +51,10 @@ interface ApiRaItem {
         client_certificate_settings?: {
             validation_cas: string[];
         }
+      },
+      device_provisioning_profile?: {
+        icon?: string;
+        icon_color?: string;
       }
     },
     server_keygen_settings?: {
@@ -60,9 +68,17 @@ interface EstEnrollModalProps {
   onOpenChange: (isOpen: boolean) => void;
   ra: ApiRaItem | null;
   initialDeviceId?: string;
-    presentation?: 'dialog' | 'inline';
+    presentation?: 'dialog' | 'inline' | 'docked';
     className?: string;
 }
+
+const ENROLL_STEPS = [
+    { label: 'Device', description: 'Identifier for the new device' },
+    { label: 'CSR', description: 'Where the key pair is generated' },
+    { label: 'Bootstrap Options', description: 'Temporary credential for EST auth' },
+    { label: 'Bootstrap', description: 'Save the issued certificate and key' },
+    { label: 'Commands', description: 'Run the enrollment on the device' },
+] as const;
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
 
@@ -75,7 +91,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     className,
 }) => {
     const isMobile = useIsMobile();
-    const resolvedPresentation = presentation === 'inline' && isMobile ? 'dialog' : presentation;
+    const resolvedPresentation = presentation !== 'dialog' && isMobile ? 'dialog' : presentation;
 
     // Dependencies state
     const [availableCAs, setAvailableCAs] = useState<CA[]>([]);
@@ -346,23 +362,10 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const serverKeygenParseCommand = serverKeygenParseCommands(`${finalDeviceId}.multipart`, `${finalDeviceId}.key`, `${finalDeviceId}.crt`);
 
 
-    const panelContent = (
-        <>
-            <div className="border-b p-6 pb-4">
-                <h2 className="text-lg font-semibold">EST Enroll</h2>
-                <p className="text-sm text-muted-foreground">
-                    Generate enrollment commands for RA: {ra?.name} ({ra?.id})
-                </p>
-            </div>
-
-            <div className="flex-grow my-2 -mr-6 overflow-y-auto px-6 pr-6">
-                    <div className="pt-2">
-                        <Stepper currentStep={step} steps={["Device", "CSR", "Bootstrap Options", "Bootstrap", "Commands"]} />
-                    </div>
-
+    const stepContent = (
                     <div className="space-y-4">
                         {step === 1 && (
-                            <div className="space-y-2">
+                            <div className="max-w-2xl space-y-1.5">
                                 <Label htmlFor="deviceId">Device ID</Label>
                                 <div className="flex items-center gap-2">
                                     <Input
@@ -372,7 +375,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         placeholder="e.g., test-1, sensor-12345"
                                         disabled={!!initialDeviceId}
                                         aria-invalid={!!deviceIdError}
-                                        aria-describedby={deviceIdError ? 'deviceId-error' : undefined}
+                                        aria-describedby={deviceIdError ? 'deviceId-error' : 'deviceId-hint'}
                                     />
                                     <Button
                                         type="button"
@@ -385,71 +388,79 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         <RefreshCwIcon className="h-4 w-4" />
                                     </Button>
                                 </div>
-                                {deviceIdError && (
+                                {deviceIdError ? (
                                     <FormFieldError
                                         id="deviceId-error"
                                         title="Device ID required."
                                         description="Enter or generate an identifier to continue."
                                     />
+                                ) : (
+                                    <p id="deviceId-hint" className="text-xs text-muted-foreground">
+                                        Used as the Common Name of the device certificate.
+                                    </p>
                                 )}
                             </div>
                         )}
                         {step === 2 && (
-                             <div className="space-y-4">
-                                <Label>Key Generation Method</Label>
-                                <RadioGroup value={keygenMethod} onValueChange={(v) => setKeygenMethod(v as any)} className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <RadioGroupItem value="device" id="keygen-device" className="peer sr-only" />
-                                        <Label htmlFor="keygen-device" className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                                            Generate key on device
-                                        </Label>
-                                    </div>
-                                    <div>
-                                        <RadioGroupItem value="server" id="keygen-server" className="peer sr-only" disabled={!isServerKeygenSupported} />
-                                        <Label htmlFor="keygen-server" className={cn(
-                                            "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4",
-                                            isServerKeygenSupported ? "hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary" : "cursor-not-allowed opacity-50"
-                                        )}>
-                                            Generate key on server
-                                            {!isServerKeygenSupported && <Badge variant="destructive" className="mt-2">Not Supported by RA</Badge>}
-                                        </Label>
-                                    </div>
-                                </RadioGroup>
+                            <div className="space-y-6">
+                                <CardSelector
+                                    label="Key Generation Method"
+                                    value={keygenMethod}
+                                    onChange={setKeygenMethod}
+                                    options={[
+                                        {
+                                            value: 'device',
+                                            label: 'Generate key on device',
+                                            description: 'The device creates the key pair. The private key never leaves the device.',
+                                            icon: Cpu,
+                                        },
+                                        {
+                                            value: 'server',
+                                            label: 'Generate key on server',
+                                            description: 'The RA generates the key pair and returns it together with the certificate.',
+                                            icon: Server,
+                                            disabled: !isServerKeygenSupported,
+                                            badge: isServerKeygenSupported ? undefined : <Badge variant="muted">Not enabled on this RA</Badge>,
+                                        },
+                                    ]}
+                                />
 
                                 {keygenMethod === 'device' && (
-                                    <div className="space-y-4 pt-4 border-t">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
+                                    <div className="space-y-6">
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <div className="space-y-1.5">
                                                 <Label htmlFor="keygen-type">Key Type</Label>
                                                 <Select value={keygenType} onValueChange={handleKeygenTypeChange}>
-                                                    <SelectTrigger id="keygen-type"><SelectValue /></SelectTrigger>
+                                                    <SelectTrigger id="keygen-type" className="w-full"><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         {KEY_TYPE_OPTIONS.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
-                                            <div>
+                                            <div className="space-y-1.5">
                                                 <Label htmlFor="keygen-spec">{keygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
-                                                 <Select value={keygenSpec} onValueChange={setKeygenSpec}>
-                                                    <SelectTrigger id="keygen-spec"><SelectValue /></SelectTrigger>
+                                                <Select value={keygenSpec} onValueChange={setKeygenSpec}>
+                                                    <SelectTrigger id="keygen-spec" className="w-full"><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         {currentKeySpecOptions.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Generate Key &amp; CSR</Label>
-                                            <p className="text-sm text-muted-foreground">
-                                                Run on the device to create the private key <InlineCode>{finalDeviceId}.key</InlineCode> and the request <InlineCode>{strippedCsrFile}</InlineCode>.
-                                            </p>
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <Label>Generate Key &amp; CSR</Label>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Run on the device to create the private key <InlineCode>{finalDeviceId}.key</InlineCode> and the request <InlineCode>{strippedCsrFile}</InlineCode>.
+                                                </p>
+                                            </div>
                                             <ShellCommand title="Generate key and CSR" command={deviceCsrCommand} />
                                         </div>
                                     </div>
                                 )}
 
                                 {keygenMethod === 'server' && (
-                                    <Alert className="mt-4">
+                                    <Alert>
                                         <Info className="h-4 w-4" />
                                         <AlertTitle>Server-Side Key Generation</AlertTitle>
                                         <AlertDescUI>
@@ -460,150 +471,154 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             </div>
                         )}
                         {step === 3 && (
-                            <div className="space-y-4">
-                                <div>
-                                    <Label htmlFor="bootstrap-cn">Bootstrap Common Name (CN)</Label>
-                                    <Input
-                                        id="bootstrap-cn"
-                                        value={bootstrapCn}
-                                        onChange={e => setBootstrapCn(e.target.value)}
-                                        aria-invalid={!!bootstrapCnError}
-                                        aria-describedby={bootstrapCnError ? 'bootstrap-cn-error' : undefined}
-                                    />
-                                    {bootstrapCnError && (
-                                        <FormFieldError
-                                            id="bootstrap-cn-error"
-                                            title="Bootstrap Common Name required."
-                                            description="Enter the certificate subject CN."
-                                            className="mt-1.5"
+                            <div className="space-y-6">
+                                <div className="grid gap-x-8 gap-y-5 @3xl:grid-cols-2">
+                                    <div className="space-y-5">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="bootstrap-cn">Bootstrap Common Name (CN)</Label>
+                                            <Input
+                                                id="bootstrap-cn"
+                                                value={bootstrapCn}
+                                                onChange={e => setBootstrapCn(e.target.value)}
+                                                aria-invalid={!!bootstrapCnError}
+                                                aria-describedby={bootstrapCnError ? 'bootstrap-cn-error' : undefined}
+                                            />
+                                            {bootstrapCnError && (
+                                                <FormFieldError
+                                                    id="bootstrap-cn-error"
+                                                    title="Bootstrap Common Name required."
+                                                    description="Enter the certificate subject CN."
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="bootstrap-keygen-type">Key Type</Label>
+                                                <Select value={bootstrapKeygenType} onValueChange={handleBootstrapKeygenTypeChange}>
+                                                    <SelectTrigger id="bootstrap-keygen-type" className="w-full"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {KEY_TYPE_OPTIONS.map(opt => (
+                                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="bootstrap-keygen-spec">{bootstrapKeygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
+                                                <Select value={bootstrapKeygenSpec} onValueChange={setBootstrapKeygenSpec}>
+                                                    <SelectTrigger id="bootstrap-keygen-spec" className="w-full"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {currentBootstrapKeySpecOptions.map(opt => (
+                                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+
+                                        <DurationInput
+                                            id="bootstrapValidity"
+                                            label="Bootstrap Certificate Validity"
+                                            value={bootstrapValidity}
+                                            onChange={setBootstrapValidity}
+                                            error={bootstrapValidityError || undefined}
                                         />
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor="bootstrap-keygen-type">Key Type</Label>
-                                        <Select value={bootstrapKeygenType} onValueChange={handleBootstrapKeygenTypeChange}>
-                                            <SelectTrigger id="bootstrap-keygen-type"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                {KEY_TYPE_OPTIONS.map(opt => (
-                                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
                                     </div>
-                                    <div>
-                                        <Label htmlFor="bootstrap-keygen-spec">{bootstrapKeygenType === 'RSA' ? 'Key Size' : 'Curve'}</Label>
-                                         <Select value={bootstrapKeygenSpec} onValueChange={setBootstrapKeygenSpec}>
-                                            <SelectTrigger id="bootstrap-keygen-spec"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                {currentBootstrapKeySpecOptions.map(opt => (
-                                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
 
-                                <div>
-                                    <Label htmlFor="bootstrap-signer">Bootstrap Signer</Label>
-                                    <p className="text-xs text-muted-foreground mb-2">
-                                        Select a CA to sign the temporary bootstrap certificate.
-                                    </p>
-                                    <Button
-                                        id="bootstrap-signer"
-                                        type="button"
-                                        variant="secondary"
-                                        className={cn(
-                                            "w-full justify-between font-normal",
-                                            bootstrapSignerError && "border-destructive focus-visible:ring-destructive",
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="bootstrap-signer">Bootstrap Signer</Label>
+                                        <p id="bootstrap-signer-hint" className="text-xs text-muted-foreground">
+                                            CA that signs the temporary bootstrap certificate.
+                                        </p>
+                                        <Button
+                                            id="bootstrap-signer"
+                                            type="button"
+                                            variant="secondary"
+                                            className={cn(
+                                                "w-full justify-between font-normal",
+                                                bootstrapSignerError && "border-destructive focus-visible:ring-destructive",
+                                            )}
+                                            onClick={() => setIsCaSelectorOpen(true)}
+                                            disabled={isLoadingDependencies}
+                                            aria-invalid={!!bootstrapSignerError}
+                                            aria-describedby={bootstrapSignerError ? 'bootstrap-signer-error' : 'bootstrap-signer-hint'}
+                                        >
+                                            <span className={bootstrapSigner ? "text-foreground" : "text-muted-foreground"}>
+                                                {isLoadingDependencies
+                                                    ? "Loading CAs..."
+                                                    : bootstrapSigner
+                                                        ? bootstrapSigner.name
+                                                        : "Select a signing CA..."}
+                                            </span>
+                                            <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        </Button>
+                                        {bootstrapSignerError && (
+                                            <FormFieldError
+                                                id="bootstrap-signer-error"
+                                                title="Bootstrap Signer required."
+                                                description="Select a CA to issue the temporary certificate."
+                                            />
                                         )}
-                                        onClick={() => setIsCaSelectorOpen(true)}
-                                        disabled={isLoadingDependencies}
-                                        aria-invalid={!!bootstrapSignerError}
-                                        aria-describedby={bootstrapSignerError ? 'bootstrap-signer-error' : undefined}
-                                    >
-                                        <span className={bootstrapSigner ? "text-foreground" : "text-muted-foreground"}>
-                                            {isLoadingDependencies
-                                                ? "Loading CAs..."
-                                                : bootstrapSigner
-                                                    ? bootstrapSigner.name
-                                                    : "Select a signing CA..."}
-                                        </span>
-                                        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    </Button>
-                                    {bootstrapSignerError && (
-                                        <FormFieldError
-                                            id="bootstrap-signer-error"
-                                            title="Bootstrap Signer required."
-                                            description="Select a CA to issue the temporary certificate."
-                                            className="mt-1.5"
-                                        />
-                                    )}
-                                    {bootstrapSigner && (
-                                        <div className="mt-2"><CaVisualizerCard ca={bootstrapSigner} className="shadow-none border-border" allCryptoEngines={allCryptoEngines}/></div>
-                                    )}
+                                        {bootstrapSigner && (
+                                            <CaVisualizerCard ca={bootstrapSigner} className="mt-2 shadow-none border-border" allCryptoEngines={allCryptoEngines}/>
+                                        )}
+                                    </div>
                                 </div>
-                                <DurationInput
-                                    id="bootstrapValidity"
-                                    label="Bootstrap Certificate Validity"
-                                    value={bootstrapValidity}
-                                    onChange={setBootstrapValidity}
-                                    error={bootstrapValidityError || undefined}
-                                />
 
-                                <div className="relative pt-4">
-                                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
+                                <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                                    <Info className="h-4 w-4 shrink-0" />
+                                    <span>Already have a valid bootstrap certificate and key? Use <span className="font-medium text-foreground">Skip &amp; Use Existing</span>.</span>
                                 </div>
-                                <p className="text-sm text-muted-foreground text-center">
-                                    If you already have a valid bootstrap certificate and key, you can skip this step.
-                                </p>
                             </div>
                         )}
                         {step === 4 && (
-                            <div className="space-y-4">
-                                <CodeSnippet
-                                    language="pem"
-                                    title="Bootstrap Certificate"
-                                    subtitle="bootstrap.crt"
-                                    content={bootstrapCertificate}
-                                    downloadFilename="bootstrap.crt"
-                                    maxHeight="16rem"
-                                />
-                                <div className="space-y-2">
-                                    <Alert variant="warning">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        <AlertTitle>Save Your Private Key</AlertTitle>
-                                        <AlertDescUI>This is your only chance to save the private key. It will not be stored and cannot be recovered.</AlertDescUI>
-                                    </Alert>
+                            <div className="space-y-6">
+                                <InlineNote tone="warning" icon={KeyRound}>
+                                    The private key is shown only once and is not stored. Save it now.
+                                </InlineNote>
+
+                                <div className="grid gap-4 @3xl:grid-cols-2">
+                                    <CodeSnippet
+                                        language="pem"
+                                        title="Bootstrap Certificate"
+                                        subtitle={bootstrapSigner ? `bootstrap.crt · Signed by ${bootstrapSigner.name}` : 'bootstrap.crt'}
+                                        badge={<Badge variant="success">Issued</Badge>}
+                                        content={bootstrapCertificate}
+                                        downloadFilename="bootstrap.crt"
+                                        maxHeight="16rem"
+                                    />
                                     <CodeSnippet
                                         language="pem"
                                         title="Bootstrap Private Key"
                                         subtitle="bootstrap.key"
+                                        badge={<Badge variant="warning">Shown once</Badge>}
                                         content={bootstrapPrivateKey}
                                         downloadFilename="bootstrap.key"
                                         maxHeight="16rem"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Write Files from the Shell</Label>
-                                    <p className="text-sm text-muted-foreground">
-                                        Alternatively, recreate <InlineCode>bootstrap.crt</InlineCode> and <InlineCode>bootstrap.key</InlineCode> directly on the device.
-                                    </p>
+
+                                <div className="space-y-3">
+                                    <div className="space-y-1">
+                                        <Label>Write Files from the Shell</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Alternatively, recreate <InlineCode>bootstrap.crt</InlineCode> and <InlineCode>bootstrap.key</InlineCode> directly on the device.
+                                        </p>
+                                    </div>
                                     <ShellCommand title="Create bootstrap files" command={bootstrapFilesCommand} wrap />
                                 </div>
                             </div>
                         )}
                          {step === 5 && (
                             <div className="space-y-6">
-                                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                                <div className="space-y-3">
                                     <p className="text-sm text-muted-foreground">
                                         Run the commands from a directory containing{' '}
                                         <InlineCode>bootstrap.crt</InlineCode>, <InlineCode>bootstrap.key</InlineCode>
                                         {keygenMethod === 'device' && <>{' '}and <InlineCode>{strippedCsrFile}</InlineCode></>}.
                                     </p>
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-center gap-2">
                                         <Switch
                                             id="validate-server-cert"
                                             checked={validateServerCert}
@@ -611,11 +626,14 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         />
                                         <Label htmlFor="validate-server-cert">Validate server certificate (recommended)</Label>
                                     </div>
-                                    {!validateServerCert && (
-                                        <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                            TLS verification is disabled; curl runs with <InlineCode>--insecure</InlineCode>.
-                                        </p>
+                                    {validateServerCert ? (
+                                        <InlineNote tone="success">
+                                            Requests verify the server against <InlineCode>root-ca.pem</InlineCode>.
+                                        </InlineNote>
+                                    ) : (
+                                        <InlineNote tone="warning">
+                                            The server certificate is not verified; curl runs with <InlineCode>--insecure</InlineCode>.
+                                        </InlineNote>
                                     )}
                                 </div>
 
@@ -663,8 +681,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             </div>
                         )}
                     </div>
-                </div>
+    );
 
+    const caSelectorModal = (
                 <CaSelectorModal
                     isOpen={isCaSelectorOpen}
                     onOpenChange={setIsCaSelectorOpen}
@@ -678,37 +697,101 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                     currentSelectedCaId={bootstrapSigner?.id}
                     allCryptoEngines={allCryptoEngines}
                 />
-                <SheetFooter className="border-t px-6 py-4 sm:flex-col">
-                    <div className="w-full space-y-4">
-                      <FormValidationSummary
-                        errors={stepValidationErrors}
-                        warnings={errorDependencies ? [`Dependencies: ${errorDependencies}`] : []}
-                      />
-                      <div className="flex justify-between">
+    );
+
+    const validationSummary = (
+        <FormValidationSummary
+            errors={stepValidationErrors}
+            warnings={errorDependencies ? [`Dependencies: ${errorDependencies}`] : []}
+        />
+    );
+
+    const navigationButtons = (
+        <div className="flex space-x-2">
+            {step > 1 && (
+                <Button variant="secondary" onClick={handleBack} disabled={isGenerating}>
+                    <ArrowLeft className="mr-2 h-4 w-4"/>Back
+                </Button>
+            )}
+            {step === 3 && (
+                <Button variant="secondary" onClick={handleSkipBootstrap}>
+                    Skip &amp; Use Existing
+                </Button>
+            )}
+            {step < 5 ? (
+                <Button onClick={handleNext} disabled={isGenerating || stepValidationErrors.length > 0}>
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                    { step === 3 ? "Issue Bootstrap Cert" : step === 4 ? "Generate Commands" : "Next" }
+                </Button>
+            ) : (
+                <Button onClick={() => onOpenChange(false)}>Finish</Button>
+            )}
+        </div>
+    );
+
+    if (resolvedPresentation === 'docked') {
+        return (
+            <>
+                <BottomDockPanel
+                    open={isOpen}
+                    onOpenChange={onOpenChange}
+                    storageKey="est-enroll"
+                    icon={<RaIconFor ra={ra} />}
+                    title="EST Enroll"
+                    meta={
+                        <>
+                            {ra && <Badge variant="secondary" className="font-normal">RA · {ra.name}</Badge>}
+                            {deviceId && <Badge variant="muted" className="max-w-[18rem] truncate font-mono font-normal">{deviceId}</Badge>}
+                        </>
+                    }
+                    description={`Step ${step} of ${ENROLL_STEPS.length} · ${ENROLL_STEPS[step - 1].label}`}
+                    className={className}
+                >
+                    <DockedWizardLayout
+                        steps={ENROLL_STEPS}
+                        currentStep={step}
+                        footerNotice={validationSummary}
+                        footerStart={<Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>}
+                        footerEnd={navigationButtons}
+                    >
+                        {!ra ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />Loading Registration Authority…
+                            </div>
+                        ) : stepContent}
+                    </DockedWizardLayout>
+                </BottomDockPanel>
+                {caSelectorModal}
+            </>
+        );
+    }
+
+    const panelContent = (
+        <>
+            <div className="border-b p-6 pb-4">
+                <h2 className="text-lg font-semibold">EST Enroll</h2>
+                <p className="text-sm text-muted-foreground">
+                    Generate enrollment commands for RA: {ra?.name} ({ra?.id})
+                </p>
+            </div>
+
+            <div className="flex-grow my-2 -mr-6 overflow-y-auto px-6 pr-6">
+                <div className="pt-2">
+                    <Stepper currentStep={step} steps={ENROLL_STEPS.map(s => s.label)} />
+                </div>
+                {stepContent}
+            </div>
+
+            {caSelectorModal}
+            <SheetFooter className="border-t px-6 py-4 sm:flex-col">
+                <div className="w-full space-y-4">
+                    {validationSummary}
+                    <div className="flex justify-between">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                        <div className="flex space-x-2">
-                            {step > 1 && (
-                                <Button variant="secondary" onClick={handleBack} disabled={isGenerating}>
-                                    <ArrowLeft className="mr-2 h-4 w-4"/>Back
-                                </Button>
-                            )}
-                             {step === 3 && (
-                                <Button variant="secondary" onClick={handleSkipBootstrap}>
-                                    Skip &amp; Use Existing
-                                </Button>
-                            )}
-                            {step < 5 ? (
-                                <Button onClick={handleNext} disabled={isGenerating || stepValidationErrors.length > 0}>
-                                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                    { step === 3 ? "Issue Bootstrap Cert" : step === 4 ? "Generate Commands" : "Next" }
-                                </Button>
-                            ) : (
-                                <Button onClick={() => onOpenChange(false)}>Finish</Button>
-                            )}
-                        </div>
-                      </div>
+                        {navigationButtons}
                     </div>
-                </SheetFooter>
+                </div>
+            </SheetFooter>
         </>
     );
 

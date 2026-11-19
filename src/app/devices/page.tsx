@@ -22,7 +22,6 @@ import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
@@ -393,21 +392,15 @@ export default function DevicesPage() {
         }
       />
 
-      <SplitPanelLayout
-        isPanelOpen={isEnrollModalOpen}
-        onPanelOpenChange={handleEnrollPanelOpenChange}
-        mobilePanelAsDialog
-        panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_620px]"
-        panel={
-          <EstEnrollModal
-            isOpen={isEnrollModalOpen}
-            onOpenChange={handleEnrollPanelOpenChange}
-            ra={raForEnrollModal}
-            initialDeviceId={deviceForEnrollModal?.id}
-            presentation="inline"
-          />
-        }
-      >
+      <EstEnrollModal
+        isOpen={isEnrollModalOpen}
+        onOpenChange={handleEnrollPanelOpenChange}
+        ra={raForEnrollModal}
+        initialDeviceId={deviceForEnrollModal?.id}
+        presentation="docked"
+      />
+
+      <div className="space-y-6">
         {isLoadingApi && !sortedDevices.length && (
           <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
               <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -442,7 +435,7 @@ export default function DevicesPage() {
                 {sortedDevices.map((device) => {
                   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
                   return (
-                    <TableRow key={device.id}>
+                    <TableRow key={device.id} data-state={isEnrollModalOpen && deviceForEnrollModal?.id === device.id ? "selected" : undefined}>
                       {columnVisibility.id && (
                         <TableCell>
                           <div className="flex items-center space-x-3">
@@ -580,7 +573,7 @@ export default function DevicesPage() {
             </Button>
           </div>
         )}
-      </SplitPanelLayout>
+      </div>
 
       <RegisterDeviceModal
         isOpen={isRegisterModalOpen}

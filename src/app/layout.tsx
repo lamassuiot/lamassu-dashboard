@@ -643,12 +643,16 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
               </SidebarFooter>
             </Sidebar>
 
-            <SidebarInset className="flex-1 overflow-y-auto flex flex-col">
-              <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
-                {children}
-              </div>
-              <CustomFooter />
-            </SidebarInset>
+            <div data-app-content-column className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <SidebarInset data-app-scroll-root className="min-h-0 flex-1 overflow-y-auto flex flex-col">
+                <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
+                  {children}
+                </div>
+                <CustomFooter />
+              </SidebarInset>
+              {/* Bottom-docked panels (BottomDockPanel) portal here, below the scroll area. */}
+              <div data-app-bottom-dock className="shrink-0 empty:hidden" />
+            </div>
           </div>
         )}
       </div>

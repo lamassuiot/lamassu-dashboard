@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CodeSnippet, ShellCommand } from '@/components/shared/CodeSnippet';
 import { cacertsCommand } from '@/lib/est-commands';
@@ -12,10 +12,15 @@ import { fetchEstCaCerts } from '@/lib/est-api';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
+import { AlertTriangle, FileArchive, FileText, Loader2 } from 'lucide-react';
 import { arrayBufferToBase64 } from '@/lib-crypto';
+import { Badge } from '@/components/ui/badge';
+import { BottomDockPanel } from '@/components/shared/BottomDockPanel';
+import { InlineNote } from '@/components/shared/InlineNote';
+import { RaIconFor, type RaIconSource } from '@/components/shared/RaIcon';
+import { useIsMobile } from '@/hooks/use-mobile';
 
-interface ApiRaItem {
+interface ApiRaItem extends RaIconSource {
   id: string;
   name: string;
 }
@@ -24,6 +29,8 @@ interface EstCaCertsPanelProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   ra: ApiRaItem | null;
+  /** `docked` opens a resizable panel at the bottom of the page (sheet on mobile). */
+  presentation?: 'sheet' | 'docked';
   className?: string;
 }
 
@@ -31,8 +38,10 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
   isOpen,
   onOpenChange,
   ra,
+  presentation = 'sheet',
   className,
 }) => {
+  const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pkcs7Certs, setPkcs7Certs] = useState('');
@@ -74,6 +83,55 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
     if (!ra?.id) return '';
     return cacertsCommand(get_EST_API_BASE_URL(), ra.id, 'application/pkcs7-mime');
   }, [ra?.id]);
+
+  if (presentation === 'docked' && !isMobile) {
+    return (
+      <BottomDockPanel
+        open={isOpen}
+        onOpenChange={onOpenChange}
+        storageKey="est-ca-certs"
+        icon={<RaIconFor ra={ra} />}
+        title="EST CA Certs"
+        meta={ra && <Badge variant="secondary" className="font-normal">RA · {ra.name}</Badge>}
+        description="Trusted CA certificates served by the RA's /cacerts endpoint"
+        className={className}
+      >
+        {error ? (
+          <div className="px-4 py-5 md:px-6"><InlineNote tone="error">{error}</InlineNote></div>
+        ) : isLoading ? (
+          <div className="flex items-center gap-2 px-4 py-5 text-sm text-muted-foreground md:px-6">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading CA certs...
+          </div>
+        ) : (
+          <Tabs defaultValue="pem" className="flex h-full min-h-0 flex-col gap-0">
+            <div className="shrink-0 border-b px-2 md:px-4">
+              <TabsList className={pageTabsListClass}>
+                <TabsTrigger value="pem" className={pageTabsTriggerClass}>
+                  <FileText className="h-4 w-4" />PEM
+                </TabsTrigger>
+                <TabsTrigger value="pkcs7" className={pageTabsTriggerClass}>
+                  <FileArchive className="h-4 w-4" />PKCS#7
+                  <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">base64</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="pem" className="min-h-0 overflow-y-auto px-4 py-5 md:px-6">
+              <div className="space-y-3">
+                <ShellCommand title="Fetch CA certificates" command={curlPem} />
+                <CodeSnippet language="pem" title="CA certificates" content={pemCerts} downloadFilename="cacerts.pem" />
+              </div>
+            </TabsContent>
+            <TabsContent value="pkcs7" className="min-h-0 overflow-y-auto px-4 py-5 md:px-6">
+              <div className="space-y-3">
+                <ShellCommand title="Fetch CA certificates" command={curlPkcs7} />
+                <CodeSnippet language="base64" title="CA certificates" languageLabel="pkcs#7 · base64" content={pkcs7Certs} downloadFilename="cacerts.p7b.b64" />
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
+      </BottomDockPanel>
+    );
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>

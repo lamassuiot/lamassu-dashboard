@@ -410,6 +410,7 @@ export default function RegistrationAuthoritiesPage() {
             onEdit={(raId) => router.push(`/registration-authorities/new?raId=${raId}`)}
             onViewDevices={(raId) => router.push(`/devices?dms_owner=${raId}`)}
             onShowMetadata={handleShowMetadata}
+            selectedRaId={estPanelMode ? selectedRaForEstAction?.id : null}
             onOpenEnrollModal={handleOpenEnrollModal}
             onOpenReEnrollModal={handleOpenReEnrollModal}
             onOpenCaCertsPanel={handleOpenCaCertsPanel}
@@ -452,16 +453,19 @@ export default function RegistrationAuthoritiesPage() {
         isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
         onOpenChange={handleEstPanelOpenChange}
         ra={selectedRaForEstAction}
+        presentation="docked"
       />
     <EstReEnrollModal
         isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
         onOpenChange={handleEstPanelOpenChange}
         ra={selectedRaForEstAction}
+        presentation="docked"
       />
     <EstCaCertsPanel
         isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
         onOpenChange={handleEstPanelOpenChange}
         ra={selectedRaForEstAction}
+        presentation="docked"
       />
     <CaSelectorModal
         isOpen={isCaSelectorOpen}
