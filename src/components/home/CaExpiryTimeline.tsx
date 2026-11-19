@@ -68,7 +68,7 @@ function OffscreenButton({ side, count, next, onClick }: Readonly<{
       title={title}
       aria-label={next ? `${label}; nearest expires ${distance}` : label}
       className={cn(
-        'absolute top-1/2 z-20 h-8 -translate-y-1/2 gap-1 rounded-full border-primary/40 bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] text-xs tabular-nums text-primary shadow-sm hover:border-primary hover:bg-primary hover:text-primary-foreground dark:bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] dark:hover:bg-primary',
+        'absolute top-1/2 z-20 h-8 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 gap-1 rounded-full border-primary/40 bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] text-xs tabular-nums text-primary shadow-sm hover:border-primary hover:bg-primary hover:text-primary-foreground dark:bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))] dark:hover:bg-primary',
         side === 'before' ? 'left-2 pl-1.5 pr-3' : 'right-2 pl-3 pr-1.5',
       )}
     >
