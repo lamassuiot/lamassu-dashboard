@@ -1,8 +1,41 @@
 /*
-  Lamassu IoT - Green / Ikerlan Theme (Tailwind v4 compatible)
+  Lamassu IoT - Green / IKERLAN Theme (Tailwind v4 compatible)
+
+  Built on the official IKERLAN palette:
+    Verde flúor   #25ee32  (accent only, ~5%: CTA, active marker, focus in dark mode)
+    Negro         #2d2a26  (text in light mode)
+    Blanco        #ffffff  (default background)
+    Azul oscuro   #00263e  (+ tonal ramp #24455a / #496475 / #6d8391 / #92a2ac)
+    Azul claro    #b8d8eb  (+ tonal ramp #ebf4f9 / #f5f9fc)
+    Magenta       #d41367  (+ #e678a8)
+    #001d30 (presentation template dark blue) as the dark-mode base.
+
+  Contrast rules from the brand manual:
+    - Never green text on white (1.57:1). In light mode the primary colour is
+      azul oscuro and green only appears as a marker on dark surfaces.
+    - Never black text on magenta (2.78:1); magenta always carries white text.
 */
 
+/* ------------------------------------------------------------------ */
+/* --- TSTAR PRO (IKERLAN corporate typeface) ------------------------ */
+/* Only the text weights are loaded; Headline is uppercase-only on web. */
+/* Proprietary font: the .otf files are git-ignored, do not publish.    */
+/* ------------------------------------------------------------------ */
+
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-Light.otf') format('opentype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-LightItalic.otf') format('opentype'); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-Italic.otf') format('opentype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-Medium.otf') format('opentype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-MediumItalic.otf') format('opentype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-Bold.otf') format('opentype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'TSTAR PRO'; src: url('/themes/green/fonts/TSTARPRO-BoldItalic.otf') format('opentype'); font-weight: 700; font-style: italic; font-display: swap; }
+
 :root {
+  /* Replaces the default font slot ("Inter (Default)" in the font picker).
+     Roboto is the brand's official fallback for TSTAR PRO. */
+  --font-inter: 'TSTAR PRO', 'Roboto Variable', sans-serif;
+
   --header-height: 50px;
   --secondary-logo-display: flex;
   --secondary-logo-url: url('/themes/green/ikerlan.png');
@@ -13,57 +46,57 @@
 /* ------------------------- */
 
 :root:not(.dark) {
-  --background: hsl(220 13% 96%);
-  --foreground: hsl(224 71% 4%);
+  --background: hsl(0 0% 100%);             /* #ffffff Blanco */
+  --foreground: hsl(34 8% 16%);             /* #2d2a26 Negro */
 
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(224 71% 4%);
+  --card-foreground: hsl(34 8% 16%);
 
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(224 71% 4%);
+  --popover-foreground: hsl(34 8% 16%);
 
-  --primary: hsl(96 64% 59%);              /* #6cc24a Ikerlan Green */
-  --primary-foreground: hsl(224 71% 4%);
+  --primary: hsl(203 100% 12%);             /* #00263e Azul oscuro */
+  --primary-foreground: hsl(0 0% 100%);
 
-  --secondary: hsl(220 13% 92%);
-  --secondary-foreground: hsl(224 71% 4%);
+  --secondary: hsl(201 54% 95%);            /* #ebf4f9 Azul claro 6 */
+  --secondary-foreground: hsl(203 100% 12%);
 
-  --muted: hsl(220 13% 92%);
-  --muted-foreground: hsl(220 9% 46%);
+  --muted: hsl(206 54% 97%);                /* #f5f9fc Azul claro 7 */
+  --muted-foreground: hsl(36 2% 40%);       /* #696764 Negro 3 (5.6:1 on white) */
 
-  --accent: hsl(220 13% 88%);
-  --accent-foreground: hsl(224 71% 4%);
+  --accent: hsl(201 54% 95%);               /* #ebf4f9 */
+  --accent-foreground: hsl(203 100% 12%);
 
-  --destructive: hsl(0 84% 60%);
-  --destructive-foreground: hsl(0 0% 98%);
+  --destructive: hsl(334 84% 45%);          /* #d41367 Magenta */
+  --destructive-foreground: hsl(0 0% 100%);
 
-  --border: hsl(220 13% 88%);
-  --input: hsl(220 13% 94%);
-  --ring: hsl(96 64% 59%);
+  --border: hsl(60 2% 88%);                 /* #e1e1e0 Negro 7 */
+  --input: hsl(30 2% 76%);                  /* #c3c2c1 Negro 6 */
+  --ring: hsl(203 100% 12%);
 
   --radius: 0.5rem;
 
   /* Header — bare HSL triplet: used via hsl(var(--header-background)) in @theme */
-  --header-background: 255 100% 100%;
-  --header-foreground: 224 71% 4%;
+  --header-background: 0 0% 100%;
+  --header-foreground: 34 8% 16%;
 
-  /* Sidebar */
-  --sidebar: hsl(220 13% 96%);
-  --sidebar-background: 220 13% 96%;
-  --sidebar-foreground: hsl(224 71% 4%);
-  --sidebar-primary: hsl(96 64% 59%);
-  --sidebar-primary-foreground: hsl(224 71% 4%);
-  --sidebar-accent: hsl(220 13% 88%);
-  --sidebar-accent-foreground: hsl(224 71% 4%);
-  --sidebar-border: hsl(220 13% 88%);
-  --sidebar-ring: hsl(96 64% 59%);
+  /* Sidebar — azul oscuro panel on the white app (green marker allowed here) */
+  --sidebar: hsl(203 100% 12%);             /* #00263e Azul oscuro */
+  --sidebar-background: 203 100% 12%;
+  --sidebar-foreground: hsl(0 0% 100%);
+  --sidebar-primary: hsl(203 43% 25%);      /* #24455a + green marker (see below) */
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(203 43% 25%);
+  --sidebar-accent-foreground: hsl(0 0% 100%);
+  --sidebar-border: hsl(203 43% 25%);
+  --sidebar-ring: hsl(124 86% 54%);         /* #25ee32 on navy (9.9:1) */
 
-  /* Charts */
-  --chart-1: hsl(96 64% 59%);
-  --chart-2: hsl(150 70% 70%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(0 70% 60%);
-  --chart-5: hsl(260 70% 70%);
+  /* Charts — on white only the palette steps that reach 3:1 */
+  --chart-1: hsl(203 100% 12%);             /* #00263e */
+  --chart-2: hsl(334 84% 45%);              /* #d41367 */
+  --chart-3: hsl(203 14% 50%);              /* #6d8391 */
+  --chart-4: hsl(36 2% 40%);                /* #696764 */
+  --chart-5: hsl(30 2% 52%);                /* #878583 */
 }
 
 /* -------------------------- */
@@ -71,83 +104,88 @@
 /* -------------------------- */
 
 :root.dark {
-  --background: hsl(224 5% 10%);
-  --foreground: hsl(0 0% 98%);
+  --background: hsl(204 100% 9%);           /* #001d30 */
+  --foreground: hsl(0 0% 100%);
 
-  --card: hsl(220 13% 11%);
-  --card-foreground: hsl(0 0% 98%);
+  --card: hsl(203 100% 12%);                /* #00263e Azul oscuro */
+  --card-foreground: hsl(0 0% 100%);
 
-  --popover: hsl(224 71% 4%);
-  --popover-foreground: hsl(0 0% 98%);
+  --popover: hsl(203 100% 12%);
+  --popover-foreground: hsl(0 0% 100%);
 
-  --primary: hsl(96 64% 59%);             /* #6cc24a Ikerlan Green */
-  --primary-foreground: hsl(224 71% 4%);
+  --primary: hsl(124 86% 54%);              /* #25ee32 Verde flúor */
+  --primary-foreground: hsl(204 100% 9%);   /* #001d30 (11:1 on green) */
 
-  --secondary: hsl(220 13% 18%);
-  --secondary-foreground: hsl(0 0% 98%);
+  --secondary: hsl(203 43% 25%);            /* #24455a Azul oscuro 2 */
+  --secondary-foreground: hsl(0 0% 100%);
 
-  --muted: hsl(220 13% 18%);
-  --muted-foreground: hsl(220 9% 46%);
+  --muted: hsl(203 43% 25%);
+  --muted-foreground: hsl(203 14% 62%);     /* #92a2ac Azul oscuro 5 (6.5:1) */
 
-  --accent: hsl(220 13% 24%);
-  --accent-foreground: hsl(0 0% 98%);
+  --accent: hsl(203 43% 25%);
+  --accent-foreground: hsl(0 0% 100%);
 
-  --destructive: hsl(0 72% 51%);
-  --destructive-foreground: hsl(0 0% 98%);
+  --destructive: hsl(334 69% 69%);          /* #e678a8 Magenta 4 (6.3:1 on bg) */
+  --destructive-foreground: hsl(204 100% 9%);
 
-  --border: hsl(220 13% 24%);
-  --input: hsl(220 13% 18%);
-  --ring: hsl(96 64% 59%);
+  --border: hsl(203 43% 25%);               /* #24455a */
+  --input: hsl(203 43% 25%);
+  --ring: hsl(124 86% 54%);
 
-  /* Header — bare HSL triplet */
-  --header-background: 224 71% 4%;
-  --header-foreground: 0 0% 98%;
+  /* Header — bare HSL triplet; azul oscuro so the app bar stands off the #001d30 page */
+  --header-background: 203 100% 12%;        /* #00263e */
+  --header-foreground: 0 0% 100%;
 
   /* Sidebar */
-  --sidebar: hsl(224 71% 4%);
-  --sidebar-background: 224 71% 4%;
-  --sidebar-foreground: hsl(0 0% 98%);
-  --sidebar-primary: hsl(96 64% 59%);
-  --sidebar-primary-foreground: hsl(224 71% 4%);
-  --sidebar-accent: hsl(220 13% 24%);
-  --sidebar-accent-foreground: hsl(0 0% 98%);
-  --sidebar-border: hsl(220 13% 24%);
-  --sidebar-ring: hsl(96 64% 59%);
+  --sidebar: hsl(204 100% 9%);
+  --sidebar-background: 204 100% 9%;
+  --sidebar-foreground: hsl(0 0% 100%);
+  --sidebar-primary: hsl(203 43% 25%);      /* #24455a + green marker (see below) */
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(203 43% 25%);
+  --sidebar-accent-foreground: hsl(0 0% 100%);
+  --sidebar-border: hsl(203 43% 25%);
+  --sidebar-ring: hsl(124 86% 54%);
 
-  /* Charts */
-  --chart-1: hsl(96 64% 59%);
-  --chart-2: hsl(150 70% 65%);
-  --chart-3: hsl(30 80% 60%);
-  --chart-4: hsl(0 70% 65%);
-  --chart-5: hsl(260 70% 75%);
+  /* Charts — brand combination for 4+ categories, adapted to a dark base */
+  --chart-1: hsl(124 86% 54%);              /* #25ee32 */
+  --chart-2: hsl(202 56% 82%);              /* #b8d8eb */
+  --chart-3: hsl(334 84% 45%);              /* #d41367 */
+  --chart-4: hsl(203 14% 62%);              /* #92a2ac */
+  --chart-5: hsl(334 69% 69%);              /* #e678a8 */
 
   /* Direct Tailwind color token overrides — bypasses compiled dark mode values */
-  --color-background: hsl(224 5% 10%);
-  --color-foreground: hsl(0 0% 98%);
-  --color-card: hsl(220 13% 11%);
-  --color-card-foreground: hsl(0 0% 98%);
-  --color-popover: hsl(224 71% 4%);
-  --color-popover-foreground: hsl(0 0% 98%);
-  --color-primary: hsl(96 64% 59%);
-  --color-primary-foreground: hsl(224 71% 4%);
-  --color-secondary: hsl(220 13% 18%);
-  --color-secondary-foreground: hsl(0 0% 98%);
-  --color-muted: hsl(220 13% 18%);
-  --color-muted-foreground: hsl(220 9% 46%);
-  --color-accent: hsl(220 13% 24%);
-  --color-accent-foreground: hsl(0 0% 98%);
-  --color-destructive: hsl(0 72% 51%);
-  --color-border: hsl(220 13% 24%);
-  --color-input: hsl(220 13% 18%);
-  --color-ring: hsl(96 64% 59%);
-  --color-sidebar: hsl(224 71% 4%);
-  --color-sidebar-foreground: hsl(0 0% 98%);
-  --color-sidebar-primary: hsl(96 64% 59%);
-  --color-sidebar-primary-foreground: hsl(224 71% 4%);
-  --color-sidebar-accent: hsl(220 13% 24%);
-  --color-sidebar-accent-foreground: hsl(0 0% 98%);
-  --color-sidebar-border: hsl(220 13% 24%);
-  --color-sidebar-ring: hsl(96 64% 59%);
+  --color-background: hsl(204 100% 9%);
+  --color-foreground: hsl(0 0% 100%);
+  --color-card: hsl(203 100% 12%);
+  --color-card-foreground: hsl(0 0% 100%);
+  --color-popover: hsl(203 100% 12%);
+  --color-popover-foreground: hsl(0 0% 100%);
+  --color-primary: hsl(124 86% 54%);
+  --color-primary-foreground: hsl(204 100% 9%);
+  --color-secondary: hsl(203 43% 25%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-muted: hsl(203 43% 25%);
+  --color-muted-foreground: hsl(203 14% 62%);
+  --color-accent: hsl(203 43% 25%);
+  --color-accent-foreground: hsl(0 0% 100%);
+  --color-destructive: hsl(334 69% 69%);
+  --color-border: hsl(203 43% 25%);
+  --color-input: hsl(203 43% 25%);
+  --color-ring: hsl(124 86% 54%);
+  --color-sidebar: hsl(204 100% 9%);
+  --color-sidebar-foreground: hsl(0 0% 100%);
+  --color-sidebar-primary: hsl(203 43% 25%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(203 43% 25%);
+  --color-sidebar-accent-foreground: hsl(0 0% 100%);
+  --color-sidebar-border: hsl(203 43% 25%);
+  --color-sidebar-ring: hsl(124 86% 54%);
+}
+
+/* Active navigation item: green marker line on a dark-blue fill (both modes) */
+[data-sidebar="menu-button"][data-active="true"] {
+  box-shadow: inset 3px 0 0 0 #25ee32;
 }
 
 /* Light theme specific logo color */
@@ -160,9 +198,13 @@ header img[alt="LamassuIoT Logo"] {
   filter: none;
 }
 
+/* Lamassu logo: near-black (#2b2b2b ≈ Negro) on white, white on the dark-blue base */
 .lamassu-logo-theme-filter {
-  /* For light theme: change SVG to #6cc24a (green) */
-  filter: invert(66%) sepia(24%) saturate(1102%) hue-rotate(61deg) brightness(92%) contrast(92%);
+  filter: brightness(0) invert(17%);
+}
+
+.dark .lamassu-logo-theme-filter {
+  filter: brightness(0) invert(1);
 }
 
 .dark header .secondary-logo {
