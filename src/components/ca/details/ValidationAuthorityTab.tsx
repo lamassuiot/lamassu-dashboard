@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle as AlertTriangleIcon, Download, RefreshCw, Eye } from "lucide-react";
@@ -12,18 +12,25 @@ import { getCrlUrl } from '@/lib/va-api';
 import { useCrlSettings } from '@/hooks/useCrlSettings';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { VaSettingsCard, CrlSettingsStatusBadge, InactiveCrlSettingsAlert, LegacyCrlUrlNote } from '@/components/shared/VaSettingsCard';
-import { CrlViewerSheet } from '@/components/shared/CrlViewerSheet';
+import { CrlViewerSheet, type CrlViewerCa } from '@/components/shared/CrlViewerSheet';
+import { formatCaSubject } from '@/lib/ca-utils';
 
 interface ValidationAuthorityTabProps {
   ca: CA;
   allCryptoEngines: ApiCryptoEngine[];
 }
 
-export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
+export function ValidationAuthorityTab({ ca, allCryptoEngines }: ValidationAuthorityTabProps) {
   const crlSettings = useCrlSettings(ca);
   const { settings, latestCrl, isLoading: isLoadingConfig, error: errorConfig, notFound, isDownloadingCrl } = crlSettings;
 
   const [isCrlSheetOpen, setIsCrlSheetOpen] = useState(false);
+  const viewerCa = useMemo<CrlViewerCa>(() => ({
+    id: ca.id,
+    name: ca.name,
+    subject: formatCaSubject(ca),
+    cryptoEngine: allCryptoEngines.find((engine) => engine.id === ca.kmsKeyId) ?? null,
+  }), [ca, allCryptoEngines]);
 
   if (isLoadingConfig) {
     return (
@@ -123,6 +130,8 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                 onOpenChange={setIsCrlSheetOpen}
                 defaultUrl={getCrlUrl(ca.id)}
                 downloadFileName={`${ca.id}.crl`}
+                ca={viewerCa}
+                presentation="docked"
               />
             </div>
           </div>

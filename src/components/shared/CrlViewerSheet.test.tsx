@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { buildCrlDer } from '@/lib-crypto/test-utils/fixtures/crl'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { CrlViewerSheet } from './CrlViewerSheet'
 
 vi.mock('@/components/shared/DateDisplay', () => ({
@@ -119,5 +120,44 @@ describe('CrlViewerSheet', () => {
 
     fireEvent.change(filter, { target: { value: 'nothing' } })
     expect(screen.getByText(/No revoked certificates match/)).toBeInTheDocument()
+  })
+
+  it('renders as a bottom-docked panel that can be closed', async () => {
+    fetchMock.mockResolvedValue(crlResponse(await buildCrlDer({ nextUpdate: new Date('2049-01-01T00:00:00Z'), crlNumberHex: '2a' })))
+    const onOpenChange = vi.fn()
+    const dockSlot = document.createElement('div')
+    dockSlot.setAttribute('data-app-bottom-dock', '')
+    document.body.appendChild(dockSlot)
+    try {
+      render(
+        <MemoryRouter>
+          <TooltipProvider>
+            <CrlViewerSheet
+              open
+              onOpenChange={onOpenChange}
+              defaultUrl={DEFAULT_URL}
+              downloadFileName="ca-1.crl"
+              presentation="docked"
+              ca={{ id: 'ca-1', name: 'Edge CA', subject: 'CN=Edge CA, O=Acme' }}
+            />
+          </TooltipProvider>
+        </MemoryRouter>,
+      )
+
+      // The header bar names the CA whose CRL is shown; the body keeps only the CRL data.
+      const panel = await screen.findByRole('region', { name: 'Edge CA' })
+      expect(dockSlot).toContainElement(panel)
+      expect(within(panel).getByRole('heading', { name: 'Edge CA' })).toBeInTheDocument()
+      expect(within(panel).getByText('CN=Edge CA, O=Acme')).toBeInTheDocument()
+      expect(within(panel).getByRole('separator', { name: 'Resize panel' })).toBeInTheDocument()
+      expect(await within(panel).findByText('Current')).toBeInTheDocument()
+      expect(within(panel).getByText('42')).toBeInTheDocument()
+      expect(within(panel).queryByRole('link', { name: 'ca-1' })).not.toBeInTheDocument()
+
+      fireEvent.click(within(panel).getByRole('button', { name: 'Close panel' }))
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    } finally {
+      dockSlot.remove()
+    }
   })
 })
