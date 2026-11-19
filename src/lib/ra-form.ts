@@ -29,6 +29,7 @@ export interface RaFormValues {
   enrollmentCaId: string | null;
   issuanceProfileMode: IssuanceProfileMode;
   issuanceProfileId: string | null;
+  createAuthzPrincipal: boolean;
   allowReplaceableEnrollment: boolean;
   verifyCsrSignature: boolean;
   enrollmentAuth: ApiRaEstSettings;
@@ -149,6 +150,7 @@ export function createDefaultRaFormValues(hue?: number): RaFormValues {
     enrollmentCaId: null,
     issuanceProfileMode: 'default',
     issuanceProfileId: null,
+    createAuthzPrincipal: false,
     allowReplaceableEnrollment: true,
     verifyCsrSignature: true,
     enrollmentAuth: createDefaultEstAuthSettings(true),
@@ -194,6 +196,7 @@ export function raFormValuesFromApi(ra: ApiRaItem): { values: RaFormValues; inli
       enrollmentCaId: enrollment.enrollment_ca || null,
       issuanceProfileMode,
       issuanceProfileId: issuanceProfileMode === 'existing' ? ra.settings.issuance_profile_id ?? null : null,
+      createAuthzPrincipal: ra.settings.authz_principal_settings?.enabled ?? false,
       allowReplaceableEnrollment: enrollment.enable_replaceable_enrollment,
       verifyCsrSignature: enrollment.verify_csr_signature ?? true,
       enrollmentAuth: normalizeEstAuthSettings(enrollment.est_rfc7030_settings, true),
@@ -269,6 +272,7 @@ export function buildRaPayload(
         include_system_ca: values.includeSystemCa,
         managed_cas: values.managedCaIds,
       },
+      authz_principal_settings: { enabled: values.createAuthzPrincipal },
     },
   };
 }
