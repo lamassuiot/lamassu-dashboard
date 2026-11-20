@@ -3,20 +3,17 @@
 import React from 'react';
 import dynamic from '@/components/shared/dynamic';
 import { format } from 'date-fns';
-import { FileText, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { FileText, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CertificateCard } from '@/components/shared/CertificateCard';
 import { getDisplayDateFormat } from '@/lib/config';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import type { CertificateHistoryEntry } from './types';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-[140px] w-full items-center justify-center rounded-md bg-muted/30">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </div>
-  ),
+  loading: () => <BlockSkeleton label="Loading editor…" className="h-[140px]" />,
 });
 
 export const TimelineEventMeta: React.FC<{

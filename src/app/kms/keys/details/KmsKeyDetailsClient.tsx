@@ -44,7 +44,7 @@ import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
-import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
+import { DetailPageSkeleton, TableSkeleton } from '@/components/shared/PageSkeletons';
 
 interface KmsKeyDetailed {
   id: string;
@@ -987,9 +987,7 @@ export default function KmsKeyDetailsClient() {
                     </div>
                     <div className="lg:col-span-2">
                       {isLoadingBoundCertificates ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Loading related certificates...
-                        </div>
+                        <TableSkeleton label="Loading related certificates…" columns={3} rows={3} pagination={false} />
                       ) : boundCertificatesError ? (
                         <Alert variant="destructive">
                           <AlertTriangle className="h-4 w-4" />

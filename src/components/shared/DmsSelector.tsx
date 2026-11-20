@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useId } from 'react';
-import { Loader2, Building2, X, ChevronsUpDown } from 'lucide-react';
+import { Building2, X, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 import { fetchAllRegistrationAuthorities, type ApiRaItem } from '@/lib/dms-api';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 export interface DmsOption {
   id: string;
@@ -191,10 +192,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
       <PopoverContent id={listboxId} className="min-w-[300px] p-0 sm:w-[var(--radix-popover-trigger-width)]" align="start">
         <div className="max-h-[300px] overflow-y-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
-            </div>
+            <TableSkeleton label="Loading registration authorities…" header={false} columns={1} rows={4} pagination={false} />
           ) : loadError ? (
             <div className="py-4 px-3 text-center">
               <p className="text-sm text-destructive">{loadError}</p>

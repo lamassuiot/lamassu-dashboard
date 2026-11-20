@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from '@/lib/router';
 import dynamic from '@/components/shared/dynamic';
-import { AlertTriangle, FileText, Info, Loader2, Workflow } from 'lucide-react';
+import { AlertTriangle, FileText, Info, Workflow } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -16,15 +16,11 @@ import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
 import { WfxGroupBadge } from '@/components/shared/WfxJobBadges';
-import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
+import { BlockSkeleton, DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
-    loading: () => (
-        <div className="h-64 flex items-center justify-center bg-muted/30 rounded-md">
-            <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-    ),
+    loading: () => <BlockSkeleton label="Loading editor…" className="h-64" />,
 });
 
 const WORKFLOW_CRUMBS = [

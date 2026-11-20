@@ -24,6 +24,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
 import { parseCrl, type ParsedCrl, type RevokedCertEntry } from '@/lib-crypto';
 import { cn, downloadFile } from '@/lib/utils';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 /** Rows rendered at once; a CRL can list thousands of certificates. */
 const MAX_VISIBLE_ROWS = 200;
@@ -265,10 +266,7 @@ function CrlResult({ state, filter, onFilterChange, onRetry, downloadFileName, c
 
   if (state.status === 'loading') {
     return (
-      <div role="status" className="flex items-center justify-center gap-3 py-12 text-sm text-muted-foreground">
-        <Loader2 className="size-5 animate-spin text-primary" />
-        Fetching CRL…
-      </div>
+      <TableSkeleton label="Fetching CRL…" icon={false} columns={3} pagination={false} />
     );
   }
 

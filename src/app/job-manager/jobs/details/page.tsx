@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from '@/components/shared/dynamic';
 import { useSearchParams } from '@/lib/router';
 import Link from '@/components/shared/RouterLink';
-import { AlertTriangle, ClipboardList, FileText, Info, LayoutList, Loader2, Workflow } from 'lucide-react';
+import { AlertTriangle, ClipboardList, FileText, Info, LayoutList, Workflow } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WfxStatusBadge, WfxGroupBadge } from '@/components/shared/WfxJobBadges';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -19,15 +19,11 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
-import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
+import { BlockSkeleton, DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
-    loading: () => (
-        <div className="h-64 flex items-center justify-center bg-muted/30 rounded-md">
-            <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-    ),
+    loading: () => <BlockSkeleton label="Loading editor…" className="h-64" />,
 });
 
 const INNER_TAB_TRIGGER_CLASS =

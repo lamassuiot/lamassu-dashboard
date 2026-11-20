@@ -33,6 +33,7 @@ import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { addDuration, isValidPositiveDuration } from '@/lib/duration';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 
 // This specific date string is used to represent "indefinite validity" (no expiration) in the API.
@@ -475,7 +476,7 @@ export default function IssueCertificateFormClient() {
 
 
   if (!caId && typeof window !== 'undefined') { return <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription>Error: CA ID is missing from URL.</AlertDescription></Alert>; }
-  if (!caId) { return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>; }
+  if (!caId) { return <FormPageSkeleton label="Loading form…" />; }
 
   // --- Mode selection screen ---
   if (!issuanceModeSelected) {
@@ -527,11 +528,7 @@ export default function IssueCertificateFormClient() {
       </div>
 
       {isLoadingCa ? (
-        <div className="flex items-center justify-center p-8 flex-col text-center min-h-[400px]">
-          <Loader2 className="h-16 w-16 text-primary animate-spin" />
-          <h3 className="text-xl font-semibold mt-4">Loading Issuing CA Details...</h3>
-          <p className="text-muted-foreground mt-2">Fetching default issuance policies.</p>
-        </div>
+        <FormPageSkeleton label="Loading issuing CA details…" header={false} />
       ) : (
         <>
           <Stepper currentStep={step} steps={["Configure", "Issue", "Done"]} />

@@ -1,29 +1,19 @@
 import React, { Suspense } from 'react';
 import dynamic from '@/components/shared/dynamic';
-import { Loader2 } from 'lucide-react';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const CreateCertificateClient = dynamic(
     () => import('./CreateCertificateClient'),
     {
-        loading: () => (
-            <div className="w-full flex flex-col items-center justify-center py-10">
-                <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                <p className="text-muted-foreground mt-3">Loading Form...</p>
-            </div>
-        ),
+        loading: () => <FormPageSkeleton label="Loading form…" />,
     }
 );
 
 export default function CreateCertificatePage() {
     return (
         <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Certificates',href:'/certificates'},{label:'Create'}]} className="space-y-5 pb-8">
-            <Suspense fallback={
-                <div className="w-full flex flex-col items-center justify-center py-10">
-                    <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                    <p className="text-muted-foreground mt-3">Loading...</p>
-                </div>
-            }>
+            <Suspense fallback={<FormPageSkeleton label="Loading form…" />}>
                 <CreateCertificateClient />
             </Suspense>
         </BreadcrumbPage>

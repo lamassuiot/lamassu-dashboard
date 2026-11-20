@@ -266,11 +266,7 @@ function PolicyDetailsContent() {
 export default function PolicyDetailsPage() {
   return (
     <Suspense
-      fallback={
-        <div className="flex flex-col items-center justify-center flex-1 p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        </div>
-      }
+      fallback={<DetailPageSkeleton label="Loading policy…" tabs={2} />}
     >
       <PolicyDetailsContent />
     </Suspense>

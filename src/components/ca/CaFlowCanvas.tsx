@@ -20,6 +20,7 @@ import { Download, Loader2, LocateFixed, Maximize, Minimize } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { cn } from '@/lib/utils';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const FIT_OPTIONS = { padding: 0.15, duration: 200 };
 
@@ -124,9 +125,7 @@ function CaFlowCanvasInner<N extends Node>({
       )}
     >
       {isLoading ? (
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
-        </div>
+        <BlockSkeleton label="Loading graph…" className="h-full rounded-none" />
       ) : (
         <ReactFlow
           nodes={nodes}

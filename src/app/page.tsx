@@ -9,7 +9,7 @@ import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, fetchCaStatsSummary } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
 import { fetchDeviceStats, type DeviceStats } from '@/lib/devices-api';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 
 // Helper function from old page.tsx
@@ -184,8 +185,7 @@ export default function HomePage() {
   } else if (anyTimelineLoading) {
     timelineContent = (
       <TimelinePlaceholder>
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading timeline data…</p>
+        <BlockSkeleton label="Loading timeline data…" className="h-full" />
       </TimelinePlaceholder>
     );
   } else {

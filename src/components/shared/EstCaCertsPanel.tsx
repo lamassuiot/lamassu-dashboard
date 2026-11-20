@@ -19,6 +19,7 @@ import { BottomDockPanel } from '@/components/shared/BottomDockPanel';
 import { InlineNote } from '@/components/shared/InlineNote';
 import { RaIconFor, type RaIconSource } from '@/components/shared/RaIcon';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 interface ApiRaItem extends RaIconSource {
   id: string;
@@ -99,8 +100,8 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
         {error ? (
           <div className="px-4 py-5 md:px-6"><InlineNote tone="error">{error}</InlineNote></div>
         ) : isLoading ? (
-          <div className="flex items-center gap-2 px-4 py-5 text-sm text-muted-foreground md:px-6">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading CA certs...
+          <div className="px-4 py-5 md:px-6">
+            <BlockSkeleton label="Loading CA certs…" className="h-48" />
           </div>
         ) : (
           <Tabs defaultValue="pem" className="flex h-full min-h-0 flex-col gap-0">

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import dynamic from '@/components/shared/dynamic';
-import { Loader2 } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -13,14 +12,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import type { WfxWorkflow } from '@/lib/wfx-api';
 import { WorkflowGraph } from '@/components/shared/WorkflowGraph';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
-    loading: () => (
-        <div className="h-64 flex items-center justify-center bg-muted/30 rounded-md">
-            <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-    ),
+    loading: () => <BlockSkeleton label="Loading editor…" className="h-64" />,
 });
 
 // ─── Public component ─────────────────────────────────────────────────────────

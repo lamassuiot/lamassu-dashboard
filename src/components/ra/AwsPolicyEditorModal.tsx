@@ -10,14 +10,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
 import type { AwsPolicy } from './AwsIotIntegrationTab';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const Editor = dynamic(
     () => import('@monaco-editor/react'), 
-    { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> }
+    { ssr: false, loading: () => <BlockSkeleton label="Loading editor…" className="h-full" /> }
 );
 
 interface AwsPolicyEditorModalProps {

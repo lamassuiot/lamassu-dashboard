@@ -11,10 +11,11 @@ import type { PatchOperation } from '@/lib/ca-data';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const EDITOR_HEIGHT = '26rem';
 
-const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-80 w-full flex items-center justify-center rounded-md bg-muted/30"><Loader2 className="h-8 w-8 animate-spin"/></div> });
+const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <BlockSkeleton label="Loading editor…" className="h-80" /> });
 
 interface MetadataTabContentProps {
   rawJsonData: any;

@@ -16,6 +16,8 @@ interface TableSkeletonProps {
   icon?: boolean;
   /** Show the page-size / previous / next row below the table. */
   pagination?: boolean;
+  /** Show the column header bar; turn it off for plain lists such as dropdown options. */
+  header?: boolean;
   className?: string;
 }
 
@@ -29,6 +31,7 @@ export function TableSkeleton({
   rows = 5,
   icon = true,
   pagination = true,
+  header = true,
   className,
 }: Readonly<TableSkeletonProps>) {
   const status = label ? { role: 'status', 'aria-busy': true } as const : {};
@@ -36,14 +39,16 @@ export function TableSkeleton({
     <div {...status} className={cn('w-full', className)}>
       {label && <span className="sr-only">{label}</span>}
 
-      <div className="flex h-10 items-center gap-4 rounded-md bg-muted/50 px-2">
-        {icon && <div className="w-8 shrink-0" />}
-        {Array.from({ length: columns }, (_, col) => (
-          <div key={col} className="min-w-0 flex-1">
-            <Skeleton className="h-3 w-20 max-w-full rounded-md bg-muted-foreground/15" />
-          </div>
-        ))}
-      </div>
+      {header && (
+        <div className="flex h-10 items-center gap-4 rounded-md bg-muted/50 px-2">
+          {icon && <div className="w-8 shrink-0" />}
+          {Array.from({ length: columns }, (_, col) => (
+            <div key={col} className="min-w-0 flex-1">
+              <Skeleton className="h-3 w-20 max-w-full rounded-md bg-muted-foreground/15" />
+            </div>
+          ))}
+        </div>
+      )}
       {Array.from({ length: rows }, (_, row) => (
         <div key={row} className="flex h-14 items-center gap-4 border-b px-2 last:border-0">
           {icon && <Skeleton className="size-8 shrink-0 rounded-md" />}
@@ -65,6 +70,18 @@ export function TableSkeleton({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Placeholder for a block whose code is still downloading, such as a Monaco editor or a graph view.
+ * Size it with `className` to match the block it stands in for.
+ */
+export function BlockSkeleton({ label = 'Loading…', className }: Readonly<{ label?: string; className?: string }>) {
+  return (
+    <Skeleton role="status" aria-busy="true" className={cn('w-full rounded-md', className)}>
+      <span className="sr-only">{label}</span>
+    </Skeleton>
   );
 }
 

@@ -64,7 +64,7 @@ import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { PolicyFilterBar, defaultPolicyDateFilterValue } from '@/components/shared/filters/PolicyFilterBar';
 import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 import dynamic from '@/components/shared/dynamic';
-import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
+import { DetailPageSkeleton, TableSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -698,9 +698,7 @@ function PrincipalDetailsContent() {
 
           <div className="flex min-h-[280px] flex-1 flex-col overflow-hidden px-6 py-4">
             {policyResultsLoading && policyResults.length === 0 ? (
-              <div className="flex h-full items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
+              <TableSkeleton label="Loading policies…" icon={false} columns={4} rows={4} pagination={false} />
             ) : policyResults.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium">No policies found</p>
@@ -840,11 +838,7 @@ function PrincipalDetailsContent() {
 export default function PrincipalDetailsPage() {
   return (
     <Suspense
-      fallback={
-        <div className="flex flex-col items-center justify-center flex-1 p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        </div>
-      }
+      fallback={<DetailPageSkeleton label="Loading principal…" tabs={3} />}
     >
       <PrincipalDetailsContent />
     </Suspense>

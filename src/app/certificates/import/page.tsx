@@ -19,10 +19,11 @@ import { FormFieldError, FormValidationSummary } from '@/components/shared/FormV
 import { cn } from '@/lib/utils';
 import { CERTIFICATE_FILE_EXTENSIONS, CERTIFICATE_MAX_FILE_SIZE, loadCertificateFilesAsPem } from '@/lib/certificate-files';
 import { pemToBase64 } from '@/lib-crypto';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
-  loading: () => <div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin" /></div>,
+  loading: () => <BlockSkeleton label="Loading editor…" className="h-48" />,
 });
 
 export default function ImportCertificatePage() {

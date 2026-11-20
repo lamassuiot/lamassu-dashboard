@@ -14,6 +14,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { VaSettingsCard, CrlSettingsStatusBadge, InactiveCrlSettingsAlert, LegacyCrlUrlNote } from '@/components/shared/VaSettingsCard';
 import { CrlViewerSheet, type CrlViewerCa } from '@/components/shared/CrlViewerSheet';
 import { formatCaSubject } from '@/lib/ca-utils';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 interface ValidationAuthorityTabProps {
   ca: CA;
@@ -34,10 +35,7 @@ export function ValidationAuthorityTab({ ca, allCryptoEngines }: ValidationAutho
 
   if (isLoadingConfig) {
     return (
-      <div className="flex items-center justify-center rounded-xl border bg-muted/30 p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">Loading CRL Settings...</p>
-      </div>
+      <FormPageSkeleton label="Loading CRL settings…" header={false} sections={1} />
     );
   }
 

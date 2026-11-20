@@ -24,6 +24,7 @@ import { FormFieldError, FormValidationSummary } from '@/components/shared/FormV
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
 import { pemToBase64 } from '@/lib-crypto';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 const NEW_KEY_CRUMBS = [
   { label: 'Home', href: '/' },
@@ -34,7 +35,7 @@ const NEW_KEY_CRUMBS = [
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
-  loading: () => <div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin"/></div>
+  loading: () => <BlockSkeleton label="Loading editor…" className="h-48" />
 });
 
 const creationModeGroups: MethodOptionGroup[] = [

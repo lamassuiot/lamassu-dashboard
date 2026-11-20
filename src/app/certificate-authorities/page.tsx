@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
-import { Landmark, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Signature, Table2, UploadCloud, RefreshCw } from "lucide-react";
+import { Landmark, Network, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Signature, Table2, UploadCloud, RefreshCw } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -18,7 +18,7 @@ import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
 import { cn } from '@/lib/utils';
 import { filterCaList, hasActiveCaFilters } from '@/lib/ca-utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
+import { BlockSkeleton, ListPageSkeleton, TableSkeleton } from '@/components/shared/PageSkeletons';
 import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
 
 
@@ -26,12 +26,7 @@ const CaHierarchyView = dynamic(() =>
   import('@/components/ca/CaHierarchyView').then(mod => mod.CaHierarchyView), 
   { 
     ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading Hierarchy View...</p>
-      </div>
-    )
+    loading: () => <TableSkeleton label="Loading hierarchy view…" columns={3} pagination={false} />
   }
 );
 
@@ -39,12 +34,7 @@ const CaTableView = dynamic(() =>
   import('@/components/ca/CaTableView').then(mod => mod.CaTableView),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading Table View...</p>
-      </div>
-    )
+    loading: () => <TableSkeleton label="Loading table view…" />
   }
 );
 
@@ -52,12 +42,7 @@ const CaGraphView = dynamic(() =>
   import('@/components/ca/CaGraphView').then(mod => mod.CaGraphView),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading Graph View...</p>
-      </div>
-    )
+    loading: () => <BlockSkeleton label="Loading graph view…" className="h-[60vh] min-h-80" />
   }
 );
 

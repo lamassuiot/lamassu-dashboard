@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import type { TimelineEventDisplayData } from '@/components/devices/timeline-event-renderers';
 import type { CertificateData } from '@/types/certificate';
 import { useDeviceDetails, type CertificateHistoryEntry, getCertSubjectCommonName } from '../DeviceContext';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 const TIMELINE_EVENTS_PAGE_SIZE = 10;
 const TIMELINE_MODE_STORAGE_KEY = 'lamassu-timeline-mode';
@@ -422,10 +423,7 @@ export default function TimelinePage() {
       </div>
 
       {isTimelineLoading && !timelineEvents.length ? (
-        <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <p className="text-sm">Fetching events…</p>
-        </div>
+        <TableSkeleton label="Fetching events…" icon={false} pagination={false} />
       ) : timelineEvents.length > 0 ? (
         <>
           <DeviceEventsTable events={timelineEvents} onRevoke={handleOpenRevokeModal} onReactivate={handleReactivate} />
