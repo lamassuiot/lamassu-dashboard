@@ -31,6 +31,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { DashboardTerminal } from '@/components/terminal/DashboardTerminal';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
@@ -400,6 +401,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
   return (
     <TooltipProvider>
     <SidebarProvider defaultOpen>
+      <DashboardTerminal>{terminalTrigger => (
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4 h-full py-2">
@@ -429,6 +431,7 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
             />
           </div>
           <div className="flex items-center gap-4">
+            {!isWizardMode && terminalTrigger}
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -644,20 +647,24 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
               </SidebarFooter>
             </Sidebar>
 
-            <div data-app-content-column className="flex min-w-0 flex-1 flex-col overflow-hidden">
-              <SidebarInset data-app-scroll-root className="min-h-0 flex-1 overflow-y-auto flex flex-col">
-                {/* flex-col so a page-level loader with flex-1 fills the content area and centres. */}
-                <div className="flex flex-1 flex-col p-4 md:p-6 pb-8 md:pb-12">
-                  {children}
-                </div>
-                <CustomFooter />
-              </SidebarInset>
-              {/* Bottom-docked panels (BottomDockPanel) portal here, below the scroll area. */}
-              <div data-app-bottom-dock className="shrink-0 empty:hidden" />
+            <div data-app-terminal-column className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <div data-app-content-column className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <SidebarInset data-app-scroll-root className="min-h-0 flex-1 overflow-y-auto flex flex-col">
+                  {/* flex-col so a page-level loader with flex-1 fills the content area and centres. */}
+                  <div className="flex flex-1 flex-col p-4 md:p-6 pb-8 md:pb-12">
+                    {children}
+                  </div>
+                  <CustomFooter />
+                </SidebarInset>
+                {/* Bottom-docked panels (BottomDockPanel) portal here, below the scroll area. */}
+                <div data-app-bottom-dock className="shrink-0 empty:hidden" />
+              </div>
+              <div data-app-terminal-dock className="shrink-0 empty:hidden" />
             </div>
           </div>
         )}
       </div>
+      )}</DashboardTerminal>
 
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
         <DialogContent showCloseButton={false} className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
