@@ -344,6 +344,6 @@ export function readConfig(search: string = location.search, saved: Record<strin
 		mobile,
 		coarse,
 		mobileUA,
-		fontSize: 14,
+		fontSize: 11,
 	};
 }

@@ -87,8 +87,8 @@ const LABEL: Record<State, string> = { checking: "Checking", loading: "Downloadi
 interface Stage { id: string; label: string; s: StageState; t0: number | null; t1: number | null; detail: string }
 export interface LogLine { t: number; line: string; cls: string }
 
-/** Phones: 12 px fits ~47 columns at 360 px. */
-export const autoFont = (): number => (innerWidth < 600 ? 12 : 14);
+/** Dashboard port: 11 px on every screen (upstream: 12 px on phones, 14 px elsewhere). */
+export const autoFont = (): number => 11;
 
 export function createUi(cfg: Config) {
 	// This mount's KW (kw.ts): a callback that runs after the shell stopped never reaches the next mount's.
