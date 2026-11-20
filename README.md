@@ -77,6 +77,12 @@ window.lamassuConfig = {
   // Useful if validation/enrollment services are hosted on a separate public domain.
   LAMASSU_PUBLIC_API: "https://your-public-endpoint.example.com",
 
+  // (Optional) Enable the experimental browser terminal.
+  EXPERIMENTAL_WBTERM: false,
+
+  // (Optional) Wisp proxy for outbound traffic from the browser terminal.
+  LAMASSU_TERMINAL_WISP_URL: "wss://wisp.example.com/",
+
   // --- Authentication ---
   // Set to `false` to disable OIDC authentication for local development.
   // Defaults to `true`.
@@ -104,6 +110,20 @@ window.lamassuConfig = {
   LAMASSU_FOOTER_ENABLED: false
 };
 ```
+
+### Browser terminal
+
+The terminal is disabled by default. Enable it with `EXPERIMENTAL_WBTERM: true` in `public/config.js` or by passing `-e EXPERIMENTAL_WBTERM=true` to Docker.
+
+The app bar opens an Debian Linux terminal powered by [unkernel](https://github.com/pithings/unkernel). It requires a browser with WebAssembly JSPI; without it, the terminal explains why and downloads nothing. The kernel comes with the `unkernel` npm package and is part of the build. The Debian image is not: the image `debian.erofs` of the [pinned unkernel release](https://github.com/pithings/unkernel/releases/tag/v0.2.0-261119-97d7945) (v0.2.0-261119-97d7945) is not in this repository and must be provided at `/terminal/debian.erofs`, for example by downloading it into `public/terminal/` before the build (its licence texts are already there). Without it the terminal cannot boot.
+
+The terminal is the shell of the public unkernel release, inside the dashboard's dock: the same boot steps, the same status line (terminal windows, `^A`, data disk, memory, Errors, Suspend and Resume, Reboot, About, Kernel log, System) and the same Options. Options are saved in the browser's `localStorage` (`kw.settings`) and apply at the next Reboot. The data disk and a suspended session are kept in the browser's IndexedDB, so they survive closing the terminal and reloading the page. The data disk holds `/data` and your changes to the system (installed packages, files in `/root`); `/tmp` starts empty at each boot. Clear it from the terminal's Guest tab (Reset) or with the browser's site data. Demos, the launcher, the guest display, audio and preview are not included.
+
+The `^A` (Ctrl-A) shortcuts and the other terminal keys apply only while the terminal has focus. Elsewhere in the dashboard, Ctrl-A keeps its usual meaning.
+
+The terminal uses unkernel's default Wisp servers. These servers accept only known origins, so set `LAMASSU_TERMINAL_WISP_URL` in the runtime config or as a Docker environment variable to use a proxy that accepts your dashboard's origin and reaches your EST gateway and Debian's package repositories. It sets the default servers: Wisp servers saved in the terminal's Options win over it.
+
+**Send to terminal** from EST Enroll prepares `enroll.sh` in a private working directory in the guest. Copy the command shown in the dock and run it in the terminal. If you skipped bootstrap issuance, supply `bootstrap.crt` and `bootstrap.key` in that directory before running the script.
 
 ## Available Scripts
 

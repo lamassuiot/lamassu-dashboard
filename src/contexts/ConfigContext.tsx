@@ -10,6 +10,8 @@ interface LamassuConfig {
   LAMASSU_AUTH_MONITOR_SESSION?: boolean;
   LAMASSU_API?: string;
   LAMASSU_PUBLIC_API?: string;
+  EXPERIMENTAL_WBTERM?: boolean;
+  LAMASSU_TERMINAL_WISP_URL?: string;
   LAMASSU_CONNECTORS?: string[];
   LAMASSU_FOOTER_ENABLED?: boolean;
   TOAST_POSITION?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';

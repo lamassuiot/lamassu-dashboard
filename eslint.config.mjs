@@ -7,7 +7,7 @@ import unusedImports from 'eslint-plugin-unused-imports';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'src/lib/version.ts'] },
+  { ignores: ['dist/**', 'coverage/**', 'src/lib/version.ts', 'src/components/terminal/unkernel/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

@@ -11,6 +11,19 @@ export interface KeyParams {
 
 const INDENT = '  ';
 
+function shellArgument(value: string): string {
+  return /^[a-zA-Z0-9_./:@%+,-]+$/.test(value) ? value : "'" + value.replaceAll("'", "'\\''") + "'";
+}
+
+function fileArgument(path: string): string {
+  return shellArgument(path.startsWith('-') ? './' + path : path);
+}
+
+function commonNameArgument(commonName: string): string {
+  const subject = '/CN=' + commonName.replace(/[\\/+=]/g, '\\$&');
+  return /^[a-zA-Z0-9_.:@ -]+$/.test(commonName) ? '"' + subject + '"' : shellArgument(subject);
+}
+
 /** Joins command parts as `head \` + indented continuation lines. */
 export function continued(head: string, ...args: string[]): string {
   return [head, ...args.map((a) => `${INDENT}${a}`)].join(' \\\n');
@@ -27,7 +40,7 @@ export function newKeyArgs({ type, spec }: KeyParams): string {
 
 /** EST transports PKCS#10 bodies as bare base64, so drop the PEM armor lines. */
 export function stripPemCommand(pemFile: string, outFile: string): string {
-  return `# EST expects the base64 body without the PEM header/footer\nsed '/-----/d' ${pemFile} > ${outFile}`;
+  return `# EST expects the base64 body without the PEM header/footer\nsed '/-----/d' ${fileArgument(pemFile)} > ${fileArgument(outFile)}`;
 }
 
 type CsrKey =
@@ -43,11 +56,11 @@ export interface CsrCommandOptions {
 
 export function csrCommands({ commonName, key, csrFile, strippedFile }: CsrCommandOptions): string {
   const keyArgs = 'existing' in key
-    ? [`-key ${key.existing}`]
-    : [newKeyArgs(key.generate), `-nodes -keyout ${key.keyOut}`];
+    ? [`-key ${fileArgument(key.existing)}`]
+    : [newKeyArgs(key.generate), `-nodes -keyout ${fileArgument(key.keyOut)}`];
 
   return sections(
-    continued('openssl req -new', ...keyArgs, `-subj "/CN=${commonName}"`, `-out ${csrFile}`),
+    continued('openssl req -new', ...keyArgs, `-subj ${commonNameArgument(commonName)}`, `-out ${fileArgument(csrFile)}`),
     stripPemCommand(csrFile, strippedFile),
   );
 }
@@ -61,8 +74,8 @@ export function placeholderCsrCommands(commonName: string, csrFile: string, stri
     continued(
       'openssl req -new',
       '-newkey rsa:2048 -nodes -keyout /dev/null',
-      `-subj "/CN=${commonName}"`,
-      `-out ${csrFile}`,
+      `-subj ${commonNameArgument(commonName)}`,
+      `-out ${fileArgument(csrFile)}`,
     ),
     stripPemCommand(csrFile, strippedFile),
   );
@@ -83,10 +96,10 @@ export function serverChainCommand(estBaseUrl: string, outFile: string, origin?:
   const { host, port } = resolveEndpoint(estBaseUrl, origin);
   return `# Save the certificate chain presented by the EST server\n${continued(
     'openssl s_client -showcerts',
-    `-connect ${host}:${port}`,
-    `-servername ${host}`,
+    `-connect ${shellArgument(host + ':' + port)}`,
+    `-servername ${shellArgument(host)}`,
     '</dev/null 2>/dev/null',
-    `| sed -n '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ${outFile}`,
+    `| sed -n '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ${fileArgument(outFile)}`,
   )}`;
 }
 
@@ -103,34 +116,35 @@ export interface EstRequestOptions {
 export function estRequestCommand({ url, cert, key, caFile, body, output }: EstRequestOptions): string {
   return continued(
     'curl --fail --silent --show-error',
-    `--cert ${cert}`,
-    `--key ${key}`,
-    caFile ? `--cacert ${caFile}` : '--insecure',
+    `--cert ${fileArgument(cert)}`,
+    `--key ${fileArgument(key)}`,
+    caFile ? `--cacert ${fileArgument(caFile)}` : '--insecure',
+    '--globoff',
     '--header "Content-Type: application/pkcs10"',
-    `--data-binary @${body}`,
-    `--output ${output}`,
-    `"${url}"`,
+    `--data-binary ${shellArgument("@" + body)}`,
+    `--output ${fileArgument(output)}`,
+    `"${url.replace(/["\\$\x60]/g, '\\$&')}"`,
   );
 }
 
 export function decodeCertificateCommands(p7File: string, certFile: string): string {
   return sections(
     `# Convert the PKCS#7 response into a PEM certificate\n${continued(
-      `openssl base64 -d -in ${p7File}`,
-      `| openssl pkcs7 -inform DER -print_certs -out ${certFile}`,
+      `openssl base64 -d -in ${fileArgument(p7File)}`,
+      `| openssl pkcs7 -inform DER -print_certs -out ${fileArgument(certFile)}`,
     )}`,
     inspectCertificateCommand(certFile),
   );
 }
 
 export function inspectCertificateCommand(certFile: string): string {
-  return `# Inspect the issued certificate\nopenssl x509 -in ${certFile} -noout -subject -issuer -serial -dates`;
+  return `# Inspect the issued certificate\nopenssl x509 -in ${fileArgument(certFile)} -noout -subject -issuer -serial -dates`;
 }
 
 const MULTIPART_BOUNDARY = '--estServerLamassuBoundary';
 
 const extractPart = (contentType: string, multipartFile: string, outFile: string) =>
-  `awk '/Content-Type: ${contentType.replace('/', '\\/')}/{f=1; next} /${MULTIPART_BOUNDARY}/{f=0} f' ${multipartFile} > ${outFile}`;
+  `awk '/Content-Type: ${contentType.replace('/', '\\/')}/{f=1; next} /${MULTIPART_BOUNDARY}/{f=0} f' < ${fileArgument(multipartFile)} > ${fileArgument(outFile)}`;
 
 export function serverKeygenParseCommands(multipartFile: string, keyOut: string, certOut: string): string {
   const keyB64 = `${keyOut}.b64`;
@@ -138,8 +152,8 @@ export function serverKeygenParseCommands(multipartFile: string, keyOut: string,
   return sections(
     `# Split the multipart response into its key and certificate parts\n${extractPart('application/pkcs8', multipartFile, keyB64)}\n${extractPart('application/pkcs7-mime', multipartFile, certB64)}`,
     `# Decode the PKCS#8 private key\n${continued(
-      `openssl base64 -d -in ${keyB64}`,
-      `| openssl pkey -inform DER -out ${keyOut}`,
+      `openssl base64 -d -in ${fileArgument(keyB64)}`,
+      `| openssl pkey -inform DER -out ${fileArgument(keyOut)}`,
     )}`,
     decodeCertificateCommands(certB64, certOut),
   );

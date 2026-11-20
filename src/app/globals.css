@@ -63,6 +63,23 @@
   --animate-loader-indeterminate: loader-indeterminate 1.2s ease-in-out infinite alternate;
 }
 
+/* Colour utilities of the vendored terminal shell (src/components/terminal/unkernel): `bg-bg`, `text-fg`,
+   `border-line`... The dashboard uses none of these names; its own `muted` and `accent` are left as they
+   are and the shell gets its values on `.unkernel-root` only (unkernel/unkernel.css). */
+@theme {
+  --color-bg: #000;
+  --color-surface: #0a0a0a;
+  --color-hover: #1a1a1a;
+  --color-line: #242424;
+  --color-line-strong: #333;
+  --color-fg: #ededed;
+  --color-faint: #7d7d7d;
+  --color-ok: #45d483;
+  --color-warn: #f5a524;
+  --color-err: #ff6166;
+  --color-off: #8f8f8f;
+}
+
 @keyframes loader-indeterminate {
   from { left: 0%; }
   to { left: 60%; }

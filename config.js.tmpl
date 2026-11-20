@@ -19,6 +19,11 @@ window.lamassuConfig = {
     // This should be the root of your API gateway or load balancer.
     // Example: "https://api.yourdomain.com"
     LAMASSU_API: `${LAMASSU_API}`,
+
+    EXPERIMENTAL_WBTERM: ${EXPERIMENTAL_WBTERM},
+
+    // Optional Wisp proxy for outbound terminal traffic, including EST.
+    LAMASSU_TERMINAL_WISP_URL: "${LAMASSU_TERMINAL_WISP_URL}",
   
     // --- Authentication (OIDC) ---
     // Set to `false` to disable OIDC authentication and use a mock user for development.

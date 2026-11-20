@@ -1,0 +1,195 @@
+/* SPDX-License-Identifier: MIT */
+/* Copyright (C) 2026 Pooya Parsa <pooya@pi0.io> */
+/* The shell's styles: a black, minimal theme in the manner of Vercel's Geist (a
+   gray scale on black, one accent per state), and a terminal's look for the
+   chrome: a tmux-style status line, dialogs with their title in the border,
+   square controls. wterm brings its own stylesheet (boot.ts); its colours and
+   font are set on the terminals (#terms .wterm) below.
+
+   Dashboard port (upstream: web/src/style.css). Upstream owns the page; here the
+   shell lives in the dock, so this file is scoped to `.unkernel-root` (the
+   element UnkernelTerminal.tsx mounts into) and never touches the dashboard:
+   - no `@import "tailwindcss"` (the dashboard has it: a second import would
+     re-apply the reset) and no Geist fonts (the terminal uses JetBrains Mono,
+     the dashboard's `--font-jetbrains-mono`);
+   - the `@theme` tokens are not defined here. The ones the dashboard does not use
+     (bg, surface, hover, line, line-strong, fg, faint, ok, warn, err, off) are
+     in src/app/globals.css, so Tailwind generates the vendored classes
+     (`bg-bg`, `text-fg`, `border-line`...). `muted` and `accent` exist there
+     already, with the dashboard's meaning: they are given the shell's value
+     below, on `.unkernel-root` only, so `text-muted` is the dashboard's outside
+     and the shell's inside. The dashboard declares them in an `@theme inline`
+     block, so its utilities read the source variables (`text-muted` is
+     `color: var(--muted)`, `bg-accent` is `var(--accent)`), not
+     `var(--color-muted)`: the root overrides `--muted` and `--accent`, and
+     `--color-muted` / `--color-accent` for this file's own `var(--color-*)`;
+   - `html`, `body`, `:root` rules and the global classes (.btn, .field...) are
+     under `.unkernel-root`;
+   - the root is a containing block for its `fixed` descendants (`contain:
+     layout paint`), so the panel, scrim, paste dialog and toast stay inside the
+     dock; the native dialogs are opened non-modal (see README.md). */
+@reference "../../../app/globals.css";
+
+.unkernel-root {
+	/* The tokens that also name a dashboard colour (see above), and the fonts. */
+	--muted: #a1a1a1; --accent: #52a8ff;
+	--color-muted: var(--muted); --color-accent: var(--accent);
+	--font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", "DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace;
+	color-scheme: dark;
+	--sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px);
+	--st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
+	/* The status line's height, without the bottom safe area. */
+	--bar-h: 28px;
+	/* Extra side padding of the status line where the screen's or window's bottom corners are round (iOS, below). */
+	--sc: 0px;
+
+	/* The page's box, in the dock (the caller sizes it). `clip`, not `hidden`: a
+	   hidden box still scrolls to show a focused element (About's Close in a
+	   short dock) and left the whole shell shifted up after it closed. */
+	position: relative; overflow: clip; contain: layout paint; overscroll-behavior: none;
+	background: var(--color-bg); color: var(--color-fg);
+	font: 14px/1.5 var(--font-sans);
+	-webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+	-webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+}
+/* iOS (only its WebKit knows -webkit-touch-callout): the status line goes down to the bottom edge, over the
+   home indicator, and its round corners may cut into it, so it moves its ends in by half the bottom inset
+   (17 px on a Face ID iPhone in portrait). */
+@supports (-webkit-touch-callout: none) {
+	.unkernel-root { --sb: 0px; --sc: calc(env(safe-area-inset-bottom, 0px) / 2); }
+}
+/* Touch (config.ts: a coarse pointer or a mobile user agent): a taller status line with wider targets. */
+@media (pointer: coarse) { .unkernel-root { --bar-h: 38px; } }
+.unkernel-root:has(#app.mobile) { --bar-h: 38px; }
+.unkernel-root #app.mobile #bar { font-size: 13px; }
+.unkernel-root:has(#app.mobile) #bar button:not([role="menuitem"]) { min-width: 32px; justify-content: center; }
+
+@layer base {
+	.unkernel-root button { cursor: pointer; }
+	.unkernel-root :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+	/* Inside the status line, where an outer ring would be clipped. */
+	.unkernel-root #bar :focus-visible { outline-offset: -2px; }
+	.unkernel-root [hidden] { display: none !important; }
+	/* The dashboard sets its headline font on every heading. */
+	.unkernel-root :is(h1, h2, h3, h4, h5, h6) { font-family: inherit; }
+}
+
+@layer components {
+	/* Buttons: secondary (black, bordered) and primary (white on black). */
+	.unkernel-root .btn {
+		@apply inline-flex h-9 items-center justify-center gap-2 border border-line-strong bg-bg px-3.5 font-mono text-[12.5px] text-fg transition-colors select-none;
+		&:hover { @apply border-[#454545] bg-hover; }
+	}
+	.unkernel-root .btn-primary {
+		@apply border-fg bg-fg text-black;
+		&:hover { @apply border-white bg-white; }
+	}
+	.unkernel-root .btn-danger {
+		@apply border-err bg-err text-black;
+		&:hover { @apply border-[#ff8589] bg-[#ff8589]; }
+	}
+	.unkernel-root .btn-sm { @apply h-7 px-2.5 text-[12px]; }
+	/* Inputs, selects and text areas. */
+	.unkernel-root .field {
+		@apply border border-line-strong bg-bg font-mono text-fg transition-colors outline-none placeholder:text-faint;
+		&:hover { @apply border-[#454545]; }
+		&:focus-visible { @apply border-muted outline-none ring-2 ring-accent/40; }
+	}
+	.unkernel-root .select {
+		appearance: none;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a1a1a1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+		background-repeat: no-repeat; background-position: right 10px center; background-size: 14px;
+	}
+	.unkernel-root .select option { background: var(--color-surface); }
+	/* Range: a thin track, filled up to the thumb (--fill, set inline), and a
+	   square thumb, var(--thumb) wide (set on a parent, so the tick labels
+	   under it can line up with it). --tone: the track and thumb colour (the
+	   CPUs slider: red past the suggested count). */
+	.unkernel-root .slider {
+		appearance: none; height: 18px; background: transparent; cursor: pointer;
+		&::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(to right, var(--tone, var(--color-fg)) var(--fill), var(--color-line-strong) var(--fill)); }
+		&::-moz-range-track { height: 2px; background: linear-gradient(to right, var(--tone, var(--color-fg)) var(--fill), var(--color-line-strong) var(--fill)); }
+		&::-webkit-slider-thumb { appearance: none; width: var(--thumb, 12px); height: 14px; margin-top: -6px; background: var(--tone, var(--color-fg)); border: 2px solid var(--color-surface); box-sizing: content-box; }
+		&::-moz-range-thumb { width: var(--thumb, 12px); height: 14px; background: var(--tone, var(--color-fg)); border: 2px solid var(--color-surface); border-radius: 0; box-sizing: content-box; }
+		&:hover::-webkit-slider-thumb { background: var(--tone, #fff); }
+		&:hover::-moz-range-thumb { background: var(--tone, #fff); }
+		&:focus-visible { outline: none; }
+		&:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--color-accent); }
+		&:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--color-accent); }
+	}
+}
+
+/* ---- status: the System icon is plain while the page boots and runs; it
+   turns red on an error and dim once the kernel has stopped ------------------ */
+.unkernel-root #status { color: var(--color-muted); }
+.unkernel-root #status:hover, .unkernel-root #status[aria-pressed="true"] { color: var(--color-fg); }
+.unkernel-root #app[data-state="halted"] #status { color: var(--color-off); }
+.unkernel-root #app[data-state="error"] #status { color: var(--color-err); }
+
+/* ---- the dialog (components/Panel.tsx): a window over the stage --------
+   It stays above the status line, which keeps working while it is open.
+   Dashboard port: `fixed` is relative to the root (contain: layout, above), and
+   the sizes follow the root, not the viewport. */
+.unkernel-root #scrim {
+	position: fixed; inset: 0 0 calc(var(--bar-h) + var(--sb)) 0; z-index: 20;
+	background: rgb(0 0 0 / 65%); opacity: 0; pointer-events: none; transition: opacity .15s;
+}
+.unkernel-root #scrim.open { opacity: 1; pointer-events: auto; }
+.unkernel-root #panel {
+	position: fixed; z-index: 21; margin: auto;
+	inset: calc(8px + var(--st)) max(8px, var(--sr)) calc(var(--bar-h) + var(--sb) + 8px) max(8px, var(--sl));
+	width: min(780px, calc(100% - 16px));
+	height: min(640px, calc(100% - var(--bar-h) - var(--sb) - var(--st) - 24px));
+	display: flex; flex-direction: column;
+	background: var(--color-bg); border: 1px solid var(--color-line-strong);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 80%);
+	opacity: 0; transform: translateY(6px); visibility: hidden;
+	transition: opacity .15s, transform .15s, visibility 0s linear .15s;
+}
+.unkernel-root #panel.open { opacity: 1; transform: none; visibility: visible; transition-delay: 0s; }
+/* The paste dialog sits near the top of a short dock, not at 18% of it. */
+.unkernel-root #paste { top: 16px; }
+
+/* ---- the native dialogs (Confirm in components/Overlays.tsx, About): opened
+   non-modal (show(), not showModal()), since a modal one goes to the top layer
+   and covers the whole page. Centred in the root, with the shade drawn as a
+   huge shadow (the root clips it). `fixed`, not `absolute`: About is rendered
+   inside the status line (relative), and `fixed` is relative to the root
+   (contain: layout), whatever the dialog's parent. -------------------------- */
+.unkernel-root dialog[open] {
+	position: fixed; inset: 0; z-index: 50; height: fit-content; max-height: calc(100% - 16px);
+	box-shadow: 0 0 0 100vmax rgb(0 0 0 / 65%), 0 16px 48px rgb(0 0 0 / 80%);
+}
+/* About is taller than a short dock: its body scrolls inside the dialog (the
+   title, positioned on the dialog's border, is not clipped by it). */
+.unkernel-root #about[open] { display: flex; flex-direction: column; }
+.unkernel-root #about[open] > div { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---- the terminals (wterm: window 0 is #term, boot.ts; the others are
+   .term-win, windows.ts) ----------------------------------------------------
+   Each is its own scroll container (wterm sets overflow-y once there is
+   scrollback), so it must not set overflow itself. The gutter keeps the
+   column count when the bar appears; phones draw their own overlay bar
+   while scrolling. The other windows lie over #term in the same box, and
+   the ones not shown are hidden with visibility (and inert), so they keep
+   their size and their grid follows the stage like the shown one. */
+.unkernel-root #terms .wterm {
+	width: 100%; height: 100%; padding: 0; border-radius: 0; box-shadow: none;
+	scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #333 transparent;
+	overscroll-behavior: contain;
+	--term-font-family: var(--font-mono);
+	--term-fg: #ededed; --term-bg: #000; --term-cursor: #ededed;
+	--term-selection-bg: rgb(255 255 255 / 22%);
+	--term-color-0: #333333; --term-color-1: #ff6166; --term-color-2: #45d483; --term-color-3: #f5a524;
+	--term-color-4: #52a8ff; --term-color-5: #c472fb; --term-color-6: #0ac7b4; --term-color-7: #d4d4d4;
+	--term-color-8: #737373; --term-color-9: #ff8589; --term-color-10: #7ee2a8; --term-color-11: #ffc96b;
+	--term-color-12: #8ec5ff; --term-color-13: #d9a6fd; --term-color-14: #5fe0d0; --term-color-15: #ffffff;
+}
+.unkernel-root #terms .term-win { position: absolute; inset: 0; }
+.unkernel-root #terms .term-off { visibility: hidden; }
+/* iOS zooms the page when a field under 16 px takes focus: wterm's hidden input inherits the terminal font. */
+.unkernel-root #app.mobile #terms textarea { font-size: 16px !important; }
+
+@media (prefers-reduced-motion: reduce) {
+	.unkernel-root *, .unkernel-root *::before, .unkernel-root *::after { animation: none !important; transition: none !important; }
+}
