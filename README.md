@@ -121,7 +121,16 @@ The terminal is the shell of the public unkernel release, inside the dashboard's
 
 The `^A` (Ctrl-A) shortcuts and the other terminal keys apply only while the terminal has focus. Elsewhere in the dashboard, Ctrl-A keeps its usual meaning.
 
-The terminal uses unkernel's default Wisp servers. These servers accept only known origins, so set `LAMASSU_TERMINAL_WISP_URL` in the runtime config or as a Docker environment variable to use a proxy that accepts your dashboard's origin and reaches your EST gateway and Debian's package repositories. It sets the default servers: Wisp servers saved in the terminal's Options win over it.
+The terminal reaches the network through a Wisp proxy. The Docker image bundles one ([wisp-js](https://github.com/MercuryWorkshop/wisp-js)) that nginx exposes at `/wisp/` on the dashboard's own origin, so the terminal works with no extra service or origin allow list. While it runs, `LAMASSU_TERMINAL_WISP_URL` defaults to `/wisp/` (a path is resolved to `ws(s)://<dashboard host>/wisp/`). It runs only when `EXPERIMENTAL_WBTERM` is `true`. These variables tune it:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `WISP_ENABLED` | `true` | `false` does not start the bundled server. Set `LAMASSU_TERMINAL_WISP_URL` to another proxy, or the terminal has no network. |
+| `WISP_ALLOW_PRIVATE_IPS` | `false` | `true` lets the terminal reach private addresses, needed when the EST gateway is on an internal network. Loopback stays blocked. |
+| `WISP_OPTIONS` | unset | Raw [wisp-js options](https://github.com/MercuryWorkshop/wisp-js) as JSON, for example `{"allow_private_ips":true,"port_whitelist":[443]}`. Replaces `WISP_ALLOW_PRIVATE_IPS`. |
+| `LAMASSU_TERMINAL_WISP_URL` | `/wisp/` | The Wisp server the terminal uses by default. Wisp servers saved in the terminal's Options win over it. |
+
+Any user who can open the dashboard can open connections through the bundled proxy to public addresses (private and loopback ones are blocked by default). Restrict it with `WISP_OPTIONS` (`hostname_whitelist`, `port_whitelist`) if that is too broad. Outside Docker (`pnpm run dev`) there is no bundled server: run one (`npx -p @mercuryworkshop/wisp-js wisp-js-server --port 5001`) and set `LAMASSU_TERMINAL_WISP_URL: "ws://localhost:5001/"` in `public/config.js`. Without it the terminal falls back to unkernel's default Wisp servers, which accept only known origins.
 
 **Send to terminal** from EST Enroll prepares `enroll.sh` in a private working directory in the guest. Copy the command shown in the dock and run it in the terminal. If you skipped bootstrap issuance, supply `bootstrap.crt` and `bootstrap.key` in that directory before running the script.
 

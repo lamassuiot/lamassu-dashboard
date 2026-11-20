@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useConfig } from '@/contexts/ConfigContext';
 import { TerminalContext } from './TerminalContext';
+import { resolveWispUrl } from './wisp-url';
 
 const UnkernelTerminal = lazy(() => import('./UnkernelTerminal'));
 
@@ -79,7 +80,7 @@ export function DashboardTerminal({
             </div>
           }>
             <UnkernelTerminal
-              wispUrl={config?.LAMASSU_TERMINAL_WISP_URL?.trim()}
+              wispUrl={resolveWispUrl(config?.LAMASSU_TERMINAL_WISP_URL)}
               script={script}
               onScriptReady={handleScriptReady}
             />
