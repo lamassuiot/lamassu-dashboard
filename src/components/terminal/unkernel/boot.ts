@@ -24,7 +24,7 @@
 // restart in place); the page URL is neither read nor written (mount.tsx).
 import "@wterm/dom/src/terminal.css";
 import { WTerm } from "@wterm/dom";
-import { INLINE_ONCE_KEY, REPO, UP_ONCE_KEY } from "./config.ts";
+import { INLINE_ONCE_KEY, UP_ONCE_KEY } from "./config.ts";
 import { attachDataDisk, detachDataDisk, downloadKwsparse, exportDataDisk, fmtSize, importDataDisk, resetDataDisk, storageState, acquireDiskLock, type DataAttach, type DiskLock } from "./data.ts";
 import { KW as currentKW } from "./kw.ts";
 import { browserNet, browserNetSpec } from "./net.ts";
@@ -46,36 +46,74 @@ const fmtS = (ms: number) => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000
 // The terminal's colours and font are CSS custom properties (style.css, #term).
 const SGR = { ok: "\x1b[32m", warn: "\x1b[33m", fail: "\x1b[31m", busy: "\x1b[36m", dim: "\x1b[2m", gray: "\x1b[90m", bold: "\x1b[1m", off: "\x1b[0m" };
 
+/** Columns of LOGO that hold the icon alone (for a terminal too narrow for the whole logo). */
+const ICON_COLS = 25;
 /**
- * Pip from the logo (assets/logo.svg) as 10x8 pixels in truecolor half
- * blocks (wterm draws U+2580-259F as solid blocks): four lines, 10 cells each.
+ * The Lamassu IoT logo (icon and wordmark, #0100f8), from the brand's 2649x476
+ * artwork, in 132x12 cells. Each cell is one block glyph (U+2580-259F, which
+ * wterm draws as exact shapes, not with the font) with two colours, chosen
+ * offline for wterm's 11 px cell (6.6x13 px): the artwork sampled 8 across and
+ * every half pixel down in each cell, against each glyph's shape as wterm
+ * paints it (its eighths and half block snapped to whole pixels), with the two
+ * colours fitted by least squares after a ~1 px blur, as the eye sees it, so
+ * faint slivers lose to shapes that put the ink where it is; the logo shifted
+ * half a cell right, the offset with the smallest error. A colour is a hex
+ * digit for how much of the logo's blue it holds over the black terminal
+ * (0 none, f all), blended gamma-correct. Rows: the glyphs, then their
+ * foreground and their background (0: the terminal's own).
  */
-const PIP = ((art: string[]) => {
-	const rgb: Record<string, string> = {
-		O: "106;84;24", Y: "255;212;90", S: "232;168;60", H: "255;244;192",
-		E: "42;26;16", B: "255;154;138", G: "111;220;111", g: "79;176;79",
-	};
-	const lines: string[] = [];
-	for (let y = 0; y < art.length; y += 2) {
-		const top = art[y]!, bottom = art[y + 1]!;
+const LOGO = ((glyphs: string[], fg: string[], bg: string[]) => {
+	const ink = [1, 0, 248];
+	const rgb = (d: string) => ink.map((v) => Math.round(v * (parseInt(d, 16) / 15) ** (1 / 2.2))).join(";");
+	const render = (cols: number) => glyphs.map((row, y) => {
 		let s = "";
-		for (let x = 0; x < top.length; x++) {
-			const t = rgb[top[x]!], b = rgb[bottom[x]!];
-			s += !t && !b ? `${SGR.off} ` : t && b ? (t === b ? `\x1b[0;38;2;${t}m█` : `\x1b[0;38;2;${t};48;2;${b}m▀`) :
-				t ? `\x1b[0;38;2;${t}m▀` : `\x1b[0;38;2;${b}m▄`;
+		for (let x = 0; x < cols; x++) {
+			const c = row[x] ?? " ", f = fg[y]![x] ?? "0", b = bg[y]![x] ?? "0";
+			s += c === " " ? `${SGR.off} ` : `\x1b[0;38;2;${rgb(f)}${b !== "0" ? `;48;2;${rgb(b)}` : ""}m${c}`;
 		}
-		lines.push(s + SGR.off);
-	}
-	return Object.assign(lines, { width: art[0]!.length });
+		return s.replace(/(\x1b\[0m )+$/, "") + SGR.off;
+	});
+	const width = glyphs[0]!.length;
+	return { width, iconCols: ICON_COLS, full: render(width), icon: render(ICON_COLS) };
 })([
-	"...g.GG...",
-	"....g.....",
-	"..OOOOOO..",
-	".OHYYYYYO.",
-	".OYEYYEYO.",
-	".OBYYYYBO.",
-	".OYYYYSSO.",
-	"..OOOOOO..",
+	"                 ▛▆▃▃▅▜                                                                                                             ",
+	"                 ▎▍  ▍▐                                                                                                             ",
+	"▋▁▋▃▃▃▃▃▃▂▄▁     ▇▂▂▂▂▐                                                                                                             ",
+	" █▂▘▃▃▃▃▃▆▚▜▄▁   ▎▛▅▅▜▌                                                                                                             ",
+	"   ▝▃▝▀▀▚▃▅▙▚▜▀▁ ▎▙▜▗▟▌                                                                                                             ",
+	"     ▛▃▃▃▙▚▖▄▝▚▜▀▝▜▙▟▛▟█      ▛▃▃                                                                             ▛▃▜          ▃▃▃▃▃▃▃▃▃",
+	"    ▛▟███▙▄▙▂▚▄▂▙▃▖▅▆▅▇▏      ▊█▕       ▁▁▁▁ ▁▁▁ ▁▁▁▁▁▁▁   ▁▁▁▁     █▁▁▁▁ ▁▁▁  ▁▁▁▁█    ▁▁▁▁   ▁▁▁    ▁▁█     ▍█▐    ▁▁▁▁  ▅▅▅▖█▛▅▅▅",
+	"   ▕▞▆▍████▔▔▔▔▔▔▔▔▔▇██▏      ▊█▕    █▀▆▁▂▂▁▆▟█▎ ▏█▆▁▂▁▇▆▃▆▁▂▁▇▆▜ ▁▄▔▁▂▂▁▅▏█▏▛▅▇▂▂▁▔▖ ▗▆▁▂▂▁▆▜ ▏█▏    ▏█▏     ▍█▐ ▁▄▔▁▂▂▁▆▀▁  ▐█▌   ",
+	"   █▊ ▍████████████████▏      ▊█▕    ▐█▗▔  █▝▜█▎█▏█▘█  ▙██▘█  ▙█▊ ▘█▗▇  ▇▝██▏▋█▙▂▁▙▅▅▏▎█▝▁▁▙▅▘ ▏█▏    ▏█▏     ▍█▐█▟█▘▇  ▇▖█▝  ▐█▌   ",
+	"   ▛▊▗▟▁▃▅▜█▐▇▇▇▇▇▐▁▅▜█▏      ▊█▕    ▎█▍     ▎█▎█▏█▏   ▉▏█▏   ▉█▕█▏█▎    ▕██▏█▆▀▂▁▔▅▃ ▇▅▃▂▁▆▅▜ ▎█▏   █▏█▏     ▍█▐▕██▏    ▊█▉  ▐█▌   ",
+	"  ▝▟ ▎▕▁  ▙▜▝▜   ▛▟▘ ▌█▏      ▊█▕    ▝▏▙▂▁ ▁▀▏█▎█▏█▏   █▏█▏   ▕▏▉█▝█▙▂█ ▁▘██▏▗▅▖▁ ▇▏█▎▅▅▜██▋█▊ ▎█▝▁ ▁▗██▏     ▍█▐ ▖█▝▁ █▂▘█▘  ▐█▌   ",
+	"     ▎▁▁▝  ▊▁▇▅▜ ▐▁▔▖▕▁▇▅     ▊▁▁▇▇▇▇▏▙▃▁▁▇▁▀▎▁▎█▁▁▏    ▁▁▏   █▁▁██▝▂▁▇▇▂▄▁▁▏▇▄▂▁▇▁▂▅█▙▃▁▇▇▁▂▟ ▙▀▁▁▇▁▃▁▁▏     ▍▁▌ ▇▅▂▁▇▇▁▃▟   ▐▁▌   ",
+], [
+	"000000000000000000c02e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"000000000000000000e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"0001111111e5000003ffff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"000c10000c1ce40001f00ff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"000f2dccdd2c1c1301f0fff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"000000fff2ef001c1ffffe200000000fd000000000000000000000000000000000000000000000000000000000000000000000000000000f00000000000efffffffc",
+	"00000fffffe2001012513ef70000000f000000006eb206a308a13dc30004dd40000008ea107a1001be7000004dd40008910000890000000f000005dd3001110ff111",
+	"0001f12ffff800000000fff90000000f0000001fd205efff08fe201feee101fe002e4b108fafd0ff1075f0ff901cf000fa00004f4000000f003e2801bf1100fff000",
+	"0000d01ffffffffffffffffa0000000f00000df07000ffff09ff0001ffe0001ff00f00000fffd1ffd301130f0d101f00fa00008f4000000f00eff00000f000fff000",
+	"0000affc20ff000000ee2ffb0000000f000003fd000006ff0bfa0000df70000fb06fb00002ffd01f052fc00001afe006fc0000cf4000000f06ff500000ff00fff000",
+	"00700065000f000000ff01fe0000000f00000fefd1062eff0cf800009f50001df0fffb0090ffdfff2007f9df1002ff01f0402fff4000000f000f0800a1ff00fff000",
+	"000000cd0000bfd00d50cc6ea00000088eeeea025ae2f58f0788000078300007700f07ee3078d0029e9220013ee70000e2bf318840000008e00104fe211000e8e000",
+], [
+	"00000000000000000c0dd260000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"00000000000000000f000ef0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"9d6aaaaaaa2000000c211260000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"00d2bbbbb1b110000f6dd910000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"0002d00052e2b2d00f8e1b10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"000003010d52cca2d28793d000000050000000000000000000000000000000000000000000000000000000000000000000000000000000d0c0000000000000000000",
+	"000063000a1e93d6dc1ed1c0000000c0f00000000000000000000000000000000000000000000000000000000000000000000000000000e0f0000000000ffff00ffd",
+	"00005df0000fffffffffc000000000c0f00000c4ffff06010f01effe100effd1b001ffffe2f0073bffff2003ffff3d0f000000f0000000e0f001fffff3d000101000",
+	"000000f00000000000000000000000c0f000020f00001d010f02000d002000e080d0d50024000e03004ff0e0c00bf20f000000f0000000e0f02042005d0c00101000",
+	"000901cffd20e555553fdc00000000c0f0000f0000000f010f000001f0000040f0f00000000000e1fff2004effe20b0f000000f0000000e0f00000000e0300101000",
+	"000a0ff10031e30009d30d00000000c0f00002f51000df010f000000f000000fc05010000c000103008f0000d00b070e0b000300000000e0f0d0c0000f0400101000",
+	"00000effb007fa2100fd00f4100000bff55550dfff7f1ef10ff00000ef00000ff001efa8fdff03dfe2efd09ef73fed051ff5feff000000df001def7affd0001f1000",
 ]);
 const STEP: Record<string, string> = { kernel: "Download the kernel", compile: "Compile the kernel", memory: "Allocate kernel memory", boot: "Boot the kernel" };
 
@@ -404,7 +442,9 @@ export function start(root: HTMLElement): Boot {
 	const okLine = (msg: string, ms?: number | null) => `[${SGR.ok}  OK  ${SGR.off}] ${msg}${took(ms)}`;
 	function status(t: string, color: string, msg: string, ms?: number | null) {
 		if (ui.state() === "error") return; // e.g. a parallel download finishing after a failure
-		hostLine(`[${color}${t}${SGR.off}] ${msg}${took(ms)}`);
+		// Dashboard port: the OK steps go only to the Kernel log (and the terminal with ?verbose=1);
+		// warnings and failures still show on the terminal.
+		if (t !== "  OK  " || cfg.verbose) hostLine(`[${color}${t}${SGR.off}] ${msg}${took(ms)}`);
 		ui.hostLog(`[boot] ${t.trim()} ${msg}${ms != null ? ` (${fmtS(ms)})` : ""}`);
 	}
 	function ok(msg: string, ms?: number | null) { status("  OK  ", SGR.ok, msg, ms); }
@@ -424,7 +464,6 @@ export function start(root: HTMLElement): Boot {
 		live = `[${SGR.busy}${t}${SGR.off}]${a}${b && `${SGR.gray}${b}${SGR.off}`}`;
 		write(`\r\x1b[K${live}`);
 	}
-	hostLine(`${SGR.bold}unkernel${SGR.off} ${SGR.dim}· Linux on WebAssembly${SGR.off}\r\n`);
 	ok("Checked browser features", ui.stageTime("preflight"));
 
 	// --- console output ------------------------------------------------------------
@@ -444,18 +483,11 @@ export function start(root: HTMLElement): Boot {
 	// Each step already shows its own time: the summary is the total from page load.
 	const summary = () => `${SGR.dim}Booted in${SGR.off} ${SGR.bold}${fmtS(Date.now() - KW.t0)}${SGR.off}` +
 		(smp ? ` ${SGR.dim}on ${cfg.cpus} CPUs${SGR.off}` : cfg.worker ? ` ${SGR.dim}in a Web Worker${SGR.off}` : "") + "\r\n";
-	// A line under the summary of a fresh boot: the source (an OSC 8 link,
-	// which wterm opens on Ctrl/⌘-click).
-	const link = (url: string, text: string) => `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
-	const notes = () => [`${SGR.dim}Source${SGR.off}  ${link(REPO, REPO.replace(/^https:\/\//, ""))}`];
-	// Pip, glimmer's seed and the logo (assets/logo.svg), left of the summary
-	// and the notes; left out where the lines would wrap.
-	const PIP_W = PIP.width + 2; // with the gap before the text
-	const visible = (s: string) => s.replace(/\x1b\]8;;[^\x1b]*\x1b\\/g, "").replace(/\x1b\[[0-9;]*m/g, "").length;
+	// The Lamassu IoT logo above the summary: the whole logo where it fits, else the
+	// icon alone, else neither.
 	const intro = () => {
-		const lines = [summary().replace(/\r\n$/, ""), ...notes()];
-		if (term.cols < PIP_W + Math.max(...lines.map(visible)) + 1) return lines.join("\r\n") + "\r\n";
-		return ["", ...lines].map((s, i) => `${PIP[i]}  ${s}`).join("\r\n") + "\r\n";
+		const art = term.cols > LOGO.width ? LOGO.full : term.cols > LOGO.iconCols ? LOGO.icon : [];
+		return [...art, ...(art.length ? [""] : []), summary().replace(/\r\n$/, "")].join("\r\n") + "\r\n";
 	};
 	// The command line is shown only when it is not the default one.
 	const cmdlineNote = () => (cfg.cmdlineGiven ? `: ${SGR.dim}${cfg.cmdline}${SGR.off}` : "");
@@ -487,8 +519,11 @@ export function start(root: HTMLElement): Boot {
 				// Two steps: the kernel until it runs /init, then the base mounting the
 				// distro image (its first blocks come over HTTP) and the distro's init.
 				const user = cfg.distro ? cfg.guest[0]!.toUpperCase() + cfg.guest.slice(1) : "the base shell";
-				write(okLine(`Started Linux${cmdlineNote()}`, ui.stageTime("boot")) + "\r\n" +
-					okLine(`Started ${user}`, ui.stageTime("userspace")) + "\r\n\r\n" + intro() + "\r\n" + replay);
+				// Dashboard port: logged, not shown (see status()); the logo and summary head the screen.
+				const stageMs = (id: string) => { const ms = ui.stageTime(id); return ms != null ? ` (${fmtS(ms)})` : ""; };
+				ui.hostLog(`[boot] OK Started Linux${cfg.cmdlineGiven ? `: ${cfg.cmdline}` : ""}${stageMs("boot")}`);
+				ui.hostLog(`[boot] OK Started ${user}${stageMs("userspace")}`);
+				write(intro() + "\r\n" + replay);
 			}
 			replay = "";
 		}
