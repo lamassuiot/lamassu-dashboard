@@ -6,13 +6,14 @@ import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Loader2, RefreshCw, FilePlus2, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
+import { RefreshCw, FilePlus2, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
 import { CertificateList } from '@/components/CertificateList';
 import type { CA } from '@/lib/ca-data';
 import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateFetcher';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { ColumnSelector } from '@/components/ui/column-selector';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 interface IssuedCertificatesTabProps {
     caId: string;
@@ -105,10 +106,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
             />
 
             {isLoading && certificates.length === 0 ? (
-                <div className="flex items-center justify-center p-6">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="ml-2 text-muted-foreground">Loading issued certificates...</p>
-                </div>
+                <TableSkeleton label="Loading issued certificates…" icon={false} columns={6} />
             ) : error ? (
                 <Alert variant="destructive">
                   <AlertCircleIcon className="h-4 w-4" />

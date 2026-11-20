@@ -15,10 +15,10 @@ import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import {
   Cpu,
-  Loader2,
   RefreshCw,
   ShieldAlert,
 } from 'lucide-react';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 
 type SortableColumn = 'name' | 'type' | 'provider' | 'security_level';
 type SortDirection = 'asc' | 'desc';
@@ -98,6 +98,8 @@ const KeyTypeChips: React.FC<{ chips: string[] }> = ({ chips }) => {
   );
 };
 
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Crypto Engines' }];
+
 export default function CryptoEnginesPage() {
   const [engines, setEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,17 +140,14 @@ export default function CryptoEnginesPage() {
 
   if (isLoading && engines.length === 0) {
     return (
-      <div className="flex min-h-[280px] items-center justify-center">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          Loading crypto engines…
-        </div>
-      </div>
+      <BreadcrumbPage items={BREADCRUMB_ITEMS} className="w-full space-y-6 pb-8">
+        <ListPageSkeleton label="Loading crypto engines…" filters={0} pagination={false} />
+      </BreadcrumbPage>
     );
   }
 
   return (
-    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Crypto Engines' }]} className="w-full space-y-6 pb-8">
+    <BreadcrumbPage items={BREADCRUMB_ITEMS} className="w-full space-y-6 pb-8">
 
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex items-start gap-3">

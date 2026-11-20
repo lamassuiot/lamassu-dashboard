@@ -78,7 +78,7 @@ describe('VerificationAuthoritiesClient', () => {
   it('does not show an empty state while loading or after a load error', () => {
     vi.mocked(useCrlSettingsList).mockReturnValue({ ...state, items: [], isLoading: true })
     const { unmount } = renderPage()
-    expect(screen.getByText('Loading CRL settings...')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading CRL settings…')
     expect(screen.queryByRole('heading', { name: 'No CRL Settings' })).not.toBeInTheDocument()
     unmount()
     vi.mocked(useCrlSettingsList).mockReturnValue({ ...state, items: [], error: 'Service unavailable' })

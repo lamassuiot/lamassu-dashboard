@@ -21,6 +21,9 @@ import { Form } from '@/components/ui/form';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { FormValidationSummary, getFormErrorMessages } from '@/components/shared/FormValidationSummary';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Issuance Profiles', href: '/signing-profiles' }, { label: 'Edit' }];
 
 export default function EditSigningProfilePage() {
   const router = useRouter();
@@ -172,10 +175,9 @@ export default function EditSigningProfilePage() {
 
   if (isLoadingProfile) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
-        Loading profile data...
-      </div>
+      <BreadcrumbPage items={BREADCRUMB_ITEMS} className="mb-8 w-full space-y-6">
+        <FormPageSkeleton label="Loading profile data…" sections={3} />
+      </BreadcrumbPage>
     );
   }
 
@@ -195,7 +197,7 @@ export default function EditSigningProfilePage() {
   }
 
   return (
-    <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Issuance Profiles',href:'/signing-profiles'},{label:'Edit'}]} className="mb-8 w-full space-y-6">
+    <BreadcrumbPage items={BREADCRUMB_ITEMS} className="mb-8 w-full space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <div className="space-y-6">

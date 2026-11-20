@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
@@ -24,6 +24,7 @@ import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 
 interface CertificateSelectorModalProps {
@@ -428,10 +429,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
           <div className="flex min-h-[240px] flex-1 flex-col overflow-hidden px-6 pb-4">
             {isLoadingCerts && !errorCerts && (
-              <div className="flex h-full flex-grow items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading certificates...</p>
-              </div>
+              <TableSkeleton label="Loading certificates…" icon={false} rows={4} pagination={false} />
             )}
             {errorCerts && !isLoadingCerts && (
               <div className="flex h-full flex-grow items-center justify-center">

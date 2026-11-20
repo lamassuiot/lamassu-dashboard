@@ -30,6 +30,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
 import { parseDistinguishedName } from '@/lib-crypto';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -334,12 +335,7 @@ export default function CertificateDetailsClient() { // Renamed component
   if (isLoadingCert || isLoadingDependencies) {
     return (
       <BreadcrumbPage items={CERTIFICATE_CRUMBS}>
-        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-          <Loader2 className="h-12 w-12 text-primary animate-spin" />
-          <p className="text-muted-foreground">
-            {isLoadingCert ? "Loading certificate details..." : "Loading CA data..."}
-          </p>
-        </div>
+        <DetailPageSkeleton label="Loading certificate details…" tabs={3} />
       </BreadcrumbPage>
     );
   }

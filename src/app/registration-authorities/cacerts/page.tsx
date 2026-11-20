@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from '@/lib/router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, FileText } from 'lucide-react';
+import { AlertTriangle, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 import { arrayBufferToBase64, parseCertificatePemDetails } from "@/lib-crypto";
 import { format as formatDate } from 'date-fns';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 // Simplified parsed cert structure for this page
 interface ParsedCaCert {
@@ -118,10 +119,7 @@ export default function EstCaCertsPage() {
     if (isLoading) {
         return (
             <BreadcrumbPage items={CACERTS_CRUMBS}>
-                <div className="flex flex-col items-center justify-center flex-1 p-8">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg text-muted-foreground">Loading CA Certificates...</p>
-                </div>
+                <DetailPageSkeleton label="Loading CA certificates…" stats={0} tabs={2} />
             </BreadcrumbPage>
         );
     }

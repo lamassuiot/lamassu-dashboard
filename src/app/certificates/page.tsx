@@ -7,7 +7,7 @@ import { CertificateList } from '@/components/CertificateList';
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
 import { CertificateDetailPanel } from '@/components/shared/CertificateDetailPanel';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
+import { FileText, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,7 +17,7 @@ import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateFetcher';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { ColumnSelector } from '@/components/ui/column-selector';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
@@ -31,43 +31,7 @@ export interface CertSortConfig {
   direction: SortDirection;
 }
 
-const CertificatesPageSkeleton = () => (
-  <div className="w-full space-y-6 pb-8">
-    <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-          <FileText className="h-8 w-8 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
-          <p className="text-sm text-muted-foreground mt-1">Browse, import, and manage all X.509 certificates issued through the PKI.</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <Skeleton className="h-9 w-9 sm:w-32" />
-        <Skeleton className="h-9 w-9 sm:w-44" />
-        <Skeleton className="h-9 w-9 sm:w-36" />
-      </div>
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-      <div className="space-y-1"><Skeleton className="h-5 w-24 mb-1.5" /><Skeleton className="h-10 w-full" /></div>
-      <div className="space-y-1"><Skeleton className="h-5 w-20 mb-1.5" /><Skeleton className="h-10 w-full" /></div>
-      <div className="space-y-1"><Skeleton className="h-5 w-16 mb-1.5" /><Skeleton className="h-10 w-full" /></div>
-    </div>
-    <div className="space-y-2">
-      <Skeleton className="h-12 w-full" />
-      {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-    </div>
-    <div className="flex justify-between items-center mt-4">
-      <Skeleton className="h-9 w-40" />
-      <div className="flex items-center space-x-2">
-        <Skeleton className="h-9 w-24" />
-        <Skeleton className="h-9 w-24" />
-      </div>
-    </div>
-  </div>
-);
-
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Certificates' }];
 
 export default function CertificatesPage() {
   const router = useRouter();
@@ -116,7 +80,7 @@ export default function CertificatesPage() {
   const [errorCAs, setErrorCAs] = useState<string | null>(null);
 
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
-  const [isLoadingCryptoEngines, setIsLoadingCryptoEngines] = useState(true);
+  const [, setIsLoadingCryptoEngines] = useState(true);
   const [errorCryptoEngines, setErrorCryptoEngines] = useState<string | null>(null);
 
   const casFetchedRef = useRef(false);
@@ -207,24 +171,11 @@ export default function CertificatesPage() {
     return findCaById(caIdFilter, allCAs);
   }, [caIdFilter, allCAs]);
 
-  if (!isClientMounted) {
-    return <CertificatesPageSkeleton />;
-  }
-  
-  const loadingText = isLoadingApi
-      ? "Loading Certificates..." 
-      : isLoadingCAs
-          ? "Loading CA Data..."
-          : isLoadingCryptoEngines 
-              ? "Loading Crypto Engines..."
-              : "Loading...";
-
-  if ((isLoadingApi && certificates.length === 0) || (isLoadingCAs && allCAs.length === 0)) {
+  if (!isClientMounted || (isLoadingApi && certificates.length === 0) || (isLoadingCAs && allCAs.length === 0)) {
     return (
-        <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-            <Loader2Icon className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">{loadingText}</p>
-        </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading certificates…" filters={3} />
+      </BreadcrumbPage>
     );
   }
   
@@ -243,7 +194,7 @@ export default function CertificatesPage() {
       }
       detail={selectedCertificate ? <CertificateDetailPanel certificate={selectedCertificate} /> : null}
       list={
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Certificates'} ]}>
+    <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">

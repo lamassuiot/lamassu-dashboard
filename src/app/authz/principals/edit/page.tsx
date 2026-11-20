@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { getPrincipal, updatePrincipal } from '@/lib/authz-api';
 
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
@@ -26,6 +26,7 @@ import type {
   X509AuthConfig,
   X509CaTrustIdentityType,
 } from '@/types/authz';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 function EditPrincipalContent() {
   const router = useRouter();
@@ -296,11 +297,21 @@ function EditPrincipalContent() {
     }
   };
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Authorization' },
+    { label: 'Principals', href: '/authz/principals' },
+    ...(principal_id
+      ? [{ label: principal?.name || 'Details', href: `/authz/principals/details?principal_id=${principal_id}` }]
+      : []),
+    { label: 'Edit' },
+  ];
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+        <FormPageSkeleton label="Loading principal…" />
+      </BreadcrumbPage>
     );
   }
 
@@ -318,16 +329,6 @@ function EditPrincipalContent() {
       </div>
     );
   }
-
-  const breadcrumbItems = [
-    { label: 'Home', href: '/' },
-    { label: 'Authorization' },
-    { label: 'Principals', href: '/authz/principals' },
-    ...(principal_id
-      ? [{ label: principal?.name || 'Details', href: `/authz/principals/details?principal_id=${principal_id}` }]
-      : []),
-    { label: 'Edit' },
-  ];
 
   return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
@@ -380,11 +381,7 @@ function EditPrincipalContent() {
 export default function EditPrincipalPage() {
   return (
     <Suspense
-      fallback={
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      }
+      fallback={<FormPageSkeleton label="Loading principal…" />}
     >
       <EditPrincipalContent />
     </Suspense>

@@ -32,6 +32,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
 import { parseDistinguishedName } from '@/lib-crypto';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 
 interface CaStats {
@@ -321,10 +322,7 @@ export default function CertificateAuthorityDetailsClient() {
   if (isLoadingCAs || isLoadingEngines) {
     return (
       <BreadcrumbPage items={CA_CRUMBS}>
-        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-          <Loader2 className="h-12 w-12 text-primary animate-spin" />
-          <p className="text-muted-foreground">Loading CA details...</p>
-        </div>
+        <DetailPageSkeleton label="Loading CA details…" tabs={5} />
       </BreadcrumbPage>
     );
   }

@@ -30,7 +30,8 @@ function ScrollToTop() {
 
 function PageLoader() {
   return (
-    <div role="status" aria-label="Loading page" className="flex h-full min-h-64 w-full items-center justify-center">
+    // flex-1 fills the layout's content column, so the bar is centred in the visible content area.
+    <div role="status" aria-label="Loading page" className="flex min-h-64 w-full flex-1 items-center justify-center">
       <LoadingBar />
     </div>
   );

@@ -19,6 +19,7 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchRaById } from '@/lib/dms-api';
 import { CaSelectorModal } from './CaSelectorModal';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 interface AssignIdentityModalProps {
   isOpen: boolean;
@@ -194,10 +195,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
   const renderSelectView = () => (
     <div className="flex-grow my-4 overflow-hidden flex flex-col min-h-[300px]">
         {isLoadingCerts ? (
-            <div className="flex-grow flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading eligible certificates...</p>
-            </div>
+            <TableSkeleton label="Loading eligible certificates…" icon={false} rows={4} />
         ) : errorCerts ? (
             <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error Loading Certificates</AlertTitle><AlertDescription>{errorCerts}</AlertDescription></Alert>
         ) : eligibleCerts.length > 0 ? (

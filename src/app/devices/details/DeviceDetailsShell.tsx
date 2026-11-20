@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import Link from '@/components/shared/RouterLink';
-import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ClipboardList, PowerOff, RotateCw, Trash2 } from 'lucide-react';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { mapApiIconToIconType } from '@/components/shared/DeviceIcon';
@@ -26,6 +26,7 @@ import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { sileo } from '@/lib/toast';
 import { DeviceDetailsContext } from './DeviceContext';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const TAB_TO_SLUG: Record<string, string> = {
   information: 'information',
@@ -205,10 +206,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   if (isLoadingDevice) {
     return (
       <BreadcrumbPage items={DEVICE_CRUMBS}>
-        <div className="flex flex-col items-center justify-center flex-1 p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg text-muted-foreground">Loading device details...</p>
-        </div>
+        <DetailPageSkeleton label="Loading device details…" stats={5} tabs={5} />
       </BreadcrumbPage>
     );
   }

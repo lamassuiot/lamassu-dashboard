@@ -12,9 +12,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { CryptoEngineViewer } from './CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { ChevronsUpDown, Loader2, AlertTriangle, Check, RefreshCw } from 'lucide-react';
+import { ChevronsUpDown, AlertTriangle, Check, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 
 const SECURITY_LEVEL_LABEL: Record<number, { label: string; cls: string }> = {
@@ -81,16 +82,9 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({
 
   if (isLoadingEngines) {
     return (
-      <div
-        className={cn(
-          "flex items-center gap-2 rounded-2xl border border-transparent bg-input/50 text-sm text-muted-foreground",
-          isCompact ? "h-8 px-2.5" : "h-10 px-3 py-2",
-          className
-        )}
-      >
-        <Loader2 className={cn("animate-spin", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
-        <span>Loading engines…</span>
-      </div>
+      <Skeleton role="status" aria-busy="true" className={cn("w-full", isCompact ? "h-8" : "h-10", className)}>
+        <span className="sr-only">Loading engines…</span>
+      </Skeleton>
     );
   }
 

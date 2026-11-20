@@ -46,6 +46,7 @@ import { ProtocolSection } from './ProtocolSection';
 import { RaFormHeader } from './RaFormHeader';
 import { ReenrollmentSection } from './ReenrollmentSection';
 import type { RaFormDependencies, RaSectionProps } from './types';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 /** Protocol-specific settings shown as tabs; the remaining sections are always visible above them. */
 const enrollmentTabs = [
@@ -253,11 +254,7 @@ export function RaForm({ raId }: { raId: string | null }) {
   }
 
   if (isEditMode && !raData) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-24 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" /> Loading Registration Authority…
-      </div>
-    );
+    return <FormPageSkeleton label="Loading Registration Authority…" header={false} sections={3} />;
   }
 
   const sectionProps = (section: RaFormSectionId): RaSectionProps => ({ values, update, touch, deps, issues: issuesFor(section) });

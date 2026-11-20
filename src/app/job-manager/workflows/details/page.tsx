@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroStat } from '@/components/shared/DetailHero';
 import { WfxGroupBadge } from '@/components/shared/WfxJobBadges';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
@@ -61,10 +62,7 @@ export default function WorkflowDetailsPage() {
     if (isLoading) {
         return (
             <BreadcrumbPage items={WORKFLOW_CRUMBS}>
-                <div className="flex flex-col items-center justify-center flex-1 p-8">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg text-muted-foreground">Loading workflow...</p>
-                </div>
+                <DetailPageSkeleton label="Loading workflow…" tabs={2} />
             </BreadcrumbPage>
         );
     }

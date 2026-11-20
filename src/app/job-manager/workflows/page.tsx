@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from '@/lib/router';
-import { Workflow, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
+import { Workflow, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -10,8 +10,11 @@ import { cn } from '@/lib/utils';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { fetchWorkflows, type WfxWorkflow } from '@/lib/wfx-api';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Job Manager' }, { label: 'Workflows' }];
 
 export default function WorkflowsPage() {
     const router = useRouter();
@@ -66,15 +69,14 @@ export default function WorkflowsPage() {
 
     if (isLoading && workflows.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center flex-1 p-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading Workflows...</p>
-            </div>
+            <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+                <ListPageSkeleton label="Loading workflows…" filters={0} />
+            </BreadcrumbPage>
         );
     }
 
     return (
-        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Job Manager' }, { label: 'Workflows' }]}>
+        <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
                 <div className="flex items-start gap-3">

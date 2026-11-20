@@ -30,6 +30,7 @@ import { useCrlSettingsList, type CrlSettingsListItem } from '@/hooks/useCrlSett
 import { isZeroOrZeroDuration } from '@/lib/duration';
 import { cn } from '@/lib/utils';
 import { getCrlUrl, type CrlSettingsStatus } from '@/lib/va-api';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 type StatusFilter = 'ALL' | CrlSettingsStatus;
 
@@ -132,10 +133,7 @@ export function VerificationAuthoritiesClient() {
       </div>
 
       {isLoading && items.length === 0 && (
-        <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg text-muted-foreground">Loading CRL settings...</p>
-        </div>
+        <TableSkeleton label="Loading CRL settings…" pagination={false} />
       )}
 
       {error && (

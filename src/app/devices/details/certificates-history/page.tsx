@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, formatDistanceStrict, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
@@ -15,6 +15,7 @@ import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { useDeviceDetails, type CertificateHistoryEntry, getCertSubjectCommonName } from '../DeviceContext';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 export default function CertificatesHistoryPage() {
   const { device } = useDeviceDetails();
@@ -79,10 +80,7 @@ export default function CertificatesHistoryPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2 text-muted-foreground">Loading certificate history...</p>
-      </div>
+      <TableSkeleton label="Loading certificate history…" icon={false} />
     );
   }
 

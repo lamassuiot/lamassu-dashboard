@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
-import { ClipboardList, RefreshCw, AlertTriangle, Eye, Loader2, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
+import { ClipboardList, RefreshCw, AlertTriangle, Eye, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { TimedInput } from '@/components/ui/timed-input';
@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { WfxStatusBadge, WfxGroupBadge } from '@/components/shared/WfxJobBadges';
 import {
@@ -43,6 +44,8 @@ function buildJobListParams({ pageSize, offset, sortOrder, filterValues }: {
 }
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Job Manager' }, { label: 'Jobs' }];
 
 export default function JobsPage() {
     const router = useRouter();
@@ -137,15 +140,14 @@ export default function JobsPage() {
 
     if (isLoading && jobs.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center flex-1 p-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading Jobs...</p>
-            </div>
+            <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+                <ListPageSkeleton label="Loading jobs…" />
+            </BreadcrumbPage>
         );
     }
 
     return (
-        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Job Manager' }, { label: 'Jobs' }]}>
+        <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
                 <div className="flex items-start gap-3">

@@ -29,7 +29,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { IntegrationIcon } from '@/components/shared/IntegrationIcon';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Platform Integrations' }];
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -88,16 +91,15 @@ export default function IntegrationsPage() {
 
   if (isLoading) {
     return (
-        <div className="flex flex-col items-center justify-center flex-1 p-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-            <p className="text-sm text-muted-foreground">Discovering integrations…</p>
-        </div>
+      <BreadcrumbPage className="space-y-5 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Discovering integrations…" filters={0} rows={3} pagination={false} />
+      </BreadcrumbPage>
     );
   }
 
   return (
     <>
-    <BreadcrumbPage className="space-y-5 pb-8" items={[ {label:'Home',href:'/'}, {label:'Platform Integrations'} ]}>
+    <BreadcrumbPage className="space-y-5 pb-8" items={BREADCRUMB_ITEMS}>
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

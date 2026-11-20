@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, Loader2, Search, Eye, MoreVertical, TerminalSquare, HelpCircle, X, MonitorSmartphone } from 'lucide-react';
+import { AlertCircle, Search, Eye, MoreVertical, TerminalSquare, HelpCircle, X, MonitorSmartphone } from 'lucide-react';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { BookmarkPaginationFooter } from '@/components/shared/BookmarkPaginationFooter';
@@ -26,6 +26,7 @@ import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
 import { getDeviceStatusMeta, type DeviceStatusKey } from '@/lib/device-status';
 import { getStatusSegments } from './DeviceGroupStatusBar';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 interface GroupMembersListProps {
   groupId: string;
@@ -231,10 +232,7 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
       </div>
 
       {isLoading && devices.length === 0 && !error ? (
-        <div className="flex items-center justify-center p-10">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="ml-2 text-muted-foreground">Loading devices...</p>
-        </div>
+        <TableSkeleton label="Loading devices…" pagination={false} />
       ) : error ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />

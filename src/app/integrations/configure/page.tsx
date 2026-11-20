@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, ArrowLeft, BookText, Eye } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookText, Eye } from 'lucide-react';
 import Image from '@/components/shared/StaticImage';
 import { AwsIotIntegrationTab } from '@/components/ra/AwsIotIntegrationTab';
 import { fetchRaById, type ApiRaItem, createOrUpdateRa } from '@/lib/dms-api';
@@ -14,7 +14,10 @@ import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import AwsIcon from '../../aws.svg';
 import AwsIconWhite from '../../aws-white.svg';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Platform Integrations', href: '/integrations' }, { label: 'Configure' }];
 
 export default function ConfigureIntegrationPage() {
     const router = useRouter();
@@ -73,10 +76,9 @@ export default function ConfigureIntegrationPage() {
     
     if (isLoading) {
         return (
-            <div className="flex flex-1 flex-col items-center justify-center p-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading Configuration...</p>
-            </div>
+            <BreadcrumbPage items={BREADCRUMB_ITEMS} className="space-y-5 pb-8">
+                <FormPageSkeleton label="Loading configuration…" />
+            </BreadcrumbPage>
         );
     }
     
@@ -131,7 +133,7 @@ export default function ConfigureIntegrationPage() {
     }
 
     return (
-        <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Platform Integrations',href:'/integrations'},{label:'Configure'}]} className="space-y-5 pb-8">
+        <BreadcrumbPage items={BREADCRUMB_ITEMS} className="space-y-5 pb-8">
         <div className="mx-auto mb-8 w-[80%]">
             <div className="mb-6 flex justify-end">
                 <div className="flex items-center gap-2">

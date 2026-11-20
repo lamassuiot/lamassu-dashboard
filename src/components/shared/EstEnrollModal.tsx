@@ -39,6 +39,7 @@ import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import { CaSelectorModal } from './CaSelectorModal';
 import { FormFieldError, FormValidationSummary } from './FormValidationSummary';
 import { generateUUID } from '@/lib-crypto/uuid';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {
@@ -755,9 +756,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                         footerEnd={navigationButtons}
                     >
                         {!ra ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />Loading Registration Authority…
-                            </div>
+                            <FormPageSkeleton label="Loading Registration Authority…" header={false} sections={1} />
                         ) : stepContent}
                     </DockedWizardLayout>
                 </BottomDockPanel>

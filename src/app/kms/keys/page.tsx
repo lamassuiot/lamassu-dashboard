@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KMSFilterBar, type KmsDateFilterValue, type KmsPrivateKeyFilterValue, DEFAULT_KMS_PRIVATE_KEY_FILTER, DEFAULT_KMS_DATE_OPERATOR } from '@/components/shared/filters/KMSFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { format } from 'date-fns';
@@ -44,6 +45,8 @@ interface KmsKey {
 type KmsSortColumn = 'creation_ts';
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { column: KmsSortColumn; direction: SortDirection }
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'KMS' }, { label: 'Keys' }];
 
 export default function KmsKeysPage() {
   const router = useRouter();
@@ -352,16 +355,15 @@ export default function KmsKeysPage() {
 
   if (isLoading && keys.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading KMS Keys...</p>
-      </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading KMS keys…" filters={1} />
+      </BreadcrumbPage>
     );
   }
 
 
   return (
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label: 'Home', href: '/'}, {label: 'KMS'}, {label: 'Keys'} ]}>
+    <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">

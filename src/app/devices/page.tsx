@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
+import { Eye, PlusCircle, MoreVertical, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,6 +26,7 @@ import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -402,10 +403,7 @@ export default function DevicesPage() {
 
       <div className="space-y-6">
         {isLoadingApi && !sortedDevices.length && (
-          <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-lg text-muted-foreground">Loading devices...</p>
-          </div>
+          <TableSkeleton label="Loading devices…" pagination={false} />
         )}
 
         {apiError && (

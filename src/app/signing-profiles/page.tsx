@@ -27,6 +27,7 @@ import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewMod
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { ColumnSelector } from '@/components/ui/column-selector';
 
 export type SortableProfileColumn = 'name';
@@ -46,6 +47,8 @@ const VIEW_MODE_OPTIONS: ViewModeOption<ProfileViewMode>[] = [
   { value: 'grid', icon: LayoutGrid, label: 'Cards' },
   { value: 'list', icon: List, label: 'List' },
 ];
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Issuance Profiles' }];
 
 export default function SigningProfilesPage() {
   const router = useRouter();
@@ -243,16 +246,15 @@ export default function SigningProfilesPage() {
 
   if (!isClientMounted || (isLoading && profiles.length === 0)) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading Issuance Profiles...</p>
-      </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading issuance profiles…" filters={1} />
+      </BreadcrumbPage>
     );
   }
 
   return (
     <>
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Issuance Profiles'} ]}>
+    <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">

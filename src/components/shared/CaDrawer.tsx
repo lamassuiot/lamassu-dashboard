@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 interface CaDrawerProps {
   /** DOM id of the drawer panel, for `aria-controls` on the element that opens it. */
@@ -45,10 +46,7 @@ export function CaDrawer({
   let body: React.ReactNode;
   if (isLoading) {
     body = (
-      <div className="flex flex-1 items-center justify-center gap-2 py-16 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <p>{loadingText}</p>
-      </div>
+      <TableSkeleton label={loadingText} columns={3} pagination={false} />
     );
   } else if (error) {
     body = (

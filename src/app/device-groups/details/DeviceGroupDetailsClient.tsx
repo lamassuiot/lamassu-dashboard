@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { sileo } from '@/lib/toast';
-import { AlertCircle, Edit, Trash2, FolderTree, FolderPlus, Loader2, Monitor, RefreshCw, Info, Layers, ListFilter } from 'lucide-react';
+import { AlertCircle, Edit, Trash2, FolderTree, FolderPlus, Monitor, RefreshCw, Info, Layers, ListFilter } from 'lucide-react';
 import { fetchAllDeviceGroups, getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
 import { getAncestorChain, getDescendantIds } from '@/lib/device-groups-utils';
 import type { DeviceGroup } from '@/types/device-group';
@@ -23,6 +23,7 @@ import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Badge } from '@/components/ui/badge';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const DEVICE_GROUP_CRUMBS = [
   { label: 'Home', href: '/' },
@@ -128,10 +129,7 @@ export default function DeviceGroupDetailsClient() {
   if (isLoading && !group) {
     return (
       <BreadcrumbPage items={DEVICE_GROUP_CRUMBS}>
-        <div className="w-full flex flex-col items-center justify-center py-20 space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading device group details...</p>
-        </div>
+        <DetailPageSkeleton label="Loading device group details…" tabs={3} />
       </BreadcrumbPage>
     );
   }

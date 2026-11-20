@@ -35,6 +35,7 @@ import { listPrincipals, deletePrincipal } from '@/lib/authz-api';
 import type { Principal, PrincipalFilters, PrincipalType, PrincipalSortField } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import {
   PrincipalFilterBar,
@@ -59,6 +60,8 @@ const DATE_COLUMNS = new Set<PrincipalSortField>(['created_at', 'updated_at']);
 
 const getPrincipalListErrorMessage = (err: unknown) =>
   err instanceof Error ? err.message : 'Failed to load principals';
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Authorization' }, { label: 'Principals' }];
 
 export default function PrincipalsPage() {
   const router = useRouter();
@@ -165,17 +168,16 @@ export default function PrincipalsPage() {
 
   if (isLoading && principals.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading Principals...</p>
-      </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading principals…" filters={1} />
+      </BreadcrumbPage>
     );
   }
 
   return (
     <BreadcrumbPage
       className="space-y-6 pb-8"
-      items={[{ label: 'Home', href: '/' }, { label: 'Authorization' }, { label: 'Principals' }]}
+      items={BREADCRUMB_ITEMS}
     >
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">

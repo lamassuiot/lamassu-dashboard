@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useRouter, useSearchParams } from '@/lib/router';
 import type { CA, ApiSigningProfile } from '@/lib/ca-data';
 import { createCa, fetchAndProcessCAs, fetchSigningProfiles, findCaById } from '@/lib/ca-data';
@@ -29,6 +29,7 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { isValidPositiveDuration } from '@/lib/duration';
 import { FormSubmitFooter } from '@/components/shared/FormSubmitFooter';
 import { CrossSignPairSelector } from './CrossSignPairSelector';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 function Section({ title, description, children }: Readonly<{ title: string; description: string; children: React.ReactNode }>) {
   return (
@@ -202,12 +203,7 @@ export function CrossSignForm() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center p-8">
-        <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />
-        <p className="text-lg text-muted-foreground">Loading Certification Authorities...</p>
-      </div>
-    );
+    return <FormPageSkeleton label="Loading Certification Authorities…" header={false} />;
   }
 
   if (loadError) {

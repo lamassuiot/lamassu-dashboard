@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AlertTriangle, BellRing, Loader2, RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle, BellRing, RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 
 function describeChannel(sub: ApiSubscription): string {
@@ -371,10 +372,7 @@ export default function AlertsPage() {
 
       <div className="min-w-0">
           {isLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2 text-muted-foreground">Loading events...</p>
-            </div>
+            <TableSkeleton label="Loading events…" icon={false} />
           ) : error ? (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />

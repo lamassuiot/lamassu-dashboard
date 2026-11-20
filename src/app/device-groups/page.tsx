@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { sileo } from '@/lib/toast';
-import { Layers, Plus, Search, AlertCircle, RefreshCw, Loader2, X } from 'lucide-react';
+import { Layers, Plus, Search, AlertCircle, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchAllDeviceGroups, deleteDeviceGroup } from '@/lib/device-groups-api';
 import { getDescendantIds } from '@/lib/device-groups-utils';
@@ -16,6 +16,7 @@ import { DeleteDeviceGroupDialog } from '@/components/device-groups/DeleteDevice
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ExpandCollapseAllButton } from '@/components/shared/TreeTable';
 import { useTreeCollapse } from '@/hooks/useTreeCollapse';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 export default function DeviceGroupsPage() {
   const [groups, setGroups] = useState<DeviceGroup[]>([]);
@@ -113,10 +114,7 @@ export default function DeviceGroupsPage() {
       )}
 
       {isLoading && groups.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg text-muted-foreground">Loading device groups...</p>
-        </div>
+        <TableSkeleton label="Loading device groups…" pagination={false} />
       )}
 
       {!error && groups.length > 0 && (

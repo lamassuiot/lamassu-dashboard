@@ -18,6 +18,7 @@ import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
 import { cn } from '@/lib/utils';
 import { filterCaList, hasActiveCaFilters } from '@/lib/ca-utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
 
 
@@ -84,6 +85,8 @@ const TYPE_OPTIONS: { value: CaTypeFilter, label: string; icon: React.ElementTyp
 ];
 
 
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Certification Authorities' }];
+
 export default function CertificateAuthoritiesPage() {
   const router = useRouter(); 
   const [cas, setCas] = useState<CA[]>([]);
@@ -146,19 +149,15 @@ export default function CertificateAuthoritiesPage() {
   };
 
   if ((isLoadingCas && cas.length === 0) || (isLoadingCryptoEngines && needsEngines)) {
-    let loadingText = "Loading Certification Authorities...";
-    if (isLoadingCryptoEngines && needsEngines) loadingText = "Loading Crypto Engines...";
-    
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">{loadingText}</p>
-      </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading certification authorities…" filters={3} />
+      </BreadcrumbPage>
     );
   }
 
   return (
-    <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Certification Authorities'}]} className="space-y-6 w-full pb-8">
+    <BreadcrumbPage items={BREADCRUMB_ITEMS} className="space-y-6 w-full pb-8">
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">

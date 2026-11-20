@@ -44,6 +44,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import dynamic from '@/components/shared/dynamic';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -109,10 +110,7 @@ function PolicyDetailsContent() {
   if (loading) {
     return (
       <BreadcrumbPage items={POLICY_CRUMBS}>
-        <div className="flex flex-col items-center justify-center flex-1 p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg text-muted-foreground">Loading Policy...</p>
-        </div>
+        <DetailPageSkeleton label="Loading policy…" tabs={2} />
       </BreadcrumbPage>
     );
   }

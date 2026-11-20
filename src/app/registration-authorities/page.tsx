@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { useRouter } from '@/lib/router';
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -57,6 +58,8 @@ interface SortConfig {
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
 type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Registration Authorities' }];
 
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
@@ -306,10 +309,9 @@ export default function RegistrationAuthoritiesPage() {
 
   if (!isClientMounted || (isLoading && ras.length === 0)) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading Registration Authorities...</p>
-      </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading Registration Authorities…" />
+      </BreadcrumbPage>
     );
   }
 
@@ -318,7 +320,7 @@ export default function RegistrationAuthoritiesPage() {
 
   return (
     <>
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Registration Authorities'} ]}>
+    <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-md bg-primary/10 p-1.5">

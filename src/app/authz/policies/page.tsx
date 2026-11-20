@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
 import type { Policy, PolicyFilters, PolicySortField } from '@/types/authz';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import {
@@ -52,6 +53,8 @@ const DATE_COLUMNS = new Set<PolicySortField>(['created_at', 'updated_at']);
 
 const getPolicyListErrorMessage = (err: unknown) =>
   err instanceof Error ? err.message : 'Failed to load policies';
+
+const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Authorization' }, { label: 'Policies' }];
 
 export default function PoliciesPage() {
   const router = useRouter();
@@ -152,17 +155,16 @@ export default function PoliciesPage() {
 
   if (isLoading && policies.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading Policies...</p>
-      </div>
+      <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
+        <ListPageSkeleton label="Loading policies…" filters={1} />
+      </BreadcrumbPage>
     );
   }
 
   return (
     <BreadcrumbPage
       className="space-y-6 pb-8"
-      items={[{ label: 'Home', href: '/' }, { label: 'Authorization' }, { label: 'Policies' }]}
+      items={BREADCRUMB_ITEMS}
     >
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
         <div className="flex items-start gap-3">

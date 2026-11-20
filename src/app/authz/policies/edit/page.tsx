@@ -4,12 +4,13 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { getPolicy, updatePolicy } from '@/lib/authz-api';
 import type { Rule, HTTPRule } from '@/types/authz';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { PolicyForm } from '@/components/authz/PolicyForm';
+import { FormPageSkeleton } from '@/components/shared/PageSkeletons';
 
 function EditPolicyContent() {
   const router = useRouter();
@@ -81,11 +82,21 @@ function EditPolicyContent() {
     }
   };
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Authorization' },
+    { label: 'Policies', href: '/authz/policies' },
+    ...(policy_id
+      ? [{ label: formData.name || 'Details', href: `/authz/policies/details?policy_id=${policy_id}` }]
+      : []),
+    { label: 'Edit' },
+  ];
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+        <FormPageSkeleton label="Loading policy…" />
+      </BreadcrumbPage>
     );
   }
 
@@ -103,16 +114,6 @@ function EditPolicyContent() {
       </div>
     );
   }
-
-  const breadcrumbItems = [
-    { label: 'Home', href: '/' },
-    { label: 'Authorization' },
-    { label: 'Policies', href: '/authz/policies' },
-    ...(policy_id
-      ? [{ label: formData.name || 'Details', href: `/authz/policies/details?policy_id=${policy_id}` }]
-      : []),
-    { label: 'Edit' },
-  ];
 
   return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
@@ -134,11 +135,7 @@ function EditPolicyContent() {
 export default function EditPolicyPage() {
   return (
     <Suspense
-      fallback={
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      }
+      fallback={<FormPageSkeleton label="Loading policy…" />}
     >
       <EditPolicyContent />
     </Suspense>

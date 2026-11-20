@@ -646,7 +646,8 @@ const MainLayoutContent = ({ children, isWizardMode, globalCapabilities, matched
 
             <div data-app-content-column className="flex min-w-0 flex-1 flex-col overflow-hidden">
               <SidebarInset data-app-scroll-root className="min-h-0 flex-1 overflow-y-auto flex flex-col">
-                <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
+                {/* flex-col so a page-level loader with flex-1 fills the content area and centres. */}
+                <div className="flex flex-1 flex-col p-4 md:p-6 pb-8 md:pb-12">
                   {children}
                 </div>
                 <CustomFooter />

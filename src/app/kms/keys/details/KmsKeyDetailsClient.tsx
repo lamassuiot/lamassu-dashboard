@@ -44,6 +44,7 @@ import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
 interface KmsKeyDetailed {
   id: string;
@@ -679,10 +680,7 @@ export default function KmsKeyDetailsClient() {
   if (isLoading) {
     return (
       <BreadcrumbPage items={KMS_KEY_CRUMBS}>
-        <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
-          <Loader2 className="h-12 w-12 text-primary animate-spin" />
-          <p className="text-muted-foreground">Loading KMS Key details...</p>
-        </div>
+        <DetailPageSkeleton label="Loading KMS key details…" />
       </BreadcrumbPage>
     );
   }

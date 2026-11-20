@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from '@/lib/router';
-import { RefreshCw, AlertTriangle, Eye, Loader2 } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -21,6 +21,7 @@ import {
     type JobFilterValues,
     defaultJobFilterValues,
 } from '@/components/shared/filters/JobFilterBar';
+import { TableSkeleton } from '@/components/shared/PageSkeletons';
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
@@ -161,7 +162,7 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
             )}
 
             {/* Table */}
-            {(jobs.length > 0 || isLoading) && (
+            {jobs.length > 0 && (
                 <div className={cn('space-y-4', isLoading && 'opacity-50 pointer-events-none')}>
                     <div className="overflow-x-auto">
                         <Table>
@@ -247,10 +248,7 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
             )}
 
             {isLoading && jobs.length === 0 && (
-                <div className="flex flex-col items-center justify-center p-8">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg text-muted-foreground">Loading Jobs...</p>
-                </div>
+                <TableSkeleton label="Loading jobs…" icon={false} columns={6} />
             )}
         </div>
     );
