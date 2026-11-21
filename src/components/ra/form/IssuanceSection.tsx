@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { IssuanceProfileMode } from '@/lib/ra-form';
-import { ChoiceList, RaFieldGroup, RaFormSection } from './RaFormSection';
+import { ChoiceList, RaFieldGroup, RaFormSection, SettingSwitch, SettingSwitchList } from './RaFormSection';
 import { fieldError, listedIssues, type RaSectionProps } from './types';
 
 const profileModeOptions = [
@@ -131,6 +131,18 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
             </div>
           </Form>
         )}
+      </RaFieldGroup>
+
+      <RaFieldGroup title="Platform access">
+        <SettingSwitchList>
+          <SettingSwitch
+            id="createAuthzPrincipal"
+            label="Create authz principal"
+            description="Let every certificate signed by the Enrollment CA, including ones issued outside this RA, authenticate with the device policies set in the DMS Manager. The principal follows the RA: it changes with the Enrollment CA and is deleted with the RA or when this is turned off."
+            checked={values.createAuthzPrincipal}
+            onCheckedChange={createAuthzPrincipal => update({ createAuthzPrincipal })}
+          />
+        </SettingSwitchList>
       </RaFieldGroup>
 
       <CaSelectorModal

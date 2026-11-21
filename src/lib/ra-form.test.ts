@@ -129,6 +129,11 @@ describe('buildRaPayload', () => {
   it('omits the key spec when server key generation is disabled', () => {
     expect(buildRaPayload(validValues()).settings.server_keygen_settings).toEqual({ enabled: false });
   });
+
+  it('sends the authz principal switch, off by default', () => {
+    expect(buildRaPayload(validValues()).settings.authz_principal_settings).toEqual({ enabled: false });
+    expect(buildRaPayload(validValues({ createAuthzPrincipal: true })).settings.authz_principal_settings).toEqual({ enabled: true });
+  });
 });
 
 describe('raFormValuesFromApi', () => {
@@ -139,6 +144,7 @@ describe('raFormValuesFromApi', () => {
       serverKeygen: { enabled: true, type: 'ECDSA', spec: 'P-521' },
       managedCaIds: ['ca-2'],
       reenrollmentAuth: withValidationCas(createDefaultRaFormValues(0).reenrollmentAuth, ['old-ca']),
+      createAuthzPrincipal: true,
     }));
     const ra: ApiRaItem = { ...original, creation_ts: '2026-01-01T00:00:00Z' };
 
@@ -146,5 +152,12 @@ describe('raFormValuesFromApi', () => {
 
     expect(inlineProfile).toBeNull();
     expect(buildRaPayload(values)).toEqual(original);
+  });
+
+  it('reads an RA stored before the authz principal switch as off', () => {
+    const { authz_principal_settings: _, ...settings } = buildRaPayload(validValues({ createAuthzPrincipal: true })).settings;
+    const ra: ApiRaItem = { ...buildRaPayload(validValues()), settings, creation_ts: '2026-01-01T00:00:00Z' };
+
+    expect(raFormValuesFromApi(ra).values.createAuthzPrincipal).toBe(false);
   });
 });
