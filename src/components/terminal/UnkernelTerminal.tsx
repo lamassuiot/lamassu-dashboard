@@ -5,7 +5,8 @@ import { mountUnkernel, type UnkernelSession } from './unkernel/mount';
 import './unkernel/unkernel.css';
 
 interface UnkernelTerminalProps {
-  wispUrl?: string;
+  /** A function is called at every shell start (Reboot too): see UnkernelOptions.wisp. Keep it stable. */
+  wispUrl?: string | (() => string | undefined);
   /** Script to prepare in the guest (Send to terminal); `onScriptReady` tells the parent it was taken. */
   script: string | null;
   onScriptReady: (script: string) => void;

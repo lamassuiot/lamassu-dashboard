@@ -45,8 +45,11 @@ export interface UnkernelSession {
 }
 
 export interface UnkernelOptions {
-  /** The operator's Wisp server(s) (LAMASSU_TERMINAL_WISP_URL): the default `wisp` setting. */
-  wisp?: string;
+  /**
+   * The operator's Wisp server(s) (LAMASSU_TERMINAL_WISP_URL): the default `wisp` setting. A function
+   * is called at every start, Reboot included, so a URL that carries a short-lived token is fresh.
+   */
+  wisp?: string | (() => string | undefined);
 }
 
 /** Why sendScript() failed (the guest could not prepare the file, or the system cannot run). */
@@ -183,7 +186,7 @@ const stopsInFlight = new Set<Promise<void>>();
  */
 export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {}): Promise<UnkernelSession> {
   while (stopsInFlight.size) await Promise.allSettled(stopsInFlight);
-  const defaults = { wisp: opts.wisp };
+  const defaults = () => ({ wisp: typeof opts.wisp === 'function' ? opts.wisp() : opts.wisp });
   let closed = false;
   let restarting: Promise<void> | null = null;
   let stopping: Promise<void> | null = null;
@@ -196,14 +199,14 @@ export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {
       await sleep(0); // out of the click (Reboot, Resume) that asked, before its UI goes away
       await current.stop();
       if (closed) return;
-      current = mountInstance(root, { saved: settings ?? loadSettings(), defaults }, reload);
+      current = mountInstance(root, { saved: settings ?? loadSettings(), defaults: defaults() }, reload);
     })().finally(() => {
       restarting = null;
       for (const fn of [...swapped]) fn();
     });
   };
 
-  let current = mountInstance(root, { saved: loadSettings(), defaults }, reload);
+  let current = mountInstance(root, { saved: loadSettings(), defaults: defaults() }, reload);
 
   /** This session's KW once the system runs; rejects if the boot fails, or with an AbortError. */
   const whenRunning = (signal: AbortSignal) =>

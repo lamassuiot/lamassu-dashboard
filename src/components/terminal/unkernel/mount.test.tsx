@@ -470,6 +470,22 @@ describe("mountUnkernel", () => {
     }
   });
 
+  it("asks for the operator's Wisp default again on every start, so a token in it is fresh after Reboot", async () => {
+    let token = 1;
+    const wisp = vi.fn(() => `wss://operator.example/?access_token=t${token}`);
+    const s = await mountUnkernel(newRoot(), { wisp });
+    sessions.push(s);
+    await vi.waitFor(() => expect(createKernel).toHaveBeenCalledTimes(1));
+    expect(KW.config.wisp).toEqual(["wss://operator.example/?access_token=t1"]);
+    await bootToRunning();
+    token = 2;
+    KW.ui!.reboot();
+    await vi.waitFor(() => expect(createKernel).toHaveBeenCalledTimes(2));
+    expect(KW.config.wisp).toEqual(["wss://operator.example/?access_token=t2"]);
+    expect(KW.config.settings).toEqual({}); // the default, and its token, are never saved
+    expect(localStorage.getItem("kw.settings")).toBeNull();
+  });
+
   it("lets go of the kernel once stopped (KW keeps no handle), and a reopen still boots", async () => {
     const s = await mount();
     await vi.waitFor(() => expect(createKernel).toHaveBeenCalledTimes(1));

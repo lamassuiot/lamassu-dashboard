@@ -4,8 +4,9 @@ import { BottomDockPanel } from '@/components/shared/BottomDockPanel';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useConfig } from '@/contexts/ConfigContext';
+import { getStoredAccessToken, isAuthEnabled } from '@/lib/auth-session';
 import { TerminalContext } from './TerminalContext';
-import { resolveWispUrl } from './wisp-url';
+import { resolveWispUrl, withAccessToken } from './wisp-url';
 
 const UnkernelTerminal = lazy(() => import('./UnkernelTerminal'));
 
@@ -17,6 +18,13 @@ export function DashboardTerminal({
   const [expandSignal, setExpandSignal] = useState(0);
   const [script, setScript] = useState<string | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+
+  // Read when the shell starts, and again on every Reboot: the stored token is the renewed one.
+  const configuredWisp = config?.LAMASSU_TERMINAL_WISP_URL;
+  const wispUrl = useCallback(
+    () => withAccessToken(resolveWispUrl(configuredWisp), isAuthEnabled() ? getStoredAccessToken() : null),
+    [configuredWisp],
+  );
 
   /** Opens the terminal and has it prepare `script` (it only writes the file; the user runs it). */
   const sendToTerminal = useCallback((nextScript: string) => {
@@ -80,7 +88,7 @@ export function DashboardTerminal({
             </div>
           }>
             <UnkernelTerminal
-              wispUrl={resolveWispUrl(config?.LAMASSU_TERMINAL_WISP_URL)}
+              wispUrl={wispUrl}
               script={script}
               onScriptReady={handleScriptReady}
             />

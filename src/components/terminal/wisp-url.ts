@@ -11,3 +11,21 @@ export function resolveWispUrl(value: string | undefined, base: Pick<Location, '
   if (!url.startsWith('/') || url.startsWith('//')) return url;
   return `${base.protocol === 'https:' ? 'wss:' : 'ws:'}//${base.host}${url}`;
 }
+
+/**
+ * Adds the OIDC access token to a Wisp URL as `access_token`, which is how the dashboard proves who
+ * opens the terminal's network: a browser cannot set headers on a WebSocket, so the gateway's external
+ * authorization reads it from the query. Only a URL on the dashboard's own origin gets it; a Wisp
+ * server somewhere else must never see the user's token. With no token the URL is returned as is.
+ */
+export function withAccessToken(url: string | undefined, token: string | null | undefined, base: Pick<Location, 'host'> = window.location): string | undefined {
+  if (!url || !token) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.host !== base.host) return url;
+    parsed.searchParams.set('access_token', token);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}

@@ -6,9 +6,15 @@ import { useSendToTerminal } from './TerminalContext';
 
 const state = vi.hoisted(() => ({
   config: null as Record<string, unknown> | null,
-  props: [] as { wispUrl?: string; script: string | null; onScriptReady: (script: string) => void }[],
+  props: [] as { wispUrl?: () => string | undefined; script: string | null; onScriptReady: (script: string) => void }[],
   mounted: 0,
   unmounted: 0,
+}));
+
+const auth = vi.hoisted(() => ({ enabled: true, token: null as string | null }));
+vi.mock('@/lib/auth-session', () => ({
+  isAuthEnabled: () => auth.enabled,
+  getStoredAccessToken: () => auth.token,
 }));
 
 vi.mock('@/contexts/ConfigContext', () => ({
@@ -29,7 +35,7 @@ vi.mock('@/components/shared/BottomDockPanel', async () => {
 
 vi.mock('./UnkernelTerminal', async () => {
   const { useEffect } = await import('react');
-  function UnkernelTerminalStub(props: { wispUrl?: string; script: string | null; onScriptReady: (script: string) => void }) {
+  function UnkernelTerminalStub(props: { wispUrl?: () => string | undefined; script: string | null; onScriptReady: (script: string) => void }) {
     state.props.push(props);
     useEffect(() => {
       state.mounted += 1;
@@ -69,6 +75,8 @@ describe('DashboardTerminal', () => {
     state.props = [];
     state.mounted = 0;
     state.unmounted = 0;
+    auth.enabled = true;
+    auth.token = null;
     send = null;
   });
   afterEach(() => vi.clearAllMocks());
@@ -89,8 +97,48 @@ describe('DashboardTerminal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Terminal' }));
 
     expect(await screen.findByTestId('unkernel')).toBeInTheDocument();
-    expect(lastProps().wispUrl).toBe('wss://wisp.example/');
+    expect(lastProps().wispUrl?.()).toBe('wss://wisp.example/');
     expect(lastProps().script).toBeNull();
+  });
+
+  it('adds the stored access token to a Wisp URL on the dashboard origin, read at each start', async () => {
+    state.config = { EXPERIMENTAL_WBTERM: true, LAMASSU_TERMINAL_WISP_URL: '/wisp/' };
+    auth.enabled = true;
+    auth.token = 'first';
+    renderTerminal();
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    await screen.findByTestId('unkernel');
+
+    const wisp = lastProps().wispUrl!;
+    const origin = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+    expect(wisp()).toBe(`${origin}/wisp/?access_token=first`);
+    auth.token = 'renewed';
+    expect(wisp()).toBe(`${origin}/wisp/?access_token=renewed`);
+  });
+
+  it('sends no token when authentication is disabled or there is none', async () => {
+    state.config = { EXPERIMENTAL_WBTERM: true, LAMASSU_TERMINAL_WISP_URL: '/wisp/' };
+    renderTerminal();
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    await screen.findByTestId('unkernel');
+    const origin = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+
+    auth.enabled = false;
+    auth.token = 'ignored';
+    expect(lastProps().wispUrl!()).toBe(`${origin}/wisp/`);
+    auth.enabled = true;
+    auth.token = null;
+    expect(lastProps().wispUrl!()).toBe(`${origin}/wisp/`);
+  });
+
+  it('never sends the token to a Wisp server on another origin', async () => {
+    auth.enabled = true;
+    auth.token = 'secret';
+    renderTerminal();
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    await screen.findByTestId('unkernel');
+
+    expect(lastProps().wispUrl!()).toBe('wss://wisp.example/');
   });
 
   it('opens the dock and hands the script over when sendToTerminal is called', async () => {
