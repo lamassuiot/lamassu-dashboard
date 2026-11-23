@@ -44,3 +44,6 @@ firebase-debug.log
 firestore-debug.log
 src/lib/version.ts
 version.json
+
+# Browser terminal distro image (downloaded by the Docker build)
+public/terminal/*.erofs

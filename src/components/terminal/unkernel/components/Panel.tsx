@@ -21,6 +21,10 @@ export function Panel() {
 	const tab = useStore((s) => s.tab);
 	const errors = useStore((s) => s.errors.length);
 	const options = useStore((s) => s.options);
+	// The confirm dialog shields the rest of the root (Confirm, Overlays.tsx), but it skips what is
+	// already inert: a closed panel. If the panel opens while a question is open (fatal() opens the
+	// Errors tab), React would clear that attribute, so the question keeps the panel inert here.
+	const asking = useStore((s) => !!s.ask);
 	const body = useRef<HTMLDivElement>(null);
 
 	const panel = useRef<HTMLElement>(null);
@@ -39,7 +43,7 @@ export function Panel() {
 	return (
 		<>
 			<div id="scrim" aria-hidden="true" className={open ? "open" : ""} onClick={() => ui.closePanel()} />
-			<aside id="panel" ref={panel} className={`${open ? "open" : ""} font-mono text-[12.5px] outline-none`} role="dialog" aria-modal="true" aria-labelledby="panel-title" aria-hidden={!open} inert={!open} tabIndex={-1}>
+			<aside id="panel" ref={panel} className={`${open ? "open" : ""} font-mono text-[12.5px] outline-none`} role="dialog" aria-modal="true" aria-labelledby="panel-title" aria-hidden={!open} inert={!open || asking} tabIndex={-1}>
 				{/* The title and the close button sit in the top border. */}
 				<h2 id="panel-title" className="absolute -top-2 left-3 bg-bg px-1.5 text-[12px] leading-4 text-fg">
 					<span className="text-faint">┤</span> unkernel<span className="text-faint">:</span>{TITLE[tab]} <span className="text-faint">├</span>
