@@ -244,15 +244,19 @@ export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {
   const deliver = async (script: string, signal: AbortSignal): Promise<{ command: string }> => {
     const kw = await whenRunning(signal);
     let vm: KernelHandle;
-    let result: { exitCode: number | null; stdout: string };
+    let result: { exitCode: number | null; stdout: string; stderr: string };
     try {
       vm = await kw.ready!();
       result = await vm.exec('/bin/sh', ['-ec', TRANSFER_SH], { input: script, signal });
-    } catch {
+    } catch (error) {
       if (signal.aborted) throw abortError('The script was not sent.');
+      kw.report('est', PREPARE_FAILED, error instanceof Error ? error.message : String(error), false);
       throw new Error(PREPARE_FAILED);
     }
-    if (result.exitCode !== 0 || !ENROLL_DIR.test(result.stdout)) throw new Error(PREPARE_FAILED);
+    if (result.exitCode !== 0 || !ENROLL_DIR.test(result.stdout)) {
+      kw.report('est', PREPARE_FAILED, result.stderr || `Unexpected exit code or output (${result.exitCode})`, false);
+      throw new Error(PREPARE_FAILED);
+    }
     return { command: `cd ${result.stdout} && sh ./enroll.sh` };
   };
 

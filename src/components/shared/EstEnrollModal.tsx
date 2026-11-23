@@ -370,6 +370,15 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     });
     const serverKeygenParseCommand = serverKeygenParseCommands(`${outputName}.multipart`, `${outputName}.key`, `${outputName}.crt`);
 
+    const enrollmentScript = [
+        '#!/bin/sh', 'set -e',
+        bootstrapCertificate && bootstrapPrivateKey ? bootstrapFilesCommand : '',
+        validateServerCert ? serverCertCommand : '',
+        keygenMethod === 'device' ? deviceCsrCommand : placeholderCsrCommand,
+        keygenMethod === 'device' ? enrollRequestCommand : serverKeygenRequestCommand,
+        keygenMethod === 'device' ? enrollDecodeCommand : serverKeygenParseCommand,
+    ].filter(Boolean).join('\n\n');
+
     const stepContent = (
                     <div className="space-y-4">
                         {step === 1 && (
@@ -736,6 +745,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 </Button>
             ) : (
                 <>
+                    {sendToTerminal && <Button type="button" variant="secondary" onClick={() => sendToTerminal(enrollmentScript)}>Send to terminal</Button>}
                     <Button onClick={() => onOpenChange(false)}>Finish</Button>
                 </>
             )}

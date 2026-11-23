@@ -95,7 +95,8 @@ export function createUi(cfg: Config) {
 	const KW = currentKW;
 	const now = () => Date.now() - KW.t0;
 
-	const fontPref = store("font") || "auto";
+	const storedFont = store("font") || "auto";
+	const fontPref = storedFont === "auto" || (Number.isFinite(Number(storedFont)) && Number(storedFont) >= 9 && Number(storedFont) <= 24) ? storedFont : "auto";
 	cfg.fontSize = fontPref === "auto" ? autoFont() : Number(fontPref);
 	const options: Options = {
 		mem: cfg.memParam || "auto",
@@ -341,7 +342,7 @@ export function createUi(cfg: Config) {
 			ui.setCtrl(false);
 			const c = d.charCodeAt(0);
 			if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) return String.fromCharCode(c & 31);
-			const map: Record<string, number> = { "@": 0, " ": 0, "2": 0, "[": 27, "3": 27, "\\": 28, "4": 28, "]": 29, "5": 29, "^": 30, "6": 30, "~": 30, "_": 31, "-": 31, "/": 31, "7": 31, "?": 127, "8": 127 };
+			const map: Record<string, number> = { "@": 0, " ": 0, "2": 0, "[": 27, "3": 27, "\\": 28, "|": 28, "4": 28, "]": 29, "5": 29, "^": 30, "6": 30, "~": 30, "_": 31, "-": 31, "/": 31, "7": 31, "?": 127, "8": 127 };
 			return d in map ? String.fromCharCode(map[d]!) : d;
 		},
 		setCtrl(on: boolean) { $.set({ ctrl: on }); },
@@ -369,6 +370,7 @@ export function createUi(cfg: Config) {
 
 		/** The Font size option ("auto" or px), or a pinch (px, whole, 9 to 24). */
 		setFont(pref: string) {
+			if (pref !== "auto" && !Number.isFinite(Number(pref))) pref = "auto";
 			const size = pref === "auto" ? autoFont() : Math.min(24, Math.max(9, Math.round(Number(pref))));
 			if (pref !== "auto") pref = String(size);
 			store("font", pref);

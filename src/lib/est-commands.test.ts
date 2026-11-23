@@ -73,12 +73,17 @@ describe('est-commands', () => {
     expect(serverChainCommand('https://pki.example.com/est', 'root-ca.pem')).toContain('-connect pki.example.com:443');
   });
 
+  it('quotes URLs containing shell history and substitution characters', () => {
+    const url = 'https://example.test/ra!1/$(touch pwned)';
+    expect(estRequestCommand({ url, cert: 'b.crt', key: 'b.key', body: 'x', output: 'y' })).toContain("'" + url + "'");
+  });
+
   it('verifies TLS with a CA file or explicitly disables verification', () => {
     const base = { url: 'https://h/est/ra/simpleenroll', cert: 'b.crt', key: 'b.key', body: 'x.csr', output: 'x.p7' };
     const verified = estRequestCommand({ ...base, caFile: 'root-ca.pem' });
     expect(verified.split('\n')[0]).toBe('curl --fail --silent --show-error \\');
     expect(verified).toContain('--cacert root-ca.pem');
-    expect(verified.endsWith('"https://h/est/ra/simpleenroll"')).toBe(true);
+    expect(verified.endsWith('https://h/est/ra/simpleenroll')).toBe(true);
     expect(estRequestCommand(base)).toContain('--insecure');
   });
 

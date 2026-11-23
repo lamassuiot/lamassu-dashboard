@@ -123,7 +123,7 @@ export function estRequestCommand({ url, cert, key, caFile, body, output }: EstR
     '--header "Content-Type: application/pkcs10"',
     `--data-binary ${shellArgument("@" + body)}`,
     `--output ${fileArgument(output)}`,
-    `"${url.replace(/["\\$\x60]/g, '\\$&')}"`,
+    shellArgument(url),
   );
 }
 

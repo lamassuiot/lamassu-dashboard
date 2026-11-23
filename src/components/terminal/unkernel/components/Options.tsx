@@ -104,12 +104,12 @@ function Slider({ id, name, label, value, stops, disabled, note, noteId, warnNot
 			<input id={id} name={name} type="range" min={0} max={last} step={1} value={i} data-values={stops.map((s) => s.value).join(",")}
 				disabled={disabled} aria-valuetext={cur} aria-describedby={note ? noteId : undefined} onChange={onField}
 				className="slider w-full disabled:cursor-not-allowed disabled:opacity-50" style={{ "--fill": at(i), ...(warn ? { "--tone": "var(--color-err)" } : {}) } as never} />
-			<div className={`relative font-mono text-[11px] leading-[14px] select-none ${stops.some((s) => s.note) ? "h-7" : "h-3.5"} ${disabled ? "opacity-50" : ""}`} aria-hidden="true">
+			<div className={`relative font-mono text-[11px] leading-[14px] select-none ${stops.some((s) => s.note) ? "h-7" : "h-3.5"} ${disabled ? "opacity-50" : ""}`}>
 				{stops.map((s, k) => (
-					<span key={s.value} onClick={disabled ? undefined : () => pick(name, s.value)} style={{ left: at(k) }}
+					<button type="button" key={s.value} disabled={disabled} aria-label={`${label}: ${s.label}`} onClick={() => pick(name, s.value)} style={{ left: at(k) }}
 						className={`absolute top-0 flex -translate-x-1/2 flex-col items-center tabular-nums ${disabled ? "" : "cursor-pointer hover:text-fg"} ${k === i ? (warn ? "text-err" : "text-fg") : ""}`}>
 						{s.tick}{s.note && <span className="text-[10px] text-ok">{s.note}</span>}
-					</span>
+					</button>
 				))}
 			</div>
 			{note && <small id={noteId} className={`text-[11.5px] ${warn ? "text-err" : "text-faint"}`}>{note}</small>}

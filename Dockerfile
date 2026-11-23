@@ -27,7 +27,8 @@ RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 # native modules match. Dependencies come with their prebuilt binaries; no install scripts run.
 FROM node:22-alpine AS wisp
 WORKDIR /opt/wisp
-RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund @mercuryworkshop/wisp-js@0.5.3
+COPY wisp/package.json wisp/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # Stage 3: Serve the static files with Nginx
 FROM nginx:stable-alpine

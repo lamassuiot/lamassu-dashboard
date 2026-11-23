@@ -121,7 +121,7 @@ function trapTab(e: KeyboardEvent) {
 	const outside = !at || !panel.contains(at) || at === panel;
 	if (outside || (e.shiftKey ? at === first : at === last)) {
 		swallow(e);
-		(outside ? (e.shiftKey ? last : first) : e.shiftKey ? last : first).focus();
+		(e.shiftKey ? last : first).focus();
 	}
 }
 
@@ -174,7 +174,7 @@ export function installShortcuts(root: HTMLElement): () => void {
 		else if (e.key === "ArrowRight" || e.key === "]") ui.selectTab(TABS[(i + 1) % TABS.length]!);
 		else if (e.key === "q") ui.closePanel();
 		else if (e.key === "c") ui.copyDiagnostics();
-		else if (e.key === "r") ui.confirmReboot();
+		else if (e.key === "r") void ui.confirmReboot();
 		else if (e.key === "z") void ui.confirmSuspend();
 		else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
 			const body = document.getElementById("pbody");
