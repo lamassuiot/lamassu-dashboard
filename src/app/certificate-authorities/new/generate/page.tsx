@@ -489,10 +489,6 @@ export default function CreateCaGeneratePage() {
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="caId">CA ID (auto-generated)</Label>
-              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="caName">CA Name (Common Name)</Label>
               <Input id="caName" value={caName} onChange={(event) => setCaName(event.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
               {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}

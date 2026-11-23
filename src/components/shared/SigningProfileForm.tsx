@@ -553,7 +553,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                     <DurationInput
                       id="profile-related-max-age"
                       label="Max Attribute Age"
-                      value={field.value}
+                      value={field.value ?? ""}
                       onChange={field.onChange}
                       placeholder="e.g., 5m, 1h"
                       description="Valid units: y, w, d, h, m, s."
