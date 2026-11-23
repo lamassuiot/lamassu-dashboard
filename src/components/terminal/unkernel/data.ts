@@ -122,7 +122,13 @@ export async function attachDataDisk({ enabled, bundled, log, onError }: {
 		// browsing, disabled storage): run on a copy of the template.
 		const err = e as Error;
 		log(`[host] data disk: not attached persistently: ${err.name}: ${err.message}`);
-		const disk = await openDataDisk({ template: tpl.bytes, mode: "snapshot", log, snapshotLimit: 0 });
+		let disk: CowDisk;
+		try {
+			disk = await openDataDisk({ template: tpl.bytes, mode: "snapshot", log, snapshotLimit: 0 });
+		} catch (fallbackError) {
+			lock.release();
+			throw fallbackError;
+		}
 		const why = err.name === "DataDiskFormatError" ? err.message : `IndexedDB failed (${err.name}: ${err.message})`;
 		return { disk, lock, from: tpl.from, notice: `${why}; this tab's /data is a fresh disk in memory (changes are not saved)` };
 	}

@@ -31,6 +31,7 @@ export default function UnkernelTerminal({ wispUrl, script, onScriptReady }: Rea
   const host = useRef<HTMLDivElement>(null);
   const session = useRef<Promise<UnkernelSession | null> | null>(null);
   const latestSend = useRef(0);
+  const undelivered = useRef<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [prepared, setPrepared] = useState<string | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -67,12 +68,13 @@ export default function UnkernelTerminal({ wispUrl, script, onScriptReady }: Rea
     const pending = session.current;
     if (!pending) return;
     const id = ++latestSend.current;
-    setFailure(null);
+    undelivered.current = text;
     void pending.then(async started => {
-      if (!started) return;
+      if (!started || latestSend.current !== id) return;
+      setFailure(null);
       try {
         const { command } = await started.sendScript(text);
-        if (latestSend.current === id) setPrepared(command);
+        if (latestSend.current === id) { undelivered.current = null; setPrepared(command); }
       } catch (error) {
         // A newer script, or closing the terminal, replaces this one: not a failure.
         if (isAbort(error) || latestSend.current !== id) return;
@@ -82,10 +84,15 @@ export default function UnkernelTerminal({ wispUrl, script, onScriptReady }: Rea
   }, []);
 
   useEffect(() => {
-    if (script === null) return;
-    deliver(script);
-    onScriptReady(script);
+    if (script !== null) {
+      deliver(script);
+      onScriptReady(script);
+    }
   }, [script, deliver, onScriptReady]);
+
+  useEffect(() => {
+    if (attempt > 0 && undelivered.current !== null) deliver(undelivered.current);
+  }, [attempt, deliver]);
 
   const copy = async () => {
     if (prepared === null) return;
@@ -98,16 +105,16 @@ export default function UnkernelTerminal({ wispUrl, script, onScriptReady }: Rea
   };
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-black text-[#ededed]">
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background text-foreground">
       {failure && (
-        <div role="alert" className="flex items-center gap-2 border-b border-white/15 bg-[#0a0a0a] px-3 py-1.5 text-xs">
+        <div role="alert" className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5 text-xs">
           <p className="min-w-0 flex-1 truncate">{failure.message}</p>
           <Button type="button" size="xs" variant="secondary" onClick={failure.retry}>Retry</Button>
         </div>
       )}
       {!failure && prepared !== null && (
-        <div role="status" className="flex items-center gap-2 border-b border-white/15 bg-[#0a0a0a] px-3 py-1.5 text-xs">
-          <span className="shrink-0 text-[#a1a1a1]">Script ready. Run:</span>
+        <div role="status" className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5 text-xs">
+          <span className="shrink-0 text-muted-foreground">Script ready. Run:</span>
           <code className="min-w-0 flex-1 truncate font-mono" title={prepared}>{prepared}</code>
           <Button type="button" size="xs" variant="secondary" onClick={() => void copy()}>Copy</Button>
         </div>

@@ -145,6 +145,18 @@ describe('UnkernelTerminal', () => {
     expect(fake.sessions[0]!.sendScript).toHaveBeenLastCalledWith('echo hi');
   });
 
+  it('retains a pending script when mounting fails and prepares it after Retry', async () => {
+    fake.state.mountError = new Error('boom');
+    const ready = vi.fn();
+    render(<UnkernelTerminal script="echo retained" onScriptReady={ready} />);
+    await settle();
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to start the terminal.');
+    fake.state.mountError = null;
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(fake.sessions[0]?.sendScript).toHaveBeenCalledWith('echo retained'));
+    expect(ready).toHaveBeenCalledWith('echo retained');
+  });
+
   it('shows an error with Retry when the shell cannot be mounted, and Retry mounts it again', async () => {
     fake.state.mountError = new Error('boom');
     render(<UnkernelTerminal script={null} onScriptReady={vi.fn()} />);

@@ -83,6 +83,15 @@ describe("Options with the operator's wisp default", () => {
 		return kw.ui;
 	};
 
+	it("ignores an invalid saved font and maps Ctrl-pipe to FS", () => {
+		localStorage.setItem("kw.font", "invalid");
+		const ui = optionsFor("", {});
+		expect(ui$().get().fontSize).toBe(11);
+		ui.setCtrl(true);
+		expect(ui.applyCtrl("|")).toBe("\x1c");
+		localStorage.removeItem("kw.font");
+	});
+
 	it("shows the default as the default servers, so Reboot does not save it", () => {
 		const ui = optionsFor("", {});
 		expect(ui$().get().options.net).toBe("default");

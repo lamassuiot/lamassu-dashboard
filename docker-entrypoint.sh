@@ -24,6 +24,10 @@ if [[ "$wisp_enabled" == "true" ]]; then
     if [[ -z "${WISP_OPTIONS:-}" ]]; then
         WISP_OPTIONS="{\"allow_private_ips\":${WISP_ALLOW_PRIVATE_IPS:-false}}"
     fi
+    if ! node -e 'try { const value = JSON.parse(process.argv[1]); if (!value || Array.isArray(value) || typeof value !== "object") process.exit(1); } catch { process.exit(1); }' "$WISP_OPTIONS"; then
+        echo "WISP_OPTIONS must be a valid JSON object" >&2
+        exit 1
+    fi
     # Unless the operator points the terminal at another server.
     export LAMASSU_TERMINAL_WISP_URL="${LAMASSU_TERMINAL_WISP_URL:-/wisp/}"
 fi

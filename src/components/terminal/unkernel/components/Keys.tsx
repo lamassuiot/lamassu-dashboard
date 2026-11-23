@@ -52,13 +52,12 @@ export function Keys({ show, onPress, omit, className = "" }: {
 				if (e.cancelable) e.preventDefault();
 				press(k);
 			}}
-			onClick={(e) => press(keyOf(e))}
 		>
 			{KEYS.filter((k) => k === "gap" || !omit?.includes(k.key)).map((k, i) => k === "gap"
 				? <span key={i} className="mx-px my-2 w-px flex-none bg-line" />
 				: (
 					<button
-						key={k.key} type="button" data-key={k.key} aria-label={k.aria} title={k.title}
+						key={k.key} type="button" data-key={k.key} aria-label={k.aria} title={k.title} onClick={() => press(k.key)}
 						aria-pressed={k.key === "ctrl" ? ctrl : undefined}
 						className={`h-9.5 min-w-9 flex-[1_0_auto] touch-manipulation border border-line bg-surface px-2 text-fg active:bg-hover aria-pressed:border-fg aria-pressed:bg-fg aria-pressed:text-black ${k.word ? "text-[12.5px] font-medium" : "font-mono text-[16px]"}`}
 					>{k.label}</button>

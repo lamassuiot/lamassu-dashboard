@@ -132,7 +132,7 @@ function DataDisk() {
 					title={safe ? "Reboot with the overlay root and your changes on the data disk" : "Reboot with the plain image as the root (kw.root=initramfs), to repair an overlay root"}
 					onClick={() => ui.safeModeToggle()}>{safe ? "Leave safe mode" : "Safe mode"}</button>
 				<input ref={file} type="file" id="data-file" accept=".gz,.kwsparse,application/gzip,application/octet-stream" hidden
-					onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) ui.dataImport(f); }} />
+					onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void ui.dataImport(f); }} />
 			</div>
 		</>
 	);

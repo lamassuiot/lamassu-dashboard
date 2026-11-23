@@ -90,7 +90,7 @@ export function termText(term: WTerm): string {
  */
 export function pasteText(term: WTerm, t: string): string {
 	const s = t.replace(/\r?\n/g, "\r");
-	return term.bridge?.bracketedPaste() ? `\x1b[200~${s.replace(/\x1b/g, "")}\x1b[201~` : s;
+	return term.bridge?.bracketedPaste() ? `\x1b[200~${s.split(String.fromCharCode(27)).join("")}\x1b[201~` : s;
 }
 
 /**
