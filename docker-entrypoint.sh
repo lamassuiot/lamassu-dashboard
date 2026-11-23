@@ -3,7 +3,7 @@ set -e
 
 # The browser terminal is off unless EXPERIMENTAL_WBTERM is exactly "true".
 if [[ "${EXPERIMENTAL_WBTERM:-false}" != "true" ]]; then
-    export EXPERIMENTAL_WBTERM=true
+    export EXPERIMENTAL_WBTERM=false
 fi
 
 # Wisp server for the browser terminal's network. nginx proxies /wisp/ to it (nginx.conf), so the
