@@ -7,7 +7,7 @@ import { DeviceStatusChartCard } from '@/components/home/DeviceStatusChartCard';
 import { CaExpiryTimeline } from '@/components/home/CaExpiryTimeline';
 import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, fetchCaStatsSummary } from '@/lib/ca-data';
+import { fetchAndProcessCAs, fetchCaStatsSummary, fetchCertificatesStats } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -117,11 +117,18 @@ export default function HomePage() {
         enginesData,
         caStats,
         dmsStats,
+        certificatesStats,
       ] = await Promise.all([
         fetchAndProcessCAs(),
         fetchCryptoEngines(),
         fetchCaStatsSummary(),
         fetchDmsStats(),
+        // Guarded by the certificate read filter, not the CA one: a failure here
+        // only blanks the "Issued Certificates" KPI instead of the whole dashboard.
+        fetchCertificatesStats().catch((err: unknown) => {
+          console.error('Failed to fetch certificate stats:', err);
+          return null;
+        }),
       ]);
 
       // Process CAs for timeline
@@ -136,7 +143,7 @@ export default function HomePage() {
       // Process stats for summary card
       setSummaryStats(prev => ({
         ...prev,
-        certificates: caStats.certificates.total,
+        certificates: certificatesStats?.total ?? null,
         cas: caStats.cas.total,
         ras: dmsStats.total,
       }));
