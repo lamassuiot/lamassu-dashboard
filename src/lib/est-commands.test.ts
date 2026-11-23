@@ -53,6 +53,19 @@ describe('est-commands', () => {
     expect(cmd).not.toContain('-newkey');
   });
 
+  it('quotes enrollment data that contains shell or OpenSSL subject delimiters', () => {
+    const cmd = csrCommands({
+      commonName: 'device/$(printf example)',
+      key: { existing: 'device key.pem' },
+      csrFile: 'device;name.csr',
+      strippedFile: '-device.csr',
+    });
+    expect(cmd).toContain("-key 'device key.pem'");
+    expect(cmd).toContain("-subj '/CN=device\\/$(printf example)'");
+    expect(cmd).toContain("-out 'device;name.csr'");
+    expect(cmd).toContain("sed '/-----/d' 'device;name.csr' > ./-device.csr");
+  });
+
   it('derives the TLS host and port from the EST URL', () => {
     expect(resolveEndpoint('https://pki.example.com/api/dmsmanager/.well-known/est')).toEqual({ host: 'pki.example.com', port: '443' });
     expect(resolveEndpoint('http://10.0.0.5:8080/est')).toEqual({ host: '10.0.0.5', port: '8080' });
@@ -60,19 +73,24 @@ describe('est-commands', () => {
     expect(serverChainCommand('https://pki.example.com/est', 'root-ca.pem')).toContain('-connect pki.example.com:443');
   });
 
+  it('quotes URLs containing shell history and substitution characters', () => {
+    const url = 'https://example.test/ra!1/$(touch pwned)';
+    expect(estRequestCommand({ url, cert: 'b.crt', key: 'b.key', body: 'x', output: 'y' })).toContain("'" + url + "'");
+  });
+
   it('verifies TLS with a CA file or explicitly disables verification', () => {
     const base = { url: 'https://h/est/ra/simpleenroll', cert: 'b.crt', key: 'b.key', body: 'x.csr', output: 'x.p7' };
     const verified = estRequestCommand({ ...base, caFile: 'root-ca.pem' });
     expect(verified.split('\n')[0]).toBe('curl --fail --silent --show-error \\');
     expect(verified).toContain('--cacert root-ca.pem');
-    expect(verified.endsWith('"https://h/est/ra/simpleenroll"')).toBe(true);
+    expect(verified.endsWith('https://h/est/ra/simpleenroll')).toBe(true);
     expect(estRequestCommand(base)).toContain('--insecure');
   });
 
   it('decodes PKCS#7 responses and parses server keygen multipart bodies', () => {
     expect(decodeCertificateCommands('x.p7', 'x.crt')).toContain('| openssl pkcs7 -inform DER -print_certs -out x.crt');
     const parse = serverKeygenParseCommands('x.multipart', 'x.key', 'x.crt');
-    expect(parse).toContain("awk '/Content-Type: application\\/pkcs8/{f=1; next} /--estServerLamassuBoundary/{f=0} f' x.multipart > x.key.b64");
+    expect(parse).toContain("awk '/Content-Type: application\\/pkcs8/{f=1; next} /--estServerLamassuBoundary/{f=0} f' < x.multipart > x.key.b64");
     expect(parse).toContain('| openssl pkey -inform DER -out x.key');
   });
 

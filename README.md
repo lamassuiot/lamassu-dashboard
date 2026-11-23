@@ -77,6 +77,12 @@ window.lamassuConfig = {
   // Useful if validation/enrollment services are hosted on a separate public domain.
   LAMASSU_PUBLIC_API: "https://your-public-endpoint.example.com",
 
+  // (Optional) Enable the experimental browser terminal.
+  EXPERIMENTAL_WBTERM: false,
+
+  // (Optional) Wisp proxy for outbound traffic from the browser terminal.
+  LAMASSU_TERMINAL_WISP_URL: "wss://wisp.example.com/",
+
   // --- Authentication ---
   // Set to `false` to disable OIDC authentication for local development.
   // Defaults to `true`.
@@ -104,6 +110,29 @@ window.lamassuConfig = {
   LAMASSU_FOOTER_ENABLED: false
 };
 ```
+
+### Browser terminal
+
+The terminal is disabled by default. Enable it with `EXPERIMENTAL_WBTERM: true` in `public/config.js` or by passing `-e EXPERIMENTAL_WBTERM=true` to Docker.
+
+The app bar opens an Debian Linux terminal powered by [unkernel](https://github.com/pithings/unkernel). It requires a browser with WebAssembly JSPI; without it, the terminal explains why and downloads nothing. The kernel comes with the `unkernel` npm package and is part of the build. The Debian image is not: the image `debian.erofs` of the [pinned unkernel release](https://github.com/pithings/unkernel/releases/tag/v0.2.0-261119-97d7945) (v0.2.0-261119-97d7945) is not in this repository and must be provided at `/terminal/debian.erofs`, for example by downloading it into `public/terminal/` before the build (its licence texts are already there). Without it the terminal cannot boot.
+
+The terminal is the shell of the public unkernel release, inside the dashboard's dock: the same boot steps, the same status line (terminal windows, `^A`, data disk, memory, Errors, Suspend and Resume, Reboot, About, Kernel log, System) and the same Options. Options are saved in the browser's `localStorage` (`kw.settings`) and apply at the next Reboot. The data disk and a suspended session are kept in the browser's IndexedDB, so they survive closing the terminal and reloading the page. The data disk holds `/data` and your changes to the system (installed packages, files in `/root`); `/tmp` starts empty at each boot. Clear it from the terminal's Guest tab (Reset) or with the browser's site data. Demos, the launcher, the guest display, audio and preview are not included.
+
+The `^A` (Ctrl-A) shortcuts and the other terminal keys apply only while the terminal has focus. Elsewhere in the dashboard, Ctrl-A keeps its usual meaning.
+
+The terminal reaches the network through a Wisp proxy. The Docker image bundles one ([wisp-js](https://github.com/MercuryWorkshop/wisp-js)) that nginx exposes at `/wisp/` on the dashboard's own origin, so the terminal works with no extra service or origin allow list. While it runs, `LAMASSU_TERMINAL_WISP_URL` defaults to `/wisp/` (a path is resolved to `ws(s)://<dashboard host>/wisp/`). It runs only when `EXPERIMENTAL_WBTERM` is `true`. These variables tune it:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `WISP_ENABLED` | `true` | `false` does not start the bundled server. Set `LAMASSU_TERMINAL_WISP_URL` to another proxy, or the terminal has no network. |
+| `WISP_ALLOW_PRIVATE_IPS` | `false` | `true` lets the terminal reach private addresses, needed when the EST gateway is on an internal network. Loopback stays blocked. |
+| `WISP_OPTIONS` | unset | Raw [wisp-js options](https://github.com/MercuryWorkshop/wisp-js) as JSON, for example `{"allow_private_ips":true,"port_whitelist":[443]}`. Replaces `WISP_ALLOW_PRIVATE_IPS`. |
+| `LAMASSU_TERMINAL_WISP_URL` | `/wisp/` | The Wisp server the terminal uses by default. Wisp servers saved in the terminal's Options win over it. |
+
+The bundled proxy accepts WebSocket requests only when the Origin matches the public scheme and Host. When TLS terminates upstream, the trusted ingress must preserve Host and overwrite `X-Forwarded-Proto` with `http` or `https`. This origin check does not authenticate clients: put `/wisp/` behind an authenticating proxy or restrict network access to it. With authentication enabled, the terminal adds the user's access token to the bundled `/wisp/` URL as `access_token` (a browser cannot set headers on a WebSocket), for a gateway that authorizes the connection (the Lamassu Helm chart's `services.ui.terminal.enabled` does, with the authz "Terminal Network" http_rule). The token is only sent to a URL on the dashboard's own origin, never to another Wisp server, and nginx drops the query before proxying and leaves it out of its access log for `/wisp/`; a gateway in front of nginx logs it unless told otherwise. Any client that can reach the endpoint and supply a matching Origin can open connections to public addresses (private and loopback ones are blocked by default). Restrict it with `WISP_OPTIONS` (`hostname_whitelist`, `port_whitelist`) if that is too broad. Outside Docker (`pnpm run dev`) there is no bundled server: run one (`npx -p @mercuryworkshop/wisp-js wisp-js-server --port 5001`) and set `LAMASSU_TERMINAL_WISP_URL: "ws://localhost:5001/"` in `public/config.js`. Without it the terminal falls back to unkernel's default Wisp servers, which accept only known origins.
+
+**Send to terminal** from EST Enroll prepares `enroll.sh` in a private working directory in the guest. Copy the command shown in the dock and run it in the terminal. If you skipped bootstrap issuance, supply `bootstrap.crt` and `bootstrap.key` in that directory before running the script.
 
 ## Available Scripts
 

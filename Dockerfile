@@ -23,12 +23,26 @@ COPY . .
 # Vite writes the static application to out.
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
-# Stage 2: Serve the static files with Nginx
+# Stage 2: Wisp server for the browser terminal. Built on Alpine, like the final image, so its
+# native modules match. Dependencies come with their prebuilt binaries; no install scripts run.
+FROM node:22-alpine AS wisp
+WORKDIR /opt/wisp
+COPY wisp/package.json wisp/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
+# Stage 3: Serve the static files with Nginx
 FROM nginx:stable-alpine
 
 ENV OIDC_ENABLED=true
 ENV CLOUD_CONNECTORS=[]
 ENV UI_FOOTER_ENABLED=false
+ENV EXPERIMENTAL_WBTERM=false
+# Wisp server bundled for the browser terminal, reached through nginx at /wisp/.
+# WISP_ENABLED=false skips it; WISP_ALLOW_PRIVATE_IPS=true lets the terminal reach private
+# addresses (an EST gateway on the internal network); WISP_OPTIONS replaces both with raw
+# wisp-js options (JSON). LAMASSU_TERMINAL_WISP_URL defaults to /wisp/ while it runs.
+ENV WISP_ENABLED=true
+ENV WISP_ALLOW_PRIVATE_IPS=false
 
 #ENV LAMASSU_API
 #ENV OIDC_AUTHORITY
@@ -46,10 +60,12 @@ WORKDIR /var/www/html
 
 COPY ./config.js.tmpl /tmpl/config.js.tmpl
 
+COPY --from=wisp /opt/wisp /opt/wisp
+
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN chmod +x /docker-entrypoint.sh && \
-    apk add --no-cache bash
+    apk add --no-cache bash nodejs
 
 # Run as the chart-wide numeric non-root identity. The entrypoint only writes
 # to paths owned by this UID, so no ownership-changing capabilities are needed.

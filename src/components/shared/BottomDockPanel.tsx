@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-/** Slot below the main scroll area, and the column holding both (see `src/app/layout.tsx`). */
-const DOCK_SLOT_SELECTOR = '[data-app-bottom-dock]';
-const CONTENT_COLUMN_SELECTOR = '[data-app-content-column]';
+/** Dock slot and the column that provides that dock's available height (see `src/app/layout.tsx`). */
+const DOCK_TARGETS = {
+  page: { slot: '[data-app-bottom-dock]', column: '[data-app-content-column]' },
+  terminal: { slot: '[data-app-terminal-dock]', column: '[data-app-terminal-column]' },
+};
 /** Space always left above the panel so the page underneath stays reachable. */
 const TOP_GUTTER = 96;
 const KEYBOARD_STEP = 24;
@@ -92,6 +94,10 @@ export interface BottomDockPanelProps {
   defaultHeightRatio?: number;
   minHeight?: number;
   className?: string;
+  headerClassName?: string;
+  id?: string;
+  expandSignal?: number;
+  target?: keyof typeof DOCK_TARGETS;
   children: React.ReactNode;
 }
 
@@ -113,10 +119,14 @@ export function BottomDockPanel({
   defaultHeightRatio = 0.5,
   minHeight = 220,
   className,
+  headerClassName,
+  id,
+  expandSignal,
+  target = 'page',
   children,
 }: Readonly<BottomDockPanelProps>) {
-  const dockSlot = useElement(DOCK_SLOT_SELECTOR);
-  const rootHeight = useElementHeight(useElement(CONTENT_COLUMN_SELECTOR));
+  const dockSlot = useElement(DOCK_TARGETS[target].slot);
+  const rootHeight = useElementHeight(useElement(DOCK_TARGETS[target].column));
   const [height, setHeight] = useState<number | null>(() => (typeof window === 'undefined' ? null : readStoredHeight(storageKey)));
   const [mode, setMode] = useState<DockMode>('normal');
   const [isDragging, setIsDragging] = useState(false);
@@ -128,7 +138,7 @@ export function BottomDockPanel({
 
   useEffect(() => {
     if (open) setMode('normal');
-  }, [open]);
+  }, [open, expandSignal]);
 
   useEffect(() => {
     if (!open) return;
@@ -200,6 +210,7 @@ export function BottomDockPanel({
 
   return createPortal(
     <section
+      id={id}
       aria-label={typeof title === 'string' ? title : undefined}
       className={cn(
         'relative z-20 flex shrink-0 flex-col border-t bg-background',
@@ -250,7 +261,7 @@ export function BottomDockPanel({
       </div>
 
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5 md:px-6">
+      <header className={cn('flex shrink-0 items-center gap-3 border-b px-4 py-2.5 md:px-6', headerClassName)}>
         {icon}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">

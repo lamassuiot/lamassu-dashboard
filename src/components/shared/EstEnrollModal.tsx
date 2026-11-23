@@ -23,6 +23,7 @@ import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert'
 import { CodeSnippet, ShellCommand } from './CodeSnippet';
 import { CommandStep, CommandSteps, InlineCode } from './CommandSteps';
 import { csrCommands, decodeCertificateCommands, estRequestCommand, placeholderCsrCommands, serverChainCommand, serverKeygenParseCommands, writePemFilesCommand } from '@/lib/est-commands';
+import { useSendToTerminal } from '@/components/terminal/TerminalContext';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -92,7 +93,8 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     className,
 }) => {
     const isMobile = useIsMobile();
-    const resolvedPresentation = presentation !== 'dialog' && isMobile ? 'dialog' : presentation;
+    const sendToTerminal = useSendToTerminal();
+    const resolvedPresentation = presentation !== 'dialog' && isMobile && !sendToTerminal ? 'dialog' : presentation;
 
     // Dependencies state
     const [availableCAs, setAvailableCAs] = useState<CA[]>([]);
@@ -321,15 +323,21 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     const finalDeviceId = deviceId || 'device-id'; // Fallback for display
 
-    const estBaseUrl = get_EST_API_BASE_URL();
-    const estEndpoint = (operation: string) => `${estBaseUrl}/${ra?.id}/${operation}`;
+    let estBaseUrl = get_EST_API_BASE_URL();
+    try {
+        estBaseUrl = new URL(estBaseUrl, window.location.origin).href.replace(/\/$/, '');
+    } catch {
+        // Keep the configured endpoint visible in the command snippets.
+    }
+    const estEndpoint = (operation: string) => `${estBaseUrl}/${encodeURIComponent(ra?.id ?? '')}/${operation}`;
     const serverCaFile = validateServerCert ? 'root-ca.pem' : undefined;
-    const strippedCsrFile = `${finalDeviceId}.stripped.csr`;
+    const outputName = finalDeviceId === 'bootstrap' ? 'bootstrap-device' : finalDeviceId.replaceAll('/', '%2F');
+    const strippedCsrFile = `${outputName}.stripped.csr`;
 
     const deviceCsrCommand = csrCommands({
         commonName: finalDeviceId,
-        key: { generate: { type: keygenType, spec: keygenSpec }, keyOut: `${finalDeviceId}.key` },
-        csrFile: `${finalDeviceId}.csr`,
+        key: { generate: { type: keygenType, spec: keygenSpec }, keyOut: `${outputName}.key` },
+        csrFile: `${outputName}.csr`,
         strippedFile: strippedCsrFile,
     });
 
@@ -346,9 +354,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         key: 'bootstrap.key',
         caFile: serverCaFile,
         body: strippedCsrFile,
-        output: `${finalDeviceId}.p7`,
+        output: `${outputName}.p7`,
     });
-    const enrollDecodeCommand = decodeCertificateCommands(`${finalDeviceId}.p7`, `${finalDeviceId}.crt`);
+    const enrollDecodeCommand = decodeCertificateCommands(`${outputName}.p7`, `${outputName}.crt`);
 
     // Server-side keygen: the CSR only carries the subject, the server generates the key.
     const placeholderCsrCommand = placeholderCsrCommands(finalDeviceId, 'placeholder.csr', 'placeholder.stripped.csr');
@@ -358,10 +366,18 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         key: 'bootstrap.key',
         caFile: serverCaFile,
         body: 'placeholder.stripped.csr',
-        output: `${finalDeviceId}.multipart`,
+        output: `${outputName}.multipart`,
     });
-    const serverKeygenParseCommand = serverKeygenParseCommands(`${finalDeviceId}.multipart`, `${finalDeviceId}.key`, `${finalDeviceId}.crt`);
+    const serverKeygenParseCommand = serverKeygenParseCommands(`${outputName}.multipart`, `${outputName}.key`, `${outputName}.crt`);
 
+    const enrollmentScript = [
+        '#!/bin/sh', 'set -e',
+        bootstrapCertificate && bootstrapPrivateKey ? bootstrapFilesCommand : '',
+        validateServerCert ? serverCertCommand : '',
+        keygenMethod === 'device' ? deviceCsrCommand : placeholderCsrCommand,
+        keygenMethod === 'device' ? enrollRequestCommand : serverKeygenRequestCommand,
+        keygenMethod === 'device' ? enrollDecodeCommand : serverKeygenParseCommand,
+    ].filter(Boolean).join('\n\n');
 
     const stepContent = (
                     <div className="space-y-4">
@@ -452,10 +468,13 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                             <div className="space-y-1">
                                                 <Label>Generate Key &amp; CSR</Label>
                                                 <p className="text-sm text-muted-foreground">
-                                                    Run on the device to create the private key <InlineCode>{finalDeviceId}.key</InlineCode> and the request <InlineCode>{strippedCsrFile}</InlineCode>.
+                                                    Run on the device to create the private key <InlineCode>{outputName}.key</InlineCode> and the request <InlineCode>{strippedCsrFile}</InlineCode>.
                                                 </p>
                                             </div>
-                                            <ShellCommand title="Generate key and CSR" command={deviceCsrCommand} />
+                                            <ShellCommand
+                                                title="Generate key and CSR"
+                                                command={deviceCsrCommand}
+                                            />
                                         </div>
                                     </div>
                                 )}
@@ -708,7 +727,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     );
 
     const navigationButtons = (
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap justify-end gap-2">
             {step > 1 && (
                 <Button variant="secondary" onClick={handleBack} disabled={isGenerating}>
                     <ArrowLeft className="mr-2 h-4 w-4"/>Back
@@ -725,7 +744,10 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                     { step === 3 ? "Issue Bootstrap Cert" : step === 4 ? "Generate Commands" : "Next" }
                 </Button>
             ) : (
-                <Button onClick={() => onOpenChange(false)}>Finish</Button>
+                <>
+                    {sendToTerminal && <Button type="button" variant="secondary" onClick={() => sendToTerminal(enrollmentScript)}>Send to terminal</Button>}
+                    <Button onClick={() => onOpenChange(false)}>Finish</Button>
+                </>
             )}
         </div>
     );
@@ -785,7 +807,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             <SheetFooter className="border-t px-6 py-4 sm:flex-col">
                 <div className="w-full space-y-4">
                     {validationSummary}
-                    <div className="flex justify-between">
+                    <div className="flex flex-wrap justify-between gap-2">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         {navigationButtons}
                     </div>

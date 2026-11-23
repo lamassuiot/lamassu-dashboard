@@ -158,7 +158,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
     const serverCertCommand = serverChainCommand(estBaseUrl, 'root-ca.pem', typeof window !== 'undefined' ? window.location.origin : undefined);
 
     const reenrollRequestCommand = estRequestCommand({
-        url: `${estBaseUrl}/${ra?.id}/simplereenroll`,
+        url: `${estBaseUrl}/${encodeURIComponent(ra?.id ?? '')}/simplereenroll`,
         cert: `${finalDeviceId}.existing.crt`,
         key: `${finalDeviceId}.existing.key`,
         caFile: validateServerCert ? 'root-ca.pem' : undefined,
