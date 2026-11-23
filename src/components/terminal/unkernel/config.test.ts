@@ -92,6 +92,11 @@ describe("Options with the operator's wisp default", () => {
 		localStorage.removeItem("kw.font");
 	});
 
+	it("does not report a saved wisp list with spaces as changed", () => {
+		const ui = optionsFor("", { wisp: "wss://a/, wss://b/" });
+		expect(ui.optionsChanged()).toBe(false);
+	});
+
 	it("shows the default as the default servers, so Reboot does not save it", () => {
 		const ui = optionsFor("", {});
 		expect(ui$().get().options.net).toBe("default");

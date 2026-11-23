@@ -115,7 +115,7 @@ function More() {
 		[
 			["System", <SysIcon />, () => ui.openPanel("status")],
 			...(disk ? [[`Data disk ${fmtSize(disk.used)}/${fmtSize(disk.size)}`, <DiskIcon />, () => ui.openPanel("guest")] as Item] : []),
-			[`Memory ${mem >= 1024 ? `${mem / 1024}G` : `${mem}M`}`, <MemIcon />, () => ui.openPanel("env")],
+			[`Memory ${mem >= 1024 ? `${+(mem / 1024).toFixed(1)}G` : `${mem}M`}`, <MemIcon />, () => ui.openPanel("env")],
 		],
 		[
 			["Kernel log", <LogIcon />, () => ui.openPanel("log")],
@@ -195,7 +195,7 @@ export function Bar() {
 					</Seg>
 				)}
 				<Seg hint="i" onClick={tab("env")} className="gap-1.5 tabular-nums max-md:hidden" title={`Kernel memory: ${mem} MiB. Opens Environment.`}>
-					<MemIcon />{mem >= 1024 ? `${mem / 1024}G` : `${mem}M`}
+					<MemIcon />{mem >= 1024 ? `${+(mem / 1024).toFixed(1)}G` : `${mem}M`}
 				</Seg>
 				{(errors > 0 || panel === "errors") && (
 					<Seg id="bar-errors" on={panel === "errors"} title="Errors" hint="e" label={`Errors: ${errors}`} onClick={tab("errors")}>

@@ -27,7 +27,7 @@ export function Panel() {
 	// A new tab starts at the top; the kernel log at its end (LogPane). Focus on a
 	// tab follows the selection (arrows, shortcuts), as tabs do.
 	useEffect(() => {
-		if (body.current) body.current.scrollTop = 0;
+		if (body.current && tab !== "log") body.current.scrollTop = 0;
 		if ((document.activeElement as HTMLElement | null)?.getAttribute("role") === "tab")
 			panel.current?.querySelector<HTMLElement>(`#tab-${tab}`)?.focus();
 	}, [tab]);

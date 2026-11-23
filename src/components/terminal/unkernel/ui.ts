@@ -448,7 +448,7 @@ export function createUi(cfg: Config) {
 		const p = new URLSearchParams(cfg.settings);
 		const set = (k: string, v: string | null) => (v === null ? p.delete(k) : p.set(k, v));
 		set("mem", o.mem === "auto" ? null : o.mem);
-		const wisp = o.wisp.split(",").map((s) => s.trim()).filter(Boolean).join(",");
+		const wisp = normalizeWisp(o.wisp);
 		set("wisp", o.net === "off" ? "0" : o.net === "custom" && wisp ? wisp : null);
 		set("jit", o.jit === "off" ? "0" : null);
 		set("verbose", o.verbose === "keep" ? "1" : null);
@@ -465,9 +465,12 @@ export function createUi(cfg: Config) {
 		return Object.fromEntries([...p].sort(([a], [b]) => a.localeCompare(b)));
 	}
 	/** The options differ from the settings this load booted with (the Reboot button says so). */
+	const normalizeWisp = (list: string) => list.split(",").map((s) => s.trim()).filter(Boolean).join(",");
 	function optionsChanged(): boolean {
 		const sorted = (s: Record<string, string>) => JSON.stringify(Object.entries(s).sort(([a], [b]) => a.localeCompare(b)));
-		return sorted(nextSettings()) !== sorted(cfg.settings);
+		// Like for like: the saved wisp list may carry spaces that nextSettings() drops.
+		const saved = cfg.settings.wisp !== undefined ? { ...cfg.settings, wisp: normalizeWisp(cfg.settings.wisp) } : cfg.settings;
+		return sorted(nextSettings()) !== sorted(saved);
 	}
 	let rebooting = false;
 	/** A data disk reset or import is running (dataAction); it ends in a reload. */
