@@ -139,6 +139,10 @@ describe('DecodedCertificateSections', () => {
     render(<DecodedCertificateSections info={await decodeCertificatePem(VALID_RSA_CERT_PEM)} />)
 
     expect(within(section('Subject Distinguished Name')).getByLabelText('Organization (O)')).toHaveValue('Internet Widgits Pty Ltd')
-    expect(screen.getByLabelText('Public Key Algorithm')).toHaveValue('RSA (2048 bits)')
+    const publicKey = within(section('Certificate Details')).getByRole('group', { name: 'Public Key' })
+    expect(publicKey).toHaveTextContent('RSA (2048 bits)')
+    expect(publicKey).toContainElement(screen.getByLabelText(/^Key strength:/))
+    expect(within(section('Certificate Details')).getByRole('group', { name: 'Signature' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Public Key Algorithm')).not.toBeInTheDocument()
   })
 })

@@ -117,6 +117,12 @@ export function distinguishedNameFields(name: RelativeDistinguishedNames): Disti
   return { cn: valuesOf("CN"), c: valuesOf("C"), st: valuesOf("ST"), l: valuesOf("L"), o: valuesOf("O"), ou: valuesOf("OU") };
 }
 
+/** The named-curve OID in an EC key's algorithm parameters, e.g. `1.2.840.10045.3.1.7` for P-256. */
+function ecCurveOid(publicKeyInfo: PublicKeyInfo): string | undefined {
+  const parameters = publicKeyInfo.algorithm.algorithmParams;
+  return parameters instanceof asn1js.ObjectIdentifier ? parameters.getValue() : undefined;
+}
+
 /**
  * Formats a pkijs `PublicKeyInfo` into a readable algorithm description,
  * e.g. `EC (Curve: P-256)` or `RSA (2048 bits)`.
@@ -125,15 +131,37 @@ export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
   const algoName = OID_MAP[algoOid] ?? algoOid;
   let details = "";
-  if (algoName === "EC" && (publicKeyInfo.algorithm as any).parameters && (publicKeyInfo.algorithm as any).parameters.valueBlock) {
-    const curveOid = (publicKeyInfo.algorithm as any).parameters.valueBlock.value as string;
+  const curveOid = algoName === "EC" ? ecCurveOid(publicKeyInfo) : undefined;
+  if (curveOid) {
     details = `(Curve: ${OID_MAP[curveOid] ?? curveOid})`;
   } else if (algoName === "RSA" && publicKeyInfo.parsedKey && (publicKeyInfo.parsedKey as any).modulus) {
     const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
     const leadingZero = new Uint8Array((publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex)[0] === 0 ? 1 : 0;
     details = `(${(modulusBytes - leadingZero) * 8} bits)`;
   }
-  return `${algoName} ${details}`;
+  return `${algoName} ${details}`.trim();
+}
+
+/** Algorithm and size of a public key, in the form `KeyStrengthIndicator` takes (e.g. `RSA`/`2048`, `ECDSA`/`P-256`). */
+export interface PublicKeySpec {
+  algorithm: string;
+  size: string;
+}
+
+/** The key's algorithm and size, or undefined for an algorithm the app does not rate. */
+export function publicKeySpec(publicKeyInfo: PublicKeyInfo): PublicKeySpec | undefined {
+  const algoName = OID_MAP[publicKeyInfo.algorithm.algorithmId];
+  if (algoName === "EC") {
+    const curveOid = ecCurveOid(publicKeyInfo);
+    const curve = curveOid ? OID_MAP[curveOid] : undefined;
+    return curve ? { algorithm: "ECDSA", size: curve } : undefined;
+  }
+  if (algoName === "RSA" && (publicKeyInfo.parsedKey as any)?.modulus) {
+    const modulus = new Uint8Array((publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex);
+    const leadingZero = modulus[0] === 0 ? 1 : 0;
+    return { algorithm: "RSA", size: String((modulus.byteLength - leadingZero) * 8) };
+  }
+  return undefined;
 }
 
 /**
@@ -195,6 +223,8 @@ export interface ParsedCertificate {
   validFrom: string;
   validTo: string;
   publicKeyAlgorithm: string;
+  /** Algorithm and size for rating the key's strength; undefined when unknown. */
+  publicKeySpec?: PublicKeySpec;
   signatureAlgorithm: string;
   crlDistributionPoints: string[];
   ocspUrls: string[];
@@ -288,6 +318,7 @@ export async function parseCertificatePem(pem: string): Promise<ParsedCertificat
   result.validFrom = cert.notBefore.value.toISOString();
   result.validTo = cert.notAfter.value.toISOString();
   result.publicKeyAlgorithm = formatPublicKeyInfo(cert.subjectPublicKeyInfo);
+  result.publicKeySpec = publicKeySpec(cert.subjectPublicKeyInfo);
 
   try {
     result.signatureAlgorithm =

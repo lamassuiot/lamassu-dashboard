@@ -12,8 +12,9 @@ import { CrlViewerSheet } from '@/components/shared/CrlViewerSheet';
 import Link from '@/components/shared/RouterLink';
 import { formatIdentifier } from '@/components/shared/IdentifierDisplay';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate } from '@/lib-crypto';
+import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate, type PublicKeySpec } from '@/lib-crypto';
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 export interface DecodedCertInfo {
   subjectFields?: DistinguishedNameFields;
@@ -25,6 +26,7 @@ export interface DecodedCertInfo {
   isCa?: boolean;
   pathLenConstraint?: number | 'None';
   publicKeyAlgorithm?: string;
+  publicKeySpec?: PublicKeySpec;
   signatureAlgorithm?: string;
   keyUsage?: string[];
   extendedKeyUsage?: string[];
@@ -57,6 +59,7 @@ export function toDecodedCertInfo(parsed: ParsedCertificate): DecodedCertInfo {
     isCa: parsed.isCa ?? false,
     pathLenConstraint: parsed.pathLenConstraint,
     publicKeyAlgorithm: parsed.publicKeyAlgorithm,
+    publicKeySpec: parsed.publicKeySpec,
     signatureAlgorithm: parsed.signatureAlgorithm,
     keyUsage: parsed.keyUsage,
     extendedKeyUsage: parsed.extendedKeyUsage,
@@ -233,15 +236,17 @@ export type StatusPillTone = 'primary' | 'muted' | 'warning';
 
 const STATUS_PILL_TONES: Record<StatusPillTone, { pill: string; dot: string }> = {
   primary: { pill: 'border-primary/30 bg-primary/10 text-primary', dot: 'bg-primary' },
-  muted: { pill: 'border-muted-foreground/30 bg-muted-foreground/10 text-muted-foreground', dot: 'bg-muted-foreground/50' },
+  muted: { pill: 'border-muted-foreground/30 bg-muted-foreground/10 text-foreground', dot: 'bg-muted-foreground/50' },
   warning: { pill: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
 };
 
 /** A tinted pill with a status dot, a title and an optional monospace detail; a notch above a badge. */
-export function StatusPill({ tone, title, detail, className, ...rest }: Readonly<{
+export function StatusPill({ tone, title, detail, trailing, className, ...rest }: Readonly<{
   tone: StatusPillTone;
   title: string;
   detail?: React.ReactNode;
+  /** Shown at the right end after a divider, at full opacity (e.g. a strength meter). */
+  trailing?: React.ReactNode;
   className?: string;
 } & Pick<React.HTMLAttributes<HTMLDivElement>, 'role' | 'aria-labelledby'>>) {
   const colors = STATUS_PILL_TONES[tone];
@@ -253,6 +258,9 @@ export function StatusPill({ tone, title, detail, className, ...rest }: Readonly
       <span aria-hidden className={cn('size-2 shrink-0 rounded-full', colors.dot)} />
       <span className="shrink-0 font-medium">{title}</span>
       {detail != null && <span className="min-w-0 truncate font-mono opacity-70">{detail}</span>}
+      {trailing != null && (
+        <span className="ml-1 flex shrink-0 items-center border-l border-current/20 pl-3">{trailing}</span>
+      )}
     </div>
   );
 }
@@ -281,6 +289,25 @@ function IsCaPill({ isCa, pathLenConstraint, expectCa }: Readonly<{
     </div>
   );
 }
+
+/** A labelled algorithm, with the key strength meter inside when the key can be rated. */
+function AlgorithmPill({ label, algorithm, spec }: Readonly<{ label: string; algorithm: string; spec?: PublicKeySpec }>) {
+  const labelId = useId();
+  return (
+    <div className="space-y-1.5">
+      <p id={labelId} className="text-sm leading-none font-medium">{label}</p>
+      <StatusPill
+        role="group"
+        aria-labelledby={labelId}
+        tone="muted"
+        title={algorithm}
+        trailing={spec ? <KeyStrengthIndicator algorithm={spec.algorithm} size={spec.size} /> : undefined}
+      />
+    </div>
+  );
+}
+
+const isKnownAlgorithm = (value?: string): value is string => !!value?.trim() && value !== 'N/A';
 
 function Section({ title, description, aside, className, children }: Readonly<{
   title: string;
@@ -348,6 +375,12 @@ export function DecodedCertificateSections({
           <ReadOnlyField label="Valid To" value={info.validTo} />
         </div>
         <IsCaPill isCa={!!info.isCa} pathLenConstraint={info.pathLenConstraint} expectCa={expectCa} />
+        {isKnownAlgorithm(info.publicKeyAlgorithm) && (
+          <AlgorithmPill label="Public Key" algorithm={info.publicKeyAlgorithm.trim()} spec={info.publicKeySpec} />
+        )}
+        {isKnownAlgorithm(info.signatureAlgorithm) && (
+          <AlgorithmPill label="Signature" algorithm={info.signatureAlgorithm} />
+        )}
         {detailsExtra}
       </Section>
 
@@ -380,8 +413,6 @@ export function DecodedCertificateSections({
         className={sectionClassName}
       >
         <div className="grid grid-cols-2 gap-4">
-          <ReadOnlyField label="Public Key Algorithm" value={info.publicKeyAlgorithm} />
-          <ReadOnlyField label="Signature Algorithm" value={info.signatureAlgorithm} />
           <ReadOnlyField label="Subject Key Identifier" value={identifier(info.subjectKeyId)} mono className="col-span-2" />
           <ReadOnlyField label="Authority Key Identifier" value={identifier(info.authorityKeyId)} mono className="col-span-2" />
           <ReadOnlyField label="SHA-256 Fingerprint" value={identifier(info.fingerprintSha256)} mono className="col-span-2" />

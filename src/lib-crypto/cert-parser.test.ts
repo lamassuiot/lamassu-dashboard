@@ -11,8 +11,16 @@ describe('cert-parser', () => {
     expect(parsed.subject).toContain('O=Internet Widgits Pty Ltd')
     expect(parsed.issuer).toContain('O=Internet Widgits Pty Ltd')
     expect(parsed.publicKeyAlgorithm).toContain('RSA')
+    expect(parsed.publicKeySpec).toEqual({ algorithm: 'RSA', size: '2048' })
     expect(parsed.signatureAlgorithm).toContain('sha')
     expect(parsed.fingerprintSha256).toBeDefined()
+  })
+
+  it('reads the EC curve into the algorithm label and the public key spec', async () => {
+    const parsed = await parseCertificatePemDetails(OPENSSL_EC_CA_PEM)
+
+    expect(parsed.publicKeyAlgorithm).toBe('EC (Curve: P-256)')
+    expect(parsed.publicKeySpec).toEqual({ algorithm: 'ECDSA', size: 'P-256' })
   })
 
   it('should return sane defaults for empty or invalid PEM', async () => {
@@ -20,6 +28,7 @@ describe('cert-parser', () => {
     expect(parsed.subject).toBe('N/A')
     expect(parsed.issuer).toBe('N/A')
     expect(parsed.publicKeyAlgorithm).toBe('N/A')
+    expect(parsed.publicKeySpec).toBeUndefined()
     expect(parsed.fingerprintSha256).toBeUndefined()
   })
 
