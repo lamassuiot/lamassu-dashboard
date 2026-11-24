@@ -74,11 +74,15 @@ interface SignerCertificateCardProps {
   topRight?: React.ReactNode;
   /** Rendered at the right of the footer strip (e.g. a "Change certificate" button). */
   action?: React.ReactNode;
+  /** What the certificate is used for, shown in the footer strip; defaults to the CRL signer role. */
+  role?: { label: string; description: string };
   className?: string;
 }
 
-/** CRL signer certificate, in the style of the issuance-profile card. */
-export function SignerCertificateCard({ certificate, topRight, action, className }: Readonly<SignerCertificateCardProps>) {
+const CRL_SIGNER_ROLE = { label: 'CRL signer', description: 'Signs the CRLs of this CA' };
+
+/** A certificate and its role (CRL signer by default), in the style of the issuance-profile card. */
+export function SignerCertificateCard({ certificate, topRight, action, role = CRL_SIGNER_ROLE, className }: Readonly<SignerCertificateCardProps>) {
   const name = getCommonName(certificate.subject) || certificate.subject || certificate.serialNumber;
   const issuerName = getCommonName(certificate.issuer);
   const hasSerial = Boolean(certificate.serialNumber) && certificate.serialNumber !== 'Unknown';
@@ -158,8 +162,8 @@ export function SignerCertificateCard({ certificate, topRight, action, className
       <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t bg-muted/40 px-3 py-2 text-[11px]">
         <span className="flex min-w-0 items-center gap-1.5">
           <FileSignature className="size-3 shrink-0 text-primary" />
-          <span className="shrink-0 font-medium text-primary">CRL signer</span>
-          <span className="truncate text-muted-foreground">Signs the CRLs of this CA</span>
+          <span className="shrink-0 font-medium text-primary">{role.label}</span>
+          <span className="truncate text-muted-foreground">{role.description}</span>
         </span>
         {action}
       </div>

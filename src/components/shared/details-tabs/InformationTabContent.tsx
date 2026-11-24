@@ -2,9 +2,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { Users, AlertCircle, Pencil, Check, ChevronDown, ArrowUpRight, Search } from "lucide-react";
+import { Users, AlertCircle, Pencil, Check, ChevronDown, ArrowUpRight, Search, FileText } from "lucide-react";
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -20,7 +21,9 @@ import { SigningProfileSelector } from '@/components/shared/SigningProfileSelect
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { revocationReasons } from '@/lib/revocation-reasons';
-import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { CA_CARD_HEIGHT, CA_CARD_WIDTH } from '@/components/ca/CaCard';
+import { cn } from '@/lib/utils';
 import {
   DecodedCertificateSections,
   ReadOnlyField,
@@ -56,6 +59,7 @@ interface InformationTabContentProps {
     certificateChainForVisualizer: CA[];
     statusBadgeVariant: BadgeVariant;
     apiStatusText: string;
+    allCryptoEngines?: ApiCryptoEngine[];
   };
   routerHook: AppRouterInstance;
   onAkiClick?: (aki: string) => void;
@@ -101,6 +105,38 @@ const IssuerCaLink = ({ caId }: { caId: string }) => (
     <ArrowUpRight className="h-3.5 w-3.5" /> Open issuer CA
   </Link>
 );
+
+/** The certificate being viewed, shown at the end of its issuance chain in the same shape as a `CaCard`. */
+const CurrentCertificateCard = ({ subject, keyAlgorithm, validTo, statusText }: {
+  subject: string;
+  keyAlgorithm?: string;
+  validTo?: string;
+  statusText: string;
+}) => {
+  const expiry = validTo ? format(new Date(validTo), 'yyyy-MM-dd') : undefined;
+  return (
+    <div
+      aria-current="page"
+      title={subject}
+      className={cn(
+        'flex max-w-full items-center gap-3 rounded-lg border border-primary bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] px-3 text-left text-card-foreground shadow-xs',
+      )}
+      style={{ width: CA_CARD_WIDTH, height: CA_CARD_HEIGHT }}
+    >
+      <FileText className="size-6 shrink-0 text-primary" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium leading-tight">{subject}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {[keyAlgorithm, expiry && `exp. ${expiry}`].filter(Boolean).join(' · ') || 'This certificate'}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <ApiStatusBadge status={statusText} />
+        <Badge variant="secondary">Certificate</Badge>
+      </div>
+    </div>
+  );
+};
 
 // ── main export ──────────────────────────────────────────────────────────────
 
@@ -350,6 +386,10 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
     const akiForLookup: string | undefined = certDetails.rawApiData?.authority_key_id || undefined;
 
+    const chainEnginesById = new Map((certificateSpecific.allCryptoEngines ?? []).map(engine => [engine.id, engine]));
+    const chainEngineFor = (ca: CA) => (ca.kmsKeyId ? chainEnginesById.get(ca.kmsKeyId) : undefined);
+    const openChainCa = (ca: CA) => routerHook.push(`/certificate-authorities/details?caId=${encodeURIComponent(ca.id)}`);
+
     return (
       <div>
 
@@ -403,14 +443,25 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 <p className="text-sm text-muted-foreground mt-1">Trust path from this certificate to its issuing authorities.</p>
               </div>
               <div className="lg:col-span-2">
-                <IssuanceChainVisualizer
-                  certificateChain={certificateSpecific.certificateChainForVisualizer}
-                  currentCertificate={{
-                    subject: certDetails.subject,
-                    statusBadgeVariant: certificateSpecific.statusBadgeVariant,
-                    statusText: certificateSpecific.apiStatusText,
-                  }}
-                />
+                <div className="flex w-full flex-col items-center">
+                  {certificateSpecific.certificateChainForVisualizer.map(caNode => (
+                    <React.Fragment key={caNode.id}>
+                      <CaCard
+                        ca={caNode}
+                        engine={chainEngineFor(caNode)}
+                        onClick={openChainCa}
+                        className="max-w-full"
+                      />
+                      <ChevronDown className="my-1 h-5 w-5 text-primary" />
+                    </React.Fragment>
+                  ))}
+                  <CurrentCertificateCard
+                    subject={certDetails.subject}
+                    keyAlgorithm={certDetails.publicKeyAlgorithm}
+                    validTo={certDetails.validTo}
+                    statusText={certificateSpecific.apiStatusText}
+                  />
+                </div>
               </div>
             </div>
           </>

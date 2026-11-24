@@ -1,103 +1,188 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { PlusCircle } from 'lucide-react';
-import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
-import { getDisplayDateFormat } from '@/lib/config';
-import { useDeviceDetails } from '../DeviceContext';
+import React, { useEffect, useState } from 'react';
+import { differenceInDays, format, isPast, parseISO } from 'date-fns';
+import { ArrowUpRight, History, PlusCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { DetailSection } from '@/components/shared/DetailSection';
+import { LinkField, ReadOnlyField } from '@/components/shared/DecodedCertificateSections';
+import { formatIdentifier } from '@/components/shared/IdentifierDisplay';
+import { BlockSkeleton } from '@/components/shared/PageSkeletons';
+import Link from '@/components/shared/RouterLink';
+import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
+import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
+import { cn } from '@/lib/utils';
+import type { CertificateData } from '@/types/certificate';
+import { getCertSubjectCommonName, useDeviceDetails } from '../DeviceContext';
 
-function DetailPanel({ title, children }: { title: string; children: React.ReactNode }) {
+const ASIDE_LINK_CLASS = buttonVariants({ variant: 'secondary', size: 'sm' });
+
+const formatDate = (iso: string | undefined) => {
+  if (!iso) return undefined;
+  const date = parseISO(iso);
+  return Number.isNaN(date.getTime()) ? undefined : format(date, 'PPpp');
+};
+
+/** Timeline between Valid From and Valid To: elapsed share of the validity and the time left. */
+function ValidityTimeline({ validFrom, validTo }: Readonly<{ validFrom: string; validTo: string }>) {
+  const from = parseISO(validFrom).getTime();
+  const to = parseISO(validTo).getTime();
+  if (Number.isNaN(from) || Number.isNaN(to)) return null;
+  const percent = to > from ? Math.min(100, Math.max(0, Math.round(((Date.now() - from) / (to - from)) * 100))) : 100;
+  const expired = isPast(to);
+  const daysLeft = differenceInDays(to, Date.now());
+
   return (
-    <section className="rounded-lg border bg-card">
-      <div className="border-b px-4 py-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
+    <div className="col-span-2 space-y-1.5">
+      <Progress
+        value={percent}
+        className={cn('h-1.5 rounded-sm', expired && '[&_[data-slot=progress-indicator]]:bg-destructive')}
+        aria-label={`${percent}% of the certificate validity period elapsed`}
+      />
+      <div className="flex justify-between gap-4 text-xs tabular-nums text-muted-foreground">
+        <span>{percent}% elapsed</span>
+        <span className={cn((expired || daysLeft <= 30) && 'text-destructive')}>
+          {expired ? 'Expired' : daysLeft === 0 ? 'Expires today' : `${daysLeft}d remaining`}
+        </span>
       </div>
-      <dl className="divide-y px-4">{children}</dl>
-    </section>
-  );
-}
-
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1 py-2.5 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
-      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-sm">{children}</dd>
     </div>
   );
 }
 
+type ActiveCertificate =
+  | { status: 'loading' }
+  | { status: 'loaded'; certificate: CertificateData }
+  | { status: 'missing' }
+  | { status: 'error'; message: string };
+
+/** The certificate of the identity's active version, fetched by serial number. */
+function useActiveCertificate(serialNumber: string | undefined): ActiveCertificate | null {
+  const [state, setState] = useState<ActiveCertificate | null>(null);
+  useEffect(() => {
+    if (!serialNumber) {
+      setState(null);
+      return;
+    }
+    let cancelled = false;
+    setState({ status: 'loading' });
+    fetchIssuedCertificate(serialNumber)
+      .then((certificate) => {
+        if (!cancelled) setState(certificate ? { status: 'loaded', certificate } : { status: 'missing' });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setState({ status: 'error', message: error instanceof Error ? error.message : 'Failed to load the certificate.' });
+      });
+    return () => { cancelled = true; };
+  }, [serialNumber]);
+  return state;
+}
+
 export default function InformationPage() {
-  const { device, openAssignIdentityModal } = useDeviceDetails();
+  const { device, deviceId, openAssignIdentityModal, raForIntegration, activeIntegration } = useDeviceDetails();
+  const { mode } = useIdentifierDisplay();
+  const identity = device?.identity ?? null;
+  const activeSerial = identity ? identity.versions[identity.active_version] : undefined;
+  const activeCertificate = useActiveCertificate(activeSerial);
+
   if (!device) return null;
 
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <DetailPanel title="Device Details">
-        <DetailRow label="Device ID">
-          <code className="block truncate font-mono text-xs" title={device.id}>{device.id}</code>
-        </DetailRow>
-        <DetailRow label="Status">
-          <ApiStatusBadge status={device.status} />
-        </DetailRow>
-        <DetailRow label="Created">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span>{format(parseISO(device.creation_timestamp), getDisplayDateFormat())}</span>
-            <span className="text-xs text-muted-foreground">({formatDistanceToNowStrict(parseISO(device.creation_timestamp))} ago)</span>
-          </div>
-        </DetailRow>
-        {device.dms_owner && (
-          <DetailRow label="Registration Authority">
-            <a href={`/registration-authorities/details?raId=${device.dms_owner}`} className="block truncate text-primary hover:underline">
-              {device.dms_owner}
-            </a>
-          </DetailRow>
-        )}
-        {(device.tags?.length ?? 0) > 0 && (
-          <DetailRow label="Tags">
-            <span className="block truncate" title={device.tags.join(', ')}>{device.tags.join(', ')}</span>
-          </DetailRow>
-        )}
-      </DetailPanel>
+  const versionCount = identity ? Object.keys(identity.versions).length : 0;
+  const historyHref = `/devices/details/certificates-history?deviceId=${encodeURIComponent(deviceId ?? device.id)}`;
+  const certificate = activeCertificate?.status === 'loaded' ? activeCertificate.certificate : null;
 
-      <DetailPanel title="Identity">
-        {device.identity ? (
-          <>
-            <DetailRow label="Status"><ApiStatusBadge status={device.identity.status} /></DetailRow>
-            <DetailRow label="Type">{device.identity.type}</DetailRow>
-            <DetailRow label="Active Certificate">
-              {device.identity.versions[device.identity.active_version] ? (
-                <a
-                  href={`/certificates/details?certificateId=${device.identity.versions[device.identity.active_version]}`}
-                  className="block truncate font-mono text-xs text-primary hover:underline"
-                >
-                  {device.identity.versions[device.identity.active_version]}
-                </a>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </DetailRow>
-            <DetailRow label="Total Versions">
-              {Object.keys(device.identity.versions).length}
-            </DetailRow>
-            {device.identity.expiration_date && (
-              <DetailRow label="Certificate Expiration">
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <span>{format(parseISO(device.identity.expiration_date), getDisplayDateFormat())}</span>
-                  <span className="text-xs text-muted-foreground">({formatDistanceToNowStrict(parseISO(device.identity.expiration_date))})</span>
-                </div>
-              </DetailRow>
+  return (
+    <div>
+      <DetailSection
+        title="Device"
+        description="Registration Authority that enrolled this device, its platform integration and tags."
+        aside={device.dms_owner && (
+          <Link href={`/registration-authorities/new?raId=${encodeURIComponent(device.dms_owner)}`} className={ASIDE_LINK_CLASS}>
+            <ArrowUpRight className="h-3.5 w-3.5" /> Open Registration Authority
+          </Link>
+        )}
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <ReadOnlyField label="Registration Authority" value={raForIntegration?.name || device.dms_owner || undefined} />
+          <ReadOnlyField label="Integration" value={activeIntegration?.typeName} />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-sm leading-none font-medium">Tags</p>
+          {(device.tags?.length ?? 0) > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {device.tags.map((tag) => <Badge key={tag} variant="secondary" className="text-sm">{tag}</Badge>)}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No tags</p>
+          )}
+        </div>
+      </DetailSection>
+
+      <Separator />
+
+      <DetailSection
+        title="Identity"
+        description="The certificate this device authenticates with. Each renewal adds a new version."
+        aside={identity && (
+          <div className="flex flex-wrap gap-2">
+            {certificate && (
+              <Link
+                href={`/certificates/details?certificateId=${encodeURIComponent(certificate.serialNumber)}`}
+                className={ASIDE_LINK_CLASS}
+              >
+                <ArrowUpRight className="h-3.5 w-3.5" /> Open certificate
+              </Link>
             )}
-          </>
-        ) : (
-          <div className="flex items-center justify-between gap-3 py-3">
-            <p className="text-sm text-muted-foreground">No identity assigned to this device.</p>
+            <Link href={historyHref} className={ASIDE_LINK_CLASS}>
+              <History className="h-3.5 w-3.5" /> Certificate history
+            </Link>
+          </div>
+        )}
+      >
+        {!identity && (
+          <div className="flex flex-col items-start gap-3">
+            <p className="text-sm text-muted-foreground">No identity assigned. Assign a certificate so this device can authenticate.</p>
             <Button variant="secondary" onClick={openAssignIdentityModal}>
               <PlusCircle className="mr-2 h-3.5 w-3.5" /> Assign Identity
             </Button>
           </div>
         )}
-      </DetailPanel>
+        {identity && (
+          <>
+            <ReadOnlyField
+              label="Active version"
+              value={`v${identity.active_version} · ${versionCount} ${versionCount === 1 ? 'version' : 'versions'} in total`}
+            />
+            {activeCertificate?.status === 'loading' && <BlockSkeleton label="Loading the active certificate…" className="h-32" />}
+            {certificate && (
+              <div className="grid grid-cols-2 gap-4">
+                <ReadOnlyField label="Common Name (CN)" value={getCertSubjectCommonName(certificate.subject)} className="col-span-2" />
+                <ReadOnlyField label="Issuer" value={getCertSubjectCommonName(certificate.issuer)} />
+                <ReadOnlyField label="Key Algorithm" value={certificate.publicKeyAlgorithm} />
+                <LinkField
+                  label="Serial Number"
+                  href={`/certificates/details?certificateId=${encodeURIComponent(certificate.serialNumber)}`}
+                  mono
+                  className="col-span-2"
+                >
+                  {formatIdentifier(certificate.serialNumber, mode)}
+                </LinkField>
+                <ReadOnlyField label="Valid From" value={formatDate(certificate.validFrom)} />
+                <ReadOnlyField label="Valid To" value={formatDate(certificate.validTo)} />
+                <ValidityTimeline validFrom={certificate.validFrom} validTo={certificate.validTo} />
+              </div>
+            )}
+            {activeCertificate?.status === 'missing' && (
+              <p className="text-sm text-muted-foreground">
+                The active certificate ({activeSerial}) was not found. It may have been deleted.
+              </p>
+            )}
+            {activeCertificate?.status === 'error' && <p className="text-sm text-destructive">{activeCertificate.message}</p>}
+          </>
+        )}
+      </DetailSection>
     </div>
   );
 }

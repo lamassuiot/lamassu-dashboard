@@ -2,13 +2,14 @@
 
 import React, { useId, useState } from 'react';
 import { format as formatDate } from 'date-fns';
-import { ExternalLink, Eye } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { CrlViewerSheet } from '@/components/shared/CrlViewerSheet';
+import Link from '@/components/shared/RouterLink';
 import { formatIdentifier } from '@/components/shared/IdentifierDisplay';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate } from '@/lib-crypto';
@@ -131,6 +132,27 @@ const isWebUrl = (value: string) => {
     return false;
   }
 };
+
+/** A labelled link to another page of the app, boxed like the read-only fields and URL lists. */
+export function LinkField({ label, href, children, mono, className }: Readonly<{
+  label: string;
+  href: string;
+  children: React.ReactNode;
+  mono?: boolean;
+  className?: string;
+}>) {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <p className="text-sm leading-none font-medium">{label}</p>
+      <div className={cn(FIELD_BOX_CLASS, mono && 'font-mono')}>
+        <Link href={href} className="inline-flex min-w-0 items-center gap-1.5 text-primary hover:underline">
+          <span className="truncate">{children}</span>
+          <ArrowUpRight className="h-3 w-3 shrink-0" />
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function UrlListField({ label, urls, action }: Readonly<{
   label: string;

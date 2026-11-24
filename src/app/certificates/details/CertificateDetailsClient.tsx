@@ -492,6 +492,7 @@ export default function CertificateDetailsClient() { // Renamed component
                   certificateChainForVisualizer: certificateChainForVisualizer,
                   statusBadgeVariant: statusVariant,
                                     apiStatusText: statusText,
+                  allCryptoEngines: allCryptoEngines,
                 }}
                 routerHook={routerHook}
                 onAkiClick={handleAkiClick}

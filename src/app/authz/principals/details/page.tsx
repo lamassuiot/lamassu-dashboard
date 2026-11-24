@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import Link from '@/components/shared/RouterLink';
 import { ReadOnlyField } from '@/components/shared/DecodedCertificateSections';
+import { DetailSection } from '@/components/shared/DetailSection';
 import { fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -117,25 +118,6 @@ const CA_TRUST_LABEL: Record<string, string> = {
   authority_key_id: 'Authority Key Identifier',
   fingerprint: 'SHA-256 fingerprint',
 };
-
-/** Detail-page section: title and description on the left, content on the right. */
-function DetailSection({ title, description, aside, children }: Readonly<{
-  title: string;
-  description: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-}>) {
-  return (
-    <section aria-label={title} className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-      <div>
-        <p className="font-semibold">{title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        {aside && <div className="mt-3">{aside}</div>}
-      </div>
-      <div className="min-w-0 space-y-4 lg:col-span-2">{children}</div>
-    </section>
-  );
-}
 
 /**
  * The CA whose SKI equals the principal's trusted AKI. The stored value may or may not use
