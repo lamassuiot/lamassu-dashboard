@@ -460,14 +460,26 @@ export async function updateCaDefaultProfileId(caId: string, profileId: string |
     await handleApiError(response, 'Failed to update issuance profile');
 }
 
+// CA statistics only: certificate statistics are served by GET /certificates/stats,
+// each restricted by the read filter of its own entity.
 export interface CaStatsSummaryResponse {
   cas: { total: number };
-  certificates: { total: number };
 }
 
 export async function fetchCaStatsSummary(): Promise<CaStatsSummaryResponse> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/stats`);
     return handleApiError(response, 'Failed to fetch CA stats');
+}
+
+export interface CertificatesStatsResponse {
+  total: number;
+  ca_distribution: Record<string, number>;
+  status_distribution: Record<string, number>;
+}
+
+export async function fetchCertificatesStats(): Promise<CertificatesStatsResponse> {
+    const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/stats`);
+    return handleApiError(response, 'Failed to fetch certificate stats');
 }
 
 export async function fetchDevManagerStats(): Promise<{ total: number }> {

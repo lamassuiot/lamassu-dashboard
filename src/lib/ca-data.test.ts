@@ -19,6 +19,7 @@ import {
   signCertificate,
   updateCaDefaultProfileId,
   fetchCaStatsSummary,
+  fetchCertificatesStats,
   fetchDevManagerStats,
   fetchSigningProfiles,
   createSigningProfile,
@@ -31,6 +32,7 @@ import {
   type ImportCaPayload,
   type PatchOperation,
   type CaStatsSummaryResponse,
+  type CertificatesStatsResponse,
   type ApiSigningProfile,
   type CreateSigningProfilePayload,
 } from './ca-data'
@@ -594,7 +596,6 @@ describe('ca-data', () => {
     it('should fetch CA stats summary successfully', async () => {
       const mockSummary: CaStatsSummaryResponse = {
         cas: { total: 50 },
-        certificates: { total: 1000 },
       }
 
       server.use(
@@ -617,6 +618,37 @@ describe('ca-data', () => {
       )
 
       await expect(fetchCaStatsSummary()).rejects.toThrow()
+    })
+  })
+
+  describe('fetchCertificatesStats', () => {
+    it('should fetch certificate stats from the certificates stats endpoint', async () => {
+      const mockStats: CertificatesStatsResponse = {
+        total: 1000,
+        ca_distribution: { 'ca-1': 600, 'ca-2': 400 },
+        status_distribution: { ACTIVE: 900, EXPIRED: 60, REVOKED: 40 },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/certificates/stats`, () => {
+          return HttpResponse.json(mockStats)
+        })
+      )
+
+      const result = await fetchCertificatesStats()
+
+      expect(result).toEqual(mockStats)
+      expect(result.total).toBe(1000)
+    })
+
+    it('should handle fetch error', async () => {
+      server.use(
+        http.get(`${CA_API_BASE}/certificates/stats`, () => {
+          return new HttpResponse(null, { status: 500 })
+        })
+      )
+
+      await expect(fetchCertificatesStats()).rejects.toThrow()
     })
   })
 
