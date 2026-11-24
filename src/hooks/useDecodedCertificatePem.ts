@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { decodeCertificatePem, type DecodedCertInfo } from '@/components/ca/DecodedCertificateSections';
+import { decodeCertificatePem, type DecodedCertInfo } from '@/components/shared/DecodedCertificateSections';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
 
 /**

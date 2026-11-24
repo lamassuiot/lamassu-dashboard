@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { parseCertificatePem, parseCertificatePemDetails, abToHex, parseDistinguishedName, parseCertificateSubjectRdns } from '@/lib-crypto'
+import * as asn1js from 'asn1js'
+import { AttributeTypeAndValue, RelativeDistinguishedNames } from 'pkijs'
+import { parseCertificatePem, parseCertificatePemDetails, abToHex, parseDistinguishedName, parseCertificateSubjectRdns, distinguishedNameFields } from '@/lib-crypto'
 import { OPENSSL_COMMA_SUBJECT_PEM, OPENSSL_EC_CA_PEM, VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
 describe('cert-parser', () => {
@@ -57,8 +59,22 @@ describe('cert-parser', () => {
 
   it('should keep commas inside attribute values in the parsed DN fields', async () => {
     const parsed = await parseCertificatePemDetails(OPENSSL_COMMA_SUBJECT_PEM)
-    const expected = { cn: 'Comma Root', c: 'ES', st: '', l: '', o: 'Acme, Inc.', ou: 'PKI, Ops' }
-    expect(parsed.subjectFields).toEqual(expected)
-    expect(parsed.issuerFields).toEqual(expected)
+    const expected = { cn: 'Comma Root', c: 'ES', st: undefined, l: undefined, o: 'Acme, Inc.', ou: 'PKI, Ops' }
+    expect(parsed.subjectFields).toStrictEqual(expected)
+    expect(parsed.issuerFields).toStrictEqual(expected)
+  })
+
+  it('should tell an attribute encoded with an empty value apart from a missing one', () => {
+    const attribute = (type: string, value: string) =>
+      new AttributeTypeAndValue({ type, value: new asn1js.Utf8String({ value }) })
+    const name = new RelativeDistinguishedNames({
+      typesAndValues: [attribute('2.5.4.3', 'device-01'), attribute('2.5.4.7', '')],
+    })
+
+    const fields = distinguishedNameFields(name)
+
+    expect(fields.cn).toBe('device-01')
+    expect(fields.l).toBe('')
+    expect(fields.st).toBeUndefined()
   })
 })

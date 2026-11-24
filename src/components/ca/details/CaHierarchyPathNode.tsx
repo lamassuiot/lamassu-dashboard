@@ -3,7 +3,7 @@
 
 import React from 'react';
 import type { CA } from '@/lib/ca-data';
-import { Clock, CheckCircle, XCircle, ChevronDown, Landmark } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, ChevronDown, HardDrive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from '@/lib/router';
@@ -57,7 +57,7 @@ export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, is
   const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
   const PrimaryIcon = engine 
     ? <CryptoEngineViewer engine={engine} iconOnly className="h-5 w-5" /> 
-    : <Landmark className={cn("h-5 w-5", isCurrentCa ? "text-primary" : "text-muted-foreground", effectiveDim && !isCurrentCa && "text-muted-foreground/70" )} />;
+    : <HardDrive className={cn("h-5 w-5 text-primary", effectiveDim && "text-muted-foreground/70")} />;
   
   const cardClassName = cn(
     "w-full max-w-sm border rounded-lg p-3 shadow-sm text-left",

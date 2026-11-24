@@ -13,18 +13,16 @@ import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, 
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { sileo } from '@/lib/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
-import { format as formatDate, parseISO, isValid } from 'date-fns';
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Code2, Layers } from 'lucide-react';
-import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
+import { DecodedCertificateSections, toDecodedCertInfo } from '@/components/shared/DecodedCertificateSections';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 
 
@@ -77,22 +75,6 @@ const RFC_TITLE_MAP: Record<string, string> = {
   "RFC5480": "Elliptic Curve Cryptography Subject Public Key Information",
   "RFC5912": "New ASN.1 Modules for the Public Key Infrastructure Using X.509 (PKIX)",
   "RFC6960": "X.509 Internet Public Key Infrastructure Online Certificate Status Protocol - OCSP",
-};
-
-const renderUrlList = (urls: string[] | undefined, listTitle: string) => {
-    if (!urls || urls.length === 0) return null;
-    return (
-      <>
-        <h5 className="font-medium text-sm mt-1">{listTitle}</h5>
-        <ul className="list-disc list-inside space-y-1 pl-4">
-            {urls.map((url, i) => (
-            <li key={i}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{url}</a>
-            </li>
-            ))}
-        </ul>
-      </>
-    );
 };
 
 const ResultStatusBadge: React.FC<{ status: ZlintResult['status'] }> = ({ status }) => {
@@ -174,6 +156,7 @@ export default function CertificateViewerPage() {
 
   // --- Viewer State ---
   const [parsedDetails, setParsedDetails] = useState<ParsedPemDetails | null>(null);
+  const decodedDetails = useMemo(() => (parsedDetails ? toDecodedCertInfo(parsedDetails) : null), [parsedDetails]);
   
   // --- Linter State ---
   const [lintResults, setLintResults] = useState<ZlintResult[]>([]);
@@ -534,132 +517,22 @@ export default function CertificateViewerPage() {
             </TabsContent>
 
             <TabsContent value="details" className="mt-0">
-                 {parsedDetails && (
-                                        <div>
-                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-                                                <div>
-                                                    <p className="font-semibold">General Information</p>
-                                                    <p className="text-sm text-muted-foreground mt-1">Identity, issuer, lifecycle window, and CA constraints.</p>
-                                                </div>
-                                                <div className="lg:col-span-2 space-y-4">
-                                                    <div className="flex justify-end">
-                                                        <Button
-                                                            variant="secondary"
-                                                            onClick={handleOpenOcspModal}
-                                                            disabled={isFetchingIssuer || !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0}
-                                                            title={
-                                                                !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0
-                                                                    ? 'Certificate does not contain an OCSP URL.'
-                                                                    : 'Check OCSP Status'
-                                                            }
-                                                        >
-                                                            {isFetchingIssuer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                                                            OCSP Check
-                                                        </Button>
-                                                    </div>
-
-                                                    <DetailInfoRows>
-                                                        <DetailInfoRow label="Subject" value={<span className="font-mono text-xs">{parsedDetails.subject}</span>} className="first:pt-0" />
-                                                        <DetailInfoRow label="Issuer" value={<span className="font-mono text-xs">{parsedDetails.issuer}</span>} />
-                                                        <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={parsedDetails.serialNumber} />} />
-                                                        <DetailInfoRow label="Valid From" value={isValid(parseISO(parsedDetails.validFrom)) ? formatDate(parseISO(parsedDetails.validFrom), 'PPpp') : 'Invalid Date'} />
-                                                        <DetailInfoRow label="Valid To" value={isValid(parseISO(parsedDetails.validTo)) ? formatDate(parseISO(parsedDetails.validTo), 'PPpp') : 'Invalid Date'} />
-                                                        <DetailInfoRow label="Is CA" value={<Badge variant={parsedDetails.isCa ? 'default' : 'secondary'}>{parsedDetails.isCa ? 'Yes' : 'No'}</Badge>} className="last:pb-0" />
-                                                    </DetailInfoRows>
-
-                                                    {parsedDetails.pathLenConstraint !== undefined && (
-                                                        <DetailInfoRows>
-                                                            <DetailInfoRow
-                                                                label="Path Length Constraint"
-                                                                value={<Badge variant="secondary">{parsedDetails.pathLenConstraint ?? 'None'}</Badge>}
-                                                                className="first:pt-0 last:pb-0"
-                                                            />
-                                                        </DetailInfoRows>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <Separator />
-
-                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-                                                <div>
-                                                    <p className="font-semibold">Key & Signature</p>
-                                                    <p className="text-sm text-muted-foreground mt-1">Algorithm and fingerprint material for this certificate.</p>
-                                                </div>
-                                                <div className="lg:col-span-2">
-                                                    <DetailInfoRows>
-                                                        <DetailInfoRow label="Public Key Algorithm" value={parsedDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
-                                                        <DetailInfoRow label="Signature Algorithm" value={parsedDetails.signatureAlgorithm || 'N/A'} />
-                                                        <DetailInfoRow label="SHA-256 Fingerprint" value={parsedDetails.fingerprintSha256 || 'N/A'} valueClassName="font-mono text-xs" />
-                                                        <DetailInfoRow label="Subject Key ID (SKI)" value={parsedDetails.subjectKeyId || 'N/A'} valueClassName="font-mono text-xs" />
-                                                        <DetailInfoRow label="Authority Key ID (AKI)" value={parsedDetails.authorityKeyId || 'N/A'} valueClassName="font-mono text-xs" className="last:pb-0" />
-                                                    </DetailInfoRows>
-                                                </div>
-                                            </div>
-
-                                            <Separator />
-
-                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-                                                <div>
-                                                    <p className="font-semibold">Certificate Extensions</p>
-                                                    <p className="text-sm text-muted-foreground mt-1">Alternative names and certificate usage declarations.</p>
-                                                </div>
-                                                <div className="lg:col-span-2">
-                                                    <DetailInfoRows>
-                                                        <DetailInfoRow
-                                                            label="Subject Alternative Names"
-                                                            value={
-                                                                parsedDetails.sans && parsedDetails.sans.length > 0 ? (
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                        {parsedDetails.sans.map((san, index) => <Badge key={index} variant="secondary">{san}</Badge>)}
-                                                                    </div>
-                                                                ) : 'Not Specified'
-                                                            }
-                                                            className="first:pt-0"
-                                                        />
-                                                        <DetailInfoRow
-                                                            label="Key Usages"
-                                                            value={
-                                                                (parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0) || (parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0) ? (
-                                                                    <div className="space-y-2">
-                                                                        {parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1">
-                                                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
-                                                                            </div>
-                                                                        )}
-                                                                        {parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1">
-                                                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                ) : 'Not Specified'
-                                                            }
-                                                            className="last:pb-0"
-                                                        />
-                                                    </DetailInfoRows>
-                                                </div>
-                                            </div>
-
-                                            <Separator />
-
-                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-                                                <div>
-                                                    <p className="font-semibold">Distribution Points</p>
-                                                    <p className="text-sm text-muted-foreground mt-1">CRL, OCSP, and issuer endpoints embedded in the certificate.</p>
-                                                </div>
-                                                <div className="space-y-3 lg:col-span-2">
-                                                    {renderUrlList(parsedDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
-                                                    {parsedDetails.crlDistributionPoints && (parsedDetails.ocspUrls || parsedDetails.caIssuersUrls) && <Separator />}
-                                                    {renderUrlList(parsedDetails.ocspUrls, 'OCSP Responders (from AIA)')}
-                                                    {parsedDetails.ocspUrls && parsedDetails.caIssuersUrls && <Separator />}
-                                                    {renderUrlList(parsedDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
-                                                    {(!parsedDetails.crlDistributionPoints || parsedDetails.crlDistributionPoints.length === 0) && (!parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0) && (!parsedDetails.caIssuersUrls || parsedDetails.caIssuersUrls.length === 0) && (
-                                                        <p className="text-sm text-muted-foreground">No distribution points specified in certificate.</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
+                {decodedDetails && (
+                    <DecodedCertificateSections
+                        info={decodedDetails}
+                        sectionClassName="py-6"
+                        detailsAside={
+                            <Button
+                                variant="secondary"
+                                onClick={handleOpenOcspModal}
+                                disabled={isFetchingIssuer || !parsedDetails?.ocspUrls?.length}
+                                title={parsedDetails?.ocspUrls?.length ? 'Check OCSP Status' : 'Certificate does not contain an OCSP URL.'}
+                            >
+                                {isFetchingIssuer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                                OCSP Check
+                            </Button>
+                        }
+                    />
                 )}
             </TabsContent>
             

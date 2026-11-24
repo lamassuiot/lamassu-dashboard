@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { initPkijsEngine, pemToBase64 } from "@/lib-crypto";
 import { sileo } from '@/lib/toast';
 import { Alert } from '@/components/ui/alert';
-import { DecodedCertificateSections } from '@/components/ca/DecodedCertificateSections';
+import { DecodedCertificateSections } from '@/components/shared/DecodedCertificateSections';
 import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
@@ -142,7 +142,7 @@ export default function CreateCaImportFullPage() {
       await importCa(payload);
       sileo.success({
         title: "Certification Authority Import Successful",
-        description: `Certification Authority "${decodedImportedCertInfo?.commonName || 'imported certificate'}" has been imported.`
+        description: `Certification Authority "${decodedImportedCertInfo?.subjectFields?.cn || 'imported certificate'}" has been imported.`
       });
       router.push('/certificate-authorities');
     } catch (error: any) {
@@ -280,7 +280,10 @@ export default function CreateCaImportFullPage() {
           </div>
 
           {decodedImportedCertInfo && !decodedImportedCertInfo.error && (
-            <DecodedCertificateSections info={decodedImportedCertInfo} />
+            <>
+              <Separator />
+              <DecodedCertificateSections info={decodedImportedCertInfo} expectCa />
+            </>
           )}
 
           <Separator />

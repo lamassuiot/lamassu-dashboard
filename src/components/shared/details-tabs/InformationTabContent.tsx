@@ -4,13 +4,13 @@
 import React, { useState, useEffect } from 'react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { Users, AlertCircle, Pencil, Check, ChevronRight, ExternalLink } from "lucide-react";
+import { Users, AlertCircle, Pencil, Check, ChevronDown, ArrowUpRight, Search } from "lucide-react";
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
-import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
+import { CaCard } from '@/components/ca/CaCard';
+import { findCaById, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { AppRouterInstance } from '@/lib/router';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -21,14 +21,15 @@ import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
-import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import {
+  DecodedCertificateSections,
+  ReadOnlyField,
+  StatusPill,
+  type DecodedCertificateSectionsProps,
+} from '@/components/shared/DecodedCertificateSections';
+import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { buildCaKmsKeyUri, buildCertificateKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import Link from '@/components/shared/RouterLink';
-
-import { cn, formatCertificateUsageLabel } from '@/lib/utils';
-import { differenceInDays, isPast, parseISO } from 'date-fns';
-
 
 interface CaStats {
   ACTIVE: number;
@@ -61,35 +62,50 @@ interface InformationTabContentProps {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * A CA imported from its certificate alone cannot sign, so it has no private key nor issuance
+ * profile. `EXTERNAL_PUBLIC` is the legacy name of `IMPORTED_WITHOUT_KEY`.
+ */
+const isCaWithoutKey = (ca: CA) => ca.caType === 'IMPORTED_WITHOUT_KEY' || ca.caType === 'EXTERNAL_PUBLIC';
+
 const getRevocationReasonLabel = (reason: string | undefined): string => {
   if (!reason) return 'Unknown';
   const found = revocationReasons.find(r => r.value === reason);
   return found ? found.label : reason;
 };
 
-/** Renders an array of URLs as small link chips. */
-const UrlChips = ({ urls, label }: { urls: string[] | undefined; label: string }) => {
-  if (!urls || urls.length === 0) return null;
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {urls.map((url, i) => (
-          <a
-            key={i}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-muted transition-colors max-w-full"
-          >
-            <span className="truncate max-w-[320px]">{url}</span>
-            <ExternalLink className="h-3 w-3 shrink-0" />
-          </a>
-        ))}
-      </div>
+/**
+ * Whether Lamassu holds the private key and, when it lives in the KMS, a link to it. Kept apart
+ * from the decoded certificate sections because the key is not part of the certificate.
+ */
+const PrivateKeySection = ({ present, href, keyLabel }: { present: boolean; href: string | null; keyLabel?: string }) => (
+  <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+    <div>
+      <p className="font-semibold">Private Key</p>
+      <p className="text-sm text-muted-foreground mt-1">Whether Lamassu holds the private key for this certificate, and where.</p>
     </div>
-  );
-};
+    <div className="flex min-w-0 items-start lg:col-span-2">
+      <StatusPill
+        tone={present ? 'primary' : 'muted'}
+        title={present ? 'Present' : 'Not available'}
+        detail={href ? (
+          <Link href={href} className="underline-offset-2 hover:underline" title={`Open private key in KMS: ${keyLabel ?? ''}`}>
+            {keyLabel}
+          </Link>
+        ) : undefined}
+      />
+    </div>
+  </div>
+);
+
+const IssuerCaLink = ({ caId }: { caId: string }) => (
+  <Link
+    href={`/certificate-authorities/details?caId=${encodeURIComponent(caId)}`}
+    className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+  >
+    <ArrowUpRight className="h-3.5 w-3.5" /> Open issuer CA
+  </Link>
+);
 
 // ── main export ──────────────────────────────────────────────────────────────
 
@@ -110,6 +126,33 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [decodedCert, decodeCert] = useDecodedCertificatePem();
+  const pemData = item.pemData;
+  useEffect(() => {
+    void decodeCert(pemData ?? '');
+  }, [pemData, decodeCert]);
+
+  /** The parser sections for `item`'s certificate, or why they cannot be shown yet. */
+  const renderCertificateSections = (props: Omit<DecodedCertificateSectionsProps, 'info' | 'sectionClassName'>) => {
+    if (decodedCert && !decodedCert.error) {
+      return <DecodedCertificateSections info={decodedCert} sectionClassName="py-6" {...props} />;
+    }
+    if (decodedCert?.error || !pemData?.trim()) {
+      return (
+        <Alert variant="warning" className="my-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Certificate could not be decoded</AlertTitle>
+          <AlertDescription>{decodedCert?.error ?? 'No PEM data is available for this certificate.'}</AlertDescription>
+        </Alert>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Decoding certificate…
+      </div>
+    );
+  };
+
   useEffect(() => {
     const loadProfiles = async () => {
       setIsLoadingProfiles(true);
@@ -122,7 +165,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
         setIsLoadingProfiles(false);
       }
     };
-    if (itemType === 'ca') {
+    if (itemType === 'ca' && !isCaWithoutKey(item as CA)) {
       loadProfiles();
       setSelectedProfileId((item as CA).defaultProfileId || null);
     }
@@ -158,14 +201,16 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   if (itemType === 'ca' && caSpecific) {
     const caDetails = item as CA;
 
-    const hasDistribution =
-      (caDetails.crlDistributionPoints && caDetails.crlDistributionPoints.length > 0) ||
-      (caDetails.ocspUrls && caDetails.ocspUrls.length > 0) ||
-      (caDetails.caIssuersUrls && caDetails.caIssuersUrls.length > 0);
+    const issuerCa = caDetails.issuer !== caDetails.id ? findCaById(caDetails.issuer, caSpecific.allCAsForLinking) : null;
 
+    const caWithoutKey = isCaWithoutKey(caDetails);
     const caKeyUri = buildCaKmsKeyUri(caDetails);
-    const caHasManagedKey = caKeyUri !== null && caDetails.caType !== 'IMPORTED_WITHOUT_KEY';
+    const caHasManagedKey = caKeyUri !== null && !caWithoutKey;
     const caKeyHref = kmsKeyDetailsHref(caKeyUri);
+
+    const enginesById = new Map((caSpecific.allCryptoEngines ?? []).map(engine => [engine.id, engine]));
+    const engineFor = (ca: CA) => (ca.kmsKeyId ? enginesById.get(ca.kmsKeyId) : undefined);
+    const openCa = (ca: CA) => routerHook.push(`/certificate-authorities/details?caId=${encodeURIComponent(ca.id)}`);
 
     return (
       <div>
@@ -190,194 +235,68 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </Alert>
         )}
 
-        {/* Section: General Information */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">General Information</p>
-            <p className="text-sm text-muted-foreground mt-1">Identity, issuer, lifecycle, and serial details for this authority.</p>
-          </div>
-          <div className="lg:col-span-2 space-y-4">
-            <DetailInfoRows>
-              <DetailInfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
-              <DetailInfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
-              <DetailInfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
-              <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
-            </DetailInfoRows>
-
-            {/* Validity Period */}
-            {(() => {
-              const validFrom = caDetails.rawApiData?.certificate.valid_from;
-              const validTo = caDetails.expires;
-              if (!validFrom || !validTo) return null;
-              try {
-                const from = parseISO(validFrom).getTime();
-                const to = parseISO(validTo).getTime();
-                const now = Date.now();
-                const percent = Math.min(100, Math.max(0, Math.round(((now - from) / (to - from)) * 100)));
-                const daysLeft = differenceInDays(to, now);
-                const expired = isPast(parseISO(validTo));
-                const barColor = expired ? 'bg-destructive' : daysLeft <= 30 ? 'bg-amber-500' : percent >= 75 ? 'bg-amber-400' : 'bg-primary';
-                const labelColor = expired ? 'text-destructive' : daysLeft <= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground';
-                const remaining = expired ? 'Expired' : daysLeft === 0 ? 'Expires today' : `${daysLeft}d remaining`;
-                return (
-                  <div className="space-y-2 pt-3 border-t">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Validity Period</span>
-                      <span className={cn('text-xs font-semibold tabular-nums', labelColor)}>{remaining}</span>
-                    </div>
-                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${percent}%` }} />
-                    </div>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">From</p>
-                        <DateDisplay date={validFrom} className="text-xs" />
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">To</p>
-                        <DateDisplay date={validTo} highlightExpired className="text-xs items-end" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              } catch { return null; }
-            })()}
-          </div>
-        </div>
+        {renderCertificateSections({
+          detailsExtra: <ReadOnlyField label="CA ID" value={caDetails.id} mono />,
+          issuerAside: issuerCa ? <IssuerCaLink caId={issuerCa.id} /> : undefined,
+        })}
 
         <Separator />
 
-        {/* Section: Key & Signature */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">Key & Signature</p>
-            <p className="text-sm text-muted-foreground mt-1">Algorithm and identifier material associated with this CA certificate.</p>
-          </div>
-          <div className="lg:col-span-2">
-            <DetailInfoRows>
-              <DetailInfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
-              {caHasManagedKey && (
-                <DetailInfoRow
-                  label="Private Key"
-                  value={
-                    <Link
-                      href={caKeyHref!}
-                      className="text-primary underline-offset-2 hover:underline"
-                      title="Open private key in KMS"
-                    >
-                      {caDetails.keyId}
-                    </Link>
-                  }
-                />
-              )}
-              <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
-              <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} /> : 'N/A'} />
-              <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} /> : 'N/A'} className="last:pb-0" />
-            </DetailInfoRows>
-          </div>
-        </div>
+        <PrivateKeySection
+          present={caHasManagedKey}
+          href={caHasManagedKey ? caKeyHref : null}
+          keyLabel={caDetails.keyId}
+        />
 
-        <Separator />
-
-        {/* Section: Certificate Extensions */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">Certificate Extensions</p>
-            <p className="text-sm text-muted-foreground mt-1">Basic constraints and intended usages defined on the certificate.</p>
-          </div>
-          <div className="lg:col-span-2">
-            <DetailInfoRows>
-              <DetailInfoRow
-                label="Basic Constraints"
-                className="first:pt-0"
-                value={
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">CA:</span>
-                    <Badge variant={caDetails.isCa ? 'default' : 'secondary'}>
-                      {caDetails.isCa ? 'TRUE' : 'FALSE'}
-                    </Badge>
-                  </div>
-                }
-              />
-              <DetailInfoRow
-                label="Key Usages"
-                className="last:pb-0"
-                value={
-                  (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
-                    <div className="flex flex-wrap gap-1">
-                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
-                      {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
-                    </div>
-                  ) : 'Not Specified'
-                }
-              />
-            </DetailInfoRows>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Section: Default Issuance Profile */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">Default Issuance Profile</p>
-            <p className="text-sm text-muted-foreground mt-1">Profile used by default when this CA issues new certificates.</p>
-          </div>
-          <div className="lg:col-span-2">
-            {!isEditingProfile ? (
-              <div className="space-y-3">
-                {caDetails.defaultProfileId && selectedProfileForDisplay ? (
-                  <IssuanceProfileCard profile={selectedProfileForDisplay} />
-                ) : (
-                  <Alert variant="warning">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>No default profile set</AlertTitle>
-                    <AlertDescription>
-                      Certificates issued by this CA will use default settings. Set a profile to enforce key usage, validity, and extensions.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Button variant="secondary" onClick={() => setIsEditingProfile(true)}>
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Profile
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <SigningProfileSelector
-                  profileMode={profileMode}
-                  onProfileModeChange={setProfileMode}
-                  availableProfiles={availableProfiles}
-                  isLoadingProfiles={isLoadingProfiles}
-                  selectedProfileId={selectedProfileId}
-                  onProfileIdChange={setSelectedProfileId}
-                  inlineModeEnabled={false}
-                  createModeEnabled={true}
-                />
-                <div className="flex justify-end gap-2">
-                  <Button variant="secondary" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
-                  <Button onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <Check className="mr-2 h-3.5 w-3.5" /> Save
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Section: Distribution Points */}
-        {hasDistribution && (
+        {/* Section: Default Issuance Profile (a CA without its key cannot issue) */}
+        {!caWithoutKey && (
           <>
             <Separator />
+
             <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
               <div>
-                <p className="font-semibold">Distribution Points</p>
-                <p className="text-sm text-muted-foreground mt-1">Published CRL, OCSP, and issuer endpoints for relying parties.</p>
+                <p className="font-semibold">Default Issuance Profile</p>
+                <p className="text-sm text-muted-foreground mt-1">Profile used by default when this CA issues new certificates.</p>
               </div>
-              <div className="space-y-4 lg:col-span-2">
-                <UrlChips urls={caDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
-                <UrlChips urls={caDetails.ocspUrls} label="OCSP Responders" />
-                <UrlChips urls={caDetails.caIssuersUrls} label="CA Issuers (AIA)" />
+              <div className="lg:col-span-2">
+                {!isEditingProfile ? (
+                  <div className="space-y-3">
+                    {caDetails.defaultProfileId && selectedProfileForDisplay ? (
+                      <IssuanceProfileCard profile={selectedProfileForDisplay} />
+                    ) : (
+                      <Alert variant="warning">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>No default profile set</AlertTitle>
+                        <AlertDescription>
+                          Certificates issued by this CA will use default settings. Set a profile to enforce key usage, validity, and extensions.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <Button variant="secondary" onClick={() => setIsEditingProfile(true)}>
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Profile
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <SigningProfileSelector
+                      profileMode={profileMode}
+                      onProfileModeChange={setProfileMode}
+                      availableProfiles={availableProfiles}
+                      isLoadingProfiles={isLoadingProfiles}
+                      selectedProfileId={selectedProfileId}
+                      onProfileIdChange={setSelectedProfileId}
+                      inlineModeEnabled={false}
+                      createModeEnabled={true}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="secondary" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
+                      <Button onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Check className="mr-2 h-3.5 w-3.5" /> Save
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -395,14 +314,16 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             {caSpecific.pathToRoot.length > 0 ? (
               <div className="flex w-full flex-col items-center">
                 {caSpecific.pathToRoot.map((caNode, index) => (
-                  <CaHierarchyPathNode
-                    key={caNode.id}
-                    ca={caNode}
-                    isCurrentCa={caNode.id === caDetails.id}
-                    hasNext={index < caSpecific.pathToRoot.length - 1}
-                    isFirst={index === 0}
-                    allCryptoEngines={caSpecific.allCryptoEngines}
-                  />
+                  <React.Fragment key={caNode.id}>
+                    <CaCard
+                      ca={caNode}
+                      engine={engineFor(caNode)}
+                      isCurrent={caNode.id === caDetails.id}
+                      onClick={openCa}
+                      className="max-w-full"
+                    />
+                    {index < caSpecific.pathToRoot.length - 1 && <ChevronDown className="my-1 h-5 w-5 text-primary" />}
+                  </React.Fragment>
                 ))}
               </div>
             ) : (
@@ -410,23 +331,13 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             )}
 
             {caDetails.children && caDetails.children.length > 0 && (
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm font-semibold">Directly Issues To</p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  {caDetails.children.map(child => (
-                    <button
-                      key={child.id}
-                      onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}
-                      className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60"
-                    >
-                      <span>{child.name}</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
+              <div className="flex flex-col items-center gap-2 pt-2">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <Users className="h-4 w-4 text-muted-foreground" /> Directly Issues To
+                </p>
+                {caDetails.children.map(child => (
+                  <CaCard key={child.id} ca={child} engine={engineFor(child)} onClick={openCa} className="max-w-full" />
+                ))}
               </div>
             )}
           </div>
@@ -442,10 +353,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
     const certKeyHref = kmsKeyDetailsHref(buildCertificateKmsKeyUri(certDetails));
     const certKeyDisplay = certDetails.rawApiData?.key_id || 'View private key';
 
-    const hasDistribution =
-      (certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) ||
-      (certDetails.ocspUrls && certDetails.ocspUrls.length > 0) ||
-      (certDetails.caIssuersUrls && certDetails.caIssuersUrls.length > 0);
+    const akiForLookup: string | undefined = certDetails.rawApiData?.authority_key_id || undefined;
 
     return (
       <div>
@@ -470,154 +378,26 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">General Information</p>
-            <p className="text-sm text-muted-foreground mt-1">Identity, issuer, validity period, and serial details for this certificate.</p>
-          </div>
-          <div className="lg:col-span-2">
-            <DetailInfoRows>
-              <DetailInfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
-              <DetailInfoRow
-                label="Issuer"
-                value={
-                  certDetails.issuerCaId ? (
-                    <button
-                      className="text-primary hover:underline text-left"
-                      onClick={() => routerHook.push(`/certificate-authorities/details?caId=${certDetails.issuerCaId}`)}
-                    >
-                      {certDetails.issuer}
-                    </button>
-                  ) : (
-                    certDetails.issuer
-                  )
-                }
-              />
-              <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
-              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} />} />
-              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} highlightExpired />} className="last:pb-0" />
-            </DetailInfoRows>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">Key & Signature</p>
-            <p className="text-sm text-muted-foreground mt-1">Algorithm details, fingerprint material, and issuer key identifiers.</p>
-          </div>
-          <div className="lg:col-span-2">
-            <DetailInfoRows>
-              <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
-              <DetailInfoRow
-                label="Private Key"
-                value={
-                  certKeyHref ? (
-                    <Link
-                      href={certKeyHref}
-                      className="text-primary underline-offset-2 hover:underline"
-                      title="Open private key in KMS"
-                    >
-                      {certKeyDisplay}
-                    </Link>
-                  ) : (
-                    <Badge variant={certDetails.hasPrivateKey ? 'success' : 'muted'} dot>
-                      {certDetails.hasPrivateKey ? 'Present' : 'Not available'}
-                    </Badge>
-                  )
-                }
-              />
-              <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
-              <DetailInfoRow
-                label="SHA-256 Fingerprint"
-                value={
-                  certDetails.fingerprintSha256
-                    ? <IdentifierDisplay value={certDetails.fingerprintSha256} />
-                    : 'N/A'
-                }
-              />
-              {certDetails.rawApiData?.subject_key_id && (
-                <DetailInfoRow
-                  label="SKI"
-                  value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} />}
-                />
+        {renderCertificateSections({
+          issuerAside: certDetails.issuerCaId || (akiForLookup && onAkiClick) ? (
+            <>
+              {certDetails.issuerCaId && <IssuerCaLink caId={certDetails.issuerCaId} />}
+              {akiForLookup && onAkiClick && (
+                <Button variant="secondary" size="sm" onClick={() => onAkiClick(akiForLookup)} title="Find Issuer CA by AKI">
+                  <Search className="h-3.5 w-3.5" /> Find issuer by AKI
+                </Button>
               )}
-              <DetailInfoRow
-                label="AKI"
-                value={
-                  certDetails.rawApiData?.authority_key_id && onAkiClick ? (
-                    <button
-                      onClick={() => onAkiClick(certDetails.rawApiData.authority_key_id)}
-                      className="text-left text-primary hover:underline"
-                      title="Find Issuer CA by AKI"
-                    >
-                      <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} />
-                    </button>
-                  ) : certDetails.rawApiData?.authority_key_id ? (
-                    <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} />
-                  ) : 'N/A'
-                }
-                className="last:pb-0"
-              />
-            </DetailInfoRows>
-          </div>
-        </div>
+            </>
+          ) : undefined,
+        })}
 
         <Separator />
 
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-          <div>
-            <p className="font-semibold">Certificate Extensions</p>
-            <p className="text-sm text-muted-foreground mt-1">Alternative names and intended usages defined in the certificate.</p>
-          </div>
-          <div className="lg:col-span-2">
-            <DetailInfoRows>
-              <DetailInfoRow
-                label="Subject Alternative Names"
-                  className="first:pt-0"
-                  value={
-                    certDetails.sans && certDetails.sans.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {certDetails.sans.map((san) => <Badge key={san} variant="secondary">{san}</Badge>)}
-                      </div>
-                    ) : 'Not Specified'
-                  }
-                />
-                <DetailInfoRow
-                  label="Key Usages"
-                  className="last:pb-0"
-                  value={
-                    (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
-                      <div className="flex flex-wrap gap-1">
-                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
-                        {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary">{formatCertificateUsageLabel(u)}</Badge>)}
-                      </div>
-                    ) : 'Not Specified'
-                  }
-                />
-              </DetailInfoRows>
-          </div>
-        </div>
-
-        {hasDistribution && (
-          <>
-            <Separator />
-            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
-              <div>
-                <p className="font-semibold">Distribution Points</p>
-                <p className="text-sm text-muted-foreground mt-1">Published CRL, OCSP, and issuer endpoints for this certificate.</p>
-              </div>
-              <div className="space-y-4 lg:col-span-2">
-                <div className="space-y-4">
-                  <UrlChips urls={certDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
-                  <UrlChips urls={certDetails.ocspUrls} label="OCSP Responders" />
-                  <UrlChips urls={certDetails.caIssuersUrls} label="CA Issuers (AIA)" />
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+        <PrivateKeySection
+          present={!!certKeyHref || !!certDetails.hasPrivateKey}
+          href={certKeyHref}
+          keyLabel={certKeyDisplay}
+        />
 
         {certificateSpecific.certificateChainForVisualizer && (
           <>

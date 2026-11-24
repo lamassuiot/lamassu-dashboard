@@ -90,14 +90,17 @@ export function distinguishedNameParts(name: RelativeDistinguishedNames): { labe
   }));
 }
 
-/** The common attributes of a distinguished name; repeated attributes are joined with ", ". */
+/**
+ * The common attributes of a distinguished name; repeated attributes are joined with ", ".
+ * An attribute the DN does not contain is `undefined`, while one encoded with an empty value is `''`.
+ */
 export interface DistinguishedNameFields {
-  cn: string;
-  c: string;
-  st: string;
-  l: string;
-  o: string;
-  ou: string;
+  cn?: string;
+  c?: string;
+  st?: string;
+  l?: string;
+  o?: string;
+  ou?: string;
 }
 
 /**
@@ -105,10 +108,12 @@ export interface DistinguishedNameFields {
  * splitting a formatted DN string, values that contain commas stay intact.
  */
 export function distinguishedNameFields(name: RelativeDistinguishedNames): DistinguishedNameFields {
-  const valuesOf = (label: string) => name.typesAndValues
-    .filter(tv => OID_MAP[tv.type] === label)
-    .map(tv => String((tv.value as any).valueBlock.value))
-    .join(", ");
+  const valuesOf = (label: string) => {
+    const values = name.typesAndValues
+      .filter(tv => OID_MAP[tv.type] === label)
+      .map(tv => String((tv.value as any).valueBlock.value));
+    return values.length > 0 ? values.join(", ") : undefined;
+  };
   return { cn: valuesOf("CN"), c: valuesOf("C"), st: valuesOf("ST"), l: valuesOf("L"), o: valuesOf("O"), ou: valuesOf("OU") };
 }
 

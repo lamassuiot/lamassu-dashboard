@@ -10,7 +10,7 @@ describe('useDecodedCertificatePem', () => {
     await act(() => result.current[1](VALID_RSA_CERT_PEM))
 
     expect(result.current[0]?.error).toBeUndefined()
-    expect(result.current[0]?.organization).toBe('Internet Widgits Pty Ltd')
+    expect(result.current[0]?.subjectFields?.o).toBe('Internet Widgits Pty Ltd')
   })
 
   it('reports input that is not a certificate as an error', async () => {

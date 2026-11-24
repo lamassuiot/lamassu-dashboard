@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-type IdentifierDisplayMode = 'with-separators' | 'without-separators';
+export type IdentifierDisplayMode = 'with-separators' | 'without-separators';
 
 interface IdentifierDisplayContextType {
   mode: IdentifierDisplayMode;

@@ -8,7 +8,7 @@ import { ArrowLeft, PlusCircle, Loader2 } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
 import { sileo } from '@/lib/toast';
 import { Alert } from '@/components/ui/alert';
-import { DecodedCertificateSections } from '@/components/ca/DecodedCertificateSections';
+import { DecodedCertificateSections } from '@/components/shared/DecodedCertificateSections';
 import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
@@ -62,7 +62,7 @@ export default function CreateCaImportPublicPage() {
       await importCa(payload);
       sileo.success({
         title: "Public Certification Authority Import Successful",
-        description: `Public Certification Authority "${decodedImportedCertInfo?.commonName || decodedImportedCertInfo?.issuer || 'imported certificate'}" has been imported.`
+        description: `Public Certification Authority "${decodedImportedCertInfo?.subjectFields?.cn || decodedImportedCertInfo?.issuer || 'imported certificate'}" has been imported.`
       });
       router.push('/certificate-authorities');
     } catch (error: any) {
@@ -135,7 +135,12 @@ export default function CreateCaImportPublicPage() {
             </div>
           </div>
 
-          {hasValidCert && <DecodedCertificateSections info={decodedImportedCertInfo} />}
+          {hasValidCert && (
+            <>
+              <Separator />
+              <DecodedCertificateSections info={decodedImportedCertInfo} expectCa />
+            </>
+          )}
 
           <Separator />
 

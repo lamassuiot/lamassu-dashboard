@@ -4,8 +4,6 @@ import React, { useState, useRef } from 'react';
 import { useRouter } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
@@ -15,6 +13,7 @@ import { importCertificate, type ImportCertificateBody } from '@/lib/issued-cert
 import dynamic from '@/components/shared/dynamic';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
+import { DecodedCertificateSections } from '@/components/shared/DecodedCertificateSections';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
 import { cn } from '@/lib/utils';
 import { CERTIFICATE_FILE_EXTENSIONS, CERTIFICATE_MAX_FILE_SIZE, loadCertificateFilesAsPem } from '@/lib/certificate-files';
@@ -96,7 +95,7 @@ export default function ImportCertificatePage() {
       await importCertificate(payload);
       sileo.success({
         title: 'Certificate Imported',
-        description: `Certificate "${decodedCertInfo?.commonName || 'Unknown'}" has been imported successfully`,
+        description: `Certificate "${decodedCertInfo?.subjectFields?.cn || 'Unknown'}" has been imported successfully`,
       });
       router.push('/certificates');
     } catch (error) {
@@ -210,224 +209,10 @@ export default function ImportCertificatePage() {
             </div>
           </div>
 
-          {/* ── Decoded sections (shown after successful parse) ── */}
           {hasValidCert && (
             <>
               <Separator />
-
-              {/* ── Certificate Details ── */}
-              <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-                <div>
-                  <p className="font-semibold">Certificate Details</p>
-                  <p className="text-sm text-muted-foreground mt-1">Information decoded from the provided PEM certificate.</p>
-                </div>
-                <div className="space-y-4 lg:col-span-2">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 space-y-1.5">
-                      <Label>Serial Number</Label>
-                      <Input readOnly value={decodedCertInfo.serialNumber || ''} className="bg-muted/50 font-mono text-xs" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Valid From</Label>
-                      <Input readOnly value={decodedCertInfo.validFrom || ''} className="bg-muted/50" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Valid To</Label>
-                      <Input readOnly value={decodedCertInfo.validTo || ''} className="bg-muted/50" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Label>Is CA</Label>
-                    <Badge variant={decodedCertInfo.isCa ? 'default' : 'secondary'}>
-                      {decodedCertInfo.isCa ? 'Yes' : 'No'}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* ── Issuer Distinguished Name ── */}
-              <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-                <div>
-                  <p className="font-semibold">Issuer Distinguished Name</p>
-                  <p className="text-sm text-muted-foreground mt-1">The CA that signed this certificate. Identical to the Subject for self-signed (root) CAs.</p>
-                </div>
-                <div className="space-y-4 lg:col-span-2">
-                  {(() => {
-                    const issuerFields = decodedCertInfo.issuerFields ?? { cn: '', c: '', st: '', l: '', o: '', ou: '' };
-                    return (
-                      <>
-                        <div className="space-y-1.5">
-                          <Label>Common Name (CN)</Label>
-                          <Input readOnly value={issuerFields.cn} className="bg-muted/50" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label>Country (C)</Label>
-                            <Input readOnly value={issuerFields.c} className="bg-muted/50" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>State / Province (ST)</Label>
-                            <Input readOnly value={issuerFields.st} className="bg-muted/50" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Locality (L)</Label>
-                            <Input readOnly value={issuerFields.l} className="bg-muted/50" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Organization (O)</Label>
-                            <Input readOnly value={issuerFields.o} className="bg-muted/50" />
-                          </div>
-                          <div className="col-span-2 space-y-1.5">
-                            <Label>Organizational Unit (OU)</Label>
-                            <Input readOnly value={issuerFields.ou} className="bg-muted/50" />
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* ── Subject Distinguished Name ── */}
-              <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-                <div>
-                  <p className="font-semibold">Subject Distinguished Name</p>
-                  <p className="text-sm text-muted-foreground mt-1">X.509 subject fields extracted from the certificate.</p>
-                </div>
-                <div className="space-y-4 lg:col-span-2">
-                  <div className="space-y-1.5">
-                    <Label>Common Name (CN)</Label>
-                    <Input readOnly value={decodedCertInfo.commonName || ''} className="bg-muted/50" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Country (C)</Label>
-                      <Input readOnly value={decodedCertInfo.country || ''} className="bg-muted/50" />
-                      <p className="text-xs text-muted-foreground">2-letter ISO country code.</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>State / Province (ST)</Label>
-                      <Input readOnly value={decodedCertInfo.state || ''} className="bg-muted/50" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Locality (L)</Label>
-                      <Input readOnly value={decodedCertInfo.locality || ''} className="bg-muted/50" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Organization (O)</Label>
-                      <Input readOnly value={decodedCertInfo.organization || ''} className="bg-muted/50" />
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
-                      <Label>Organizational Unit (OU)</Label>
-                      <Input readOnly value={decodedCertInfo.organizationalUnit || ''} className="bg-muted/50" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* ── Extensions ── */}
-              <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-                <div>
-                  <p className="font-semibold">Extensions</p>
-                  <p className="text-sm text-muted-foreground mt-1">X.509 v3 extensions and cryptographic metadata present in the certificate.</p>
-                </div>
-                <div className="space-y-4 lg:col-span-2">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Public Key Algorithm</Label>
-                      <Input readOnly value={decodedCertInfo.publicKeyAlgorithm || ''} className="bg-muted/50" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Signature Algorithm</Label>
-                      <Input readOnly value={decodedCertInfo.signatureAlgorithm || ''} className="bg-muted/50" />
-                    </div>
-                    {decodedCertInfo.pathLenConstraint !== undefined && (
-                      <div className="space-y-1.5">
-                        <Label>Path Length Constraint</Label>
-                        <Input readOnly value={String(decodedCertInfo.pathLenConstraint)} className="bg-muted/50" />
-                      </div>
-                    )}
-                    <div className="col-span-2 space-y-1.5">
-                      <Label>Subject Key Identifier</Label>
-                      <Input readOnly value={decodedCertInfo.subjectKeyId || ''} className="bg-muted/50 font-mono text-xs" />
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
-                      <Label>Authority Key Identifier</Label>
-                      <Input readOnly value={decodedCertInfo.authorityKeyId || ''} className="bg-muted/50 font-mono text-xs" />
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
-                      <Label>SHA-256 Fingerprint</Label>
-                      <Input readOnly value={decodedCertInfo.fingerprintSha256 || ''} className="bg-muted/50 font-mono text-xs" />
-                    </div>
-                  </div>
-                  {(decodedCertInfo.keyUsage?.length ?? 0) > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>Key Usage</Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {decodedCertInfo.keyUsage!.map(u => (
-                          <Badge key={u} variant="secondary">{u}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(decodedCertInfo.extendedKeyUsage?.length ?? 0) > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>Extended Key Usage</Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {decodedCertInfo.extendedKeyUsage!.map(u => (
-                          <Badge key={u} variant="secondary">{u}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(decodedCertInfo.sans?.length ?? 0) > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>Subject Alternative Names (SANs)</Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {decodedCertInfo.sans!.map(san => (
-                          <Badge key={san} variant="secondary" className="font-mono">{san}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(decodedCertInfo.crlDistributionPoints?.length ?? 0) > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>CRL Distribution Points</Label>
-                      <div className="space-y-1">
-                        {decodedCertInfo.crlDistributionPoints!.map(url => (
-                          <Input key={url} readOnly value={url} className="bg-muted/50 font-mono text-xs" />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(decodedCertInfo.ocspUrls?.length ?? 0) > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>OCSP URLs</Label>
-                      <div className="space-y-1">
-                        {decodedCertInfo.ocspUrls!.map(url => (
-                          <Input key={url} readOnly value={url} className="bg-muted/50 font-mono text-xs" />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(decodedCertInfo.caIssuersUrls?.length ?? 0) > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>CA Issuers URLs</Label>
-                      <div className="space-y-1">
-                        {decodedCertInfo.caIssuersUrls!.map(url => (
-                          <Input key={url} readOnly value={url} className="bg-muted/50 font-mono text-xs" />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <DecodedCertificateSections info={decodedCertInfo} />
             </>
           )}
 
