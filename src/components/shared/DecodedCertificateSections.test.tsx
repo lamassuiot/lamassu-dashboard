@@ -50,6 +50,20 @@ describe('DecodedCertificateSections', () => {
     expect(screen.getByLabelText('Subject Key Identifier')).toHaveAttribute('placeholder', 'Not specified')
   })
 
+  it('shows the algorithm family of the public key and the signature algorithm beside the CA flag', () => {
+    const { rerender } = render(<DecodedCertificateSections info={info({ publicKeyAlgorithm: 'RSA (2048 bits)', signatureAlgorithm: 'sha256WithRSAEncryption' })} />)
+    const publicKey = screen.getByRole('group', { name: 'Public Key' })
+    expect(within(publicKey).getByText('T')).toBeInTheDocument()
+    expect(within(publicKey).getByText('RSA (2048 bits)')).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: 'Signature' })).getByText('sha256WithRSAEncryption')).toBeInTheDocument()
+
+    rerender(<DecodedCertificateSections info={info({ publicKeyAlgorithm: 'ML-DSA-65', signatureAlgorithm: 'ML-DSA-65' })} />)
+    expect(within(screen.getByRole('group', { name: 'Public Key' })).getByText('PQ')).toBeInTheDocument()
+
+    rerender(<DecodedCertificateSections info={info({ publicKeyAlgorithm: 'Composite-Signature MLDSA65-RSA3072-PSS' })} />)
+    expect(within(screen.getByRole('group', { name: 'Public Key' })).getByText('PQ/T')).toBeInTheDocument()
+  })
+
   it('warns about a missing CA flag only when a CA certificate is expected', () => {
     const { rerender } = render(<DecodedCertificateSections info={info()} />)
     expect(screen.queryByText('Not a CA Certificate')).not.toBeInTheDocument()
@@ -139,6 +153,8 @@ describe('DecodedCertificateSections', () => {
     render(<DecodedCertificateSections info={await decodeCertificatePem(VALID_RSA_CERT_PEM)} />)
 
     expect(within(section('Subject Distinguished Name')).getByLabelText('Organization (O)')).toHaveValue('Internet Widgits Pty Ltd')
-    expect(screen.getByLabelText('Public Key Algorithm')).toHaveValue('RSA (2048 bits)')
+    expect(within(section('Certificate Details')).getByRole('group', { name: 'Public Key' })).toHaveTextContent('RSA (2048 bits)')
+    expect(within(section('Certificate Details')).getByRole('group', { name: 'Public Key' })).toContainElement(screen.getByLabelText(/^Key strength:/))
+    expect(screen.queryByLabelText('Public Key Algorithm')).not.toBeInTheDocument()
   })
 })

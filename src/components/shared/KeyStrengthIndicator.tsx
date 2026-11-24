@@ -162,7 +162,7 @@ function getSingleTooltipContent(details: SingleStrengthDetails, algorithm?: str
 function getCompositeTooltipContent(details: CompositeStrengthDetails, algorithm?: string, size?: string | number): string {
   return [
     `Composite Strength | Algorithm: ${algorithm || 'Unknown'} | Size: ${size || 'Unknown'}`,
-    `Classical: ${details.classical.label}`,
+    `Traditional: ${details.classical.label}`,
     `PQ: ${details.pq.label}`,
   ].join(' | ');
 }
@@ -191,7 +191,7 @@ function CompositeStrengthBars({
     return (
       <div className="flex items-center gap-4" aria-hidden="true">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-medium uppercase text-muted-foreground">C</span>
+          <span className="text-[10px] font-medium uppercase text-muted-foreground">T</span>
           <StrengthBars strength={details.classical} />
         </div>
         <div className="flex items-center gap-1.5">
@@ -205,7 +205,7 @@ function CompositeStrengthBars({
   return (
     <div className="flex flex-col gap-1.5" aria-hidden="true">
       <div className="flex items-center gap-2">
-        <span className="w-6 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">C</span>
+        <span className="w-6 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">T</span>
         <StrengthBars strength={details.classical} />
       </div>
       <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ export const KeyStrengthIndicator: React.FC<KeyStrengthIndicatorProps> = ({
 }) => {
   const details = getStrengthDetails(algorithm, size);
   const ariaLabel = details.type === 'composite'
-    ? `Composite key strength. Classical: ${details.classical.label}. PQ: ${details.pq.label}.`
+    ? `Composite key strength. Traditional: ${details.classical.label}. PQ: ${details.pq.label}.`
     : `Key strength: ${details.label}`;
   const tooltipContent = details.type === 'composite'
     ? getCompositeTooltipContent(details, algorithm, size)

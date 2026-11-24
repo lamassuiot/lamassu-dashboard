@@ -22,9 +22,9 @@ describe('KeyStrengthIndicator', () => {
     render(<KeyStrengthIndicator algorithm="Composite-ML-DSA-RSA" size="1" />);
 
     expect(
-      screen.getByLabelText('Composite key strength. Classical: Deprecated (112-bit). PQ: Acceptable (128-bit).')
+      screen.getByLabelText('Composite key strength. Traditional: Deprecated (112-bit). PQ: Acceptable (128-bit).')
     ).toBeInTheDocument();
-    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getByText('T')).toBeInTheDocument();
     expect(screen.getByText('PQ')).toBeInTheDocument();
   });
 
@@ -32,9 +32,9 @@ describe('KeyStrengthIndicator', () => {
     render(<KeyStrengthIndicator algorithm="Composite-ML-DSA-RSA" size="1" variant="selector" />);
 
     expect(
-      screen.getByLabelText('Composite key strength. Classical: Deprecated (112-bit). PQ: Acceptable (128-bit).')
+      screen.getByLabelText('Composite key strength. Traditional: Deprecated (112-bit). PQ: Acceptable (128-bit).')
     ).toBeInTheDocument();
-    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getByText('T')).toBeInTheDocument();
     expect(screen.getByText('PQ')).toBeInTheDocument();
   });
 });

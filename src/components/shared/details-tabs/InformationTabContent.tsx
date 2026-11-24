@@ -34,10 +34,6 @@ import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { buildCaKmsKeyUri, buildCertificateKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import Link from '@/components/shared/RouterLink';
 import { isCaWithoutKey } from '@/lib/ca-utils';
-import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
-
-import { cn, formatCertificateUsageLabel } from '@/lib/utils';
-import { differenceInDays, isPast, parseISO } from 'date-fns';
 
 
 interface CaStats {

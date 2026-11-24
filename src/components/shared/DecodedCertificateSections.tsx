@@ -12,10 +12,12 @@ import { CrlViewerSheet } from '@/components/shared/CrlViewerSheet';
 import Link from '@/components/shared/RouterLink';
 import { formatIdentifier } from '@/components/shared/IdentifierDisplay';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate } from '@/lib-crypto';
+import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate, type PublicKeySpec } from '@/lib-crypto';
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
 import { RELATED_CERTIFICATE_TITLE } from '@/lib/related-certificate';
+import { ALGORITHM_FAMILY_LABELS, getAlgorithmFamily } from '@/lib/pqc';
+import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 
 export interface DecodedCertInfo {
   subjectFields?: DistinguishedNameFields;
@@ -27,6 +29,7 @@ export interface DecodedCertInfo {
   isCa?: boolean;
   pathLenConstraint?: number | 'None';
   publicKeyAlgorithm?: string;
+  publicKeySpec?: PublicKeySpec;
   signatureAlgorithm?: string;
   keyUsage?: string[];
   extendedKeyUsage?: string[];
@@ -60,6 +63,7 @@ export function toDecodedCertInfo(parsed: ParsedCertificate): DecodedCertInfo {
     isCa: parsed.isCa ?? false,
     pathLenConstraint: parsed.pathLenConstraint,
     publicKeyAlgorithm: parsed.publicKeyAlgorithm,
+    publicKeySpec: parsed.publicKeySpec,
     signatureAlgorithm: parsed.signatureAlgorithm,
     keyUsage: parsed.keyUsage,
     extendedKeyUsage: parsed.extendedKeyUsage,
@@ -95,7 +99,7 @@ const FIELD_BOX_CLASS = 'flex min-h-8 min-w-0 items-center rounded-2xl bg-muted/
  * one; each gets its own placeholder so the two are not confused.
  */
 export function ReadOnlyField({ label, value, mono, className }: Readonly<{
-  label: string; value?: string; mono?: boolean; className?: string;
+  label: React.ReactNode; value?: string; mono?: boolean; className?: string;
 }>) {
   const id = useId();
   const placeholder = value === undefined ? 'Not specified' : value === '' ? 'Empty string ("")' : undefined;
@@ -242,21 +246,32 @@ const STATUS_PILL_TONES: Record<StatusPillTone, { pill: string; dot: string }> =
 };
 
 /** A tinted pill with a status dot, a title and an optional monospace detail; a notch above a badge. */
-export function StatusPill({ tone, title, detail, className, ...rest }: Readonly<{
+export function StatusPill({ tone, title, titleAttribute, lead, detail, trailing, className, ...rest }: Readonly<{
   tone: StatusPillTone;
   title: string;
+  /** Tooltip for the whole pill. */
+  titleAttribute?: string;
+  /** Bold code before the title (e.g. an algorithm family); the title then drops to normal weight. */
+  lead?: React.ReactNode;
   detail?: React.ReactNode;
+  /** Shown at the right end after a divider, at full opacity (e.g. a strength meter). */
+  trailing?: React.ReactNode;
   className?: string;
 } & Pick<React.HTMLAttributes<HTMLDivElement>, 'role' | 'aria-labelledby'>>) {
   const colors = STATUS_PILL_TONES[tone];
   return (
     <div
       {...rest}
+      title={titleAttribute}
       className={cn('inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-sm', colors.pill, className)}
     >
       <span aria-hidden className={cn('size-2 shrink-0 rounded-full', colors.dot)} />
-      <span className="shrink-0 font-medium">{title}</span>
+      {lead != null && <span className="shrink-0 font-semibold">{lead}</span>}
+      <span className={cn('shrink-0', lead == null && 'font-medium')}>{title}</span>
       {detail != null && <span className="min-w-0 truncate font-mono opacity-70">{detail}</span>}
+      {trailing != null && (
+        <span className="ml-1 flex shrink-0 items-center border-l border-current/20 pl-3">{trailing}</span>
+      )}
     </div>
   );
 }
@@ -285,6 +300,28 @@ function IsCaPill({ isCa, pathLenConstraint, expectCa }: Readonly<{
     </div>
   );
 }
+
+/** An algorithm with its family: T (traditional), PQ (post-quantum) or PQ/T (hybrid). */
+function AlgorithmPill({ label, algorithm, spec }: Readonly<{ label: string; algorithm: string; spec?: PublicKeySpec }>) {
+  const labelId = useId();
+  const family = getAlgorithmFamily(algorithm);
+  return (
+    <div className="space-y-1.5">
+      <p id={labelId} className="text-sm leading-none font-medium">{label}</p>
+      <StatusPill
+        role="group"
+        aria-labelledby={labelId}
+        tone={family === 'T' ? 'muted' : 'primary'}
+        lead={family}
+        title={algorithm}
+        titleAttribute={ALGORITHM_FAMILY_LABELS[family]}
+        trailing={spec ? <KeyStrengthIndicator algorithm={spec.algorithm} size={spec.size} /> : undefined}
+      />
+    </div>
+  );
+}
+
+const isKnownAlgorithm = (value?: string): value is string => !!value && value !== 'N/A';
 
 function Section({ title, description, aside, className, children }: Readonly<{
   title: string;
@@ -352,6 +389,12 @@ export function DecodedCertificateSections({
           <ReadOnlyField label="Valid To" value={info.validTo} />
         </div>
         <IsCaPill isCa={!!info.isCa} pathLenConstraint={info.pathLenConstraint} expectCa={expectCa} />
+        {isKnownAlgorithm(info.publicKeyAlgorithm) && (
+          <AlgorithmPill label="Public Key" algorithm={info.publicKeyAlgorithm} spec={info.publicKeySpec} />
+        )}
+        {isKnownAlgorithm(info.signatureAlgorithm) && (
+          <AlgorithmPill label="Signature" algorithm={info.signatureAlgorithm} />
+        )}
         {detailsExtra}
       </Section>
 
@@ -384,8 +427,6 @@ export function DecodedCertificateSections({
         className={sectionClassName}
       >
         <div className="grid grid-cols-2 gap-4">
-          <ReadOnlyField label="Public Key Algorithm" value={info.publicKeyAlgorithm} />
-          <ReadOnlyField label="Signature Algorithm" value={info.signatureAlgorithm} />
           <ReadOnlyField label="Subject Key Identifier" value={identifier(info.subjectKeyId)} mono className="col-span-2" />
           <ReadOnlyField label="Authority Key Identifier" value={identifier(info.authorityKeyId)} mono className="col-span-2" />
           <ReadOnlyField label="SHA-256 Fingerprint" value={identifier(info.fingerprintSha256)} mono className="col-span-2" />

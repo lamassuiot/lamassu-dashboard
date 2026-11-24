@@ -90,3 +90,43 @@ export function formatPublicKeyInfo(publicKeyInfo: PublicKeyInfo): string {
 export function resolveSignatureAlgorithmLabel(oid: string): string {
   return OPAQUE_OID_TO_ALGORITHM_LABEL[oid] ?? OID_TO_ALGORITHM_LABEL[oid] ?? oid;
 }
+
+/** Algorithm and size of a public key, in the form `KeyStrengthIndicator` takes (e.g. `RSA`/`2048`, `SLH-DSA`/`4`). */
+export interface PublicKeySpec {
+  algorithm: string;
+  size: string;
+}
+
+/** Parameter-set number of an opaque algorithm id, e.g. `SLHDSA_4` -> `4`, `MLDSA_65` -> `65`. */
+const OPAQUE_OID_TO_SPEC: Record<string, PublicKeySpec> = {};
+for (const [algorithmId, oid] of Object.entries(SIGNATURE_OID_MAP)) {
+  if (!OPAQUE_SIGNATURE_ALGORITHMS.has(algorithmId) || OPAQUE_OID_TO_SPEC[oid]) continue;
+  const size = algorithmId.match(/_(\d+)$/)?.[1];
+  if (!size) continue;
+  const algorithm = algorithmId.startsWith("COMPOSITE") ? "COMPOSITE"
+    : algorithmId.startsWith("SLHDSA") ? "SLH-DSA"
+    : algorithmId.startsWith("MLDSA") ? "ML-DSA"
+    : null;
+  if (algorithm) OPAQUE_OID_TO_SPEC[oid] = { algorithm, size };
+}
+
+/** The key's algorithm and size, or undefined for an algorithm the app does not rate. */
+export function publicKeySpec(publicKeyInfo: PublicKeyInfo): PublicKeySpec | undefined {
+  const algoOid = publicKeyInfo.algorithm.algorithmId;
+  const opaque = OPAQUE_OID_TO_SPEC[algoOid];
+  if (opaque) return opaque;
+  if (algoOid === SIGNATURE_OID_MAP.ED25519) return { algorithm: "ED25519", size: "256" };
+
+  const algoName = PUBLIC_KEY_ALGORITHM_OID_MAP[algoOid];
+  if (algoName === "EC") {
+    const curveOid = (publicKeyInfo.algorithm as any).parameters?.valueBlock?.value as string | undefined;
+    const curve = curveOid ? PUBLIC_KEY_ALGORITHM_OID_MAP[curveOid] : undefined;
+    return curve ? { algorithm: "ECDSA", size: curve } : undefined;
+  }
+  if (algoName === "RSA" && (publicKeyInfo.parsedKey as any)?.modulus) {
+    const modulus = new Uint8Array((publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex);
+    const leadingZero = modulus[0] === 0 ? 1 : 0;
+    return { algorithm: "RSA", size: String((modulus.byteLength - leadingZero) * 8) };
+  }
+  return undefined;
+}

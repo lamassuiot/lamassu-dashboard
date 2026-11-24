@@ -11,6 +11,7 @@ describe('cert-parser', () => {
     expect(parsed.subject).toContain('O=Internet Widgits Pty Ltd')
     expect(parsed.issuer).toContain('O=Internet Widgits Pty Ltd')
     expect(parsed.publicKeyAlgorithm).toContain('RSA')
+    expect(parsed.publicKeySpec).toEqual({ algorithm: 'RSA', size: '2048' })
     expect(parsed.signatureAlgorithm.toLowerCase()).toContain('sha')
     expect(parsed.fingerprintSha256).toBeDefined()
   })
@@ -19,6 +20,7 @@ describe('cert-parser', () => {
     const parsed = await parseCertificatePemDetails(VALID_SLHDSA_CERT_PEM)
 
     expect(parsed.publicKeyAlgorithm).toBe('SLH-DSA-SHAKE-128f')
+    expect(parsed.publicKeySpec).toEqual({ algorithm: 'SLH-DSA', size: '4' })
     expect(parsed.signatureAlgorithm).toBe('SLH-DSA-SHAKE-128f')
   })
 
@@ -27,6 +29,7 @@ describe('cert-parser', () => {
     expect(parsed.subject).toBe('N/A')
     expect(parsed.issuer).toBe('N/A')
     expect(parsed.publicKeyAlgorithm).toBe('N/A')
+    expect(parsed.publicKeySpec).toBeUndefined()
     expect(parsed.fingerprintSha256).toBeUndefined()
   })
 

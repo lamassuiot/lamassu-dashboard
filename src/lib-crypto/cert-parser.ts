@@ -9,14 +9,14 @@ import {
 } from "pkijs";
 import { pemToDer } from "./buffer-utils";
 import type { RelativeDistinguishedNames } from "pkijs";
-import { DN_ATTRIBUTE_OID_MAP, formatDistinguishedName, formatPublicKeyInfo, resolveSignatureAlgorithmLabel } from "./oid-labels";
+import { DN_ATTRIBUTE_OID_MAP, formatDistinguishedName, formatPublicKeyInfo, publicKeySpec, resolveSignatureAlgorithmLabel, type PublicKeySpec } from "./oid-labels";
 import {
   RELATED_CERT_EXTENSION_OID,
   parseRelatedCertificateExtension,
   type RelatedCertificateExtension,
 } from "./related-cert-request";
 
-export { formatDistinguishedName as formatSubject, formatPublicKeyInfo } from "./oid-labels";
+export { formatDistinguishedName as formatSubject, formatPublicKeyInfo, publicKeySpec, type PublicKeySpec } from "./oid-labels";
 
 // ---------------------------------------------------------------------------
 // OID lookup tables
@@ -156,6 +156,8 @@ export interface ParsedCertificate {
   validFrom: string;
   validTo: string;
   publicKeyAlgorithm: string;
+  /** Algorithm and size for rating the key's strength; undefined when unknown. */
+  publicKeySpec?: PublicKeySpec;
   signatureAlgorithm: string;
   crlDistributionPoints: string[];
   ocspUrls: string[];
@@ -250,6 +252,7 @@ export async function parseCertificatePem(pem: string): Promise<ParsedCertificat
   result.validFrom = cert.notBefore.value.toISOString();
   result.validTo = cert.notAfter.value.toISOString();
   result.publicKeyAlgorithm = formatPublicKeyInfo(cert.subjectPublicKeyInfo);
+  result.publicKeySpec = publicKeySpec(cert.subjectPublicKeyInfo);
 
   try {
     result.signatureAlgorithm = resolveSignatureAlgorithmLabel(cert.signatureAlgorithm.algorithmId);
