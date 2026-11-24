@@ -11,6 +11,7 @@ const ctrlA = () =>
 describe("installShortcuts(root)", () => {
   let root: HTMLElement;
   let inside: HTMLElement;
+  let field: HTMLTextAreaElement;
   let outside: HTMLInputElement;
 
   beforeEach(() => {
@@ -18,8 +19,9 @@ describe("installShortcuts(root)", () => {
     const kw = createKW(readConfig("", {}));
     kw.ui = createUi(kw.config);
     root = document.createElement("div");
-    inside = document.createElement("textarea");
-    root.append(inside);
+    inside = document.createElement("div");
+    field = document.createElement("textarea");
+    root.append(inside, field);
     outside = document.createElement("input");
     document.body.append(root, outside);
   });
@@ -45,6 +47,15 @@ describe("installShortcuts(root)", () => {
     inside.dispatchEvent(e);
     expect(e.defaultPrevented).toBe(true);
     expect(ui$().get().prefix).toBe(true);
+    dispose();
+  });
+
+  it("leaves Ctrl-A typed in a field of the shell root to the field (select all)", () => {
+    const dispose = installShortcuts(root);
+    const e = ctrlA();
+    field.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+    expect(ui$().get().prefix).toBe(false);
     dispose();
   });
 

@@ -1126,7 +1126,7 @@ export function start(root: HTMLElement): Boot {
 		const titles: Record<string, string> = { fetch: "Download failed", compile: "Kernel failed to compile", memory: "Not enough memory", boot: "Boot failed", terminal: "The terminal failed to start",
 			worker: "Worker mode cannot run in this browser", distro: "The distro image could not be opened" };
 		const hint = e.kind === "distro" ? `The page reads ${cfg.distro?.url ?? "the image"} from its own server with Range requests. ` +
-			"The dashboard does not bundle the image: provide debian.erofs of the pinned unkernel release (v0.2.0-261119-97d7945) there, for example in public/terminal/ before the build. " +
+			"The dashboard's Docker image includes it; other builds do not bundle the image: provide debian.erofs of the pinned unkernel release (v0.2.0-261119-97d7945) there, for example in public/terminal/ before the build. " +
 			"Or set Distro to none under Options and Reboot for the base shell." : undefined;
 		ui.fail(e.kind ?? "boot", e.message, (e.cause as Error | undefined)?.stack ?? e.stack, { title: titles[e.kind ?? ""] ?? "Boot failed", ...(hint ? { hint } : {}) });
 	});
@@ -1195,7 +1195,7 @@ export function start(root: HTMLElement): Boot {
 function distroMissing(e: unknown, url: string): unknown {
 	const why = (e as Error)?.message ?? String(e);
 	if (!/neither an erofs nor an ext4 image|does not support Range requests|HTTP 404/.test(why)) return e;
-	return new Error(`No distro image at ${url} (the server answered with something else: ${why}). The image is not bundled with the dashboard; it must be provided at that URL.`, { cause: e });
+	return new Error(`No distro image at ${url} (the server answered with something else: ${why}). The image comes with the dashboard's Docker image only; elsewhere it must be provided at that URL.`, { cause: e });
 }
 
 /** How long stop() waits for a boot step that cannot be aborted before it tears down anyway. */

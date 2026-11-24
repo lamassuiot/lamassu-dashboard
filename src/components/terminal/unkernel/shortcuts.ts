@@ -135,16 +135,21 @@ export function installShortcuts(root: HTMLElement): () => void {
 		if (s.prefix) {
 			if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
 			ui.setPrefix(false);
+			// Dashboard port: a key typed in a field (Options, the paste text, the copy area) is the field's.
+			if (field(e.target)) return;
 			if (isCtrlA(e)) return; // send-prefix: this one goes through
 			if (isCmdA(e)) { swallow(e); return; } // ⌘A never reaches the guest: it only disarms
 			swallow(e);
-			const cmd = COMMANDS.find((c) => c.keys.includes(e.key));
+			// Dashboard port: by the key, then by its position (e.code), so a non-Latin layout has the commands too.
+			const byCode = codeLabel(e.code).toLowerCase();
+			const cmd = COMMANDS.find((c) => c.keys.includes(e.key)) ?? COMMANDS.find((c) => c.keys.includes(byCode));
 			if (cmd) cmd.run();
 			else if (/^[1-9]$/.test(e.key)) selectWindow(Number(e.key));
 			else if (e.key !== "Escape") ui.toast(`${PREFIX} ${e.key}: not a shortcut (${PREFIX} ? lists them)`);
 			return;
 		}
-		if (isPrefix(e) && !e.repeat) {
+		// Dashboard port: in a field, Ctrl-A (⌘A) selects all, as in any other input.
+		if (isPrefix(e) && !e.repeat && !field(e.target)) {
 			swallow(e);
 			ui.setPrefix(true);
 			return;

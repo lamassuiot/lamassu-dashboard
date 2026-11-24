@@ -30,7 +30,16 @@ WORKDIR /opt/wisp
 COPY wisp/package.json wisp/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
-# Stage 3: Serve the static files with Nginx
+# Stage 3: Debian image of the browser terminal, from the unkernel release pinned in package.json
+# (src/components/terminal/unkernel/sdk.ts reads it at /terminal/debian.erofs). Checked against the
+# release's SHA-256: update both together.
+FROM node:22-alpine AS distro
+ARG UNKERNEL_RELEASE=v0.2.0-261119-97d7945
+ARG DEBIAN_EROFS_SHA256=063ec61c7db829c2769f6d6b5ea50e2de183fdc726150958a0439b13686914ff
+RUN wget -q -O /debian.erofs "https://github.com/pithings/unkernel/releases/download/${UNKERNEL_RELEASE}/debian.erofs" && \
+    echo "${DEBIAN_EROFS_SHA256}  /debian.erofs" | sha256sum -c -
+
+# Stage 4: Serve the static files with Nginx
 FROM nginx:stable-alpine
 
 ENV OIDC_ENABLED=true
@@ -55,6 +64,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy the static assets from the builder stage
 COPY --from=builder --chown=65532:65532 /app/out /var/www/html
+COPY --from=distro --chown=65532:65532 /debian.erofs /var/www/html/terminal/debian.erofs
 
 WORKDIR /var/www/html
 

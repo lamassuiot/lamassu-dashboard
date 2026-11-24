@@ -508,7 +508,7 @@ describe("mountUnkernel", () => {
     await mount(root);
     await vi.waitFor(() => expect(ui$().get().state).toBe("error"));
     expect(root.textContent).toContain("No distro image at /terminal/debian.erofs");
-    expect(ui$().get().errors.at(-1)?.hint).toContain("does not bundle the image");
+    expect(ui$().get().errors.at(-1)?.hint).toContain("other builds do not bundle the image");
     expect(createKernel).not.toHaveBeenCalled();
   });
 

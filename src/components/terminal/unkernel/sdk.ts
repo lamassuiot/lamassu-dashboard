@@ -72,9 +72,10 @@ export const kernelSmpUrl: URL | null = null;
 /**
  * The distro images the page offers, debian first (the only one), fetched from
  * /terminal/debian.erofs. That image (debian.erofs of the pinned release
- * v0.2.0-261119-97d7945) is not in the repository: it must be provided there,
- * e.g. downloaded into public/terminal/ at build time (its licence texts are
- * already in public/terminal/); without it the terminal cannot boot.
+ * v0.2.0-261119-97d7945) is not in the repository: the Dockerfile downloads it
+ * (checking its SHA-256); elsewhere it must be provided there, e.g. downloaded
+ * into public/terminal/ before the build (its licence texts are already in
+ * public/terminal/). Without it the terminal cannot boot.
  * `size` is the image's size in bytes, shown by the Options tooltip and the
  * Distro check: update it whenever the image is replaced.
  */
