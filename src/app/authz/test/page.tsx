@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, AlertCircle, ShieldCheck, Play, Filter, Globe, Database, TestTube2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
   Tabs,
@@ -654,13 +655,11 @@ export default function AuthorizationTestPage() {
                       />
                     )}
                     {r.error && (
-                      <div className="flex items-start gap-3 rounded-md border-l-4 border-l-destructive bg-destructive/10 px-4 py-3">
-                        <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
-                        <div>
-                          <p className="text-sm font-semibold text-destructive">Evaluation Error</p>
-                          <p className="text-xs text-destructive/80 mt-0.5">{r.error}</p>
-                        </div>
-                      </div>
+                      <Alert variant="destructive">
+                        <AlertCircle />
+                        <AlertTitle>Evaluation Error</AlertTitle>
+                        <AlertDescription>{r.error}</AlertDescription>
+                      </Alert>
                     )}
                     <ResultTable rows={[
                       { label: 'Namespace', value: <span className="font-mono">{r.namespace}</span> },

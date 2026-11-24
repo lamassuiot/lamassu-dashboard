@@ -578,10 +578,10 @@ export const InitializationWizard: React.FC = () => {
                                     </Alert>
                                 )}
                                 {testSuccess && (
-                                     <Alert variant="default" className="mt-2 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-600">
-                                        <CheckCircle className="h-4 w-4 text-green-600" />
-                                        <AlertTitle className="text-green-800 dark:text-green-300">Test Complete</AlertTitle>
-                                        <AlertDescription className="text-green-700 dark:text-green-400">All system checks passed successfully.</AlertDescription>
+                                     <Alert variant="success" className="mt-2">
+                                        <CheckCircle className="h-4 w-4" />
+                                        <AlertTitle>Test Complete</AlertTitle>
+                                        <AlertDescription>All system checks passed successfully.</AlertDescription>
                                     </Alert>
                                 )}
                                 {validationErrors.length > 0 && (

@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { DeviceGroup } from '@/types/device-group';
 
 interface DeleteDeviceGroupDialogProps {
@@ -47,18 +48,18 @@ export function DeleteDeviceGroupDialog({
         </AlertDialogHeader>
 
         {descendants.length > 0 && (
-          <div className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm">
-            <p className="flex items-center gap-2 font-medium text-destructive">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              {descendants.length} subgroup{descendants.length === 1 ? '' : 's'} will also be deleted
-            </p>
-            <ul className="mt-2 space-y-0.5 pl-6 text-muted-foreground">
-              {listed.map((child) => (
-                <li key={child.id} className="list-disc truncate">{child.name}</li>
-              ))}
-              {remaining > 0 && <li className="list-none">and {remaining} more</li>}
-            </ul>
-          </div>
+          <Alert variant="destructive">
+            <AlertTriangle />
+            <AlertTitle>{descendants.length} subgroup{descendants.length === 1 ? '' : 's'} will also be deleted</AlertTitle>
+            <AlertDescription>
+              <ul className="space-y-0.5 pl-4">
+                {listed.map((child) => (
+                  <li key={child.id} className="list-disc truncate">{child.name}</li>
+                ))}
+                {remaining > 0 && <li className="list-none">and {remaining} more</li>}
+              </ul>
+            </AlertDescription>
+          </Alert>
         )}
 
         <AlertDialogFooter>

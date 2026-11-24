@@ -20,7 +20,7 @@ interface InlineNoteProps {
   children: React.ReactNode;
 }
 
-/** Compact one-line callout for contextual hints; a lighter alternative to `Alert`. */
+/** Compact one-line callout for contextual hints, in the same minimalist style as `Alert`. */
 export function InlineNote({ tone = 'info', icon, className, children }: Readonly<InlineNoteProps>) {
   const { className: toneClassName, icon: DefaultIcon } = TONES[tone];
   const Icon = icon ?? DefaultIcon;

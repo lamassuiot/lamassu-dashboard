@@ -2,7 +2,7 @@
 
 import { ChevronRight, ShieldCheck, ShieldX, TestTube2 } from 'lucide-react';
 import { PrincipalBadge } from '@/components/authz/PrincipalBadge';
-import { cn } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { Principal } from '@/types/authz';
 
 export function EmptyResult({ message = 'Run a test to see results' }: { message?: string }) {
@@ -28,23 +28,11 @@ export function FullResponse({ data }: { data: unknown }) {
 
 export function DecisionBanner({ allowed, label, detail }: { allowed: boolean; label: string; detail: string }) {
   return (
-    <div className={cn(
-      'flex items-center gap-3 rounded-md border-l-4 px-4 py-3',
-      allowed
-        ? 'border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20'
-        : 'border-l-red-500 bg-red-50/50 dark:bg-red-950/20',
-    )}>
-      {allowed
-        ? <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-        : <ShieldX className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />}
-      <div>
-        <p className={cn(
-          'text-sm font-semibold leading-tight',
-          allowed ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300',
-        )}>{label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>
-      </div>
-    </div>
+    <Alert variant={allowed ? 'success' : 'destructive'}>
+      {allowed ? <ShieldCheck /> : <ShieldX />}
+      <AlertTitle>{label}</AlertTitle>
+      <AlertDescription>{detail}</AlertDescription>
+    </Alert>
   );
 }
 

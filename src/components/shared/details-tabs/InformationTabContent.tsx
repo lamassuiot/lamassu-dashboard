@@ -329,10 +329,10 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 {caDetails.defaultProfileId && selectedProfileForDisplay ? (
                   <IssuanceProfileCard profile={selectedProfileForDisplay} />
                 ) : (
-                  <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
-                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <AlertTitle className="text-amber-700 dark:text-amber-400 text-sm">No default profile set</AlertTitle>
-                    <AlertDescription className="text-amber-600/80 dark:text-amber-500 text-xs">
+                  <Alert variant="warning">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>No default profile set</AlertTitle>
+                    <AlertDescription>
                       Certificates issued by this CA will use default settings. Set a profile to enforce key usage, validity, and extensions.
                     </AlertDescription>
                   </Alert>

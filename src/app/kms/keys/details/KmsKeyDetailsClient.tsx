@@ -1146,7 +1146,7 @@ export default function KmsKeyDetailsClient() {
                   {verificationResult && (
                     <Alert variant={verificationResult.valid ? 'success' : 'destructive'}>
                       <ShieldCheck className="h-4 w-4" />
-                      <AlertTitle variant={verificationResult.valid ? 'success' : undefined}>Verification Result</AlertTitle>
+                      <AlertTitle>Verification Result</AlertTitle>
                       <AlertDescription>{verificationResult.message}</AlertDescription>
                     </Alert>
                   )}

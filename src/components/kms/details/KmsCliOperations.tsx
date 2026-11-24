@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsTriggerClass } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ShellCommand } from '@/components/shared/CodeSnippet';
 import { Terminal, AlertCircleIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertExpandableContent, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPublicAPIUrl } from '@/lib/api-domains';
 
@@ -278,12 +279,12 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
             {/* Initialization steps */}
             <Alert expandable={true} defaultExpanded={false} variant="success">
                 <Terminal className="h-4 w-4" />
-                <AlertTitle variant="default">Initialization Steps</AlertTitle>
+                <AlertTitle>Initialization Steps</AlertTitle>
                 <AlertDescription>
                     Expand to configure your CLI environment for PKCS11 KMS operations.
                 </AlertDescription>
                 <AlertExpandableContent>
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
+                    <div className="space-y-4">
                         <div>
                             <h4 className="font-medium mb-2">Authentication Setup</h4>
                             <p className="text-sm text-muted-foreground mb-2">Export your bearer token to authenticate CLI operations:</p>
@@ -301,18 +302,18 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                                 <div>
                                     <p className="text-sm font-semibold mb-2">OpenSSL &lt; 3.0.0</p>
-                                    <Alert variant="warning">
+                                    <Alert variant="warning" className="mb-3">
                                         <AlertCircleIcon className="h-4 w-4" />
-                                        <AlertTitle variant="warning">Third-party library required</AlertTitle>
+                                        <AlertTitle>Third-party library required</AlertTitle>
                                         <AlertDescription>Requires a PKCS11-enabled OpenSSL engine such as <a href="https://github.com/OpenSC/libp11" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>libp11</a>.</AlertDescription>
                                     </Alert>
                                     <ShellCommand command={opensslEngineCommands} title="Create openssl-pkcs11-engine.conf" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold mb-2">OpenSSL &gt;= 3.0.0</p>
-                                    <Alert variant="warning">
+                                    <Alert variant="warning" className="mb-3">
                                         <AlertCircleIcon className="h-4 w-4" />
-                                        <AlertTitle variant="warning">Third-party library required</AlertTitle>
+                                        <AlertTitle>Third-party library required</AlertTitle>
                                         <AlertDescription>Requires a PKCS11-enabled OpenSSL provider such as <a href="https://github.com/latchset/pkcs11-provider" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>pkcs11-provider</a>.</AlertDescription>
                                     </Alert>
                                     <ShellCommand command={opensslProviderCommands} title="Create openssl-pkcs11-provider.conf" />
@@ -349,33 +350,27 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
             </div>
 
             {/* Tool tabs */}
-            <Tabs defaultValue="openssl" className="w-full">
+            <Tabs defaultValue="pkcs11" className="w-full">
                 <div className="border-b overflow-x-auto overflow-y-hidden">
-                    <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
-                        <TabsTrigger value="openssl" className={pageTabsTriggerClass}>OpenSSL</TabsTrigger>
+                    <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
                         <TabsTrigger value="pkcs11" className={pageTabsTriggerClass}>PKCS11-Tool</TabsTrigger>
+                        <TabsTrigger value="engine" className={pageTabsTriggerClass}>OpenSSL &lt; 3.0.0 (Engines)</TabsTrigger>
+                        <TabsTrigger value="provider" className={pageTabsTriggerClass}>OpenSSL &gt;= 3.0.0 (Providers)</TabsTrigger>
                     </TabsList>
                 </div>
 
-                <TabsContent value="openssl" className="mt-4">
-                    <Tabs defaultValue="engine" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 max-w-sm">
-                            <TabsTrigger value="engine">Engine (&lt; 3.0.0)</TabsTrigger>
-                            <TabsTrigger value="provider">Provider (&gt;= 3.0.0)</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="engine" className="mt-4 space-y-3">
-                            <ShellCommand command={opensslSignEngineCommand} title="Sign" />
-                            <ShellCommand command={opensslVerifyEngineCommand} title="Verify" />
-                        </TabsContent>
-                        <TabsContent value="provider" className="mt-4 space-y-3">
-                            <ShellCommand command={opensslSignProviderCommand} title="Sign" />
-                            <ShellCommand command={opensslVerifyProviderCommand} title="Verify" />
-                        </TabsContent>
-                    </Tabs>
-                </TabsContent>
-
                 <TabsContent value="pkcs11" className="mt-4">
                     <ShellCommand command={pkcs11SignCommand} title="Sign with pkcs11-tool" />
+                </TabsContent>
+
+                <TabsContent value="engine" className="mt-4 space-y-3">
+                    <ShellCommand command={opensslSignEngineCommand} title="Sign" />
+                    <ShellCommand command={opensslVerifyEngineCommand} title="Verify" />
+                </TabsContent>
+
+                <TabsContent value="provider" className="mt-4 space-y-3">
+                    <ShellCommand command={opensslSignProviderCommand} title="Sign" />
+                    <ShellCommand command={opensslVerifyProviderCommand} title="Verify" />
                 </TabsContent>
             </Tabs>
 

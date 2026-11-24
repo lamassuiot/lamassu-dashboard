@@ -4,18 +4,20 @@ import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+// Minimalist by default: a tinted background, no border, and the text colour inherited by the icon,
+// title and description. Same look as `InlineNote` (components/shared/InlineNote.tsx).
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-2xl border px-4 py-3 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2.5 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "group/alert relative grid w-full gap-0.5 rounded-md px-2.5 py-2 text-left text-xs has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-14 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-px *:[svg]:text-current *:[svg]:size-3.5",
   {
     variants: {
       variant: {
-        default: "bg-card text-card-foreground",
+        default: "bg-muted text-muted-foreground *:data-[slot=alert-title]:text-foreground",
         destructive:
-          "bg-red-50 text-red-900 border-red-300 *:data-[slot=alert-description]:text-red-800 dark:bg-card dark:text-destructive dark:border-border dark:*:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+          "bg-destructive/10 text-destructive *:data-[slot=alert-description]:text-current *:data-[slot=alert-description]:opacity-90",
         success:
-          "bg-green-50 text-green-900 border-green-300 dark:bg-card dark:text-green-400 dark:border-green-800 *:data-[slot=alert-description]:text-green-800 dark:*:data-[slot=alert-description]:text-green-400/90",
+          "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 *:data-[slot=alert-description]:text-current *:data-[slot=alert-description]:opacity-90",
         warning:
-          "bg-yellow-50 text-yellow-900 border-yellow-300 dark:bg-card dark:text-yellow-400 dark:border-yellow-800 *:data-[slot=alert-description]:text-yellow-800 dark:*:data-[slot=alert-description]:text-yellow-400/90",
+          "bg-amber-500/10 text-amber-700 dark:text-amber-400 *:data-[slot=alert-description]:text-current *:data-[slot=alert-description]:opacity-90",
       },
     },
     defaultVariants: {
@@ -23,20 +25,6 @@ const alertVariants = cva(
     },
   }
 )
-
-const alertTitleVariants = cva("font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground", {
-  variants: {
-    variant: {
-      default: "",
-      warning: "text-yellow-900 dark:text-yellow-400",
-      success: "text-green-900 dark:text-green-400",
-      destructive: "text-red-900 dark:text-destructive",
-    },
-  },
-  defaultVariants: {
-    variant: "default",
-  },
-})
 
 interface AlertProps extends React.ComponentProps<"div">, VariantProps<typeof alertVariants> {
   expandable?: boolean;
@@ -85,7 +73,7 @@ function Alert({
       <button
         type="button"
         onClick={() => setExpanded(prev => !prev)}
-        className="w-full text-left flex items-center gap-2.5"
+        className="w-full text-left flex items-center gap-2"
       >
         {mainContent}
         <ChevronDown
@@ -95,20 +83,19 @@ function Alert({
           )}
         />
       </button>
-      {expanded && <div className="mt-3">{expandableContent}</div>}
+      {expanded && <div className="mt-2">{expandableContent}</div>}
     </div>
   )
 }
 
-function AlertTitle({
-  className,
-  variant,
-  ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof alertTitleVariants>) {
+function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-title"
-      className={cn(alertTitleVariants({ variant }), className)}
+      className={cn(
+        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
+        className
+      )}
       {...props}
     />
   )
@@ -122,7 +109,7 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        "text-xs text-balance text-muted-foreground md:text-pretty group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
@@ -134,7 +121,7 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-action"
-      className={cn("absolute top-2.5 right-3", className)}
+      className={cn("absolute top-1.5 right-2", className)}
       {...props}
     />
   )
@@ -144,7 +131,7 @@ function AlertExpandableContent({ className, ...props }: React.ComponentProps<"d
   return (
     <div
       data-slot="alert-expandable-content"
-      className={cn("text-sm", className)}
+      className={cn("text-xs", className)}
       {...props}
     />
   )

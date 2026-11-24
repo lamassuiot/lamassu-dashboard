@@ -75,10 +75,10 @@ export const RevocationModal: React.FC<RevocationModalProps> = ({
         </DialogHeader>
 
         {itemType === 'CA' && (
-            <Alert variant="warning" className="bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800">
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-                <AlertTitle className="text-orange-700 dark:text-orange-300">Warning: Critical Action</AlertTitle>
-                <AlertDescription className="text-orange-600 dark:text-orange-400">
+            <Alert variant="warning">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Warning: Critical Action</AlertTitle>
+                <AlertDescription>
                     Revoking a Certification Authority is a critical action. It will invalidate all certificates issued by this CA, potentially causing widespread outages for devices and services that trust it.
                 </AlertDescription>
             </Alert>

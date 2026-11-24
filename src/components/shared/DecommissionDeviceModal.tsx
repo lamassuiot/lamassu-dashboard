@@ -41,10 +41,10 @@ export const DecommissionDeviceModal: React.FC<DecommissionDeviceModalProps> = (
             By decommissioning the device, it will revoke all attached identities as well as loosing all access to Lamassu and other platforms.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <Alert variant="warning" className="bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800">
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
-            <AlertTitle className="text-orange-700 dark:text-orange-300">Warning: Irreversible Action</AlertTitle>
-            <AlertDescription className="text-orange-600 dark:text-orange-400">
+        <Alert variant="warning">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Warning: Irreversible Action</AlertTitle>
+            <AlertDescription>
                 You are about to decommission the device "{deviceName}". This action is irreversible. All associated certificates will be revoked and the device will no longer be able to obtain new certificates. Are you sure you want to proceed?
             </AlertDescription>
         </Alert>

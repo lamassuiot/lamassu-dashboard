@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, Info, ChevronsUpDown, Cpu, KeyRound, Server } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, ChevronsUpDown, Cpu, KeyRound, Server } from "lucide-react";
 import { BottomDockPanel } from './BottomDockPanel';
 import { cn } from "@/lib/utils";
 import type { CA } from '@/lib/ca-data';
@@ -19,7 +19,6 @@ import { CaVisualizerCard } from '../CaVisualizerCard';
 import { DurationInput } from './DurationInput';
 import { isValidPositiveDuration } from '@/lib/duration';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
 import { CodeSnippet, ShellCommand } from './CodeSnippet';
 import { CommandStep, CommandSteps, InlineCode } from './CommandSteps';
 import { csrCommands, decodeCertificateCommands, estRequestCommand, placeholderCsrCommands, serverChainCommand, serverKeygenParseCommands, writePemFilesCommand } from '@/lib/est-commands';
@@ -480,13 +479,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                 )}
 
                                 {keygenMethod === 'server' && (
-                                    <Alert>
-                                        <Info className="h-4 w-4" />
-                                        <AlertTitle>Server-Side Key Generation</AlertTitle>
-                                        <AlertDescUI>
-                                        A new private key will be generated securely on the server. The final command will return both the new private key and the signed certificate.
-                                        </AlertDescUI>
-                                    </Alert>
+                                    <InlineNote>
+                                        <span className="font-medium text-foreground">Server-side key generation.</span> A new private key is generated securely on the server; the final command returns both the new private key and the signed certificate.
+                                    </InlineNote>
                                 )}
                             </div>
                         )}
@@ -586,10 +581,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                                    <Info className="h-4 w-4 shrink-0" />
-                                    <span>Already have a valid bootstrap certificate and key? Use <span className="font-medium text-foreground">Skip &amp; Use Existing</span>.</span>
-                                </div>
+                                <InlineNote>
+                                    Already have a valid bootstrap certificate and key? Use <span className="font-medium text-foreground">Skip &amp; Use Existing</span>.
+                                </InlineNote>
                             </div>
                         )}
                         {step === 4 && (

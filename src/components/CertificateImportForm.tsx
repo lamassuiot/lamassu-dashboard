@@ -145,8 +145,8 @@ export function CertificateImportForm({ onCertificateImported }: CertificateImpo
           </Button>
 
           {message && !isError && (
-            <Alert className="mt-4 bg-accent/20 border-accent text-accent-foreground">
-              <CheckCircle className="h-4 w-4 text-green-600" />
+            <Alert variant="success" className="mt-4">
+              <CheckCircle className="h-4 w-4" />
               <AlertTitle>Success</AlertTitle>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
