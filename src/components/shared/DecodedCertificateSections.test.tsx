@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { DecodedCertificateSections, decodeCertificatePem, type DecodedCertInfo } from './DecodedCertificateSections'
 import { VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 
@@ -7,6 +7,11 @@ const identifierMode = vi.hoisted(() => ({ current: 'with-separators' as 'with-s
 
 vi.mock('@/contexts/IdentifierDisplayContext', () => ({
   useIdentifierDisplay: () => ({ mode: identifierMode.current }),
+}))
+
+vi.mock('@/components/shared/CrlViewerSheet', () => ({
+  CrlViewerSheet: ({ open, defaultUrl, downloadFileName }: { open: boolean; defaultUrl: string; downloadFileName: string }) =>
+    open ? <div data-testid="crl-viewer" data-file={downloadFileName}>{defaultUrl}</div> : null,
 }))
 
 const info = (overrides: Partial<DecodedCertInfo> = {}): DecodedCertInfo => ({
@@ -99,6 +104,22 @@ describe('DecodedCertificateSections', () => {
     expect(screen.getByRole('link', { name: 'http://crl.example.com/ca.crl' })).toHaveAttribute('href', 'http://crl.example.com/ca.crl')
     expect(screen.getByText('ldap://ldap.example.com/cn=ca').closest('a')).toBeNull()
     expect(screen.getByText('javascript:alert(1)').closest('a')).toBeNull()
+  })
+
+  it('fetches and shows the CRL of an HTTP distribution point', () => {
+    render(<DecodedCertificateSections info={info({ crlDistributionPoints: ['http://crl.example.com/ca'] })} />)
+    expect(screen.queryByTestId('crl-viewer')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch & show CRL from http://crl.example.com/ca' }))
+
+    expect(screen.getByTestId('crl-viewer')).toHaveTextContent('http://crl.example.com/ca')
+    expect(screen.getByTestId('crl-viewer')).toHaveAttribute('data-file', 'ca.crl')
+  })
+
+  it('cannot fetch an LDAP distribution point', () => {
+    render(<DecodedCertificateSections info={info({ crlDistributionPoints: ['ldap://ldap.example.com/CN=CRL,C=ES'] })} />)
+
+    expect(screen.getByRole('button', { name: /Browsers can only fetch HTTP\(S\) URLs/ })).toBeDisabled()
   })
 
   it('renders the extra content a page passes in', () => {

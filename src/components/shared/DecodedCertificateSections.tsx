@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useId } from 'react';
+import React, { useId, useState } from 'react';
 import { format as formatDate } from 'date-fns';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { CrlViewerSheet } from '@/components/shared/CrlViewerSheet';
 import { formatIdentifier } from '@/components/shared/IdentifierDisplay';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { parseCertificatePem, type DistinguishedNameFields, type ParsedCertificate } from '@/lib-crypto';
@@ -130,14 +132,19 @@ const isWebUrl = (value: string) => {
   }
 };
 
-function UrlListField({ label, urls }: Readonly<{ label: string; urls?: string[] }>) {
+function UrlListField({ label, urls, action }: Readonly<{
+  label: string;
+  urls?: string[];
+  /** Rendered at the right of each URL, such as a button acting on it. */
+  action?: (url: string) => React.ReactNode;
+}>) {
   if (!urls?.length) return null;
   return (
     <div className="space-y-1.5">
       <p className="text-sm leading-none font-medium">{label}</p>
       <div className="space-y-1">
         {urls.map(url => (
-          <div key={url} className={cn(FIELD_BOX_CLASS, 'font-mono')}>
+          <div key={url} className={cn(FIELD_BOX_CLASS, 'justify-between gap-2 font-mono')}>
             {isWebUrl(url) ? (
               <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1.5 text-primary hover:underline">
                 <span className="truncate">{url}</span>
@@ -146,10 +153,42 @@ function UrlListField({ label, urls }: Readonly<{ label: string; urls?: string[]
             ) : (
               <span className="truncate">{url}</span>
             )}
+            {action?.(url)}
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+/** File name for a downloaded CRL: the last path segment of its URL, with a `.crl` extension. */
+const crlFileName = (url: string) => {
+  try {
+    const last = new URL(url).pathname.split('/').filter(Boolean).pop();
+    if (last) return last.toLowerCase().endsWith('.crl') ? last : `${last}.crl`;
+  } catch {
+    // Not a parseable URL; use the generic name.
+  }
+  return 'crl.crl';
+};
+
+/** Opens a CRL distribution point in the CRL viewer. The browser can only fetch HTTP(S) URLs. */
+function FetchCrlButton({ url, onFetch }: Readonly<{ url: string; onFetch: (url: string) => void }>) {
+  const fetchable = isWebUrl(url);
+  const label = fetchable ? 'Fetch & show CRL' : 'Browsers can only fetch HTTP(S) URLs; use an LDAP client for this one';
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      className="shrink-0 text-primary"
+      onClick={() => onFetch(url)}
+      disabled={!fetchable}
+      title={label}
+      aria-label={fetchable ? `Fetch & show CRL from ${url}` : label}
+    >
+      <Eye />
+    </Button>
   );
 }
 
@@ -270,6 +309,8 @@ export function DecodedCertificateSections({
 }: Readonly<DecodedCertificateSectionsProps>) {
   const { mode } = useIdentifierDisplay();
   const identifier = (value: string | undefined) => (value === undefined ? undefined : formatIdentifier(value, mode));
+  // CRL distribution point shown in the CRL viewer, or null while it is closed.
+  const [crlUrl, setCrlUrl] = useState<string | null>(null);
 
   return (
     <>
@@ -326,10 +367,27 @@ export function DecodedCertificateSections({
         <BadgeListField label="Key Usage" values={info.keyUsage?.map(formatCertificateUsageLabel)} />
         <BadgeListField label="Extended Key Usage" values={info.extendedKeyUsage?.map(formatCertificateUsageLabel)} />
         <BadgeListField label="Subject Alternative Names (SANs)" values={info.sans} mono />
-        <UrlListField label="CRL Distribution Points" urls={info.crlDistributionPoints} />
+        <UrlListField
+          label="CRL Distribution Points"
+          urls={info.crlDistributionPoints}
+          action={url => <FetchCrlButton url={url} onFetch={setCrlUrl} />}
+        />
         <UrlListField label="OCSP URLs" urls={info.ocspUrls} />
         <UrlListField label="CA Issuers URLs" urls={info.caIssuersUrls} />
       </Section>
+
+      {(info.crlDistributionPoints?.length ?? 0) > 0 && (
+        // The CRL at a distribution point reports this certificate's revocation and is usually
+        // issued by its parent, so the viewer describes it from the CRL itself (no `ca`).
+        <CrlViewerSheet
+          open={crlUrl !== null}
+          onOpenChange={open => { if (!open) setCrlUrl(null); }}
+          defaultUrl={crlUrl ?? ''}
+          downloadFileName={crlUrl ? crlFileName(crlUrl) : 'crl.crl'}
+          defaultUrlHint="CRL Distribution Point declared in this certificate."
+          presentation="docked"
+        />
+      )}
     </>
   );
 }

@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from '@/lib/router';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -34,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { listPrincipals, deletePrincipal } from '@/lib/authz-api';
 import type { Principal, PrincipalFilters, PrincipalType, PrincipalSortField } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
@@ -47,11 +47,13 @@ import { toApiDateFilter } from '@/lib/date-filter';
 import { useBookmarkList } from '@/hooks/useBookmarkList';
 import { BookmarkPaginationFooter } from '@/components/shared/BookmarkPaginationFooter';
 import { AuthzRowActionsMenu } from '@/components/authz/AuthzRowActionsMenu';
+import { PrincipalIdentitySummary } from '@/components/authz/PrincipalIdentitySummary';
+import Link from '@/components/shared/RouterLink';
+import { sileo } from '@/lib/toast';
 
-const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
-  oidc: 'OIDC',
-  x509: 'X.509',
-};
+const principalDetailsHref = (id: string) => `/authz/principals/details?principal_id=${encodeURIComponent(id)}`;
+
+
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { column: PrincipalSortField; direction: SortDirection }
@@ -166,6 +168,12 @@ export default function PrincipalsPage() {
     }
   };
 
+  const handleCopyId = (principal: Principal) => {
+    navigator.clipboard.writeText(principal.id)
+      .then(() => sileo.success({ title: 'Principal ID copied', description: principal.id }))
+      .catch(() => sileo.error({ title: 'Copy failed', description: 'The clipboard is not available.' }));
+  };
+
   if (isLoading && principals.length === 0) {
     return (
       <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
@@ -262,10 +270,9 @@ export default function PrincipalsPage() {
                     onSort={requestSort}
                     align="left"
                   />
-                  <TableHead className="text-left">Description</TableHead>
                   <SortableTableHead
                     column="type"
-                    title="Type"
+                    title="Authentication"
                     activeColumn={sortConfig.column}
                     direction={sortConfig.direction}
                     onSort={requestSort}
@@ -277,7 +284,7 @@ export default function PrincipalsPage() {
                     activeColumn={sortConfig.column}
                     direction={sortConfig.direction}
                     onSort={requestSort}
-                    align="left"
+                    align="center"
                   />
                   <SortableTableHead
                     column="created_at"
@@ -285,55 +292,44 @@ export default function PrincipalsPage() {
                     activeColumn={sortConfig.column}
                     direction={sortConfig.direction}
                     onSort={requestSort}
-                    align="left"
+                    align="center"
                     isDateColumn={DATE_COLUMNS.has('created_at')}
                   />
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-12 text-right"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {principals.map((principal) => (
                   <TableRow key={principal.id}>
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={() => router.push(`/authz/principals/details?principal_id=${principal.id}`)}
-                        className="text-left text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
+                    <TableCell className="max-w-[22rem] whitespace-normal">
+                      <Link
+                        href={principalDetailsHref(principal.id)}
+                        title={`ID: ${principal.id}`}
+                        className={cn(buttonVariants({ variant: 'link' }), 'block h-auto truncate p-0 text-left font-medium')}
                       >
                         {principal.name}
-                      </button>
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{principal.id}</p>
-                    </TableCell>
-                    <TableCell>
-                      {principal.description ? (
-                        <p className="text-sm text-muted-foreground line-clamp-2 max-w-xs">{principal.description}</p>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
+                      </Link>
+                      {principal.description && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground" title={principal.description}>
+                          {principal.description}
+                        </p>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
-                      </Badge>
+                    <TableCell className="max-w-[24rem] whitespace-normal">
+                      <PrincipalIdentitySummary principal={principal} />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <ApiStatusBadge status={principal.active ? 'ACTIVE' : 'INACTIVE'} />
                     </TableCell>
                     <TableCell>
-                      {principal.active ? (
-                        <Badge dot>
-                          Active
-                        </Badge>
-                      ) : (
-                        <Badge variant="muted" dot>
-                          Inactive
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <DateDisplay date={principal.created_at} />
+                      <DateDisplay date={principal.created_at} className="items-center" />
                     </TableCell>
                     <TableCell className="text-right">
                       <AuthzRowActionsMenu
-                        label="Principal Actions"
-                        onView={() => router.push(`/authz/principals/details?principal_id=${principal.id}`)}
-                        onEdit={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
+                        label={`Actions for ${principal.name}`}
+                        onView={() => router.push(principalDetailsHref(principal.id))}
+                        onEdit={() => router.push(`/authz/principals/edit?principal_id=${encodeURIComponent(principal.id)}`)}
+                        onCopyId={() => handleCopyId(principal)}
                         onDelete={() => { setPrincipalToDelete(principal); setIsDeleteDialogOpen(true); }}
                       />
                     </TableCell>

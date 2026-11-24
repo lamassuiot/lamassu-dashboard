@@ -2,7 +2,10 @@
 
 import { useEffect, useState, Suspense, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
+import { sileo } from '@/lib/toast';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2,
@@ -12,10 +15,13 @@ import {
   Plus,
   Shield,
   Link2,
-  Check,
   FileJson,
   Info,
+  X,
 } from 'lucide-react';
+import Link from '@/components/shared/RouterLink';
+import { ReadOnlyField } from '@/components/shared/DecodedCertificateSections';
+import { fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Sheet,
@@ -55,7 +61,7 @@ import {
 import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy, deletePrincipal } from '@/lib/authz-api';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import { principalHasSubjectAttribute } from '@/lib/principal-subject-attributes';
-import type { DateFilterValue, PolicyFilters, Principal, Policy, PrincipalType } from '@/types/authz';
+import type { DateFilterValue, PolicyFilters, Principal, Policy, PrincipalType, X509MatchMode } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
@@ -100,6 +106,67 @@ const isWfxSbiPolicy = (policy: Policy | null | undefined): boolean => {
   return haystack.includes('wfx') && haystack.includes('sbi');
 };
 
+const X509_MATCH_MODE_LABEL: Record<X509MatchMode, string> = {
+  any_from_ca: 'Any certificate issued by the trusted CA',
+  subject_cn: 'Certificates whose subject CN matches',
+  cn_and_ca: 'Subject CN match, issued by the trusted CA',
+  serial_and_ca: 'Serial number match, issued by the trusted CA',
+};
+
+const CA_TRUST_LABEL: Record<string, string> = {
+  authority_key_id: 'Authority Key Identifier',
+  fingerprint: 'SHA-256 fingerprint',
+};
+
+/** Detail-page section: title and description on the left, content on the right. */
+function DetailSection({ title, description, aside, children }: Readonly<{
+  title: string;
+  description: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}>) {
+  return (
+    <section aria-label={title} className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+      <div>
+        <p className="font-semibold">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        {aside && <div className="mt-3">{aside}</div>}
+      </div>
+      <div className="min-w-0 space-y-4 lg:col-span-2">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * The CA whose SKI equals the principal's trusted AKI. The stored value may or may not use
+ * colons, so both spellings are tried.
+ */
+function useCaByKeyId(keyId: string | undefined) {
+  const [ca, setCa] = useState<CA | null>(null);
+  useEffect(() => {
+    setCa(null);
+    if (!keyId) return;
+    let cancelled = false;
+    const bare = keyId.replaceAll(':', '').toLowerCase();
+    const colon = bare.match(/.{1,2}/g)?.join(':') ?? bare;
+    (async () => {
+      for (const candidate of [...new Set([keyId, bare, colon])]) {
+        try {
+          const [match] = await fetchAndProcessCAs(`filter=subject_key_id[equal]${encodeURIComponent(candidate)}`);
+          if (match) {
+            if (!cancelled) setCa(match);
+            return;
+          }
+        } catch {
+          return; // The CA is only a convenience link; the AKI itself is still shown.
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [keyId]);
+  return ca;
+}
+
 function PrincipalDetailsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -120,8 +187,9 @@ function PrincipalDetailsContent() {
   const [policyDescriptionFilter, setPolicyDescriptionFilter] = useState('');
   const [policyCreatedAtFilter, setPolicyCreatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
   const [policyUpdatedAtFilter, setPolicyUpdatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>('');
-  const [assigningPolicyId, setAssigningPolicyId] = useState<string | null>(null);
+  // Kept as policies, not IDs, so a selection survives a search that no longer lists it.
+  const [selectedPolicies, setSelectedPolicies] = useState<Policy[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
   const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const monacoTheme = useMonacoTheme();
@@ -166,20 +234,40 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const handleAssignPolicy = async (policy_id: string) => {
-    if (!principal_id || !policy_id) return;
-    try {
-      setAssigningPolicyId(policy_id);
-      await grantPolicy(principal_id, policy_id);
-      setGrantDrawerOpen(false);
-      setSelectedPolicyId('');
-      setPolicyResults([]);
-      await loadPrincipalDetails();
-    } catch (err: any) {
-      setError(err.message || 'Failed to grant policy');
-    } finally {
-      setAssigningPolicyId(null);
+  const togglePolicySelection = (policy: Policy) => {
+    setSelectedPolicies((current) => current.some((p) => p.id === policy.id)
+      ? current.filter((p) => p.id !== policy.id)
+      : [...current, policy]);
+  };
+
+  /** Grants every selected policy. Grants that fail stay selected so they can be retried. */
+  const handleAssignPolicies = async () => {
+    if (!principal_id || selectedPolicies.length === 0) return;
+    setIsAssigning(true);
+    const results = await Promise.allSettled(selectedPolicies.map((policy) => grantPolicy(principal_id, policy.id)));
+    const failed = selectedPolicies.filter((_, index) => results[index].status === 'rejected');
+    const granted = selectedPolicies.length - failed.length;
+    setIsAssigning(false);
+
+    if (granted > 0) {
+      sileo.success({
+        title: granted === 1 ? 'Policy assigned' : `${granted} policies assigned`,
+        description: `Granted to ${principal?.name ?? 'this principal'}.`,
+      });
     }
+    if (failed.length > 0) {
+      const reason = (results.find((result) => result.status === 'rejected') as PromiseRejectedResult).reason;
+      sileo.error({
+        title: failed.length === 1 ? 'Could not assign 1 policy' : `Could not assign ${failed.length} policies`,
+        description: `${failed.map((policy) => policy.name).join(', ')}: ${reason?.message ?? 'unknown error'}`,
+      });
+      setSelectedPolicies(failed);
+    } else {
+      setGrantDrawerOpen(false);
+      setSelectedPolicies([]);
+      setPolicyResults([]);
+    }
+    if (granted > 0) await loadPrincipalDetails();
   };
 
   const toApiDateFilter = useCallback((filter: GenericDateFilterValue): DateFilterValue | undefined => {
@@ -233,7 +321,6 @@ function PrincipalDetailsContent() {
       const assignedIds = new Set(policies.map((policy) => policy.policy_id));
       const availablePolicies = (result.list || []).filter((policy) => !assignedIds.has(policy.id));
       setPolicyResults(availablePolicies);
-      setSelectedPolicyId((current) => availablePolicies.some((policy) => policy.id === current) ? current : '');
     } catch {
       setPolicyResults([]);
     } finally {
@@ -272,8 +359,16 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const selectedPolicy = policyResults.find((p) => p.id === selectedPolicyId) ?? null;
-  const selectedPolicyNeedsClientId = isWfxSbiPolicy(selectedPolicy) && !principalHasSubjectAttribute(principal?.auth_config, 'client_id');
+  const trustedKeyId = useMemo(() => {
+    if (principal?.type !== 'x509') return undefined;
+    const trust = normalizeX509AuthConfig(principal.auth_config).ca_trust;
+    return trust?.identity_type === 'authority_key_id' ? trust.value : undefined;
+  }, [principal]);
+  const trustedCa = useCaByKeyId(trustedKeyId);
+
+  const selectedPolicyIds = new Set(selectedPolicies.map((policy) => policy.id));
+  const selectedPolicyNeedsClientId = selectedPolicies.some(isWfxSbiPolicy)
+    && !principalHasSubjectAttribute(principal?.auth_config, 'client_id');
 
   if (loading) {
     return (
@@ -297,171 +392,192 @@ function PrincipalDetailsContent() {
     );
   }
 
-  const renderAuthConfig = () => {
-    const { auth_config, type } = principal;
-    const staticAttributeEntries = getStringRecordEntries((auth_config as any)?.subject_attributes);
-    const derivedAttributeEntries = getStringRecordEntries((auth_config as any)?.subject_attribute_mappings);
+  const staticAttributeEntries = getStringRecordEntries((principal.auth_config as any)?.subject_attributes);
+  const derivedAttributeEntries = getStringRecordEntries((principal.auth_config as any)?.subject_attribute_mappings);
+  const x509Config = principal.type === 'x509' ? normalizeX509AuthConfig(principal.auth_config) : null;
 
-    const renderSubjectAttributes = () => {
-      if (staticAttributeEntries.length === 0 && derivedAttributeEntries.length === 0) return null;
-
+  const renderAuthentication = () => {
+    if (principal.type === 'oidc') {
+      const oidcConfig = principal.auth_config as any;
+      const claims: Array<{ claim: string; operator: string; value: string }> = oidcConfig.claims ?? [];
       return (
-        <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-          <div>
-            <p className="font-semibold">Subject Attributes</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Neutral attributes available to policies. Derived values override static values with the same key.
-            </p>
-          </div>
-          <div className="space-y-5 lg:col-span-2">
-            {staticAttributeEntries.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Static</p>
-                <div className="space-y-2">
-                  {staticAttributeEntries.map(([key, value]) => (
-                    <div key={key} className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 rounded-md border bg-card px-3 py-2">
-                      <code className="truncate font-mono text-xs">{key}</code>
-                      <code className="truncate font-mono text-xs text-muted-foreground">{value}</code>
-                    </div>
+        <DetailSection
+          title="Authentication"
+          description="OIDC tokens are accepted for this principal when every claim condition holds."
+        >
+          <ReadOnlyField label="Credential" value="OIDC token" />
+          {oidcConfig.issuer && <ReadOnlyField label="Issuer" value={String(oidcConfig.issuer)} mono />}
+          <div className="space-y-2 pt-4">
+            <p className="text-sm leading-none font-medium">Claim conditions</p>
+            {claims.length === 0 ? (
+              <p className="text-sm text-muted-foreground">None: any token from the issuer matches.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Claim</TableHead>
+                    <TableHead>Operator</TableHead>
+                    <TableHead>Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {claims.map((claim, index) => (
+                    <TableRow key={`${claim.claim}-${index}`}>
+                      <TableCell className="font-mono text-sm">{claim.claim}</TableCell>
+                      <TableCell className="text-muted-foreground">{claim.operator}</TableCell>
+                      <TableCell className="max-w-[24rem] truncate font-mono text-sm" title={claim.value}>{claim.value}</TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {derivedAttributeEntries.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Derived</p>
-                <div className="space-y-2">
-                  {derivedAttributeEntries.map(([key, source]) => (
-                    <div key={key} className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 rounded-md border bg-card px-3 py-2">
-                      <code className="truncate font-mono text-xs">{key}</code>
-                      <code className="truncate font-mono text-xs text-muted-foreground">{source}</code>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                </TableBody>
+              </Table>
             )}
           </div>
-        </div>
-      );
-    };
-
-    if (type === 'oidc') {
-      const oidcConfig = auth_config as any;
-      return (
-        <div className="divide-y">
-          {oidcConfig.issuer && (
-            <div className="grid grid-cols-1 gap-6 py-6 first:pt-0 lg:grid-cols-3 lg:gap-10">
-              <div>
-                <p className="font-semibold">Issuer</p>
-                <p className="mt-1 text-sm text-muted-foreground">Token issuer URL for this OIDC principal.</p>
-              </div>
-              <div className="lg:col-span-2">
-                <code className="text-xs bg-muted px-2 py-1.5 rounded block overflow-x-auto font-mono">
-                  {String(oidcConfig.issuer)}
-                </code>
-              </div>
-            </div>
-          )}
-          {oidcConfig.claims && oidcConfig.claims.length > 0 && (
-            <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-              <div>
-                <p className="font-semibold">Claim Conditions</p>
-                <p className="mt-1 text-sm text-muted-foreground">Required claim matches for this principal.</p>
-              </div>
-              <div className="lg:col-span-2">
-                <div className="space-y-2">
-                  {oidcConfig.claims.map((claim: any, index: number) => (
-                    <div key={index} className="rounded-lg border bg-card px-3 py-2 flex items-center gap-2">
-                      <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded shrink-0">{claim.claim}</code>
-                      <span className="text-xs text-muted-foreground shrink-0">{claim.operator}</span>
-                      <code className="text-xs font-mono flex-1 truncate">{claim.value}</code>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          {renderSubjectAttributes()}
-        </div>
+        </DetailSection>
       );
     }
 
-    if (type === 'x509') {
-      const x509Config = normalizeX509AuthConfig(auth_config);
+    if (x509Config) {
+      const trust = x509Config.ca_trust;
       return (
-        <div className="divide-y">
-          {(x509Config.ca_trust?.identity_type || x509Config.ca_trust?.value) && (
-            <div className="grid grid-cols-1 gap-6 py-6 first:pt-0 lg:grid-cols-3 lg:gap-10">
-              <div>
-                <p className="font-semibold">CA Trust</p>
-                <p className="mt-1 text-sm text-muted-foreground">Certificate authority used to validate this principal.</p>
-              </div>
-              <div className="lg:col-span-2">
-                <div className="divide-y">
-                  {x509Config.ca_trust.identity_type && (
-                    <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
-                      <p className="text-xs font-medium text-muted-foreground">Identity Type</p>
-                      <Badge variant="secondary" className="font-mono">
-                        {String(x509Config.ca_trust.identity_type).replace(/_/g, ' ')}
-                      </Badge>
-                    </div>
-                  )}
-                  {x509Config.ca_trust.value && (
-                    <div className="py-3 last:pb-0">
-                      <p className="text-xs font-medium text-muted-foreground">Trust Value</p>
-                      <code className="mt-1 text-xs bg-muted px-2 py-1.5 rounded block overflow-x-auto break-all font-mono">
-                        {x509Config.ca_trust.value}
-                      </code>
-                    </div>
-                  )}
-                </div>
-              </div>
+        <DetailSection
+          title="Authentication"
+          description="X.509 client certificates are accepted for this principal when they match this rule."
+        >
+          <ReadOnlyField label="Credential" value="X.509 certificate" />
+          <ReadOnlyField label="Match rule" value={X509_MATCH_MODE_LABEL[x509Config.match_mode] ?? x509Config.match_mode} />
+          {x509Config.subject_cn && <ReadOnlyField label="Subject CN" value={x509Config.subject_cn} mono />}
+          {x509Config.serial_number && <ReadOnlyField label="Serial number" value={x509Config.serial_number} mono />}
+          {trust?.value && (
+            <div className="space-y-1.5">
+              <ReadOnlyField
+                label={`Trusted CA · ${CA_TRUST_LABEL[trust.identity_type] ?? trust.identity_type}`}
+                value={trust.value}
+                mono
+              />
+              {trustedCa && (
+                <p className="text-sm text-muted-foreground">
+                  Issued by{' '}
+                  <Link
+                    href={`/certificate-authorities/details?caId=${encodeURIComponent(trustedCa.id)}`}
+                    className={cn(buttonVariants({ variant: 'link' }), 'h-auto p-0 font-medium')}
+                  >
+                    {trustedCa.name}
+                  </Link>
+                </p>
+              )}
             </div>
           )}
-          {(x509Config.match_mode || x509Config.serial_number || x509Config.subject_cn) && (
-            <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
-              <div>
-                <p className="font-semibold">Match Rules</p>
-                <p className="mt-1 text-sm text-muted-foreground">How the certificate identity is matched.</p>
-              </div>
-              <div className="lg:col-span-2">
-                <div className="divide-y">
-                  {x509Config.match_mode && (
-                    <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
-                      <p className="text-xs font-medium text-muted-foreground">Match Mode</p>
-                      <Badge variant="secondary" className="font-mono">
-                        {String(x509Config.match_mode).replace(/_/g, ' ')}
-                      </Badge>
-                    </div>
-                  )}
-                  {x509Config.serial_number && (
-                    <div className="py-3">
-                      <p className="text-xs font-medium text-muted-foreground">Serial Number</p>
-                      <code className="mt-1 text-xs bg-muted px-2 py-1.5 rounded block overflow-x-auto font-mono">
-                        {x509Config.serial_number}
-                      </code>
-                    </div>
-                  )}
-                  {x509Config.subject_cn && (
-                    <div className="py-3 last:pb-0">
-                      <p className="text-xs font-medium text-muted-foreground">Subject CN</p>
-                      <p className="mt-1 text-sm font-medium font-mono">{x509Config.subject_cn}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          {renderSubjectAttributes()}
-        </div>
+        </DetailSection>
       );
     }
 
     return (
-      <p className="text-sm text-muted-foreground">No authentication configuration available.</p>
+      <DetailSection title="Authentication" description="How this principal authenticates.">
+        <p className="text-sm text-muted-foreground">No authentication configuration available.</p>
+      </DetailSection>
     );
   };
+
+  const renderSubjectAttributes = () => {
+    const rows = [
+      ...staticAttributeEntries.map(([key, value]) => ({ key, value, source: 'Static' })),
+      ...derivedAttributeEntries.map(([key, value]) => ({ key, value, source: 'Derived' })),
+    ];
+    if (rows.length === 0) return null;
+    return (
+      <>
+        <Separator />
+        <DetailSection
+          title="Subject attributes"
+          description="Attributes available to policies. Derived values override static values with the same key."
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Attribute</TableHead>
+                <TableHead>Value</TableHead>
+                <TableHead>Source</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={`${row.source}-${row.key}`}>
+                  <TableCell className="font-mono text-sm">{row.key}</TableCell>
+                  <TableCell className="max-w-[20rem] truncate font-mono text-sm" title={row.value}>{row.value}</TableCell>
+                  <TableCell className="text-muted-foreground">{row.source}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DetailSection>
+      </>
+    );
+  };
+
+  const renderPolicies = () => (
+    <DetailSection
+      title="Policies"
+      description="Policies granted to this principal. Together they decide what it may do."
+      aside={(
+        <Button variant="secondary" size="sm" onClick={() => setGrantDrawerOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          Assign policy
+        </Button>
+      )}
+    >
+      {policies.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No policies assigned yet, so this principal is not allowed to do anything.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Policy</TableHead>
+              <TableHead className="text-center">Granted</TableHead>
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {enrichedPolicies.map(({ grantedPolicy, fullPolicy }) => {
+              const name = fullPolicy?.name || grantedPolicy.policy_name;
+              return (
+                <TableRow key={grantedPolicy.policy_id}>
+                  <TableCell className="max-w-[28rem] whitespace-normal">
+                    <Link
+                      href={`/authz/policies/details?policy_id=${encodeURIComponent(grantedPolicy.policy_id)}`}
+                      title={`ID: ${grantedPolicy.policy_id}`}
+                      className={cn(buttonVariants({ variant: 'link' }), 'block h-auto truncate p-0 text-left font-medium')}
+                    >
+                      {name}
+                    </Link>
+                    {fullPolicy?.description && (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground" title={fullPolicy.description}>
+                        {fullPolicy.description}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DateDisplay date={grantedPolicy.granted_at} className="items-center" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title={`Revoke ${name}`}
+                      aria-label={`Revoke ${name}`}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => { setSelectedPolicyToRevoke(grantedPolicy); setRevokeDialogOpen(true); }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </DetailSection>
+  );
 
   return (
     <BreadcrumbPage
@@ -520,19 +636,12 @@ function PrincipalDetailsContent() {
       />
 
       {/* Tabs */}
-      <Tabs defaultValue="authentication" className="w-full">
+      <Tabs defaultValue="information" className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
-            <TabsTrigger value="authentication" className={pageTabsTriggerClass}>
-              <Shield className="h-4 w-4" />
-              Authentication
-            </TabsTrigger>
-            <TabsTrigger value="policies" className={pageTabsTriggerClass}>
+            <TabsTrigger value="information" className={pageTabsTriggerClass}>
               <Info className="h-4 w-4" />
-              Policies
-              {policies.length > 0 && (
-                <Badge variant="secondary" className="ml-1">{policies.length}</Badge>
-              )}
+              Information
             </TabsTrigger>
             <TabsTrigger value="raw" className={pageTabsTriggerClass}>
               <FileJson className="h-4 w-4" />
@@ -541,81 +650,11 @@ function PrincipalDetailsContent() {
           </TabsList>
         </div>
 
-        {/* Authentication Tab */}
-        <TabsContent value="authentication" className="mt-6">
-          {renderAuthConfig()}
-        </TabsContent>
-
-        {/* Policies Tab */}
-        <TabsContent value="policies" className="mt-6 space-y-4">
-          <div className="flex items-center justify-end">
-            <Button onClick={() => setGrantDrawerOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Assign Policy
-            </Button>
-          </div>
-
-          {policies.length === 0 ? (
-            <div className="mt-4 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-              <div className="flex justify-center mb-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                  <Shield className="h-6 w-6 text-muted-foreground" />
-                </div>
-              </div>
-              <p className="font-medium">No policies assigned</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Assign a policy to grant permissions to this principal.
-              </p>
-              <Button variant="secondary" className="mt-4" onClick={() => setGrantDrawerOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Assign First Policy
-              </Button>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Granted</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {enrichedPolicies.map(({ grantedPolicy, fullPolicy }) => (
-                  <TableRow key={grantedPolicy.policy_id}>
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={() => router.push(`/authz/policies/details?policy_id=${grantedPolicy.policy_id}`)}
-                        className="text-left text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
-                      >
-                        {fullPolicy?.name || grantedPolicy.policy_name}
-                      </button>
-                      {fullPolicy?.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-1 max-w-xs mt-0.5">{fullPolicy.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{grantedPolicy.policy_id}</p>
-                    </TableCell>
-                    <TableCell>
-                      <DateDisplay
-                        date={grantedPolicy.granted_at}
-                        className="text-xs text-muted-foreground"
-                        highlightExpired={false}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        onClick={() => { setSelectedPolicyToRevoke(grantedPolicy); setRevokeDialogOpen(true); }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+        <TabsContent value="information" className="mt-0">
+          {renderAuthentication()}
+          {renderSubjectAttributes()}
+          <Separator />
+          {renderPolicies()}
         </TabsContent>
 
         {/* Raw JSON Tab */}
@@ -650,7 +689,7 @@ function PrincipalDetailsContent() {
             setPolicyDescriptionFilter('');
             setPolicyCreatedAtFilter(defaultPolicyDateFilterValue);
             setPolicyUpdatedAtFilter(defaultPolicyDateFilterValue);
-            setSelectedPolicyId('');
+            setSelectedPolicies([]);
             setPolicyResults([]);
           }
         }}
@@ -661,8 +700,8 @@ function PrincipalDetailsContent() {
           className="flex flex-col gap-0 p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-none"
         >
           <SheetHeader className="border-b px-6 py-5 shrink-0 text-left">
-            <SheetTitle>Assign Policy</SheetTitle>
-            <SheetDescription>Select a policy to grant to this principal.</SheetDescription>
+            <SheetTitle>Assign Policies</SheetTitle>
+            <SheetDescription>Select one or more policies to grant to this principal.</SheetDescription>
           </SheetHeader>
 
           <div className="border-b px-6 py-4 shrink-0">
@@ -670,29 +709,24 @@ function PrincipalDetailsContent() {
               searchTerm={policySearchTerm}
               onSearchTermChange={(value) => {
                 setPolicySearchTerm(value);
-                setSelectedPolicyId('');
               }}
               idFilter={policyIdFilter}
               onIdFilterChange={(value) => {
                 setPolicyIdFilter(value);
-                setSelectedPolicyId('');
               }}
               descriptionFilter={policyDescriptionFilter}
               onDescriptionFilterChange={(value) => {
                 setPolicyDescriptionFilter(value);
-                setSelectedPolicyId('');
               }}
               createdAtFilter={policyCreatedAtFilter}
               onCreatedAtFilterChange={(value) => {
                 setPolicyCreatedAtFilter(value);
-                setSelectedPolicyId('');
               }}
               updatedAtFilter={policyUpdatedAtFilter}
               onUpdatedAtFilterChange={(value) => {
                 setPolicyUpdatedAtFilter(value);
-                setSelectedPolicyId('');
               }}
-              disabled={policyResultsLoading || !!assigningPolicyId}
+              disabled={policyResultsLoading || isAssigning}
             />
           </div>
 
@@ -713,6 +747,7 @@ function PrincipalDetailsContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10"><span className="sr-only">Selected</span></TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Created</TableHead>
@@ -721,22 +756,26 @@ function PrincipalDetailsContent() {
                   </TableHeader>
                   <TableBody>
                     {policyResults.map((policy) => {
-                      const isSelected = selectedPolicy?.id === policy.id;
+                      const isSelected = selectedPolicyIds.has(policy.id);
 
                       return (
                         <TableRow
                           key={policy.id}
-                          className={cn('cursor-pointer', isSelected && 'bg-primary/5')}
-                          onClick={() => setSelectedPolicyId(isSelected ? '' : policy.id)}
+                          data-state={isSelected ? 'selected' : undefined}
+                          className={cn('cursor-pointer', isSelected && 'bg-primary/5 data-[state=selected]:bg-primary/5')}
+                          onClick={() => togglePolicySelection(policy)}
                         >
+                          <TableCell onClick={(event) => event.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => togglePolicySelection(policy)}
+                              aria-label={`Select ${policy.name}`}
+                              disabled={isAssigning}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">
-                            <div className="flex min-w-0 items-center justify-between gap-3">
-                              <div className="min-w-0 flex-1">
-                                <div className={cn('truncate', isSelected && 'text-primary')}>{policy.name}</div>
-                                <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{policy.id}</p>
-                              </div>
-                              {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
-                            </div>
+                            <div className={cn('truncate', isSelected && 'text-primary')}>{policy.name}</div>
+                            <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{policy.id}</p>
                           </TableCell>
                           <TableCell>
                             {policy.description ? (
@@ -761,32 +800,44 @@ function PrincipalDetailsContent() {
           </div>
 
           <SheetFooter className="border-t px-6 py-4 shrink-0">
-            {selectedPolicy && (
-              <div className="mr-auto space-y-2">
-                <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
-                  <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="font-medium truncate">{selectedPolicy.name}</span>
+            <div className="mr-auto min-w-0 space-y-2">
+              {selectedPolicies.length > 0 ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
+                  <span className="font-medium">{selectedPolicies.length} selected:</span>
+                  {selectedPolicies.map((policy) => (
+                    <Badge key={policy.id} variant="secondary" className="max-w-[14rem]">
+                      <span className="truncate">{policy.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => togglePolicySelection(policy)}
+                        disabled={isAssigning}
+                        aria-label={`Remove ${policy.name} from the selection`}
+                        className="-mr-1 rounded-sm opacity-60 hover:opacity-100"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
                 </div>
-                {selectedPolicyNeedsClientId && (
-                  <Alert className="max-w-md py-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      This WFX SBI policy requires subject attribute client_id for job route constraints.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setGrantDrawerOpen(false)} disabled={!!assigningPolicyId}>
+              ) : (
+                <p className="text-sm text-muted-foreground">No policies selected.</p>
+              )}
+              {selectedPolicyNeedsClientId && (
+                <Alert className="max-w-md py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    A selected WFX SBI policy requires subject attribute client_id for job route constraints.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-2 justify-end">
+              <Button variant="secondary" onClick={() => setGrantDrawerOpen(false)} disabled={isAssigning}>
                 Cancel
               </Button>
-              <Button
-                onClick={() => selectedPolicy && handleAssignPolicy(selectedPolicy.id)}
-                disabled={!selectedPolicy || !!assigningPolicyId}
-              >
-                {assigningPolicyId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Assign Policy
+              <Button onClick={handleAssignPolicies} disabled={selectedPolicies.length === 0 || isAssigning}>
+                {isAssigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {selectedPolicies.length > 1 ? `Assign ${selectedPolicies.length} Policies` : 'Assign Policy'}
               </Button>
             </div>
           </SheetFooter>

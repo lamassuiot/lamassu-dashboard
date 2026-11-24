@@ -76,6 +76,8 @@ interface CrlViewerSheetProps {
   presentation?: 'sheet' | 'docked';
   /** CA whose CRL `defaultUrl` serves, shown in the headers while that CRL is displayed. */
   ca?: CrlViewerCa;
+  /** Hint under the URL field while it holds `defaultUrl`. */
+  defaultUrlHint?: string;
 }
 
 const CRL_ICON_TILE = (
@@ -92,6 +94,7 @@ export function CrlViewerSheet({
   downloadFileName,
   presentation = 'sheet',
   ca,
+  defaultUrlHint = 'CRL distribution point of this CA.',
 }: Readonly<CrlViewerSheetProps>) {
   const isMobile = useIsMobile();
   const [url, setUrl] = useState(defaultUrl);
@@ -167,7 +170,7 @@ export function CrlViewerSheet({
         </div>
         <div id="crl-url-hint" className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           {trimmedUrl === defaultUrl ? (
-            <span>CRL distribution point of this CA.</span>
+            <span>{defaultUrlHint}</span>
           ) : (
             <>
               <span>Custom URL.</span>

@@ -30,6 +30,7 @@ import {
 import { useDecodedCertificatePem } from '@/hooks/useDecodedCertificatePem';
 import { buildCaKmsKeyUri, buildCertificateKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import Link from '@/components/shared/RouterLink';
+import { isCaWithoutKey } from '@/lib/ca-utils';
 
 interface CaStats {
   ACTIVE: number;
@@ -61,12 +62,6 @@ interface InformationTabContentProps {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * A CA imported from its certificate alone cannot sign, so it has no private key nor issuance
- * profile. `EXTERNAL_PUBLIC` is the legacy name of `IMPORTED_WITHOUT_KEY`.
- */
-const isCaWithoutKey = (ca: CA) => ca.caType === 'IMPORTED_WITHOUT_KEY' || ca.caType === 'EXTERNAL_PUBLIC';
 
 const getRevocationReasonLabel = (reason: string | undefined): string => {
   if (!reason) return 'Unknown';

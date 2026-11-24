@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Eye, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ interface AuthzRowActionsMenuProps {
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** Adds a "Copy ID" item. */
+  onCopyId?: () => void;
 }
 
 export function AuthzRowActionsMenu({
@@ -22,6 +24,7 @@ export function AuthzRowActionsMenu({
   onView,
   onEdit,
   onDelete,
+  onCopyId,
 }: AuthzRowActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -38,6 +41,11 @@ export function AuthzRowActionsMenu({
         <DropdownMenuItem onClick={onEdit}>
           <Pencil className="mr-2 h-4 w-4" /> Edit
         </DropdownMenuItem>
+        {onCopyId && (
+          <DropdownMenuItem onClick={onCopyId}>
+            <Copy className="mr-2 h-4 w-4" /> Copy ID
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={onDelete}

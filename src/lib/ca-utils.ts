@@ -28,6 +28,14 @@ export function parseCaExpiry(expires: string): Date {
   return parseISO(expanded);
 }
 
+/**
+ * A CA imported from its certificate alone: Lamassu cannot sign with it, so it has no private key,
+ * issuance profile nor CRL of its own. `EXTERNAL_PUBLIC` is the legacy name of `IMPORTED_WITHOUT_KEY`.
+ */
+export function isCaWithoutKey(ca: Pick<CA, 'caType'>): boolean {
+  return ca.caType === 'IMPORTED_WITHOUT_KEY' || ca.caType === 'EXTERNAL_PUBLIC';
+}
+
 export function getEffectiveCaStatus(ca: Pick<CA, 'status' | 'expires'>, now: number = Date.now()): CaStatusFilter {
   if (ca.status === 'revoked') return 'revoked';
   if (ca.status === 'expired' || parseCaExpiry(ca.expires).getTime() <= now) return 'expired';

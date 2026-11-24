@@ -30,7 +30,9 @@ import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificate
 import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
-import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
+import { DistinguishedNamesStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
+import { isCaWithoutKey } from '@/lib/ca-utils';
+import Link from '@/components/shared/RouterLink';
 import { parseDistinguishedName } from '@/lib-crypto';
 import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
 
@@ -65,6 +67,18 @@ const CA_CRUMBS = [
   { label: 'Home', href: '/' },
   { label: 'Certificate Authorities', href: '/certificate-authorities' },
 ];
+
+/** DN chips from the structured DN the API returns (the hero stat puts CN first). */
+function distinguishedNameParts(dn: CA['subjectDN']): { label: string; value: string }[] {
+  return [
+    { label: 'C', value: dn?.country },
+    { label: 'ST', value: dn?.state },
+    { label: 'L', value: dn?.locality },
+    { label: 'O', value: dn?.organization },
+    { label: 'OU', value: dn?.organization_unit },
+    { label: 'CN', value: dn?.common_name },
+  ].filter((part): part is { label: string; value: string } => Boolean(part.value));
+}
 
 export default function CertificateAuthorityDetailsClient() {
   const searchParams = useSearchParams();
@@ -167,7 +181,8 @@ export default function CertificateAuthorityDetailsClient() {
       if (foundCa) {
           if (foundCa.pemData) {
               const parsedDetails = await parseCertificatePemDetails(foundCa.pemData);
-              const completeCa = { ...foundCa, ...parsedDetails };
+              // The parsed `issuer` is the DN string; keep the CA's own `issuer` (parent CA ID or 'Self-signed').
+              const completeCa = { ...foundCa, ...parsedDetails, issuer: foundCa.issuer };
               setCaDetails(completeCa);
           } else {
               setCaDetails(foundCa);
@@ -375,17 +390,16 @@ export default function CertificateAuthorityDetailsClient() {
     ? findCaById(caDetails.issuer, allCertificateAuthoritiesData)
     : null;
   const issuerDisplayName = issuerCa?.name || caDetails.issuer || 'Unknown';
-  const structuredIssuerDistinguishedNameParts = [
-    { label: 'C', value: caDetails.issuerDN?.country },
-    { label: 'ST', value: caDetails.issuerDN?.state },
-    { label: 'L', value: caDetails.issuerDN?.locality },
-    { label: 'O', value: caDetails.issuerDN?.organization },
-    { label: 'OU', value: caDetails.issuerDN?.organization_unit },
-    { label: 'CN', value: caDetails.issuerDN?.common_name },
-  ].filter((part): part is { label: string; value: string } => Boolean(part.value));
+  const isSelfSigned = caDetails.issuer === 'Self-signed';
+  const caWithoutKey = isCaWithoutKey(caDetails);
+  // A link may ask for the VA tab of a CA that has none.
+  const shownTab = caWithoutKey && activeTab === 'validation-authority' ? 'information' : activeTab;
+  const structuredIssuerDistinguishedNameParts = distinguishedNameParts(caDetails.issuerDN);
   const issuerDistinguishedNameParts = structuredIssuerDistinguishedNameParts.length > 0
     ? structuredIssuerDistinguishedNameParts
     : parseDistinguishedName(caDetails.issuer || '');
+  const subjectDistinguishedNameParts = distinguishedNameParts(caDetails.subjectDN);
+  const issuerCaHref = issuerCa ? `/certificate-authorities/details?caId=${encodeURIComponent(issuerCa.id)}` : undefined;
   const validFrom = caDetails.rawApiData?.certificate.valid_from;
 
   return (
@@ -467,9 +481,11 @@ export default function CertificateAuthorityDetailsClient() {
               </Button>
             )}
             <DetailHeroActionsMenu ariaLabel="Certificate authority actions">
-              <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
-                <Shield className="mr-2 h-4 w-4" /> Validation Authority
-              </DropdownMenuItem>
+              {!caWithoutKey && (
+                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
+                  <Shield className="mr-2 h-4 w-4" /> Validation Authority
+                </DropdownMenuItem>
+              )}
               {caDetails.status !== 'revoked' && (
                 <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
                   <RefreshCw className="mr-2 h-4 w-4" /> Reissue CA
@@ -487,10 +503,30 @@ export default function CertificateAuthorityDetailsClient() {
         statsClassName="lg:grid-cols-[minmax(300px,1.2fr)_minmax(360px,1.2fr)_minmax(320px,1fr)]"
         stats={
           <>
-            <IssuerStat
-              parts={issuerDistinguishedNameParts}
-              displayName={issuerDisplayName}
-              href={issuerCa ? `/certificate-authorities/details?caId=${issuerCa.id}` : undefined}
+            <DistinguishedNamesStat
+              rows={[
+                isSelfSigned
+                  ? {
+                      label: 'Issuer',
+                      shortLabel: 'Iss',
+                      parts: [],
+                      fallback: <p className="text-muted-foreground">Self-signed (same as Subject)</p>,
+                    }
+                  : {
+                      label: 'Issuer',
+                      shortLabel: 'Iss',
+                      parts: issuerDistinguishedNameParts,
+                      fallback: issuerCa
+                        ? <Link href={issuerCaHref!} className="text-primary hover:underline">{issuerDisplayName}</Link>
+                        : <p>{issuerDisplayName}</p>,
+                      aside: issuerCa && (
+                        <Link href={issuerCaHref!} className="text-xs font-medium text-primary hover:underline">
+                          View CA
+                        </Link>
+                      ),
+                    },
+                { label: 'Subject', shortLabel: 'Sub', parts: subjectDistinguishedNameParts, fallback: <p>{caDetails.name}</p> },
+              ]}
             />
             <ValidityStat validFrom={validFrom} validTo={caDetails.expires} subject="certificate authority" />
             <DetailHeroStat label="Issued certificates">
@@ -502,7 +538,7 @@ export default function CertificateAuthorityDetailsClient() {
         }
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={shownTab} onValueChange={setActiveTab} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {([
@@ -510,7 +546,8 @@ export default function CertificateAuthorityDetailsClient() {
               { value: 'certificate', icon: KeyRound, label: 'Certificate PEM' },
               { value: 'metadata', icon: Lock, label: 'Metadata' },
               { value: 'issued', icon: ListChecks, label: 'Issued Certificates' },
-              { value: 'validation-authority', icon: Shield, label: 'Validation Authority' },
+              // Lamassu generates no CRL for a CA imported without its key, so it has no VA to manage.
+              ...(caWithoutKey ? [] : [{ value: 'validation-authority', icon: Shield, label: 'Validation Authority' }]),
             ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
               <TabsTrigger
                 key={value}
@@ -579,12 +616,14 @@ export default function CertificateAuthorityDetailsClient() {
             />
           </TabsContent>
 
-          <TabsContent value="validation-authority" className="mt-0">
-            <ValidationAuthorityTab
-              ca={caDetails}
-              allCryptoEngines={allCryptoEngines}
-            />
-          </TabsContent>
+          {!caWithoutKey && (
+            <TabsContent value="validation-authority" className="mt-0">
+              <ValidationAuthorityTab
+                ca={caDetails}
+                allCryptoEngines={allCryptoEngines}
+              />
+            </TabsContent>
+          )}
         </div>
       </Tabs>
 
