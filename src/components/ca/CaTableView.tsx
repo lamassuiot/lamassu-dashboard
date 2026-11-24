@@ -27,25 +27,17 @@ import { buildCaKmsKeyUri, kmsKeyDetailsHref } from '@/lib/kms-key-uri';
 import { getCrossSignBlocker } from '@/lib/ca-cross-sign';
 import { collectParentIds, flattenTree, type TreeAccessors, type TreeTableRow } from '@/lib/tree-table';
 import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
+import { CA_PAGE_COLUMNS, type CaColumnId, type CaColumnState } from '@/components/ca/ca-table-columns';
 import { useSortState } from '@/hooks/useSortState';
 import { useTreeCollapse } from '@/hooks/useTreeCollapse';
 import { cn } from '@/lib/utils';
 
 type SortableColumn = 'name' | 'expires';
-type ColumnId = 'name' | 'status' | 'type' | 'key' | 'expires' | 'parentExpiry';
-
-const PAGE_COLUMNS: ColumnDefinition<ColumnId>[] = [
-  { id: 'name', label: 'Certification Authority', alwaysVisible: true },
-  { id: 'status', label: 'Status' },
-  { id: 'type', label: 'Type' },
-  { id: 'key', label: 'Key' },
-  { id: 'expires', label: 'Expires' },
-  { id: 'parentExpiry', label: 'Expires vs. parent' },
-];
+type ColumnId = CaColumnId;
 
 // Pickers live in dialogs and drawers, so they start with a narrower set of columns.
 const PICKER_HIDDEN_BY_DEFAULT: ReadonlySet<ColumnId> = new Set(['type', 'parentExpiry']);
-const PICKER_COLUMNS: ColumnDefinition<ColumnId>[] = PAGE_COLUMNS.map((column) => ({
+const PICKER_COLUMNS: ColumnDefinition<ColumnId>[] = CA_PAGE_COLUMNS.map((column) => ({
   ...column,
   defaultVisible: !PICKER_HIDDEN_BY_DEFAULT.has(column.id),
 }));
@@ -76,6 +68,11 @@ interface CaTableViewProps {
   selectedCaId?: string | null;
   /** Picker only: why a CA cannot be selected, or null when it can. Unselectable rows are blurred. */
   getDisabledReason?: (ca: CA) => string | null;
+  /**
+   * Column state owned by the parent, which then renders the Columns selector itself (the CAs page
+   * puts it in its filter bar). Without it the table keeps its own state and shows the selector.
+   */
+  columnState?: CaColumnState;
 }
 
 const NO_FILTERS: CaFilterOptions = {};
@@ -440,15 +437,17 @@ function CaTableRow({ row, engine, parent, isVisible, query, isFiltering, isColl
   );
 }
 
-export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSelect, selectedCaId, getDisabledReason }: Readonly<CaTableViewProps>) {
+export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSelect, selectedCaId, getDisabledReason, columnState }: Readonly<CaTableViewProps>) {
   const isPicker = Boolean(onSelect);
   const { sortColumn, sortDirection, requestSort } = useSortState<SortableColumn>('name', ['expires']);
   const parentIds = useMemo(() => collectParentIds(cas, CA_TREE), [cas]);
   const { collapsedIds, toggle, allCollapsed, toggleAll } = useTreeCollapse(parentIds);
-  const { isVisible, toggle: toggleColumn, columns } = useColumnVisibility(
-    isPicker ? PICKER_COLUMNS : PAGE_COLUMNS,
-    isPicker ? 'lamassu.caPicker.columns' : 'lamassu.caTable.columns',
+  const ownColumnState = useColumnVisibility(
+    isPicker ? PICKER_COLUMNS : CA_PAGE_COLUMNS,
+    // The parent persists its own state; storing here too would make two writers for one key.
+    columnState ? undefined : isPicker ? 'lamassu.caPicker.columns' : 'lamassu.caTable.columns',
   );
+  const { isVisible, toggle: toggleColumn, columns } = columnState ?? ownColumnState;
 
   const isFiltering = hasActiveCaFilters(filters);
   const query = (filters.filterText ?? '').trim().toLowerCase();
@@ -480,7 +479,7 @@ export function CaTableView({ cas, allCryptoEngines, filters = NO_FILTERS, onSel
         {parentIds.size > 0 && (
           <ExpandCollapseAllButton allCollapsed={allCollapsed} onToggle={toggleAll} disabled={isFiltering} />
         )}
-        <ColumnSelector columns={columns} onColumnToggle={toggleColumn} />
+        {!columnState && <ColumnSelector columns={columns} onColumnToggle={toggleColumn} />}
       </div>
 
       <TooltipProvider>

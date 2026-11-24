@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useCrlSettingsList, type CrlSettingsListItem } from '@/hooks/useCrlSettingsList'
@@ -49,8 +49,13 @@ describe('VerificationAuthoritiesClient', () => {
 
   it('combines the status and text filters', async () => {
     renderPage()
-    fireEvent.click(screen.getByRole('combobox', { name: 'Status' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Final' }))
+    fireEvent.click(screen.getByRole('button', { name: /Advanced Search/ }))
+    // Radix opens menus on pointerdown, and the visible <label> names the trigger.
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Status' }), { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Final' }))
+    // The open menu hides the page from the accessibility tree.
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'Edge CA' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Filter by CA Name, DN or ID'), { target: { value: 'root' } })

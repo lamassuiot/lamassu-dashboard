@@ -7,12 +7,11 @@ import { CertificateList } from '@/components/CertificateList';
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
 import { CertificateDetailPanel } from '@/components/shared/CertificateDetailPanel';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
+import { FileText, AlertCircle as AlertCircleIcon, PlusCircle, Upload, KeyRound } from 'lucide-react';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
@@ -22,6 +21,7 @@ import { ColumnSelector } from '@/components/ui/column-selector';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageHero, RefreshButton } from '@/components/shared/ListPageHero';
 
 export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime' | 'hasPrivateKey';
 export type SortDirection = 'asc' | 'desc';
@@ -195,31 +195,22 @@ export default function CertificatesPage() {
       detail={selectedCertificate ? <CertificateDetailPanel certificate={selectedCertificate} /> : null}
       list={
     <BreadcrumbPage className="space-y-6 pb-8" items={BREADCRUMB_ITEMS}>
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <FileText className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
-            <p className="text-sm text-muted-foreground mt-1">Browse, import, and manage all X.509 certificates issued through the PKI.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-            <Button onClick={() => router.push('/certificates/import')} variant="secondary" title="Import Certificate">
-                <Upload className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Import Certificate</span>
-            </Button>
-            <Button onClick={() => router.push('/certificates/create')} variant="secondary" title="Create KeyPair & Certificate">
-                <KeyRound className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Create KeyPair &amp; Certificate</span>
-            </Button>
-            <Button onClick={() => handleOpenCaSelector('issue')} variant="default" title="Issue Certificate">
-                <PlusCircle className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Issue Certificate</span>
-            </Button>
-        </div>
-      </div>
+      <ListPageHero
+        icon={FileText}
+        title="Issued Certificates"
+        description="Browse, import, and manage all X.509 certificates issued through the PKI."
+      >
+        <RefreshButton onClick={refreshCertificates} isLoading={isLoadingApi && certificates.length > 0} disabled={isLoadingApi} />
+        <Button onClick={() => router.push('/certificates/import')} variant="secondary">
+          <Upload className="mr-2 h-4 w-4" /> Import Certificate
+        </Button>
+        <Button onClick={() => router.push('/certificates/create')} variant="secondary">
+          <KeyRound className="mr-2 h-4 w-4" /> Create KeyPair &amp; Certificate
+        </Button>
+        <Button onClick={() => handleOpenCaSelector('issue')} variant="default">
+          <PlusCircle className="mr-2 h-4 w-4" /> Issue Certificate
+        </Button>
+      </ListPageHero>
 
       <CertificateFilterBar
         {...filterBarProps}
@@ -247,17 +238,8 @@ export default function CertificatesPage() {
               ]}
               onColumnToggle={handleColumnToggle}
               align="end"
+              className="xl:hidden"
             />
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={refreshCertificates}
-              disabled={isLoadingApi}
-              title="Refresh"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", isLoadingApi && certificates.length > 0 && "animate-spin")} />
-            </Button>
           </>
         }
       />

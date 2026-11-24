@@ -314,7 +314,6 @@ export default function SigningProfilesPage() {
                 <IssuanceProfileCard
                   key={profile.id}
                   profile={profile}
-                  variant="compact"
                   onEdit={() => handleEditProfile(profile.id)}
                   onDelete={() => handleDeleteProfileClick(profile)}
                   onViewUsage={() => handleViewUsageClick(profile)}

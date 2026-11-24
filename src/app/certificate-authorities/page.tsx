@@ -4,22 +4,22 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from '@/lib/router';
 import { Button } from "@/components/ui/button";
-import { Landmark, Network, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, Signature, Table2, UploadCloud, RefreshCw } from "lucide-react";
+import { Landmark, Network, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Signature, Table2 } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import dynamic from '@/components/shared/dynamic';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
-import { cn } from '@/lib/utils';
 import { filterCaList, hasActiveCaFilters } from '@/lib/ca-utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { BlockSkeleton, ListPageSkeleton, TableSkeleton } from '@/components/shared/PageSkeletons';
 import { ViewModeToggle, type ViewModeOption } from '@/components/shared/ViewModeToggle';
+import { ListPageHero, RefreshButton } from '@/components/shared/ListPageHero';
+import { CaFilterBar } from '@/components/shared/filters/CaFilterBar';
+import { ColumnSelector } from '@/components/ui/column-selector';
+import { useCaPageColumns } from '@/components/ca/ca-table-columns';
 
 
 const CaHierarchyView = dynamic(() => 
@@ -57,19 +57,6 @@ const VIEW_MODE_OPTIONS: ViewModeOption<ViewMode>[] = [
     { value: 'graph', icon: GitFork, label: 'Graph' },
 ];
 
-const STATUS_OPTIONS: { value: CaStatusFilter; label: string }[] = [
-    { value: 'active', label: 'Active' },
-    { value: 'expired', label: 'Expired' },
-    { value: 'revoked', label: 'Revoked' },
-];
-
-const TYPE_OPTIONS: { value: CaTypeFilter, label: string; icon: React.ElementType }[] = [
-    { value: 'MANAGED', label: 'Managed', icon: Landmark },
-    { value: 'IMPORTED_WITH_KEY', label: 'Imported with key', icon: UploadCloud },
-    { value: 'IMPORTED_WITHOUT_KEY', label: 'Imported without key', icon: UploadCloud },
-];
-
-
 const BREADCRUMB_ITEMS = [{ label: 'Home', href: '/' }, { label: 'Certification Authorities' }];
 
 export default function CertificateAuthoritiesPage() {
@@ -83,7 +70,7 @@ export default function CertificateAuthoritiesPage() {
   const [filterText, setFilterText] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<CaTypeFilter[]>([]);
-  const [focusedField, setFocusedField] = useState<'search' | null>(null);
+  const caColumns = useCaPageColumns();
 
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingCryptoEngines, setIsLoadingCryptoEngines] = useState(true);
@@ -143,80 +130,36 @@ export default function CertificateAuthoritiesPage() {
 
   return (
     <BreadcrumbPage items={BREADCRUMB_ITEMS} className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <Landmark className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Certification Authorities</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage your Certification Authority configurations and trust stores.</p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2 shrink-0">
-          <Button variant="secondary" onClick={loadData} disabled={isLoadingCas || isLoadingCryptoEngines} className="shrink-0">
-            <RefreshCw className={cn("mr-2 h-4 w-4", (isLoadingCas || isLoadingCryptoEngines) && "animate-spin")} /> Refresh
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/certificate-authorities/cross-sign')}>
-            <Signature className="mr-2 h-4 w-4" /> Cross Sign
-          </Button>
-          <Button variant="default" onClick={handleCreateNewCAClick}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
-          </Button>
-        </div>
-      </div>
+      <ListPageHero
+        icon={Landmark}
+        title="Certification Authorities"
+        description="Manage your Certification Authority configurations and trust stores."
+      >
+        <RefreshButton onClick={loadData} isLoading={isLoadingCas || isLoadingCryptoEngines} />
+        <Button variant="secondary" onClick={() => router.push('/certificate-authorities/cross-sign')}>
+          <Signature className="mr-2 h-4 w-4" /> Cross Sign
+        </Button>
+        <Button variant="default" onClick={handleCreateNewCAClick}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
+        </Button>
+      </ListPageHero>
 
-          <div
-            className="grid items-end gap-3 mb-4 grid-cols-1 md:grid-cols-[minmax(180px,var(--col1))_minmax(210px,350px)_minmax(210px,350px)_auto]"
-            style={{
-              '--col1': focusedField === 'search' ? '2.2fr' : '0.5fr',
-              transition: 'grid-template-columns 300ms ease',
-            } as React.CSSProperties}
-          >
-            <div className="w-full min-w-0 space-y-1.5">
-                <Label htmlFor="ca-filter">Search</Label>
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input
-                        id="ca-filter"
-                        placeholder="Search certification authorities..."
-                        value={filterText}
-                        onChange={(e) => setFilterText(e.target.value)}
-                        onFocus={() => setFocusedField('search')}
-                        onBlur={() => setFocusedField(null)}
-                        className="pl-10 h-9"
-                    />
-                </div>
-            </div>
-            <div className="w-full max-w-[350px] space-y-1.5">
-                 <Label htmlFor="status-filter">Status</Label>
-                 <MultiSelectDropdown
-                    id="status-filter"
-                    options={STATUS_OPTIONS}
-                    allOptionValues={STATUS_OPTIONS.map(o => o.value)}
-                    selectedValues={selectedStatuses}
-                    onChange={setSelectedStatuses as (selected: string[]) => void}
-                    buttonText="All Statuses"
-                    className="h-9 min-h-9"
-                 />
-            </div>
-            <div className="w-full max-w-[350px] space-y-1.5">
-                 <Label htmlFor="type-filter">Type</Label>
-                 <MultiSelectDropdown
-                    id="type-filter"
-                    options={TYPE_OPTIONS}
-                    allOptionValues={TYPE_OPTIONS.map(o => o.value)}
-                    selectedValues={selectedTypes}
-                    onChange={setSelectedTypes as (selected: string[]) => void}
-                    buttonText="All Types"
-                    className="h-9 min-h-9"
-                 />
-            </div>
-            <div className="flex items-end shrink-0 md:justify-end">
-              <ViewModeToggle options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
-            </div>
-          </div>
-      <div className="pt-6">
+      <CaFilterBar
+        filterText={filterText}
+        onFilterTextChange={setFilterText}
+        selectedStatuses={selectedStatuses}
+        onSelectedStatusesChange={setSelectedStatuses}
+        selectedTypes={selectedTypes}
+        onSelectedTypesChange={setSelectedTypes}
+        actions={
+          <>
+            <ViewModeToggle options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
+            {viewMode === 'table' && <ColumnSelector columns={caColumns.columns} onColumnToggle={caColumns.toggle} align="end" className="xl:hidden" />}
+          </>
+        }
+      />
+
+      <div>
           {hasError && (
             <Alert variant="destructive">
               <AlertCircleIcon className="h-4 w-4" />
@@ -232,7 +175,7 @@ export default function CertificateAuthoritiesPage() {
           {!hasError && filteredCAs.length > 0 ? (
             <>
               {viewMode === 'table' && (
-                <CaTableView cas={filteredCAs} allCryptoEngines={allCryptoEngines} filters={filters} />
+                <CaTableView cas={filteredCAs} allCryptoEngines={allCryptoEngines} filters={filters} columnState={caColumns} />
               )}
               {viewMode === 'hierarchy' && (
                 <CaHierarchyView cas={filteredCAs} router={router} allCryptoEngines={allCryptoEngines} />

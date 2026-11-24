@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Columns3 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface ColumnConfig {
   id: string;
@@ -23,17 +24,20 @@ interface ColumnSelectorProps {
   columns: ColumnConfig[];
   onColumnToggle: (columnId: string) => void;
   align?: "start" | "end" | "center";
+  /** Applied to the trigger button, e.g. to hide it at some breakpoints. */
+  className?: string;
 }
 
 export function ColumnSelector({
   columns,
   onColumnToggle,
   align = "end",
+  className,
 }: ColumnSelectorProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" className="h-9 gap-2">
+        <Button variant="secondary" className={cn("h-9 gap-2", className)}>
           <Columns3 className="h-4 w-4" />
           Columns
         </Button>

@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, PlusCircle, MoreVertical, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
+import { Eye, PlusCircle, MoreVertical, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +24,7 @@ import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ListPageHero, RefreshButton } from '@/components/shared/ListPageHero';
 import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 import { TableSkeleton } from '@/components/shared/PageSkeletons';
@@ -349,27 +350,16 @@ export default function DevicesPage() {
 
   return (
     <BreadcrumbPage items={[{label:'Home',href:'/'}, {label:'Devices'}]} className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <Router className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Managed Devices</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Overview of all registered IoT devices, their status, and associated groups.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2 shrink-0">
-          <Button onClick={handleRefresh} variant="secondary" disabled={isLoadingApi}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && "animate-spin")} /> Refresh
-          </Button>
-          <Button onClick={handleCreateNewDevice} disabled={isLoadingApi}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
-          </Button>
-        </div>
-      </div>
+      <ListPageHero
+        icon={Router}
+        title="Managed Devices"
+        description="Overview of all registered IoT devices, their status, and associated groups."
+      >
+        <RefreshButton onClick={handleRefresh} isLoading={isLoadingApi} />
+        <Button onClick={handleCreateNewDevice} disabled={isLoadingApi}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
+        </Button>
+      </ListPageHero>
 
       <DeviceFilterBar
         searchTerm={searchTerm}
@@ -389,6 +379,7 @@ export default function DevicesPage() {
             columns={columns}
             onColumnToggle={handleColumnToggle}
             align="end"
+            className="xl:hidden"
           />
         }
       />

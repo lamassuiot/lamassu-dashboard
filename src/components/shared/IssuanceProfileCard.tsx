@@ -2,7 +2,7 @@
 
 import React from 'react';
 import {
-  Edit, FileInput, FileText, KeyRound, Lock, MoreVertical, ScrollText, Shield, ShieldCheck, Trash2, User, Users,
+  Edit, FileInput, Lock, MoreVertical, ScrollText, ShieldCheck, Trash2, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -67,42 +67,37 @@ function getCryptoRules(profile: ApiSigningProfile) {
   return tokens;
 }
 
-/** "CN=device, O=Acme" from the pinned subject, or null when nothing is set. */
-function getSubjectSummary(profile: ApiSigningProfile) {
+/** ["CN=device", "O=Acme"] from the pinned subject; empty when nothing is set. */
+function getSubjectParts(profile: ApiSigningProfile): string[] {
   const s = profile.subject;
-  if (!s) return null;
-  const parts = [
+  if (!s) return [];
+  return [
     s.common_name && `CN=${s.common_name}`,
     s.organization && `O=${s.organization}`,
     s.organization_unit && `OU=${s.organization_unit}`,
     s.locality && `L=${s.locality}`,
     s.state && `ST=${s.state}`,
     s.country && `C=${s.country}`,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(', ') : null;
+  ].filter((part): part is string => Boolean(part));
 }
 
 // ─── Shared pieces ────────────────────────────────────────────────────────────
 
 const MAX_USAGE_CHIPS = 5;
 
-/** Key usages and extended key usages as one chip list; a field taken from the CSR becomes a single dashed chip. */
+/** Key usages and extended key usages the profile enforces, as one chip list; fields taken from the CSR are left out. */
 function getUsageChips(profile: ApiSigningProfile): UsageChip[] {
   const chips: UsageChip[] = [];
-  if (profile.honor_key_usage) {
-    chips.push({ key: 'ku-csr', label: 'Key usage from CSR', kind: 'csr' });
-  } else {
+  if (!profile.honor_key_usage) {
     chips.push(...(profile.key_usage ?? []).map(u => ({ key: `ku-${u}`, label: humanizeUsage(u), kind: 'ku' as const })));
   }
-  if (profile.honor_extended_key_usages) {
-    chips.push({ key: 'eku-csr', label: 'EKU from CSR', kind: 'csr' });
-  } else {
+  if (!profile.honor_extended_key_usages) {
     chips.push(...(profile.extended_key_usages ?? []).map(u => ({ key: `eku-${u}`, label: humanizeUsage(u), kind: 'eku' as const })));
   }
   return chips;
 }
 
-/** Validity and allowed key algorithms, shown at the top of both variants. */
+/** Validity and allowed key algorithms, shown beside the profile name. */
 function ValidityAndKeys({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
   const validity = getValidity(profile);
   const cryptoTokens = getCryptoRules(profile);
@@ -129,19 +124,9 @@ function ValidityAndKeys({ profile }: Readonly<{ profile: ApiSigningProfile }>) 
   );
 }
 
-/** Whether a field is pinned by the profile or copied from the CSR. */
-function SourceTag({ honors }: Readonly<{ honors: boolean }>) {
-  return (
-    <Badge size="xs" variant={honors ? 'warning' : 'default'}>
-      {honors ? <FileInput /> : <Lock />}
-      {honors ? 'From CSR' : 'Enforced'}
-    </Badge>
-  );
-}
+// ─── Body ─────────────────────────────────────────────────────────────────────
 
-// ─── Variant bodies ───────────────────────────────────────────────────────────
-
-/** "Pinned · Key usage, Extensions" / "From CSR · Subject" */
+/** "Overrides CSR · Key usage, Extensions" / "From CSR · Subject" */
 function SourceLine({ icon: Icon, label, fields, className }: Readonly<{
   icon: LucideIcon; label: string; fields: string[]; className: string;
 }>) {
@@ -155,88 +140,43 @@ function SourceLine({ icon: Icon, label, fields, className }: Readonly<{
   );
 }
 
-function CompactBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
-  const subjectSummary = getSubjectSummary(profile);
+function ProfileBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
+  const subjectParts = profile.honor_subject ? [] : getSubjectParts(profile);
+  const showUsages = !profile.honor_key_usage || !profile.honor_extended_key_usages;
   const sources = [
     { name: 'Subject', honors: profile.honor_subject },
     { name: 'Key usage', honors: profile.honor_key_usage },
     { name: 'EKU', honors: profile.honor_extended_key_usages },
     { name: 'Extensions', honors: profile.honor_extensions },
   ];
-  const pinned = sources.filter(s => !s.honors).map(s => s.name);
+  const overridden = sources.filter(s => !s.honors).map(s => s.name);
   const fromCsr = sources.filter(s => s.honors).map(s => s.name);
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-3 p-3">
-        <ValidityAndKeys profile={profile} />
-        <CardField label="Usages">
-          <ChipList chips={getUsageChips(profile)} max={MAX_USAGE_CHIPS} />
-        </CardField>
-        {!profile.honor_subject && subjectSummary && (
-          <CardField label="Subject">
-            <p className="truncate font-mono text-xs" title={subjectSummary}>{subjectSummary}</p>
-          </CardField>
-        )}
-      </div>
-      <div className="mt-auto flex min-w-0 items-center gap-4 border-t bg-muted/40 px-3 py-2 text-[11px]">
-        <SourceLine icon={Lock} label="Pinned" fields={pinned} className="text-primary" />
-        <SourceLine icon={FileInput} label="From CSR" fields={fromCsr} className="text-amber-700 dark:text-amber-400" />
-      </div>
-    </>
-  );
-}
-
-/** One ruled cell: icon + label with its Enforced / From CSR tag on the right, value underneath. */
-function SpecCell({ icon: Icon, title, honors, children }: Readonly<{
-  icon: LucideIcon; title: string; honors: boolean; children: React.ReactNode;
-}>) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5 bg-card px-3 py-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          <Icon className="size-3 shrink-0" />
-          <span className="truncate">{title}</span>
-        </span>
-        <SourceTag honors={honors} />
-      </div>
-      <div className="min-w-0 text-xs text-foreground">{children}</div>
-    </div>
-  );
-}
-
-const fromRequest = <span className="text-muted-foreground">Taken from the request</span>;
-
-function ExtendedBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
-  const subjectSummary = getSubjectSummary(profile);
-  const keyUsages = (profile.key_usage ?? []).map(u => ({ key: u, label: humanizeUsage(u), kind: 'ku' as const }));
-  const extendedKeyUsages = (profile.extended_key_usages ?? []).map(u => ({ key: u, label: humanizeUsage(u), kind: 'eku' as const }));
-
-  return (
-    <>
-      <div className="p-3">
-        <ValidityAndKeys profile={profile} />
-      </div>
-      <div className="mt-auto grid grid-cols-1 gap-px border-t bg-border @md/profile:grid-cols-2">
-        <SpecCell icon={KeyRound} title="Key usage" honors={profile.honor_key_usage}>
-          {profile.honor_key_usage ? fromRequest : <ChipList chips={keyUsages} />}
-        </SpecCell>
-        <SpecCell icon={Shield} title="Extended key usage" honors={profile.honor_extended_key_usages}>
-          {profile.honor_extended_key_usages ? fromRequest : <ChipList chips={extendedKeyUsages} />}
-        </SpecCell>
-        <SpecCell icon={User} title="Subject" honors={profile.honor_subject}>
-          {profile.honor_subject
-            ? <span className="text-muted-foreground">Copied from the request</span>
-            : 'Replaced by profile values'}
-          {!profile.honor_subject && subjectSummary && (
-            <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground" title={subjectSummary}>
-              {subjectSummary}
-            </p>
+      {(showUsages || subjectParts.length > 0) && (
+        <div className="flex flex-1 flex-col gap-3 px-3 pb-3">
+          {showUsages && (
+            <CardField label="Usages">
+              <ChipList chips={getUsageChips(profile)} max={MAX_USAGE_CHIPS} variant="default" />
+            </CardField>
           )}
-        </SpecCell>
-        <SpecCell icon={FileText} title="Extensions" honors={profile.honor_extensions}>
-          {profile.honor_extensions ? fromRequest : 'Request extensions ignored'}
-        </SpecCell>
+          {subjectParts.length > 0 && (
+            <CardField label="Subject">
+              <div className="flex flex-wrap gap-1" title={subjectParts.join(', ')}>
+                {subjectParts.map(part => (
+                  <Badge key={part} size="xs" variant="default" className="max-w-full font-mono">
+                    <span className="truncate">{part}</span>
+                  </Badge>
+                ))}
+              </div>
+            </CardField>
+          )}
+        </div>
+      )}
+      <div className="mt-auto flex min-w-0 items-center gap-4 bg-muted/40 px-3 py-2 text-[11px]">
+        <SourceLine icon={Lock} label="Overrides CSR" fields={overridden} className="text-primary" />
+        <SourceLine icon={FileInput} label="From CSR" fields={fromCsr} className="text-amber-700 dark:text-amber-400" />
       </div>
     </>
   );
@@ -246,8 +186,6 @@ function ExtendedBody({ profile }: Readonly<{ profile: ApiSigningProfile }>) {
 
 interface IssuanceProfileCardProps {
   profile: ApiSigningProfile;
-  /** `compact` for lists (usages as one chip row, one-line source legend); `extended` adds a per-field breakdown. */
-  variant?: 'compact' | 'extended';
   className?: string;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -259,17 +197,16 @@ interface IssuanceProfileCardProps {
  * clickable and opens the profile.
  */
 export function IssuanceProfileCard({
-  profile, variant = 'extended', className, onEdit, onDelete, onViewUsage,
+  profile, className, onEdit, onDelete, onViewUsage,
 }: Readonly<IssuanceProfileCardProps>) {
   const hasMenu = Boolean(onEdit || onDelete || onViewUsage);
-  const extended = variant === 'extended';
   const Body = onEdit ? 'button' : 'div';
 
   return (
     <div
       className={cn(
-        '@container/profile group relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-colors',
-        onEdit && 'hover:border-ring/40 hover:bg-muted/30 focus-within:border-ring/40',
+        '@container/profile group relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-sm ring-1 ring-foreground/[0.06] transition-[box-shadow,background-color]',
+        onEdit && 'hover:bg-muted/30 hover:shadow-md hover:ring-ring/40 focus-within:ring-ring/40',
         className,
       )}
     >
@@ -277,23 +214,28 @@ export function IssuanceProfileCard({
         {...(onEdit ? { type: 'button' as const, onClick: onEdit, title: `Open ${profile.name}` } : {})}
         className="flex flex-1 flex-col text-left focus-visible:outline-none"
       >
-        {/* ── Identity ── */}
-        <div className={cn('flex items-center gap-3 px-3 pt-3', hasMenu && 'pr-10')}>
-          <EngineIconBox fallback={profile.sign_as_ca ? ShieldCheck : ScrollText} />
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-sm font-medium leading-tight">{profile.name}</p>
-              <Badge size="xs" variant={profile.sign_as_ca ? 'default' : 'secondary'}>
-                {profile.sign_as_ca ? 'CA' : 'End entity'}
-              </Badge>
+        {/* ── Identity, with validity & key algorithms on the right when the card is wide enough ── */}
+        <div className="grid gap-3 p-3 @lg/profile:grid-cols-[minmax(0,1fr)_auto] @lg/profile:items-center">
+          <div className={cn('flex min-w-0 items-center gap-3', hasMenu && 'pr-8 @lg/profile:pr-0')}>
+            <EngineIconBox fallback={profile.sign_as_ca ? ShieldCheck : ScrollText} />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-sm font-medium leading-tight">{profile.name}</p>
+                <Badge size="xs" variant={profile.sign_as_ca ? 'default' : 'secondary'}>
+                  {profile.sign_as_ca ? 'CA' : 'End entity'}
+                </Badge>
+              </div>
+              <p className="truncate text-xs text-muted-foreground" title={profile.description || undefined}>
+                {profile.description || 'No description'}
+              </p>
             </div>
-            <p className="truncate text-xs text-muted-foreground" title={profile.description || undefined}>
-              {profile.description || 'No description'}
-            </p>
+          </div>
+          <div className={cn(hasMenu && '@lg/profile:pr-8')}>
+            <ValidityAndKeys profile={profile} />
           </div>
         </div>
 
-        {extended ? <ExtendedBody profile={profile} /> : <CompactBody profile={profile} />}
+        <ProfileBody profile={profile} />
       </Body>
 
       {hasMenu && (

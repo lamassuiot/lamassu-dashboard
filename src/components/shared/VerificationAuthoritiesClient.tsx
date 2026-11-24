@@ -2,9 +2,6 @@
 
 import React, { useMemo, useState } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -19,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { AlertTriangle, ArrowRight, Download, Eye, HardDrive, Loader2, MoreVertical, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Download, Eye, HardDrive, Loader2, MoreVertical, ShieldCheck, Trash2 } from 'lucide-react';
 import Link from '@/components/shared/RouterLink';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -31,14 +28,20 @@ import { isZeroOrZeroDuration } from '@/lib/duration';
 import { cn } from '@/lib/utils';
 import { getCrlUrl, type CrlSettingsStatus } from '@/lib/va-api';
 import { TableSkeleton } from '@/components/shared/PageSkeletons';
+import { ListPageHero, RefreshButton } from '@/components/shared/ListPageHero';
+import { VaFilterBar } from '@/components/shared/filters/VaFilterBar';
+import { ColumnSelector } from '@/components/ui/column-selector';
+import { useColumnVisibility, type ColumnDefinition } from '@/hooks/useColumnVisibility';
 
-type StatusFilter = 'ALL' | CrlSettingsStatus;
+type VaColumnId = 'ca' | 'status' | 'crlVersion' | 'validFrom' | 'validUntil' | 'refreshInterval';
 
-const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'ALL', label: 'All' },
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'FINAL', label: 'Final' },
-  { value: 'ARCHIVED', label: 'Archived' },
+const VA_COLUMNS: ColumnDefinition<VaColumnId>[] = [
+  { id: 'ca', label: 'Certification Authority', alwaysVisible: true },
+  { id: 'status', label: 'Status' },
+  { id: 'crlVersion', label: 'CRL Version' },
+  { id: 'validFrom', label: 'Valid From' },
+  { id: 'validUntil', label: 'Valid Until' },
+  { id: 'refreshInterval', label: 'Refresh Interval' },
 ];
 
 const caVaTabHref = (caId: string) =>
@@ -50,7 +53,8 @@ const matchesSearch = ({ settings, caName, caSubject }: CrlSettingsListItem, ter
 export function VerificationAuthoritiesClient() {
   const { items, isLoading, error, busyCaIds, reload, download, purge } = useCrlSettingsList();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilters, setStatusFilters] = useState<CrlSettingsStatus[]>([]);
+  const { isVisible, toggle: toggleColumn, columns } = useColumnVisibility(VA_COLUMNS, 'lamassu.vaTable.columns');
   const [caIdToPurge, setCaIdToPurge] = useState<string | null>(null);
   // The CA whose CRL the viewer shows; kept after closing so the sheet does not empty while it animates out.
   const [viewedCaId, setViewedCaId] = useState<string | null>(null);
@@ -59,9 +63,9 @@ export function VerificationAuthoritiesClient() {
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return items.filter((item) =>
-      (statusFilter === 'ALL' || item.settings.status === statusFilter) && (!term || matchesSearch(item, term)),
+      (statusFilters.length === 0 || statusFilters.includes(item.settings.status)) && (!term || matchesSearch(item, term)),
     );
-  }, [items, searchTerm, statusFilter]);
+  }, [items, searchTerm, statusFilters]);
 
   const viewedItem = viewedCaId ? items.find((item) => item.settings.ca_id === viewedCaId) : undefined;
   const viewedCa = viewedItem && {
@@ -72,7 +76,7 @@ export function VerificationAuthoritiesClient() {
     cryptoEngine: viewedItem.cryptoEngine,
   };
 
-  const hasActiveFilters = searchTerm.trim() !== '' || statusFilter !== 'ALL';
+  const hasActiveFilters = searchTerm.trim() !== '' || statusFilters.length > 0;
 
   const openViewer = (caId: string) => {
     setViewedCaId(caId);
@@ -86,51 +90,21 @@ export function VerificationAuthoritiesClient() {
 
   return (
     <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Verification Authorities' }]}>
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Verification Authorities</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              CRL settings and latest CRL of every Certification Authority, including those of deleted ones, whose last CRL is still served.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2 shrink-0">
-          <Button onClick={reload} variant="secondary" disabled={isLoading}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} /> Refresh
-          </Button>
-        </div>
-      </div>
+      <ListPageHero
+        icon={ShieldCheck}
+        title="Verification Authorities"
+        description="CRL settings and latest CRL of every Certification Authority, including those of deleted ones, whose last CRL is still served."
+      >
+        <RefreshButton onClick={reload} isLoading={isLoading} />
+      </ListPageHero>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-end">
-        <div className="flex-grow w-full space-y-1.5">
-          <Label htmlFor="va-filter">Filter by CA Name, DN or ID</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="va-filter"
-              placeholder="e.g., Root CA..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-        <div className="w-full sm:w-[180px] space-y-1.5">
-          <Label htmlFor="va-status-filter">Status</Label>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-            <SelectTrigger id="va-status-filter" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {STATUS_FILTER_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <VaFilterBar
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        statusFilters={statusFilters}
+        onStatusFiltersChange={setStatusFilters}
+        actions={<ColumnSelector columns={columns} onColumnToggle={toggleColumn} align="end" className="xl:hidden" />}
+      />
 
       {isLoading && items.length === 0 && (
         <TableSkeleton label="Loading CRL settings…" pagination={false} />
@@ -152,11 +126,11 @@ export function VerificationAuthoritiesClient() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Certification Authority</TableHead>
-                  <TableHead className="w-[120px]">Status</TableHead>
-                  <TableHead className="w-[110px] text-center">CRL Version</TableHead>
-                  <TableHead className="w-[180px] text-center">Valid From</TableHead>
-                  <TableHead className="w-[180px] text-center">Valid Until</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[140px]">Refresh Interval</TableHead>
+                  {isVisible('status') && <TableHead className="w-[120px]">Status</TableHead>}
+                  {isVisible('crlVersion') && <TableHead className="w-[110px] text-center">CRL Version</TableHead>}
+                  {isVisible('validFrom') && <TableHead className="w-[180px] text-center">Valid From</TableHead>}
+                  {isVisible('validUntil') && <TableHead className="w-[180px] text-center">Valid Until</TableHead>}
+                  {isVisible('refreshInterval') && <TableHead className="hidden lg:table-cell w-[140px]">Refresh Interval</TableHead>}
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -195,27 +169,35 @@ export function VerificationAuthoritiesClient() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell><CrlSettingsStatusBadge status={settings.status} /></TableCell>
-                      <TableCell className="text-center">
-                        {settings.latest_crl ? settings.latest_crl.version : <span className="text-xs text-muted-foreground">N/A</span>}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {settings.latest_crl ? (
-                          <DateDisplay date={settings.latest_crl.valid_from} className="text-xs items-center" relativeClassName="text-xs" />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {settings.latest_crl ? (
-                          <DateDisplay date={settings.latest_crl.valid_until} className="text-xs items-center" relativeClassName="text-xs" />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-sm">
-                        {isZeroOrZeroDuration(refreshInterval) ? 'Disabled' : refreshInterval || 'N/A'}
-                      </TableCell>
+                      {isVisible('status') && <TableCell><CrlSettingsStatusBadge status={settings.status} /></TableCell>}
+                      {isVisible('crlVersion') && (
+                        <TableCell className="text-center">
+                          {settings.latest_crl ? settings.latest_crl.version : <span className="text-xs text-muted-foreground">N/A</span>}
+                        </TableCell>
+                      )}
+                      {isVisible('validFrom') && (
+                        <TableCell className="text-center">
+                          {settings.latest_crl ? (
+                            <DateDisplay date={settings.latest_crl.valid_from} className="text-xs items-center" relativeClassName="text-xs" />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {isVisible('validUntil') && (
+                        <TableCell className="text-center">
+                          {settings.latest_crl ? (
+                            <DateDisplay date={settings.latest_crl.valid_until} className="text-xs items-center" relativeClassName="text-xs" />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {isVisible('refreshInterval') && (
+                        <TableCell className="hidden lg:table-cell text-sm">
+                          {isZeroOrZeroDuration(refreshInterval) ? 'Disabled' : refreshInterval || 'N/A'}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {isArchived ? (
