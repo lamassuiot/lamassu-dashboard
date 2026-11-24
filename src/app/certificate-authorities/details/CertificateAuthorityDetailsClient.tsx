@@ -4,8 +4,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from '@/lib/router';
+import { RevokeButton } from '@/components/shared/RevokeButton';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Ban, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ShieldCheck, RefreshCw, Shield } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ShieldCheck, RefreshCw, Shield } from "lucide-react";
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
@@ -460,15 +461,7 @@ export default function CertificateAuthorityDetailsClient() {
                 <ShieldCheck className="h-4 w-4" /> Re-activate
               </Button>
             ) : caDetails.status !== 'revoked' ? (
-              <Button
-                variant="secondary"
-                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-                onClick={handleCARevocation}
-                disabled={isRevoking}
-              >
-                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-                {isRevoking ? 'Revoking…' : 'Revoke'}
-              </Button>
+              <RevokeButton onClick={handleCARevocation} isRevoking={isRevoking} />
             ) : (
               <Button
                 variant="destructive"

@@ -20,6 +20,8 @@ interface CaCardProps {
   onClick?: (ca: CA) => void;
   /** The CA whose page is open: highlighted, and clicking it does nothing. */
   isCurrent?: boolean;
+  /** Fill the width of the container instead of the fixed card width. */
+  fluid?: boolean;
   className?: string;
   /** Extra content rendered inside the card (e.g. React Flow handles). */
   children?: React.ReactNode;
@@ -34,7 +36,7 @@ const formatExpiry = (expires: string): string => {
 };
 
 /** Card shown for a CA in the hierarchy view, the home expiry timeline and a CA's issuance hierarchy. */
-export function CaCard({ ca, engine, onClick, isCurrent = false, className, children }: Readonly<CaCardProps>) {
+export function CaCard({ ca, engine, onClick, isCurrent = false, fluid = false, className, children }: Readonly<CaCardProps>) {
   const isRoot = ca.issuer === 'Self-signed';
 
   return (
@@ -47,9 +49,10 @@ export function CaCard({ ca, engine, onClick, isCurrent = false, className, chil
       className={cn(
         'flex items-center gap-3 rounded-lg border bg-card px-3 text-left text-card-foreground shadow-xs transition-colors hover:border-primary hover:bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] focus-visible:border-primary focus-visible:bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] focus-visible:outline-none',
         isCurrent && 'cursor-default border-primary bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))]',
+        fluid && 'w-full',
         className,
       )}
-      style={{ width: CA_CARD_WIDTH, height: CA_CARD_HEIGHT }}
+      style={{ width: fluid ? undefined : CA_CARD_WIDTH, height: CA_CARD_HEIGHT }}
     >
       {engine
         ? <EngineIconBox engine={engine} fallback={HardDrive} />

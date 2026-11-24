@@ -3,8 +3,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from '@/lib/router'; // Changed from useParams
+import { RevokeButton } from '@/components/shared/RevokeButton';
 import { Button } from "@/components/ui/button";
-import { FileText, Ban, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, KeyRound, ArrowLeft } from "lucide-react";
+import { FileText, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, KeyRound, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { sileo } from '@/lib/toast';
@@ -422,15 +423,7 @@ export default function CertificateDetailsClient() { // Renamed component
                 <ShieldCheck className="h-4 w-4" /> Re-activate
               </Button>
             ) : statusText !== 'REVOKED' ? (
-              <Button
-                variant="secondary"
-                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-                onClick={handleOpenRevokeModal}
-                disabled={isRevoking}
-              >
-                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-                {isRevoking ? 'Revoking…' : 'Revoke'}
-              </Button>
+              <RevokeButton onClick={handleOpenRevokeModal} isRevoking={isRevoking} />
             ) : null}
             {canDelete && (
               <DetailHeroActionsMenu ariaLabel="Certificate actions" contentClassName="w-auto">

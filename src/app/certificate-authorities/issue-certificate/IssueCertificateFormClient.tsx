@@ -24,7 +24,9 @@ import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Stepper } from '@/components/shared/Stepper';
+import { CaCard } from '@/components/ca/CaCard';
+import { fetchCryptoEngines } from '@/lib/kms-data';
+import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { MethodChooser, type MethodOptionGroup } from '@/components/shared/MethodChooser';
 import { formatISO, parseISO, isAfter } from 'date-fns';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
@@ -84,6 +86,7 @@ export default function IssueCertificateFormClient() {
 
   const [issuerCa, setIssuerCa] = useState<CA | null>(null);
   const [isLoadingCa, setIsLoadingCa] = useState(true);
+  const [issuerEngine, setIssuerEngine] = useState<ApiCryptoEngine | undefined>(undefined);
 
   // Step 1 State
   const [commonName, setCommonName] = useState(prefilledCn || '');
@@ -221,10 +224,14 @@ export default function IssueCertificateFormClient() {
     const loadIssuerCa = async () => {
         setIsLoadingCa(true);
         try {
-            const allCAs = await fetchAndProcessCAs();
+            const [allCAs, engines] = await Promise.all([
+                fetchAndProcessCAs(),
+                fetchCryptoEngines().catch(() => [] as ApiCryptoEngine[]),
+            ]);
             const foundCa = findCaById(caId, allCAs);
             if (foundCa) {
                 setIssuerCa(foundCa);
+                setIssuerEngine(foundCa.kmsKeyId ? engines.find(e => e.id === foundCa.kmsKeyId) : undefined);
             } else {
                 sileo.error({
                     title: "Error",
@@ -509,30 +516,10 @@ export default function IssueCertificateFormClient() {
   // --- Main form ---
   return (
     <div className="w-full space-y-6 mb-8">
-      <div className="flex justify-between items-center">
-        <Button variant="secondary" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authority
-        </Button>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-headline font-semibold">Issue New Certificate</h1>
-        <div className="text-sm text-muted-foreground mt-1">
-          Issuing from:{' '}
-          {isLoadingCa ? (
-            <Skeleton className="h-4 w-[200px] inline-block align-middle" />
-          ) : (
-            <span className="font-mono">{issuerCa?.name || caId.substring(0, 12) + '...'}</span>
-          )}
-        </div>
-      </div>
-
       {isLoadingCa ? (
         <FormPageSkeleton label="Loading issuing CA details…" header={false} />
       ) : (
         <>
-          <Stepper currentStep={step} steps={["Configure", "Issue", "Done"]} />
-
           {step === 1 && (
             <div className="w-[80%] mx-auto mt-6">
               <div className="flex justify-end mb-4">
@@ -547,15 +534,26 @@ export default function IssueCertificateFormClient() {
               </div>
 
               {/* Page header */}
-              <div className="pb-8 border-b">
-                <h2 className="text-xl font-bold">
-                  {issuanceMode === 'generate' ? 'Generate Key & CSR In Browser' : 'Upload Existing CSR'}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
-                  {issuanceMode === 'generate'
-                    ? 'Generate a new cryptographic key pair and Certificate Signing Request (CSR) directly in your browser. The private key is never sent to the server.'
-                    : 'Provide a Certificate Signing Request (CSR) you have already generated externally. The private key remains under your control.'}
-                </p>
+              <div className="flex flex-col gap-6 pb-8 border-b lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">Issue New Certificate</h1>
+                  <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+                    {issuanceMode === 'generate'
+                      ? 'Generate a new cryptographic key pair and Certificate Signing Request (CSR) directly in your browser. The private key is never sent to the server.'
+                      : 'Provide a Certificate Signing Request (CSR) you have already generated externally. The private key remains under your control.'}
+                  </p>
+                </div>
+                {issuerCa && (
+                  <div className="w-full shrink-0 lg:w-[380px]">
+                    <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Issuing CA</p>
+                    <CaCard
+                      ca={issuerCa}
+                      engine={issuerEngine}
+                      fluid
+                      onClick={(ca) => router.push(`/certificate-authorities/details?caId=${encodeURIComponent(ca.id)}`)}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Section: Certificate Subject / CSR */}

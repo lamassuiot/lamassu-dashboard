@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { Users, AlertCircle, Pencil, Check, ChevronDown, ArrowUpRight, Search, FileText } from "lucide-react";
+import { AlertCircle, Pencil, Check, ChevronDown, ArrowUpRight, Search, FileText } from "lucide-react";
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -339,7 +339,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
           <div>
             <p className="font-semibold">Issuance Hierarchy</p>
-            <p className="text-sm text-muted-foreground mt-1">Chain of trust and direct child authorities issued by this CA.</p>
+            <p className="text-sm text-muted-foreground mt-1">Chain of trust from the root CA down to this CA.</p>
           </div>
           <div className="space-y-4 lg:col-span-2">
             {caSpecific.pathToRoot.length > 0 ? (
@@ -360,20 +360,27 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             ) : (
               <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
             )}
-
-            {caDetails.children && caDetails.children.length > 0 && (
-              <div className="flex flex-col items-center gap-2 pt-2">
-                <p className="flex items-center gap-2 text-sm font-semibold">
-                  <Users className="h-4 w-4 text-muted-foreground" /> Directly Issues To
-                </p>
-                {caDetails.children.map(child => (
-                  <CaCard key={child.id} ca={child} engine={engineFor(child)} onClick={openCa} className="max-w-full" />
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
+        {caDetails.children && caDetails.children.length > 0 && (
+          <>
+            <Separator />
+
+            {/* Section: Directly issues to — last block of the page, uses the full width */}
+            <div className="py-6">
+              <div className="mb-4 flex items-center gap-2">
+                <p className="font-semibold">Directly Issues To</p>
+                <Badge variant="secondary">{caDetails.children.length}</Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {caDetails.children.map(child => (
+                  <CaCard key={child.id} ca={child} engine={engineFor(child)} onClick={openCa} fluid />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }
