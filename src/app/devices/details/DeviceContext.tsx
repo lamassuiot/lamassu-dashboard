@@ -30,6 +30,8 @@ export interface DeviceDetailsContextValue {
   deviceId: string | null;
   isLoadingDevice: boolean;
   refreshDevice: () => void;
+  /** Reloads the device in place: no skeleton, no error state, keeps the current device on failure. */
+  reloadDeviceSilently: () => Promise<void>;
   availableIntegrations: DiscoveredIntegration[];
   activeIntegration: DiscoveredIntegration | null;
   setActiveIntegration: (i: DiscoveredIntegration | null) => void;

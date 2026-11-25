@@ -10,7 +10,8 @@ import { RevocationModal } from '@/components/shared/RevocationModal';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchDeviceEventsPaginated, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
+import { fetchDeviceEventsPaginated, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
+import { createCoalescingRefresher } from '@/lib/coalescing-refresher';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { formatDistanceToNowStrict, formatDistanceStrict, parseISO } from 'date-fns';
@@ -34,12 +35,23 @@ const POLLING_INTERVAL_OPTIONS = [
   { label: '60s', value: 60 },
 ];
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+// Size of the first live page and of every refresh window, so the first bookmark starts where the window ends.
+const LIVE_REFRESH_PAGE_SIZE = 50;
 
 const TIMELINE_MODE_OPTIONS: ViewModeOption<TimelineMode>[] = [
   { value: 'paginated', icon: CloudOff, label: 'Manual', ariaLabel: 'Manual mode' },
   { value: 'polling', icon: Timer, label: 'Polling', ariaLabel: 'Polling mode' },
   { value: 'realtime', icon: Activity, label: 'Live', ariaLabel: 'Live mode' },
 ];
+
+function getSseFatalReason(status: number): string {
+  switch (status) {
+    case 403: return 'no permission';
+    case 404: return 'device not found';
+    case 501: return 'not enabled on the server';
+    default: return `error ${status}`;
+  }
+}
 
 function getTimelineEventTitle(event: ApiDeviceEventItem): string {
   switch (event.type) {
@@ -55,7 +67,7 @@ function getTimelineEventTitle(event: ApiDeviceEventItem): string {
 }
 
 export default function TimelinePage() {
-  const { device, deviceId } = useDeviceDetails();
+  const { device, deviceId, reloadDeviceSilently } = useDeviceDetails();
   const { user } = useAuth();
 
   const [timelineRawEvents, setTimelineRawEvents] = useState<ApiDeviceEventItem[]>([]);
@@ -66,6 +78,7 @@ export default function TimelinePage() {
   const [hasMoreTimelineEvents, setHasMoreTimelineEvents] = useState(false);
   const [isLoadingMoreTimelineEvents, setIsLoadingMoreTimelineEvents] = useState(false);
   const [isSseConnected, setIsSseConnected] = useState(false);
+  const [sseFatalStatus, setSseFatalStatus] = useState<number | null>(null);
 
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => {
     if (typeof window !== 'undefined') {
@@ -93,12 +106,11 @@ export default function TimelinePage() {
   const [certToRevoke, setCertToRevoke] = useState<CertificateHistoryEntry | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
 
-  const sseControllerRef = useRef<AbortController | null>(null);
-  const sseEventBufferRef = useRef<ApiDeviceEventItem[]>([]);
-  const sseFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const accessTokenRef = useRef(user?.access_token);
   accessTokenRef.current = user?.access_token;
+  const reloadDeviceSilentlyRef = useRef(reloadDeviceSilently);
+  reloadDeviceSilentlyRef.current = reloadDeviceSilently;
 
   const handleTimelineModeChange = useCallback((mode: TimelineMode) => {
     setTimelineMode(mode);
@@ -153,20 +165,35 @@ export default function TimelinePage() {
   }, [timelineMode, pollingInterval, device, deviceId, user?.access_token, fetchTimelinePage]);
 
   useEffect(() => {
-    if (sseControllerRef.current) { sseControllerRef.current.abort(); sseControllerRef.current = null; }
-    if (sseFlushTimerRef.current) { clearInterval(sseFlushTimerRef.current); sseFlushTimerRef.current = null; }
-    sseEventBufferRef.current = [];
     setIsSseConnected(false);
+    setSseFatalStatus(null);
 
     if (timelineMode !== 'realtime' || !deviceId || !accessTokenRef.current) return;
 
     let cancelled = false;
+    let refresher: ReturnType<typeof createCoalescingRefresher> | null = null;
+    let controller: AbortController | null = null;
+
+    // The stream is only a change signal: re-read the newest events and the device itself.
+    // A failure on either side leaves the current state untouched.
+    const refresh = async () => {
+      const token = accessTokenRef.current;
+      const [events] = await Promise.allSettled([
+        token
+          ? fetchDeviceEventsPaginated({ deviceId, accessToken: token, limit: LIVE_REFRESH_PAGE_SIZE })
+          : Promise.reject(new Error('no access token')),
+        reloadDeviceSilentlyRef.current(),
+      ]);
+      if (cancelled || events.status !== 'fulfilled') return;
+      setTimelineRawEvents(prev => mergeDeviceEvents(prev, events.value.events));
+    };
+
     const initRealtime = async () => {
       setIsTimelineLoading(true);
       try {
         const token = accessTokenRef.current;
         if (!token) return;
-        const result = await fetchDeviceEventsPaginated({ deviceId, accessToken: token, limit: TIMELINE_EVENTS_PAGE_SIZE });
+        const result = await fetchDeviceEventsPaginated({ deviceId, accessToken: token, limit: LIVE_REFRESH_PAGE_SIZE });
         if (cancelled) return;
         setTimelineRawEvents(result.events);
         setTimelineNextBookmark(result.next);
@@ -178,22 +205,13 @@ export default function TimelinePage() {
       }
       if (cancelled) return;
 
-      sseFlushTimerRef.current = setInterval(() => {
-        const batch = sseEventBufferRef.current;
-        if (!batch.length) return;
-        sseEventBufferRef.current = [];
-        setTimelineRawEvents(prev => {
-          const merged = [...batch, ...prev];
-          merged.sort((a, b) => new Date(b.timestampStr).getTime() - new Date(a.timestampStr).getTime());
-          return merged.slice(0, 500);
-        });
-      }, 500);
-
-      sseControllerRef.current = subscribeToDeviceEventsSSE({
+      refresher = createCoalescingRefresher(refresh);
+      controller = subscribeToDeviceEventsSSE({
         deviceId,
         getAccessToken: () => accessTokenRef.current,
-        onEvent: (event) => { sseEventBufferRef.current.push(event); },
-        onConnectionChange: (connected) => { setIsSseConnected(connected); },
+        onChange: refresher.request,
+        onConnectionChange: setIsSseConnected,
+        onFatalError: setSseFatalStatus,
       });
     };
 
@@ -201,10 +219,10 @@ export default function TimelinePage() {
 
     return () => {
       cancelled = true;
-      if (sseControllerRef.current) { sseControllerRef.current.abort(); sseControllerRef.current = null; }
-      if (sseFlushTimerRef.current) { clearInterval(sseFlushTimerRef.current); sseFlushTimerRef.current = null; }
-      sseEventBufferRef.current = [];
+      refresher?.stop();
+      controller?.abort();
       setIsSseConnected(false);
+      setSseFatalStatus(null);
     };
 
   }, [timelineMode, deviceId]);
@@ -328,7 +346,9 @@ export default function TimelinePage() {
       const result = await fetchDeviceEventsPaginated({
         deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: timelineNextBookmark,
       });
-      setTimelineRawEvents(prev => [...prev, ...result.events]);
+      setTimelineRawEvents(prev => timelineMode === 'realtime'
+        ? mergeDeviceEvents(prev, result.events)
+        : [...prev, ...result.events]);
       setTimelineNextBookmark(result.next);
       setHasMoreTimelineEvents(result.hasMore);
     } catch (err: any) {
@@ -336,7 +356,7 @@ export default function TimelinePage() {
     } finally {
       setIsLoadingMoreTimelineEvents(false);
     }
-  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize]);
+  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize, timelineMode]);
 
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
     setCertToRevoke(certInfo);
@@ -400,8 +420,12 @@ export default function TimelinePage() {
 
           {timelineMode === 'realtime' && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className={cn('h-1.5 w-1.5 rounded-full', isSseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-destructive')} />
-              <span>{isSseConnected ? 'Connected' : 'Disconnected'}</span>
+              <span className={cn('h-1.5 w-1.5 rounded-full', isSseConnected && sseFatalStatus === null ? 'bg-emerald-500 animate-pulse' : 'bg-destructive')} />
+              <span>
+                {sseFatalStatus !== null
+                  ? `Live updates unavailable: ${getSseFatalReason(sseFatalStatus)}`
+                  : isSseConnected ? 'Connected' : 'Disconnected'}
+              </span>
             </div>
           )}
         </div>

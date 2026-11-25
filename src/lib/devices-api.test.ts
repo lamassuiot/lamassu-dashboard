@@ -7,6 +7,8 @@ import {
   decommissionDevice,
   registerDevice,
   fetchDeviceStats,
+  mergeDeviceEvents,
+  type ApiDeviceEventItem,
   type ApiDevice,
   type ApiResponse,
   type DeviceStats,
@@ -254,6 +256,71 @@ describe('devices-api', () => {
       await expect(fetchDeviceStats()).rejects.toThrow(
         'Failed to fetch device stats'
       )
+    })
+  })
+
+  describe('mergeDeviceEvents', () => {
+    const ev = (id: string, ts: string, description = id): ApiDeviceEventItem => ({
+      id,
+      timestampStr: ts,
+      type: 'T',
+      description,
+      source: 'test',
+    })
+
+    it('replaces items with the same id', () => {
+      const current = [ev('a', '2024-01-01T00:00:00Z', 'old')]
+      const incoming = [ev('a', '2024-01-01T00:00:00Z', 'new')]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].description).toBe('new')
+    })
+
+    it('keeps older loaded items not in incoming', () => {
+      const current = [ev('old', '2024-01-01T00:00:00Z')]
+      const incoming = [ev('new', '2024-01-02T00:00:00Z')]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result.map((e) => e.id)).toEqual(['new', 'old'])
+    })
+
+    it('sorts newest first and caps at max', () => {
+      const current = [
+        ev('1', '2024-01-01T00:00:00Z'),
+        ev('3', '2024-01-03T00:00:00Z'),
+        ev('5', '2024-01-05T00:00:00Z'),
+      ]
+      const incoming = [ev('2', '2024-01-02T00:00:00Z'), ev('4', '2024-01-04T00:00:00Z')]
+
+      const result = mergeDeviceEvents(current, incoming, 3)
+
+      expect(result.map((e) => e.id)).toEqual(['5', '4', '3'])
+    })
+
+    it('collapses duplicates inside incoming', () => {
+      const incoming = [
+        ev('a', '2024-01-01T00:00:00Z', 'first'),
+        ev('a', '2024-01-01T00:00:00Z', 'second'),
+      ]
+
+      const result = mergeDeviceEvents([], incoming)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].description).toBe('second')
+    })
+
+    it('puts unparsable timestamps last, keeps order stable, and does not mutate inputs', () => {
+      const current = [ev('bad1', 'nope'), ev('ok', '2024-01-01T00:00:00Z')]
+      const incoming = [ev('bad2', 'nope')]
+      const currentCopy = [...current]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result.map((e) => e.id)).toEqual(['ok', 'bad1', 'bad2'])
+      expect(current).toEqual(currentCopy)
     })
   })
 })

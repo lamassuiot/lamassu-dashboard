@@ -3,26 +3,6 @@
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 
-// Maps dot-notation SSE event types to the normalized REST API format
-const SSE_EVENT_TYPE_MAP: Record<string, string> = {
-  'device.created':          'CREATED',
-  'device.event.create':     'CREATED',
-  'device.status.update':    'STATUS-UPDATED',
-  'device.identity.update':  'STATUS-UPDATED',
-  'device.shadow.update':    'SHADOW-UPDATED',
-  'device.metadata.update':  'SHADOW-UPDATED',
-  'device.provisioned':      'PROVISIONED',
-  'device.identity.create':  'PROVISIONED',
-  'certificate.renewed':     'RENEWED',
-  'device.renewed':          'RENEWED',
-  'device.deleted':          'DELETED',
-  'device.error':            'ERROR',
-};
-
-function normalizeSSEEventType(raw: string): string {
-  return SSE_EVENT_TYPE_MAP[raw.toLowerCase()] ?? raw;
-}
-
 // Interfaces based on usage in components
 export interface ApiDeviceIdentity {
   status: string;
@@ -86,6 +66,33 @@ export interface PaginatedDeviceEventsResponse {
   hasMore: boolean;
 }
 
+
+/**
+ * Merges freshly fetched events into the already loaded ones.
+ * Incoming wins on equal `id`; the result is sorted newest first and capped at `max`.
+ * Unparsable timestamps sort last, keeping their relative order. Inputs are not mutated.
+ */
+export function mergeDeviceEvents(
+  current: ApiDeviceEventItem[],
+  incoming: ApiDeviceEventItem[],
+  max = 500,
+): ApiDeviceEventItem[] {
+  const byId = new Map<string, ApiDeviceEventItem>();
+  for (const event of current) byId.set(event.id, event);
+  for (const event of incoming) byId.set(event.id, event);
+
+  const time = (e: ApiDeviceEventItem) => new Date(e.timestampStr).getTime();
+  return Array.from(byId.values())
+    .sort((a, b) => {
+      const ta = time(a);
+      const tb = time(b);
+      const aBad = Number.isNaN(ta);
+      const bBad = Number.isNaN(tb);
+      if (aBad || bBad) return aBad === bBad ? 0 : aBad ? 1 : -1;
+      return tb - ta;
+    })
+    .slice(0, max);
+}
 
 export async function fetchDevices(params: URLSearchParams): Promise<ApiResponse> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices?${params.toString()}`;
@@ -184,39 +191,29 @@ export async function deleteDevice(deviceId: string): Promise<void> {
     await handleApiError(response, 'Failed to delete device');
 }
 
-const SSE_DEFAULT_TIMESTAMP = '1970-01-01T00:00:00.000Z';
+const SSE_MIN_STREAM_MS = 5000;
+const SSE_INITIAL_BACKOFF_MS = 1000;
+const SSE_MAX_BACKOFF_MS = 10000;
+const SSE_RETRY_AFTER_MIN_MS = 1000;
+const SSE_RETRY_AFTER_MAX_MS = 60000;
 
-/** Parses one SSE line into a device event. Returns null for comments, non-data lines and malformed JSON. */
-function parseSseDataLine(line: string): ApiDeviceEventItem | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith('data:')) return null;
-
-  const jsonStr = trimmed.slice(5).trim();
-  if (!jsonStr) return null;
-
-  let raw: any;
-  try {
-    raw = JSON.parse(jsonStr);
-  } catch {
-    return null; // skip malformed JSON lines
-  }
-
-  const timestampStr = raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || SSE_DEFAULT_TIMESTAMP;
-  const rawType = raw.type || raw.event_type || 'EVENT';
-  return {
-    id: raw.id || `${timestampStr}:${rawType}`,
-    timestampStr,
-    type: normalizeSSEEventType(rawType),
-    description: raw.description || raw.event_descriptions || '',
-    data: raw.structured_fields ?? raw.data,
-    source: raw.source || 'device',
-  };
+/** Parses a `Retry-After` header given in whole seconds into milliseconds clamped to 1-60 s. Returns null otherwise. */
+export function parseRetryAfterMs(header: string | null): number | null {
+  if (header === null || !/^\d+$/.test(header.trim())) return null;
+  const ms = Number(header.trim()) * 1000;
+  return Math.min(Math.max(ms, SSE_RETRY_AFTER_MIN_MS), SSE_RETRY_AFTER_MAX_MS);
 }
 
-/** Reads the SSE stream until it ends, emitting one event per `data:` line. */
+/** True for statuses that retrying cannot fix: 4xx except 401, 408 and 429, plus 501. */
+export function isFatalSseStatus(status: number): boolean {
+  if (status === 501) return true;
+  return status >= 400 && status < 500 && status !== 401 && status !== 408 && status !== 429;
+}
+
+/** Reads the SSE stream until it ends, calling `onChange` once per `data:` line without parsing its content. */
 async function readSseEvents(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  onEvent: (event: ApiDeviceEventItem) => void,
+  onChange: () => void,
 ): Promise<void> {
   const decoder = new TextDecoder();
   let buffer = '';
@@ -230,40 +227,42 @@ async function readSseEvents(
     buffer = lines.pop() || '';
 
     for (const line of lines) {
-      const event = parseSseDataLine(line);
-      if (!event) continue;
-      try {
-        onEvent(event);
-      } catch {
-        // a failing consumer must not break the stream
-      }
+      if (!line.trim().startsWith('data:')) continue;
+      onChange();
     }
   }
 }
 
 /**
- * Subscribe to real-time device events via SSE (Server-Sent Events).
+ * Subscribe to device changes via SSE (Server-Sent Events).
+ * The stream is only a change signal: `onChange` fires once per `data:` line (content is not parsed) and once after
+ * every successful connection, so the caller can reload the data it displays.
  * Uses `Accept: text/event-stream` to open a streaming connection.
- * Auto-reconnects silently on stream drops with exponential backoff.
+ * Reconnects after stream drops: at once when the server closed a stream that stayed open at least 5 s, otherwise
+ * with exponential backoff. `503`/`429` honour `Retry-After`. Fatal statuses (see `isFatalSseStatus`) stop
+ * reconnecting and call `onFatalError` once.
  * Only reports disconnected after a grace period so brief reconnects don't flicker the UI.
  * Returns an AbortController so the caller can close the stream.
  */
 export function subscribeToDeviceEventsSSE({
   deviceId,
   getAccessToken,
-  onEvent,
+  onChange,
   onConnectionChange,
+  onFatalError,
   disconnectGraceMs = 3000,
 }: {
   deviceId: string;
   getAccessToken: () => string | undefined;
-  onEvent: (event: ApiDeviceEventItem) => void;
+  onChange: () => void;
   onConnectionChange?: (connected: boolean) => void;
+  onFatalError?: (status: number) => void;
   disconnectGraceMs?: number;
 }): AbortController {
   const controller = new AbortController();
   const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events`;
   let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let isConnected = false;
 
   const setConnected = (connected: boolean) => {
@@ -291,16 +290,35 @@ export function subscribeToDeviceEventsSSE({
     }
   };
 
-  const connect = (retryDelay = 1000) => {
+  // a failing consumer must not break the stream
+  const safeOnChange = () => {
+    try {
+      onChange();
+    } catch {
+      // ignored
+    }
+  };
+
+  const nextBackoff = (delay: number) => Math.min(delay * 1.5, SSE_MAX_BACKOFF_MS);
+
+  const scheduleConnect = (waitMs: number, nextDelay: number) => {
+    if (controller.signal.aborted) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      connect(nextDelay);
+    }, waitMs);
+  };
+
+  const connect = (retryDelay = SSE_INITIAL_BACKOFF_MS) => {
     if (controller.signal.aborted) return;
 
     void (async () => {
+      let streamStartedAt: number | null = null;
       try {
         const token = getAccessToken();
         if (!token) {
           // No valid token — retry after delay
-          const nextDelay = Math.min(retryDelay * 1.5, 10000);
-          setTimeout(() => connect(nextDelay), retryDelay);
+          scheduleConnect(retryDelay, nextBackoff(retryDelay));
           return;
         }
 
@@ -313,37 +331,63 @@ export function subscribeToDeviceEventsSSE({
         });
 
         if (!response.ok) {
-          throw new Error(`SSE connection failed: ${response.status} ${response.statusText}`);
+          const { status } = response;
+          if (isFatalSseStatus(status)) {
+            onFatalError?.(status);
+            return;
+          }
+          if (status === 503 || status === 429) {
+            const retryAfter = parseRetryAfterMs(response.headers.get('Retry-After'));
+            if (retryAfter !== null) {
+              setConnected(false);
+              scheduleConnect(retryAfter, retryDelay);
+              return;
+            }
+          }
+          throw new Error(`SSE connection failed: ${status} ${response.statusText}`);
         }
 
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No readable stream from SSE response');
 
         setConnected(true);
+        streamStartedAt = Date.now();
+        safeOnChange();
 
-        await readSseEvents(reader, onEvent);
+        await readSseEvents(reader, safeOnChange);
 
-        // Stream ended gracefully — reconnect immediately.
-        // Many servers close the stream after each batch/event and expect the client to reconnect.
-        // This is normal behavior, not a disconnection.
+        // Stream ended gracefully. The server closes it at its max lifetime, so a long stream reconnects at once.
+        // A short one goes through the backoff so a proxy closing streams immediately cannot cause a tight loop.
         if (!controller.signal.aborted) {
-          connect(1000);
+          if (Date.now() - streamStartedAt >= SSE_MIN_STREAM_MS) {
+            connect(SSE_INITIAL_BACKOFF_MS);
+          } else {
+            setConnected(false);
+            scheduleConnect(retryDelay, nextBackoff(retryDelay));
+          }
         }
       } catch {
         if (controller.signal.aborted) return;
         setConnected(false);
-        // Reconnect with backoff (max 10s)
-        const nextDelay = Math.min(retryDelay * 1.5, 10000);
-        setTimeout(() => connect(nextDelay), retryDelay);
+        // Reconnect with backoff (max 10s). A stream that stayed open long enough was healthy, so start over.
+        const delay =
+          streamStartedAt !== null && Date.now() - streamStartedAt >= SSE_MIN_STREAM_MS
+            ? SSE_INITIAL_BACKOFF_MS
+            : retryDelay;
+        scheduleConnect(delay, nextBackoff(delay));
       }
     })();
   };
 
-  // Clean up grace timer on abort
+  // Clean up timers on abort
   controller.signal.addEventListener('abort', () => {
     if (disconnectTimer) {
       clearTimeout(disconnectTimer);
       disconnectTimer = null;
+    }
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
     }
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
@@ -60,6 +60,15 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
   const [errorDevice, setErrorDevice] = useState<string | null>(null);
+  const deviceRef = useRef<ApiDevice | null>(null);
+  deviceRef.current = device;
+  const currentDeviceIdRef = useRef(deviceId);
+  currentDeviceIdRef.current = deviceId;
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
@@ -117,6 +126,28 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   }, [deviceId, fetchIntegrationData]);
 
   useEffect(() => { fetchDevice(); }, [fetchDevice]);
+
+  // Refreshes the device in place. Unlike fetchDevice it never raises isLoadingDevice (which swaps the page for a
+  // skeleton and would unmount the timeline's live stream) and keeps the shown device when the request fails.
+  const reloadDeviceSilently = useCallback(async () => {
+    const requestedId = deviceId;
+    if (!requestedId) return;
+    try {
+      const data = await fetchDeviceById(requestedId);
+      if (!isMountedRef.current || currentDeviceIdRef.current !== requestedId) return;
+      const previousOwner = deviceRef.current?.dms_owner ?? '';
+      setDevice(data);
+      if (data.dms_owner === previousOwner) return;
+      if (data.dms_owner) fetchIntegrationData(data.dms_owner);
+      else {
+        setAvailableIntegrations([]);
+        setActiveIntegration(null);
+        setRaForIntegration(null);
+      }
+    } catch {
+      // The next stream signal retries; the device on screen stays as it is.
+    }
+  }, [deviceId, fetchIntegrationData]);
 
   useEffect(() => {
     if (pathname === '/devices/details') {
@@ -245,6 +276,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
       deviceId,
       isLoadingDevice,
       refreshDevice: fetchDevice,
+      reloadDeviceSilently,
       availableIntegrations,
       activeIntegration,
       setActiveIntegration,
