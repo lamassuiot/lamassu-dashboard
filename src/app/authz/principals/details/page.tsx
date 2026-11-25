@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useMemo } from 'react';
+import { useEffect, useState, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from '@/lib/router';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
 import { sileo } from '@/lib/toast';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,21 +16,14 @@ import {
   Link2,
   FileJson,
   Info,
-  X,
 } from 'lucide-react';
 import Link from '@/components/shared/RouterLink';
 import { ReadOnlyField } from '@/components/shared/DecodedCertificateSections';
 import { DetailSection } from '@/components/shared/DetailSection';
 import { fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Sheet,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from '@/components/ui/sheet';
-import { ResizableSheetContent } from '@/components/shared/ResizableSheetContent';
+
+
 import {
   Table,
   TableBody,
@@ -59,19 +51,18 @@ import {
   pageTabsListClass,
   pageTabsTriggerClass,
 } from '@/components/ui/tabs';
-import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy, deletePrincipal } from '@/lib/authz-api';
+import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, getPolicy, deletePrincipal } from '@/lib/authz-api';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import { principalHasSubjectAttribute } from '@/lib/principal-subject-attributes';
-import type { DateFilterValue, PolicyFilters, Principal, Policy, PrincipalType, X509MatchMode } from '@/types/authz';
+import type { Principal, Policy, PrincipalType, X509MatchMode } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
-import { PolicyFilterBar, defaultPolicyDateFilterValue } from '@/components/shared/filters/PolicyFilterBar';
-import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 import dynamic from '@/components/shared/dynamic';
-import { DetailPageSkeleton, TableSkeleton } from '@/components/shared/PageSkeletons';
+import { DetailPageSkeleton } from '@/components/shared/PageSkeletons';
+import { PolicySelectorSheet } from '@/components/shared/PolicySelectorSheet';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -162,16 +153,6 @@ function PrincipalDetailsContent() {
   const [grantDrawerOpen, setGrantDrawerOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [policyResults, setPolicyResults] = useState<Policy[]>([]);
-  const [policyResultsLoading, setPolicyResultsLoading] = useState(false);
-  const [policySearchTerm, setPolicySearchTerm] = useState('');
-  const [policyIdFilter, setPolicyIdFilter] = useState('');
-  const [policyDescriptionFilter, setPolicyDescriptionFilter] = useState('');
-  const [policyCreatedAtFilter, setPolicyCreatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
-  const [policyUpdatedAtFilter, setPolicyUpdatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
-  // Kept as policies, not IDs, so a selection survives a search that no longer lists it.
-  const [selectedPolicies, setSelectedPolicies] = useState<Policy[]>([]);
-  const [isAssigning, setIsAssigning] = useState(false);
   const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const monacoTheme = useMonacoTheme();
@@ -216,20 +197,12 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const togglePolicySelection = (policy: Policy) => {
-    setSelectedPolicies((current) => current.some((p) => p.id === policy.id)
-      ? current.filter((p) => p.id !== policy.id)
-      : [...current, policy]);
-  };
-
-  /** Grants every selected policy. Grants that fail stay selected so they can be retried. */
-  const handleAssignPolicies = async () => {
-    if (!principal_id || selectedPolicies.length === 0) return;
-    setIsAssigning(true);
+  /** Grants every selected policy and returns the ones that failed, which stay selected so they can be retried. */
+  const handleAssignPolicies = async (selectedPolicies: Policy[]): Promise<Policy[]> => {
+    if (!principal_id) return selectedPolicies;
     const results = await Promise.allSettled(selectedPolicies.map((policy) => grantPolicy(principal_id, policy.id)));
     const failed = selectedPolicies.filter((_, index) => results[index].status === 'rejected');
     const granted = selectedPolicies.length - failed.length;
-    setIsAssigning(false);
 
     if (granted > 0) {
       sileo.success({
@@ -243,76 +216,10 @@ function PrincipalDetailsContent() {
         title: failed.length === 1 ? 'Could not assign 1 policy' : `Could not assign ${failed.length} policies`,
         description: `${failed.map((policy) => policy.name).join(', ')}: ${reason?.message ?? 'unknown error'}`,
       });
-      setSelectedPolicies(failed);
-    } else {
-      setGrantDrawerOpen(false);
-      setSelectedPolicies([]);
-      setPolicyResults([]);
     }
     if (granted > 0) await loadPrincipalDetails();
+    return failed;
   };
-
-  const toApiDateFilter = useCallback((filter: GenericDateFilterValue): DateFilterValue | undefined => {
-    if (!filter.date) return undefined;
-    const date = filter.date instanceof Date ? filter.date : new Date(filter.date);
-    if (Number.isNaN(date.getTime())) return undefined;
-
-    const operator = filter.operator === 'before'
-      ? 'before'
-      : filter.operator === 'equal'
-        ? 'equal'
-        : 'after';
-
-    return { operator, value: date.toISOString() };
-  }, []);
-
-  const policyFilters = useMemo<PolicyFilters>(() => {
-    const nextFilters: PolicyFilters = {};
-    const trimmedSearchTerm = policySearchTerm.trim();
-    const trimmedIdFilter = policyIdFilter.trim();
-    const trimmedDescriptionFilter = policyDescriptionFilter.trim();
-    const createdAt = toApiDateFilter(policyCreatedAtFilter);
-    const updatedAt = toApiDateFilter(policyUpdatedAtFilter);
-
-    if (trimmedSearchTerm) nextFilters.name = trimmedSearchTerm;
-    if (trimmedIdFilter) nextFilters.id = trimmedIdFilter;
-    if (trimmedDescriptionFilter) nextFilters.description = trimmedDescriptionFilter;
-    if (createdAt) nextFilters.created_at = createdAt;
-    if (updatedAt) nextFilters.updated_at = updatedAt;
-
-    return nextFilters;
-  }, [
-    policyCreatedAtFilter,
-    policyDescriptionFilter,
-    policyIdFilter,
-    policySearchTerm,
-    policyUpdatedAtFilter,
-    toApiDateFilter,
-  ]);
-
-  const loadAssignablePolicies = useCallback(async () => {
-    if (!grantDrawerOpen) return;
-
-    setPolicyResultsLoading(true);
-    try {
-      const result = await listPolicies({
-        sortBy: 'name',
-        sortMode: 'asc',
-        filters: policyFilters,
-      });
-      const assignedIds = new Set(policies.map((policy) => policy.policy_id));
-      const availablePolicies = (result.list || []).filter((policy) => !assignedIds.has(policy.id));
-      setPolicyResults(availablePolicies);
-    } catch {
-      setPolicyResults([]);
-    } finally {
-      setPolicyResultsLoading(false);
-    }
-  }, [grantDrawerOpen, policies, policyFilters]);
-
-  useEffect(() => {
-    loadAssignablePolicies();
-  }, [loadAssignablePolicies]);
 
   const handleRevokePolicy = async () => {
     if (!principal_id || !selectedPolicyToRevoke) return;
@@ -347,10 +254,6 @@ function PrincipalDetailsContent() {
     return trust?.identity_type === 'authority_key_id' ? trust.value : undefined;
   }, [principal]);
   const trustedCa = useCaByKeyId(trustedKeyId);
-
-  const selectedPolicyIds = new Set(selectedPolicies.map((policy) => policy.id));
-  const selectedPolicyNeedsClientId = selectedPolicies.some(isWfxSbiPolicy)
-    && !principalHasSubjectAttribute(principal?.auth_config, 'client_id');
 
   if (loading) {
     return (
@@ -661,170 +564,25 @@ function PrincipalDetailsContent() {
       </Tabs>
 
       {/* Assign Policy Sheet */}
-      <Sheet
+      <PolicySelectorSheet
         open={grantDrawerOpen}
-        onOpenChange={(isOpen) => {
-          setGrantDrawerOpen(isOpen);
-          if (!isOpen) {
-            setPolicySearchTerm('');
-            setPolicyIdFilter('');
-            setPolicyDescriptionFilter('');
-            setPolicyCreatedAtFilter(defaultPolicyDateFilterValue);
-            setPolicyUpdatedAtFilter(defaultPolicyDateFilterValue);
-            setSelectedPolicies([]);
-            setPolicyResults([]);
-          }
-        }}
-      >
-        <ResizableSheetContent
-          storageKey="assign-policy"
-          side="right"
-          className="flex flex-col gap-0 p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-none"
-        >
-          <SheetHeader className="border-b px-6 py-5 shrink-0 text-left">
-            <SheetTitle>Assign Policies</SheetTitle>
-            <SheetDescription>Select one or more policies to grant to this principal.</SheetDescription>
-          </SheetHeader>
-
-          <div className="border-b px-6 py-4 shrink-0">
-            <PolicyFilterBar
-              searchTerm={policySearchTerm}
-              onSearchTermChange={(value) => {
-                setPolicySearchTerm(value);
-              }}
-              idFilter={policyIdFilter}
-              onIdFilterChange={(value) => {
-                setPolicyIdFilter(value);
-              }}
-              descriptionFilter={policyDescriptionFilter}
-              onDescriptionFilterChange={(value) => {
-                setPolicyDescriptionFilter(value);
-              }}
-              createdAtFilter={policyCreatedAtFilter}
-              onCreatedAtFilterChange={(value) => {
-                setPolicyCreatedAtFilter(value);
-              }}
-              updatedAtFilter={policyUpdatedAtFilter}
-              onUpdatedAtFilterChange={(value) => {
-                setPolicyUpdatedAtFilter(value);
-              }}
-              disabled={policyResultsLoading || isAssigning}
-            />
-          </div>
-
-          <div className="flex min-h-[280px] flex-1 flex-col overflow-hidden px-6 py-4">
-            {policyResultsLoading && policyResults.length === 0 ? (
-              <TableSkeleton label="Loading policies…" icon={false} columns={4} rows={4} pagination={false} />
-            ) : policyResults.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <p className="text-sm font-medium">No policies found</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {Object.keys(policyFilters).length > 0
-                    ? 'Try adjusting the filters.'
-                    : 'All available policies are already assigned or none exist yet.'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10"><span className="sr-only">Selected</span></TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Updated</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {policyResults.map((policy) => {
-                      const isSelected = selectedPolicyIds.has(policy.id);
-
-                      return (
-                        <TableRow
-                          key={policy.id}
-                          data-state={isSelected ? 'selected' : undefined}
-                          className={cn('cursor-pointer', isSelected && 'bg-primary/5 data-[state=selected]:bg-primary/5')}
-                          onClick={() => togglePolicySelection(policy)}
-                        >
-                          <TableCell onClick={(event) => event.stopPropagation()}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => togglePolicySelection(policy)}
-                              aria-label={`Select ${policy.name}`}
-                              disabled={isAssigning}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            <div className={cn('truncate', isSelected && 'text-primary')}>{policy.name}</div>
-                            <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{policy.id}</p>
-                          </TableCell>
-                          <TableCell>
-                            {policy.description ? (
-                              <p className="line-clamp-2 text-sm text-muted-foreground">{policy.description}</p>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <DateDisplay date={policy.created_at} className="text-xs" highlightExpired={false} />
-                          </TableCell>
-                          <TableCell>
-                            <DateDisplay date={policy.updated_at} className="text-xs" highlightExpired={false} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-
-          <SheetFooter className="border-t px-6 py-4 shrink-0">
-            <div className="mr-auto min-w-0 space-y-2">
-              {selectedPolicies.length > 0 ? (
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
-                  <span className="font-medium">{selectedPolicies.length} selected:</span>
-                  {selectedPolicies.map((policy) => (
-                    <Badge key={policy.id} variant="secondary" className="max-w-[14rem]">
-                      <span className="truncate">{policy.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => togglePolicySelection(policy)}
-                        disabled={isAssigning}
-                        aria-label={`Remove ${policy.name} from the selection`}
-                        className="-mr-1 rounded-sm opacity-60 hover:opacity-100"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No policies selected.</p>
-              )}
-              {selectedPolicyNeedsClientId && (
-                <Alert className="max-w-md py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    A selected WFX SBI policy requires subject attribute client_id for job route constraints.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-            <div className="flex shrink-0 gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setGrantDrawerOpen(false)} disabled={isAssigning}>
-                Cancel
-              </Button>
-              <Button onClick={handleAssignPolicies} disabled={selectedPolicies.length === 0 || isAssigning}>
-                {isAssigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {selectedPolicies.length > 1 ? `Assign ${selectedPolicies.length} Policies` : 'Assign Policy'}
-              </Button>
-            </div>
-          </SheetFooter>
-        </ResizableSheetContent>
-      </Sheet>
+        onOpenChange={setGrantDrawerOpen}
+        excludedPolicyIds={policies.map((policy) => policy.policy_id)}
+        title="Assign Policies"
+        description="Select one or more policies to grant to this principal."
+        confirmLabel={(count) => (count > 1 ? `Assign ${count} Policies` : 'Assign Policy')}
+        onConfirm={handleAssignPolicies}
+        renderSelectionNotice={(selected) =>
+          selected.some(isWfxSbiPolicy) && !principalHasSubjectAttribute(principal?.auth_config, 'client_id') ? (
+            <Alert className="max-w-md py-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                A selected WFX SBI policy requires subject attribute client_id for job route constraints.
+              </AlertDescription>
+            </Alert>
+          ) : null
+        }
+      />
 
       {/* Revoke Policy Dialog */}
       <AlertDialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>

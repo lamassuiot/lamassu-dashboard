@@ -222,8 +222,10 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
 
   
   const onSubmit = async (data: AwsIntegrationFormValues) => {
+    // Left out, the stored authz principal is kept: this copy, loaded with the page, may be stale.
+    const { authz_principal_settings: _, ...settings } = ra.settings;
     const updatedRaPayload: RaCreationPayload = JSON.parse(JSON.stringify({
-        id: ra.id, name: ra.name, metadata: ra.metadata, settings: ra.settings,
+        id: ra.id, name: ra.name, metadata: ra.metadata, settings,
     }));
     
     if (updatedRaPayload.metadata) {

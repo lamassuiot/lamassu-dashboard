@@ -1,29 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import { ChevronsUpDown, Loader2 } from 'lucide-react';
+import { AlertTriangle, ChevronsUpDown, Loader2 } from 'lucide-react';
 
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { SigningProfileForm, type SigningProfileFormInput, type SigningProfileFormValues } from '@/components/shared/SigningProfileForm';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ApiSigningProfile } from '@/lib/ca-data';
-import type { IssuanceProfileMode } from '@/lib/ra-form';
-import { ChoiceList, RaFieldGroup, RaFormSection } from './RaFormSection';
-import { fieldError, listedIssues, type RaSectionProps } from './types';
+import { fetchAllRegistrationAuthorities, type ApiRaItem } from '@/lib/dms-api';
+import { enrollmentCaSharing, type IssuanceProfileMode } from '@/lib/ra-form';
+import { AuthzPrincipalFields, listRaNames } from './AuthzPrincipalFields';
+import { ChoiceList, RaFieldGroup, RaFormSection, SettingToggleGroup } from './RaFormSection';
+import { fieldError, fieldMessages, listedIssues, type RaSectionProps } from './types';
 
 const profileModeOptions = [
   { value: 'default' as const, label: 'Enrollment CA default', description: "Resolve the CA's current default profile each time a certificate is issued." },
   { value: 'existing' as const, label: 'Existing profile', description: 'Pin a reusable issuance profile to this RA.' },
   { value: 'inline' as const, label: 'Custom profile', description: 'Define a profile stored only on this RA.' },
 ];
+
+/** Every RA, to warn about the ones that share the Enrollment CA. Best effort: without them the form only loses the warnings. */
+function useAllRas(): ApiRaItem[] {
+  const [ras, setRas] = useState<ApiRaItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllRegistrationAuthorities().then(all => !cancelled && setRas(all), () => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return ras;
+}
 
 interface IssuanceSectionProps extends RaSectionProps {
   inlineProfileForm: UseFormReturn<SigningProfileFormInput, any, SigningProfileFormValues>;
@@ -36,13 +52,16 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
   const selectedProfile = deps.profiles.find(profile => profile.id === values.issuanceProfileId);
   const caError = fieldError(issues, 'enrollmentCa');
   const profileError = fieldError(issues, 'issuanceProfileId');
+  const allRas = useAllRas();
+  const sharing = useMemo(() => enrollmentCaSharing(allRas, values.enrollmentCaId, values.id), [allRas, values.enrollmentCaId, values.id]);
 
   return (
     <RaFormSection
       id="issuance"
       title="Certificate issuance"
       description="Which CA signs device certificates, and with which profile."
-      issues={listedIssues(issues, ['enrollmentCa', 'issuanceProfileId'])}
+      // The attribute editor, which shows its issues, is hidden while the principal is off.
+      issues={listedIssues(issues, ['enrollmentCa', 'issuanceProfileId', ...(values.createAuthzPrincipal ? ['authzAttributes' as const] : [])])}
     >
       <div className="space-y-2">
         <div className="flex items-end justify-between gap-2">
@@ -83,6 +102,15 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
           </button>
         )}
         {caError && <FormFieldError id="enrollmentCa-error" title={caError} />}
+        {sharing.principalsWithPolicies.length > 0 && (
+          <Alert variant="warning">
+            <AlertTriangle />
+            <AlertTitle>Devices of this RA get the policies of another RA</AlertTitle>
+            <AlertDescription>
+              The authz principal of {listRaNames(sharing.principalsWithPolicies)} trusts every certificate signed by this CA, so the certificates this RA issues authenticate with {sharing.principalsWithPolicies.length > 1 ? 'their' : 'its'} policies.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
       <RaFieldGroup title="Issuance profile">
@@ -131,6 +159,18 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
             </div>
           </Form>
         )}
+      </RaFieldGroup>
+
+      <RaFieldGroup title="Platform access">
+        <SettingToggleGroup
+          id="createAuthzPrincipal"
+          label="Create authz principal"
+          description="Let every certificate signed by the Enrollment CA, including ones issued outside this RA, authenticate with the policies chosen below. The principal follows the RA: it changes with the Enrollment CA and is deleted with the RA or when this is turned off."
+          checked={values.createAuthzPrincipal}
+          onCheckedChange={createAuthzPrincipal => update({ createAuthzPrincipal })}
+        >
+          <AuthzPrincipalFields values={values} update={update} touch={touch} attributesErrors={fieldMessages(issues, 'authzAttributes', 'error')} otherRasOnCa={sharing.otherRas} />
+        </SettingToggleGroup>
       </RaFieldGroup>
 
       <CaSelectorModal

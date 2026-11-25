@@ -5,6 +5,7 @@ import {
   authModeFor,
   buildRaPayload,
   createDefaultRaFormValues,
+  enrollmentCaSharing,
   isIssueVisible,
   raFormValuesFromApi,
   slugifyRaId,
@@ -129,6 +130,25 @@ describe('buildRaPayload', () => {
   it('omits the key spec when server key generation is disabled', () => {
     expect(buildRaPayload(validValues()).settings.server_keygen_settings).toEqual({ enabled: false });
   });
+
+  it('sends the authz principal switch, off by default', () => {
+    expect(buildRaPayload(validValues()).settings.authz_principal_settings).toEqual({ enabled: false, policy_ids: [], subject_attribute_mappings: {} });
+    expect(buildRaPayload(validValues({ createAuthzPrincipal: true })).settings.authz_principal_settings).toEqual({ enabled: true, policy_ids: [], subject_attribute_mappings: {} });
+  });
+
+  it('sends the policies and subject attributes of the authz principal', () => {
+    const payload = buildRaPayload(validValues({
+      createAuthzPrincipal: true,
+      authzPolicyIds: ['device-sbi-client'],
+      authzAttributes: [{ name: ' client_id ', source: 'x509.subject.cn' }],
+    }));
+
+    expect(payload.settings.authz_principal_settings).toEqual({
+      enabled: true,
+      policy_ids: ['device-sbi-client'],
+      subject_attribute_mappings: { client_id: 'x509.subject.cn' },
+    });
+  });
 });
 
 describe('raFormValuesFromApi', () => {
@@ -139,6 +159,9 @@ describe('raFormValuesFromApi', () => {
       serverKeygen: { enabled: true, type: 'ECDSA', spec: 'P-521' },
       managedCaIds: ['ca-2'],
       reenrollmentAuth: withValidationCas(createDefaultRaFormValues(0).reenrollmentAuth, ['old-ca']),
+      createAuthzPrincipal: true,
+      authzPolicyIds: ['policy-a', 'policy-b'],
+      authzAttributes: [{ name: 'client_id', source: 'x509.serial_number' }],
     }));
     const ra: ApiRaItem = { ...original, creation_ts: '2026-01-01T00:00:00Z' };
 
@@ -146,5 +169,85 @@ describe('raFormValuesFromApi', () => {
 
     expect(inlineProfile).toBeNull();
     expect(buildRaPayload(values)).toEqual(original);
+  });
+
+  it('reads an RA stored before the authz principal switch as off', () => {
+    const { authz_principal_settings: _, ...settings } = buildRaPayload(validValues({ createAuthzPrincipal: true })).settings;
+    const ra: ApiRaItem = { ...buildRaPayload(validValues()), settings, creation_ts: '2026-01-01T00:00:00Z' };
+
+    expect(raFormValuesFromApi(ra).values.createAuthzPrincipal).toBe(false);
+    expect(raFormValuesFromApi(ra).values.authzPolicyIds).toEqual([]);
+    expect(raFormValuesFromApi(ra).values.authzAttributes).toEqual([]);
+  });
+});
+
+describe('validateRaForm authz principal', () => {
+  // The attributes are sent and stored with the switch off too, so both states are checked alike.
+  describe.each([true, false])('with the principal switch on: %s', createAuthzPrincipal => {
+    const attributeIssues = (...names: string[]) => validateRaForm(
+      validValues({ createAuthzPrincipal, authzAttributes: names.map(name => ({ name, source: 'x509.subject.cn' })) }),
+      context,
+    ).filter(issue => issue.field === 'authzAttributes');
+    const issue = (kind: 'required' | 'invalid', message: RegExp) =>
+      expect.objectContaining({ section: 'issuance', severity: 'error', kind, message: expect.stringMatching(message) });
+
+    it('requires a name, shown once the attributes are touched or the form submitted', () => {
+      expect(attributeIssues('client_id', ' ')).toEqual([issue('required', /needs a name/)]);
+    });
+
+    it('rejects names repeated after trimming', () => {
+      expect(attributeIssues('client_id', 'client_id ')).toEqual([issue('invalid', /unique/)]);
+    });
+
+    it('rejects names containing whitespace', () => {
+      expect(attributeIssues('client id')).toEqual([issue('invalid', /spaces/)]);
+    });
+
+    it('reports an invalid name even while another one is still empty', () => {
+      expect(attributeIssues('client id', '').map(issue => issue.kind)).toEqual(['required', 'invalid']);
+    });
+
+    it('accepts unique names without inner whitespace', () => {
+      expect(attributeIssues(' client_id ', 'device_id')).toEqual([]);
+    });
+  });
+});
+
+describe('enrollmentCaSharing', () => {
+  function ra(id: string, caId: string, principal?: { enabled: boolean; policy_ids?: string[] }): ApiRaItem {
+    const base = buildRaPayload(validValues({ id, name: `RA ${id}`, enrollmentCaId: caId }));
+    return {
+      ...base,
+      settings: { ...base.settings, authz_principal_settings: principal },
+      creation_ts: '2026-01-01T00:00:00Z',
+    };
+  }
+
+  const ras = [
+    ra('self', 'ca-x', { enabled: true, policy_ids: ['p-self'] }),
+    ra('with-policies', 'ca-x', { enabled: true, policy_ids: ['p1', 'p2'] }),
+    ra('off', 'ca-x', { enabled: false, policy_ids: ['p3'] }),
+    ra('no-policies', 'ca-x', { enabled: true, policy_ids: [] }),
+    ra('legacy', 'ca-x'),
+    ra('elsewhere', 'ca-y', { enabled: true, policy_ids: ['p4'] }),
+  ];
+
+  it('lists the other RAs on the CA whose principal grants policies', () => {
+    const sharing = enrollmentCaSharing(ras, 'ca-x', 'self');
+    expect(sharing.principalsWithPolicies).toEqual([{ id: 'with-policies', name: 'RA with-policies', policyIds: ['p1', 'p2'] }]);
+  });
+
+  it('lists every other RA on the CA, whatever its principal', () => {
+    const sharing = enrollmentCaSharing(ras, 'ca-x', 'self');
+    expect(sharing.otherRas.map(other => other.id)).toEqual(['with-policies', 'off', 'no-policies', 'legacy']);
+  });
+
+  it('shares nothing without a CA or with an unused one', () => {
+    expect(enrollmentCaSharing(ras, null, 'self')).toEqual({ principalsWithPolicies: [], otherRas: [] });
+    expect(enrollmentCaSharing(ras, 'ca-z', 'self')).toEqual({ principalsWithPolicies: [], otherRas: [] });
+  });
+
+  it('counts the RA being created, whose id is still empty, against every RA', () => {
+    expect(enrollmentCaSharing(ras, 'ca-y', '').otherRas.map(other => other.id)).toEqual(['elsewhere']);
   });
 });

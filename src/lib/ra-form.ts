@@ -29,6 +29,9 @@ export interface RaFormValues {
   enrollmentCaId: string | null;
   issuanceProfileMode: IssuanceProfileMode;
   issuanceProfileId: string | null;
+  createAuthzPrincipal: boolean;
+  authzPolicyIds: string[];
+  authzAttributes: AuthzAttributeMapping[];
   allowReplaceableEnrollment: boolean;
   verifyCsrSignature: boolean;
   enrollmentAuth: ApiRaEstSettings;
@@ -56,6 +59,18 @@ export const RA_FORM_SECTIONS = [
 ] as const;
 export type RaFormSectionId = typeof RA_FORM_SECTIONS[number];
 
+/** A subject attribute of the authz principal, taken from the device certificate. */
+export interface AuthzAttributeMapping {
+  name: string;
+  source: string;
+}
+
+/** Certificate values authz can map to a subject attribute. */
+export const AUTHZ_ATTRIBUTE_SOURCES = [
+  { value: 'x509.subject.cn', label: 'Subject CN' },
+  { value: 'x509.serial_number', label: 'Serial number' },
+] as const;
+
 export type RaFormField =
   | 'name'
   | 'id'
@@ -63,6 +78,7 @@ export type RaFormField =
   | 'deviceMetadata'
   | 'enrollmentCa'
   | 'issuanceProfileId'
+  | 'authzAttributes'
   | 'enrollmentAuth'
   | 'reenrollmentAuth'
   | 'reenrollmentDelta'
@@ -149,6 +165,9 @@ export function createDefaultRaFormValues(hue?: number): RaFormValues {
     enrollmentCaId: null,
     issuanceProfileMode: 'default',
     issuanceProfileId: null,
+    createAuthzPrincipal: false,
+    authzPolicyIds: [],
+    authzAttributes: [],
     allowReplaceableEnrollment: true,
     verifyCsrSignature: true,
     enrollmentAuth: createDefaultEstAuthSettings(true),
@@ -194,6 +213,9 @@ export function raFormValuesFromApi(ra: ApiRaItem): { values: RaFormValues; inli
       enrollmentCaId: enrollment.enrollment_ca || null,
       issuanceProfileMode,
       issuanceProfileId: issuanceProfileMode === 'existing' ? ra.settings.issuance_profile_id ?? null : null,
+      createAuthzPrincipal: ra.settings.authz_principal_settings?.enabled ?? false,
+      authzPolicyIds: ra.settings.authz_principal_settings?.policy_ids ?? [],
+      authzAttributes: Object.entries(ra.settings.authz_principal_settings?.subject_attribute_mappings ?? {}).map(([name, source]) => ({ name, source })),
       allowReplaceableEnrollment: enrollment.enable_replaceable_enrollment,
       verifyCsrSignature: enrollment.verify_csr_signature ?? true,
       enrollmentAuth: normalizeEstAuthSettings(enrollment.est_rfc7030_settings, true),
@@ -269,6 +291,11 @@ export function buildRaPayload(
         include_system_ca: values.includeSystemCa,
         managed_cas: values.managedCaIds,
       },
+      authz_principal_settings: {
+        enabled: values.createAuthzPrincipal,
+        policy_ids: values.authzPolicyIds,
+        subject_attribute_mappings: Object.fromEntries(values.authzAttributes.map(attribute => [attribute.name.trim(), attribute.source])),
+      },
     },
   };
 }
@@ -325,6 +352,12 @@ export function validateRaForm(values: RaFormValues, context: RaFormValidationCo
   if (values.issuanceProfileMode === 'default' && values.enrollmentCaId && context.enrollmentCaHasDefaultProfile === false) {
     warning('issuance', 'The Enrollment CA has no default issuance profile.');
   }
+  // Checked with the principal off too: the attributes are sent and stored either way.
+  const attributeNames = values.authzAttributes.map(attribute => attribute.name.trim());
+  const givenNames = attributeNames.filter(Boolean);
+  if (givenNames.length < attributeNames.length) error('issuance', 'required', 'Every subject attribute of the authz principal needs a name.', 'authzAttributes');
+  if (givenNames.some(name => /\s/.test(name))) error('issuance', 'invalid', 'Subject attribute names cannot contain spaces.', 'authzAttributes');
+  if (new Set(givenNames).size < givenNames.length) error('issuance', 'invalid', 'Subject attribute names must be unique.', 'authzAttributes');
 
   if (!values.deviceIcon.name) error('devices', 'required', 'Choose a device icon.', 'deviceIcon');
   try {
@@ -353,4 +386,32 @@ export function validateRaForm(values: RaFormValues, context: RaFormValidationCo
 
 export function isIssueVisible(issue: RaFormIssue, submitAttempted: boolean, touched: ReadonlySet<RaFormField>): boolean {
   return issue.kind === 'invalid' || submitAttempted || (!!issue.field && touched.has(issue.field));
+}
+
+/** Another RA on the same Enrollment CA. */
+export interface RaOnSameCa {
+  id: string;
+  name: string;
+  /** Policies its authz principal grants, empty when it has none or the principal is off. */
+  policyIds: string[];
+}
+
+/**
+ * How an Enrollment CA is shared with other RAs. An authz principal trusts every certificate the CA signs, so the
+ * certificates of every RA on the CA authenticate with the policies of every principal on it. Read from the stored
+ * RAs, which can lag behind what authz holds: the form only warns with it.
+ */
+export function enrollmentCaSharing(
+  ras: readonly ApiRaItem[],
+  caId: string | null,
+  selfId: string,
+): { principalsWithPolicies: RaOnSameCa[]; otherRas: RaOnSameCa[] } {
+  if (!caId) return { principalsWithPolicies: [], otherRas: [] };
+  const otherRas = ras
+    .filter(ra => ra.id !== selfId && ra.settings.enrollment_settings?.enrollment_ca === caId)
+    .map(ra => {
+      const principal = ra.settings.authz_principal_settings;
+      return { id: ra.id, name: ra.name, policyIds: principal?.enabled ? principal.policy_ids ?? [] : [] };
+    });
+  return { principalsWithPolicies: otherRas.filter(ra => ra.policyIds.length > 0), otherRas };
 }
