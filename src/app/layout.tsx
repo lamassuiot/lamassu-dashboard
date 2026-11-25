@@ -34,6 +34,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { DashboardTerminal } from '@/components/terminal/DashboardTerminal';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
+import { PlatformAccessProvider } from '@/contexts/PlatformAccessContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { useUIPreferences, type UIFontFamily } from '@/contexts/UIPreferencesContext';
 import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, BellRing, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, TestTube2, Copy, Check, Type, ZoomIn, Minus, Plus, ShieldCheck } from 'lucide-react';
@@ -950,11 +951,13 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     matchedPrincipalIds: access.matchedPrincipalIds,
   };
 
-  if (isWizardMode) {
-    return <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true} {...capabilityProps}><InitializationWizard /></MainLayoutContent>;
-  }
-
-  return <MainLayoutContent key={authenticatedAppKey} {...capabilityProps}>{children}</MainLayoutContent>;
+  return (
+    <PlatformAccessProvider globalCapabilities={access.globalCapabilities}>
+      {isWizardMode
+        ? <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true} {...capabilityProps}><InitializationWizard /></MainLayoutContent>
+        : <MainLayoutContent key={authenticatedAppKey} {...capabilityProps}>{children}</MainLayoutContent>}
+    </PlatformAccessProvider>
+  );
 };
 
 

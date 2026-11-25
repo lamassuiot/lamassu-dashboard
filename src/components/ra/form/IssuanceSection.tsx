@@ -16,8 +16,9 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { IssuanceProfileMode } from '@/lib/ra-form';
-import { ChoiceList, RaFieldGroup, RaFormSection, SettingSwitch, SettingSwitchList } from './RaFormSection';
-import { fieldError, listedIssues, type RaSectionProps } from './types';
+import { AuthzPrincipalFields } from './AuthzPrincipalFields';
+import { ChoiceList, RaFieldGroup, RaFormSection, SettingToggleGroup } from './RaFormSection';
+import { fieldError, fieldMessages, listedIssues, type RaSectionProps } from './types';
 
 const profileModeOptions = [
   { value: 'default' as const, label: 'Enrollment CA default', description: "Resolve the CA's current default profile each time a certificate is issued." },
@@ -42,7 +43,8 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
       id="issuance"
       title="Certificate issuance"
       description="Which CA signs device certificates, and with which profile."
-      issues={listedIssues(issues, ['enrollmentCa', 'issuanceProfileId'])}
+      // The attribute editor, which shows its issues, is hidden while the principal is off.
+      issues={listedIssues(issues, ['enrollmentCa', 'issuanceProfileId', ...(values.createAuthzPrincipal ? ['authzAttributes' as const] : [])])}
     >
       <div className="space-y-2">
         <div className="flex items-end justify-between gap-2">
@@ -134,15 +136,15 @@ export function IssuanceSection({ values, update, issues, touch, deps, inlinePro
       </RaFieldGroup>
 
       <RaFieldGroup title="Platform access">
-        <SettingSwitchList>
-          <SettingSwitch
-            id="createAuthzPrincipal"
-            label="Create authz principal"
-            description="Let every certificate signed by the Enrollment CA, including ones issued outside this RA, authenticate with the device policies set in the DMS Manager. The principal follows the RA: it changes with the Enrollment CA and is deleted with the RA or when this is turned off."
-            checked={values.createAuthzPrincipal}
-            onCheckedChange={createAuthzPrincipal => update({ createAuthzPrincipal })}
-          />
-        </SettingSwitchList>
+        <SettingToggleGroup
+          id="createAuthzPrincipal"
+          label="Create authz principal"
+          description="Let every certificate signed by the Enrollment CA, including ones issued outside this RA, authenticate with the policies chosen below. The principal follows the RA: it changes with the Enrollment CA and is deleted with the RA or when this is turned off."
+          checked={values.createAuthzPrincipal}
+          onCheckedChange={createAuthzPrincipal => update({ createAuthzPrincipal })}
+        >
+          <AuthzPrincipalFields values={values} update={update} touch={touch} attributesErrors={fieldMessages(issues, 'authzAttributes', 'error')} />
+        </SettingToggleGroup>
       </RaFieldGroup>
 
       <CaSelectorModal

@@ -87,6 +87,10 @@ export interface ApiRaSettings {
     /** The DMS Manager keeps the authz principal `dms:<id>` that trusts every certificate of the Enrollment CA. Absent on RAs stored before it existed. */
     authz_principal_settings?: {
         enabled: boolean;
+        /** Authz policies granted to the principal; adding one needs the principal_policy grant permission. */
+        policy_ids?: string[];
+        /** Subject attribute name → certificate value it is taken from, e.g. client_id → x509.subject.cn. */
+        subject_attribute_mappings?: Record<string, string>;
     };
 }
 export interface ApiRaItem {
