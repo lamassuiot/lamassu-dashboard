@@ -38,6 +38,7 @@ describe('dms-api', () => {
             chain_level_validation: -1,
             validation_cas: ['ca-bootstrap'],
             allow_expired: false,
+            allow_unverifiable_revocation: false,
           },
         },
         device_provisioning_profile: {
@@ -54,6 +55,7 @@ describe('dms-api', () => {
             chain_level_validation: -1,
             validation_cas: [],
             allow_expired: false,
+            allow_unverifiable_revocation: false,
           },
         },
         revoke_on_reenrollment: false,
@@ -389,6 +391,7 @@ describe('dms-api', () => {
                 chain_level_validation: 1,
                 validation_cas: ['ca-1'],
                 allow_expired: false,
+                allow_unverifiable_revocation: false,
               },
             },
           },
@@ -563,6 +566,7 @@ describe('dms-api', () => {
                 chain_level_validation: 2,
                 validation_cas: ['ca-1', 'ca-2'],
                 allow_expired: false,
+                allow_unverifiable_revocation: false,
               },
               external_webhook_settings: {
                 name: 'combined-webhook',
@@ -620,6 +624,7 @@ describe('dms-api', () => {
                 chain_level_validation: -1,
                 validation_cas: ['ca-1'],
                 allow_expired: true,
+                allow_unverifiable_revocation: false,
               },
               external_webhook_settings: {
                 name: 'my-webhook',
@@ -675,6 +680,7 @@ describe('dms-api', () => {
                 chain_level_validation: 1,
                 validation_cas: ['ca-1'],
                 allow_expired: false,
+                allow_unverifiable_revocation: false,
               },
               external_webhook_settings: {
                 name: 'oidc-webhook',

@@ -35,6 +35,8 @@ export interface ApiRaEstSettings {
         chain_level_validation: number;
         validation_cas: string[];
         allow_expired: boolean;
+        /** Accept certificates that list no OCSP/CRL endpoint and are not managed by Lamassu (fail-open for the check). */
+        allow_unverifiable_revocation: boolean;
     };
     external_webhook_settings?: {
         name: string;

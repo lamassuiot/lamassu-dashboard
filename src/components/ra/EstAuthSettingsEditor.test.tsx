@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDefaultEstAuthSettings } from '@/lib/dms-form';
@@ -63,6 +63,40 @@ describe('EstAuthSettingsEditor', () => {
     renderEditor({ value: { ...createDefaultEstAuthSettings(), auth_mode: 'NO_AUTH' } });
 
     expect(screen.queryByText('Validation CAs')).toBeNull();
-    expect(screen.getByText('No authentication: any device can request a certificate.')).toBeTruthy();
+    expect(screen.getByText('No authentication')).toBeTruthy();
+    expect(screen.getByText('Any device can request a certificate.')).toBeTruthy();
+  });
+
+  it('toggles allow_unverifiable_revocation, off by default', () => {
+    const onChange = vi.fn();
+    renderEditor({ onChange });
+
+    const toggle = screen.getByRole('switch', { name: 'Allow certificates without revocation information' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByText('Revocation will not be verified')).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      client_certificate_settings: expect.objectContaining({ allow_unverifiable_revocation: true }),
+    }));
+  });
+
+  it('warns when allow_unverifiable_revocation is enabled', () => {
+    const value = createDefaultEstAuthSettings();
+    value.client_certificate_settings!.allow_unverifiable_revocation = true;
+    renderEditor({ value });
+
+    expect(screen.getByText('Revocation will not be verified')).toBeTruthy();
+  });
+
+  it('warns when expired certificates are allowed', () => {
+    const value = createDefaultEstAuthSettings();
+    renderEditor({ value });
+    expect(screen.queryByText('Expired certificates will be accepted')).toBeNull();
+
+    cleanup();
+    value.client_certificate_settings!.allow_expired = true;
+    renderEditor({ value });
+    expect(screen.getByText('Expired certificates will be accepted')).toBeTruthy();
   });
 });
