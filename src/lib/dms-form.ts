@@ -17,6 +17,7 @@ export function createDefaultEstAuthSettings(allowExpired = false): ApiRaEstSett
       chain_level_validation: -1,
       validation_cas: [],
       allow_expired: allowExpired,
+      allow_unverifiable_revocation: false,
     },
     external_webhook_settings: {
       name: '',

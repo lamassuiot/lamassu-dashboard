@@ -86,6 +86,10 @@ export function ReenrollmentSection({ values, update, issues, deps, effectivePro
             description="Let devices re-enroll with a certificate that has already expired."
             checked={values.allowExpiredRenewal}
             onCheckedChange={allowExpiredRenewal => update({ allowExpiredRenewal })}
+            warning={values.allowExpiredRenewal ? {
+              title: 'Expired certificates can be renewed',
+              description: 'A device can obtain a new certificate with one that has already expired, so a lost or compromised certificate can be renewed indefinitely.',
+            } : null}
           />
         </SettingSwitchList>
       </RaFieldGroup>

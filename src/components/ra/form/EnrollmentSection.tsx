@@ -32,6 +32,10 @@ export function EnrollmentSection({ values, update, issues, deps }: RaSectionPro
             description="Reject Certificate Signing Requests whose signature does not match their public key."
             checked={values.verifyCsrSignature}
             onCheckedChange={verifyCsrSignature => update({ verifyCsrSignature })}
+            warning={values.verifyCsrSignature ? null : {
+              title: 'CSR signatures will not be verified',
+              description: 'The requester is not required to prove it holds the private key of the public key in its CSR.',
+            }}
           />
           <SettingSwitch
             id="allowReplaceableEnrollment"

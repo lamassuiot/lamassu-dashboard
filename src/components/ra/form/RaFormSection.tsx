@@ -3,6 +3,7 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
@@ -118,16 +119,27 @@ interface SettingSwitchProps {
   description: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  /** Shown under the row while the setting is in its insecure state; the caller decides when that is. */
+  warning?: { title: string; description: string } | null;
 }
 
-export function SettingSwitch({ id, label, description, checked, onCheckedChange }: SettingSwitchProps) {
+export function SettingSwitch({ id, label, description, checked, onCheckedChange, warning }: SettingSwitchProps) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
-      <div className="space-y-0.5">
-        <Label htmlFor={id}>{label}</Label>
-        <p id={`${id}-description`} className="text-xs text-muted-foreground">{description}</p>
+    <div className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-0.5">
+          <Label htmlFor={id}>{label}</Label>
+          <p id={`${id}-description`} className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} aria-describedby={`${id}-description`} />
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} aria-describedby={`${id}-description`} />
+      {warning ? (
+        <Alert variant="warning" className="mt-3">
+          <AlertTriangle />
+          <AlertTitle>{warning.title}</AlertTitle>
+          <AlertDescription>{warning.description}</AlertDescription>
+        </Alert>
+      ) : null}
     </div>
   );
 }

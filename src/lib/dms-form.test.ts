@@ -97,6 +97,36 @@ describe('DMS form helpers', () => {
       .external_webhook_settings?.method).toBe('PUT');
   });
 
+  it('defaults allow_unverifiable_revocation to false for settings stored without it', () => {
+    const stored = {
+      auth_mode: 'CLIENT_CERTIFICATE',
+      client_certificate_settings: { chain_level_validation: -1, validation_cas: ['ca-1'], allow_expired: true },
+    } as unknown as ApiRaEstSettings;
+
+    const settings = normalizeEstAuthSettings(stored);
+
+    expect(settings.client_certificate_settings?.allow_unverifiable_revocation).toBe(false);
+    expect(settings.client_certificate_settings?.allow_expired).toBe(true);
+    expect(normalizeEstAuthSettings(undefined).client_certificate_settings?.allow_unverifiable_revocation).toBe(false);
+  });
+
+  it('keeps allow_unverifiable_revocation when it is stored enabled and sends it back unchanged', () => {
+    const stored = {
+      auth_mode: 'CLIENT_CERTIFICATE',
+      client_certificate_settings: {
+        chain_level_validation: -1,
+        validation_cas: ['ca-1'],
+        allow_expired: false,
+        allow_unverifiable_revocation: true,
+      },
+    } as ApiRaEstSettings;
+
+    const loaded = normalizeEstAuthSettings(stored);
+    expect(loaded.client_certificate_settings?.allow_unverifiable_revocation).toBe(true);
+
+    expect(toApiEstAuthSettings(loaded).client_certificate_settings?.allow_unverifiable_revocation).toBe(true);
+  });
+
   it('requires enrollment validation CAs for client-certificate authentication', () => {
     const settings = normalizeEstAuthSettings(undefined);
     expect(validateEstAuthSettings('Enrollment authentication', settings, true))

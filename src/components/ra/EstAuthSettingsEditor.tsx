@@ -9,6 +9,7 @@ import { authModeFor, usesClientCertificate, usesWebhook } from '@/lib/ra-form';
 import { getWebhookAuthOptionErrors, getWebhookUrlError } from '@/lib/webhook-config';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,7 @@ export function EstAuthSettingsEditor({
     chain_level_validation: -1,
     validation_cas: [],
     allow_expired: false,
+    allow_unverifiable_revocation: false,
   };
   const webhook = value.external_webhook_settings || {
     name: '',
@@ -170,6 +172,21 @@ export function EstAuthSettingsEditor({
             description="Accept an expired certificate during authentication."
             checked={clientSettings.allow_expired}
             onCheckedChange={(checked) => updateClientSettings({ allow_expired: checked })}
+            warning={clientSettings.allow_expired ? {
+              title: 'Expired certificates will be accepted',
+              description: 'A device can authenticate with a certificate whose validity period has ended, so an old or leaked certificate keeps working.',
+            } : null}
+          />
+          <SettingSwitch
+            id={`${idPrefix}-allow-unverifiable-revocation`}
+            label="Allow certificates without revocation information"
+            description="Accept certificates, and intermediate CAs of the chain, that Lamassu does not manage and that list no OCSP or CRL endpoint. Unreachable, stale or inconclusive answers are always rejected."
+            checked={clientSettings.allow_unverifiable_revocation ?? false}
+            onCheckedChange={(checked) => updateClientSettings({ allow_unverifiable_revocation: checked })}
+            warning={clientSettings.allow_unverifiable_revocation ? {
+              title: 'Revocation will not be verified',
+              description: 'A revoked certificate with no OCSP or CRL endpoint, and not managed by Lamassu, will be accepted. This also applies to the intermediate CAs of the chain.',
+            } : null}
           />
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-chain-level`}>Chain validation level</Label>
@@ -240,10 +257,11 @@ export function EstAuthSettingsEditor({
       </div>
 
       {value.auth_mode === 'NO_AUTH' ? (
-        <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
-          <AlertTriangle className="mt-px size-3.5 shrink-0" />
-          <span>No authentication: any device can request a certificate.</span>
-        </p>
+        <Alert variant="warning">
+          <AlertTriangle />
+          <AlertTitle>No authentication</AlertTitle>
+          <AlertDescription>Any device can request a certificate.</AlertDescription>
+        </Alert>
       ) : null}
       {value.auth_mode === 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' ? (
         <p className="text-xs text-muted-foreground">Both checks must pass.</p>
