@@ -10,7 +10,7 @@ import { RevocationModal } from '@/components/shared/RevocationModal';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchDeviceEventsPaginated, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
+import { fetchDeviceEventsPaginated, MAX_MERGED_DEVICE_EVENTS, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
 import { createCoalescingRefresher } from '@/lib/coalescing-refresher';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -51,6 +51,11 @@ function getSseFatalReason(status: number): string {
     case 501: return 'not enabled on the server';
     default: return `error ${status}`;
   }
+}
+
+function getSseStatusText(fatalStatus: number | null, isConnected: boolean): string {
+  if (fatalStatus !== null) return `Live updates unavailable: ${getSseFatalReason(fatalStatus)}`;
+  return isConnected ? 'Connected' : 'Disconnected';
 }
 
 function getTimelineEventTitle(event: ApiDeviceEventItem): string {
@@ -173,6 +178,8 @@ export default function TimelinePage() {
     let cancelled = false;
     let refresher: ReturnType<typeof createCoalescingRefresher> | null = null;
     let controller: AbortController | null = null;
+    // Set when the first page failed: the first successful refresh then also provides the Load more bookmark.
+    let initialLoadFailed = false;
 
     // The stream is only a change signal: re-read the newest events and the device itself.
     // A failure on either side leaves the current state untouched.
@@ -185,7 +192,15 @@ export default function TimelinePage() {
         reloadDeviceSilentlyRef.current(),
       ]);
       if (cancelled || events.status !== 'fulfilled') return;
-      setTimelineRawEvents(prev => mergeDeviceEvents(prev, events.value.events));
+      const { events: fresh, next, hasMore } = events.value;
+      // Never shrink the list: rows the user loaded with "Load more" stay, the cap only limits the live window.
+      setTimelineRawEvents(prev => mergeDeviceEvents(prev, fresh, Math.max(MAX_MERGED_DEVICE_EVENTS, prev.length)));
+      if (initialLoadFailed) {
+        // Without a first page there is no bookmark yet. Once one exists it is only advanced by "Load more".
+        initialLoadFailed = false;
+        setTimelineNextBookmark(next);
+        setHasMoreTimelineEvents(hasMore);
+      }
     };
 
     const initRealtime = async () => {
@@ -199,7 +214,10 @@ export default function TimelinePage() {
         setTimelineNextBookmark(result.next);
         setHasMoreTimelineEvents(result.hasMore);
       } catch {
-        if (!cancelled) { setTimelineRawEvents([]); setTimelineNextBookmark(null); setHasMoreTimelineEvents(false); }
+        if (!cancelled) {
+          initialLoadFailed = true;
+          setTimelineRawEvents([]); setTimelineNextBookmark(null); setHasMoreTimelineEvents(false);
+        }
       } finally {
         if (!cancelled) setIsTimelineLoading(false);
       }
@@ -346,8 +364,10 @@ export default function TimelinePage() {
       const result = await fetchDeviceEventsPaginated({
         deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: timelineNextBookmark,
       });
+      // In live mode the page is merged without the cap: rows the user asked for must stay visible, or the
+      // bookmark would advance past history that is never shown.
       setTimelineRawEvents(prev => timelineMode === 'realtime'
-        ? mergeDeviceEvents(prev, result.events)
+        ? mergeDeviceEvents(prev, result.events, Infinity)
         : [...prev, ...result.events]);
       setTimelineNextBookmark(result.next);
       setHasMoreTimelineEvents(result.hasMore);
@@ -421,11 +441,7 @@ export default function TimelinePage() {
           {timelineMode === 'realtime' && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className={cn('h-1.5 w-1.5 rounded-full', isSseConnected && sseFatalStatus === null ? 'bg-emerald-500 animate-pulse' : 'bg-destructive')} />
-              <span>
-                {sseFatalStatus !== null
-                  ? `Live updates unavailable: ${getSseFatalReason(sseFatalStatus)}`
-                  : isSseConnected ? 'Connected' : 'Disconnected'}
-              </span>
+              <span>{getSseStatusText(sseFatalStatus, isSseConnected)}</span>
             </div>
           )}
         </div>

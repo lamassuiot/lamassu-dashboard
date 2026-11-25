@@ -67,6 +67,8 @@ export interface PaginatedDeviceEventsResponse {
 }
 
 
+export const MAX_MERGED_DEVICE_EVENTS = 500;
+
 /**
  * Merges freshly fetched events into the already loaded ones.
  * Incoming wins on equal `id`; the result is sorted newest first and capped at `max`.
@@ -75,7 +77,7 @@ export interface PaginatedDeviceEventsResponse {
 export function mergeDeviceEvents(
   current: ApiDeviceEventItem[],
   incoming: ApiDeviceEventItem[],
-  max = 500,
+  max = MAX_MERGED_DEVICE_EVENTS,
 ): ApiDeviceEventItem[] {
   const byId = new Map<string, ApiDeviceEventItem>();
   for (const event of current) byId.set(event.id, event);
@@ -88,7 +90,9 @@ export function mergeDeviceEvents(
       const tb = time(b);
       const aBad = Number.isNaN(ta);
       const bBad = Number.isNaN(tb);
-      if (aBad || bBad) return aBad === bBad ? 0 : aBad ? 1 : -1;
+      if (aBad && bBad) return 0;
+      if (aBad) return 1;
+      if (bBad) return -1;
       return tb - ta;
     })
     .slice(0, max);
@@ -210,6 +214,27 @@ export function isFatalSseStatus(status: number): boolean {
   return status >= 400 && status < 500 && status !== 401 && status !== 408 && status !== 429;
 }
 
+type FailedSseResponseAction =
+  | { kind: 'fatal' }
+  | { kind: 'retry-after'; waitMs: number }
+  | { kind: 'backoff' };
+
+/** Decides what to do after a non-2xx SSE response: stop, wait the advertised `Retry-After`, or back off. */
+function classifyFailedSseResponse(response: Response): FailedSseResponseAction {
+  const { status } = response;
+  if (isFatalSseStatus(status)) return { kind: 'fatal' };
+  if (status === 503 || status === 429) {
+    const waitMs = parseRetryAfterMs(response.headers.get('Retry-After'));
+    if (waitMs !== null) return { kind: 'retry-after', waitMs };
+  }
+  return { kind: 'backoff' };
+}
+
+/** True when a stream started at `startedAt` stayed open long enough to be considered healthy. */
+function isHealthyStream(startedAt: number | null): boolean {
+  return startedAt !== null && Date.now() - startedAt >= SSE_MIN_STREAM_MS;
+}
+
 /** Reads the SSE stream until it ends, calling `onChange` once per `data:` line without parsing its content. */
 async function readSseEvents(
   reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -309,6 +334,18 @@ export function subscribeToDeviceEventsSSE({
     }, waitMs);
   };
 
+  // Stream ended gracefully. The server closes it at its max lifetime, so a long stream reconnects at once.
+  // A short one goes through the backoff so a proxy closing streams immediately cannot cause a tight loop.
+  const reconnectAfterGracefulEnd = (streamStartedAt: number, retryDelay: number) => {
+    if (controller.signal.aborted) return;
+    if (isHealthyStream(streamStartedAt)) {
+      connect(SSE_INITIAL_BACKOFF_MS);
+      return;
+    }
+    setConnected(false);
+    scheduleConnect(retryDelay, nextBackoff(retryDelay));
+  };
+
   const connect = (retryDelay = SSE_INITIAL_BACKOFF_MS) => {
     if (controller.signal.aborted) return;
 
@@ -331,20 +368,17 @@ export function subscribeToDeviceEventsSSE({
         });
 
         if (!response.ok) {
-          const { status } = response;
-          if (isFatalSseStatus(status)) {
-            onFatalError?.(status);
+          const action = classifyFailedSseResponse(response);
+          if (action.kind === 'fatal') {
+            onFatalError?.(response.status);
             return;
           }
-          if (status === 503 || status === 429) {
-            const retryAfter = parseRetryAfterMs(response.headers.get('Retry-After'));
-            if (retryAfter !== null) {
-              setConnected(false);
-              scheduleConnect(retryAfter, retryDelay);
-              return;
-            }
+          if (action.kind === 'retry-after') {
+            setConnected(false);
+            scheduleConnect(action.waitMs, retryDelay);
+            return;
           }
-          throw new Error(`SSE connection failed: ${status} ${response.statusText}`);
+          throw new Error(`SSE connection failed: ${response.status} ${response.statusText}`);
         }
 
         const reader = response.body?.getReader();
@@ -356,24 +390,12 @@ export function subscribeToDeviceEventsSSE({
 
         await readSseEvents(reader, safeOnChange);
 
-        // Stream ended gracefully. The server closes it at its max lifetime, so a long stream reconnects at once.
-        // A short one goes through the backoff so a proxy closing streams immediately cannot cause a tight loop.
-        if (!controller.signal.aborted) {
-          if (Date.now() - streamStartedAt >= SSE_MIN_STREAM_MS) {
-            connect(SSE_INITIAL_BACKOFF_MS);
-          } else {
-            setConnected(false);
-            scheduleConnect(retryDelay, nextBackoff(retryDelay));
-          }
-        }
+        reconnectAfterGracefulEnd(streamStartedAt, retryDelay);
       } catch {
         if (controller.signal.aborted) return;
         setConnected(false);
         // Reconnect with backoff (max 10s). A stream that stayed open long enough was healthy, so start over.
-        const delay =
-          streamStartedAt !== null && Date.now() - streamStartedAt >= SSE_MIN_STREAM_MS
-            ? SSE_INITIAL_BACKOFF_MS
-            : retryDelay;
+        const delay = isHealthyStream(streamStartedAt) ? SSE_INITIAL_BACKOFF_MS : retryDelay;
         scheduleConnect(delay, nextBackoff(delay));
       }
     })();

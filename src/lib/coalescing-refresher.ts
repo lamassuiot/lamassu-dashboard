@@ -19,13 +19,8 @@ export function createCoalescingRefresher(
     if (stopped || !pending || inFlight) return
     pending = false
     inFlight = true
-    let run: Promise<void>
-    try {
-      run = Promise.resolve(refresh())
-    } catch {
-      run = Promise.resolve()
-    }
-    run
+    // The executor turns a synchronous throw from `refresh` into a rejection, which is swallowed below.
+    new Promise<void>((resolve) => resolve(refresh()))
       .catch(() => {})
       .finally(() => {
         inFlight = false

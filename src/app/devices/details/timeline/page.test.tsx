@@ -77,6 +77,7 @@ describe('TimelinePage live mode', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    localStorage.clear()
     localStorage.setItem('lamassu-timeline-mode', 'realtime')
     deviceDetails.deviceId = 'dev-1'
     controller = new AbortController()
@@ -214,6 +215,63 @@ describe('TimelinePage live mode', () => {
     await flush()
 
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('Load more keeps every explicitly loaded row past the 500-row cap, and a refresh keeps them too', async () => {
+    localStorage.setItem('lamassu-timeline-page-size', '50')
+    fetchDeviceEventsPaginated.mockImplementation(fakeSource(700))
+    render(<TimelinePage />)
+    await flush()
+    expect(screen.getAllByRole('listitem')).toHaveLength(50)
+
+    // nine pages bring the list to the 500-row cap; the tenth must still be shown
+    for (let i = 0; i < 10; i++) {
+      fireEvent.click(screen.getByText('Load more'))
+      await flush()
+    }
+    expect(screen.getAllByRole('listitem')).toHaveLength(550)
+
+    act(() => args.onChange())
+    await tick(500)
+    expect(screen.getAllByRole('listitem')).toHaveLength(550)
+
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+    expect(screen.getAllByRole('listitem')).toHaveLength(600)
+  })
+
+  it('offers Load more after a refresh when the first live request failed', async () => {
+    fetchDeviceEventsPaginated.mockRejectedValueOnce(new Error('boom'))
+    render(<TimelinePage />)
+    await flush()
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+
+    fetchDeviceEventsPaginated.mockResolvedValue({ events: [created, shadow], next: 'b', hasMore: true })
+    act(() => args.onChange())
+    await tick(500)
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    fetchDeviceEventsPaginated.mockResolvedValue({ events: [older], next: null, hasMore: false })
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ bookmark: 'b' }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
+
+  it('does not replace the bookmark from the first load when a later refresh succeeds', async () => {
+    fetchDeviceEventsPaginated.mockResolvedValueOnce({ events: [created, shadow], next: 'b', hasMore: true })
+    render(<TimelinePage />)
+    await flush()
+
+    fetchDeviceEventsPaginated.mockResolvedValue({ events: [shadow], next: 'c', hasMore: false })
+    act(() => args.onChange())
+    await tick(500)
+    expect(screen.getByText('Load more')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ bookmark: 'b' }))
   })
 
   it('discards a refresh that settles after the device changed', async () => {
