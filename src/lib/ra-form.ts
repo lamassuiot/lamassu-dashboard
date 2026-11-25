@@ -387,3 +387,31 @@ export function validateRaForm(values: RaFormValues, context: RaFormValidationCo
 export function isIssueVisible(issue: RaFormIssue, submitAttempted: boolean, touched: ReadonlySet<RaFormField>): boolean {
   return issue.kind === 'invalid' || submitAttempted || (!!issue.field && touched.has(issue.field));
 }
+
+/** Another RA on the same Enrollment CA. */
+export interface RaOnSameCa {
+  id: string;
+  name: string;
+  /** Policies its authz principal grants, empty when it has none or the principal is off. */
+  policyIds: string[];
+}
+
+/**
+ * How an Enrollment CA is shared with other RAs. An authz principal trusts every certificate the CA signs, so the
+ * certificates of every RA on the CA authenticate with the policies of every principal on it. Read from the stored
+ * RAs, which can lag behind what authz holds: the form only warns with it.
+ */
+export function enrollmentCaSharing(
+  ras: readonly ApiRaItem[],
+  caId: string | null,
+  selfId: string,
+): { principalsWithPolicies: RaOnSameCa[]; otherRas: RaOnSameCa[] } {
+  if (!caId) return { principalsWithPolicies: [], otherRas: [] };
+  const otherRas = ras
+    .filter(ra => ra.id !== selfId && ra.settings.enrollment_settings?.enrollment_ca === caId)
+    .map(ra => {
+      const principal = ra.settings.authz_principal_settings;
+      return { id: ra.id, name: ra.name, policyIds: principal?.enabled ? principal.policy_ids ?? [] : [] };
+    });
+  return { principalsWithPolicies: otherRas.filter(ra => ra.policyIds.length > 0), otherRas };
+}

@@ -5,6 +5,7 @@ import {
   authModeFor,
   buildRaPayload,
   createDefaultRaFormValues,
+  enrollmentCaSharing,
   isIssueVisible,
   raFormValuesFromApi,
   slugifyRaId,
@@ -209,5 +210,44 @@ describe('validateRaForm authz principal', () => {
     it('accepts unique names without inner whitespace', () => {
       expect(attributeIssues(' client_id ', 'device_id')).toEqual([]);
     });
+  });
+});
+
+describe('enrollmentCaSharing', () => {
+  function ra(id: string, caId: string, principal?: { enabled: boolean; policy_ids?: string[] }): ApiRaItem {
+    const base = buildRaPayload(validValues({ id, name: `RA ${id}`, enrollmentCaId: caId }));
+    return {
+      ...base,
+      settings: { ...base.settings, authz_principal_settings: principal },
+      creation_ts: '2026-01-01T00:00:00Z',
+    };
+  }
+
+  const ras = [
+    ra('self', 'ca-x', { enabled: true, policy_ids: ['p-self'] }),
+    ra('with-policies', 'ca-x', { enabled: true, policy_ids: ['p1', 'p2'] }),
+    ra('off', 'ca-x', { enabled: false, policy_ids: ['p3'] }),
+    ra('no-policies', 'ca-x', { enabled: true, policy_ids: [] }),
+    ra('legacy', 'ca-x'),
+    ra('elsewhere', 'ca-y', { enabled: true, policy_ids: ['p4'] }),
+  ];
+
+  it('lists the other RAs on the CA whose principal grants policies', () => {
+    const sharing = enrollmentCaSharing(ras, 'ca-x', 'self');
+    expect(sharing.principalsWithPolicies).toEqual([{ id: 'with-policies', name: 'RA with-policies', policyIds: ['p1', 'p2'] }]);
+  });
+
+  it('lists every other RA on the CA, whatever its principal', () => {
+    const sharing = enrollmentCaSharing(ras, 'ca-x', 'self');
+    expect(sharing.otherRas.map(other => other.id)).toEqual(['with-policies', 'off', 'no-policies', 'legacy']);
+  });
+
+  it('shares nothing without a CA or with an unused one', () => {
+    expect(enrollmentCaSharing(ras, null, 'self')).toEqual({ principalsWithPolicies: [], otherRas: [] });
+    expect(enrollmentCaSharing(ras, 'ca-z', 'self')).toEqual({ principalsWithPolicies: [], otherRas: [] });
+  });
+
+  it('counts the RA being created, whose id is still empty, against every RA', () => {
+    expect(enrollmentCaSharing(ras, 'ca-y', '').otherRas.map(other => other.id)).toEqual(['elsewhere']);
   });
 });

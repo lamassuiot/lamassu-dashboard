@@ -1,17 +1,21 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { IdentifierDisplayProvider } from '@/contexts/IdentifierDisplayContext';
 import { PlatformAccessProvider } from '@/contexts/PlatformAccessContext';
-import { listPolicies } from '@/lib/authz-api';
-import { createDefaultRaFormValues, type RaFormIssue, type RaFormValues } from '@/lib/ra-form';
+import { getPolicy, listPolicies } from '@/lib/authz-api';
+import { fetchAllRegistrationAuthorities, type ApiRaItem } from '@/lib/dms-api';
+import { buildRaPayload, createDefaultRaFormValues, type RaFormIssue, type RaFormValues } from '@/lib/ra-form';
 import type { Policy } from '@/types/authz';
 import { IssuanceSection } from './IssuanceSection';
 import type { RaFormDependencies } from './types';
 
-vi.mock('@/lib/authz-api', () => ({ listPolicies: vi.fn() }));
+vi.mock('@/lib/authz-api', () => ({ listPolicies: vi.fn(), getPolicy: vi.fn() }));
+vi.mock('@/lib/dms-api', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/dms-api')>()), fetchAllRegistrationAuthorities: vi.fn() }));
 
 const policy = (id: string, name: string): Policy => ({ id, name, description: '', rules: [], created_at: '', updated_at: '' });
+const policies: Record<string, Policy> = { 'policy-a': policy('policy-a', 'Device SBI Client'), 'policy-b': policy('policy-b', 'Fleet Reader') };
 
 const deps: RaFormDependencies = {
   cas: [],
@@ -26,9 +30,19 @@ const deps: RaFormDependencies = {
 const canGrant = { 'authz.public.principal_policy': ['grant'] };
 const cannotGrant = { 'pki.dmsmanager.dms': ['create', 'update'] };
 
+function storedRa(id: string, caId: string, policyIds: string[] | null): ApiRaItem {
+  const base = buildRaPayload({ ...createDefaultRaFormValues(0), id, name: `RA ${id}`, enrollmentCaId: caId, createAuthzPrincipal: policyIds !== null, authzPolicyIds: policyIds ?? [] });
+  return { ...base, creation_ts: '2026-01-01T00:00:00Z' };
+}
+
 describe('IssuanceSection', () => {
   beforeEach(() => {
-    vi.mocked(listPolicies).mockReset().mockResolvedValue({ list: [policy('policy-a', 'Device SBI Client')], next: '' });
+    vi.mocked(listPolicies).mockReset().mockResolvedValue({ list: Object.values(policies), next: '' });
+    vi.mocked(getPolicy).mockReset().mockImplementation(async id => {
+      if (!policies[id]) throw new Error('not found');
+      return policies[id];
+    });
+    vi.mocked(fetchAllRegistrationAuthorities).mockReset().mockResolvedValue([]);
   });
 
   const principalOn = (overrides: Partial<RaFormValues> = {}): RaFormValues => ({ ...createDefaultRaFormValues(0), createAuthzPrincipal: true, ...overrides });
@@ -36,14 +50,15 @@ describe('IssuanceSection', () => {
     const update = vi.fn();
     const touch = vi.fn();
     render(
-      <PlatformAccessProvider globalCapabilities={capabilities}>
-        <IssuanceSection values={values} update={update} issues={issues} touch={touch} deps={deps} inlineProfileForm={{} as never} />
-      </PlatformAccessProvider>,
+      <IdentifierDisplayProvider>
+        <PlatformAccessProvider globalCapabilities={capabilities}>
+          <IssuanceSection values={values} update={update} issues={issues} touch={touch} deps={deps} inlineProfileForm={{} as never} />
+        </PlatformAccessProvider>
+      </IdentifierDisplayProvider>,
     );
     return { update, touch };
   };
-  const policyCheckbox = (name: string) => screen.findByRole('checkbox', { name });
-  const policyNames = () => screen.getAllByRole('checkbox').map(checkbox => document.querySelector(`label[for="${checkbox.id}"]`)?.textContent);
+  const addPoliciesButton = () => screen.getByRole('button', { name: 'Add policies' }) as HTMLButtonElement;
 
   it('turns on the authz principal of the RA', () => {
     const { update } = renderWith(null, createDefaultRaFormValues(0));
@@ -56,144 +71,155 @@ describe('IssuanceSection', () => {
     expect(update).toHaveBeenCalledWith({ createAuthzPrincipal: true });
   });
 
-  it('shows the principal settings under the switch that controls them', async () => {
+  it('shows the principal settings under the switch that controls them', () => {
     renderWith(null, principalOn());
 
     const toggle = screen.getByRole('switch', { name: 'Create authz principal' });
     expect(toggle.getAttribute('aria-controls')).toBe('createAuthzPrincipal-settings');
-    expect(document.getElementById('createAuthzPrincipal-settings')).toContainElement(await policyCheckbox('Device SBI Client'));
+    expect(document.getElementById('createAuthzPrincipal-settings')).toContainElement(addPoliciesButton());
   });
 
   it('hides the policies while the principal is off', () => {
     renderWith(null, createDefaultRaFormValues(0));
 
     expect(screen.queryByText('Policies')).toBeNull();
-    expect(listPolicies).not.toHaveBeenCalled();
+    expect(getPolicy).not.toHaveBeenCalled();
   });
 
-  it('warns that every certificate of the Enrollment CA gets the policies', async () => {
+  it('warns that every certificate of the Enrollment CA gets the policies', () => {
     renderWith(canGrant, principalOn());
 
-    await policyCheckbox('Device SBI Client');
     expect(screen.getByText(/Every certificate signed by the Enrollment CA gets these policies/).textContent).toMatch(/this RA.*any other RA on that CA.*anyone else/);
   });
 
-  it('lets a user allowed to grant policies pick those of the principal', async () => {
-    const { update } = renderWith(canGrant, principalOn());
+  it('says a principal without policies allows nothing', () => {
+    renderWith(canGrant, principalOn());
 
-    fireEvent.click(await policyCheckbox('Device SBI Client'));
-    expect(update).toHaveBeenCalledWith({ authzPolicyIds: ['policy-a'] });
+    expect(screen.getByText('No policies: devices authenticate but are allowed nothing.')).toBeTruthy();
+  });
+
+  it('shows the selected policies by name', async () => {
+    renderWith(canGrant, principalOn({ authzPolicyIds: ['policy-a'] }));
+
+    const list = screen.getByRole('group', { name: 'Policies' });
+    expect(await within(list).findByText('Device SBI Client')).toBeTruthy();
+    expect(within(list).getByText('policy-a')).toBeTruthy();
+  });
+
+  it('keeps a policy that can not be read, so it can be removed', async () => {
+    const { update } = renderWith(cannotGrant, principalOn({ authzPolicyIds: ['deleted-policy'] }));
+
+    expect(await screen.findByText('deleted-policy · not found or not readable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove deleted-policy' }));
+    expect(update).toHaveBeenCalledWith({ authzPolicyIds: [] });
+  });
+
+  it('lets a user allowed to grant policies add them from the policy sheet', async () => {
+    const { update } = renderWith(canGrant, principalOn({ authzPolicyIds: ['policy-a'] }));
+
+    fireEvent.click(addPoliciesButton());
+    const sheet = await screen.findByRole('dialog', { name: 'Add Policies' });
+    // A policy the principal already has is not offered again.
+    await within(sheet).findByText('Fleet Reader');
+    expect(within(sheet).queryByText('Device SBI Client')).toBeNull();
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Select Fleet Reader' }));
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Add Policy' }));
+
+    expect(update).toHaveBeenCalledWith({ authzPolicyIds: ['policy-a', 'policy-b'] });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Policies' })).toBeNull());
 
     fireEvent.click(screen.getByRole('button', { name: 'Add attribute' }));
     expect(update).toHaveBeenCalledWith({ authzAttributes: [{ name: '', source: 'x509.subject.cn' }] });
     expect(screen.queryByText(/needs permission to grant authz policies/)).toBeNull();
   });
 
-  it('keeps the policies editable while authentication is disabled', async () => {
+  it('keeps the policies editable while authentication is disabled', () => {
     renderWith(null, principalOn());
 
-    expect((await policyCheckbox('Device SBI Client') as HTMLButtonElement).disabled).toBe(false);
+    expect(addPoliciesButton().disabled).toBe(false);
   });
 
   describe('without permission to grant authz policies', () => {
     it('lets the user remove a policy of the principal', async () => {
-      const { update } = renderWith(cannotGrant, principalOn({ authzPolicyIds: ['policy-a'] }));
+      const { update } = renderWith(cannotGrant, principalOn({ authzPolicyIds: ['policy-a', 'policy-b'] }));
 
-      const checkbox = await policyCheckbox('Device SBI Client');
-      expect(checkbox.getAttribute('aria-checked')).toBe('true');
-      expect((checkbox as HTMLButtonElement).disabled).toBe(false);
-      fireEvent.click(checkbox);
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove Device SBI Client' }));
 
-      expect(update).toHaveBeenCalledWith({ authzPolicyIds: [] });
+      expect(update).toHaveBeenCalledWith({ authzPolicyIds: ['policy-b'] });
     });
 
-    it('does not let the user add a policy', async () => {
-      const { update } = renderWith(cannotGrant, principalOn());
+    it('does not let the user add a policy', () => {
+      renderWith(cannotGrant, principalOn());
 
-      const checkbox = await policyCheckbox('Device SBI Client');
-      expect(checkbox.getAttribute('aria-checked')).toBe('false');
-      expect((checkbox as HTMLButtonElement).disabled).toBe(true);
-      fireEvent.click(checkbox);
-
-      expect(update).not.toHaveBeenCalled();
+      expect(addPoliciesButton().disabled).toBe(true);
     });
 
-    it('shows the subject attributes read-only', async () => {
+    it('shows the subject attributes read-only', () => {
       renderWith(cannotGrant, principalOn({ authzAttributes: [{ name: 'client_id', source: 'x509.subject.cn' }] }));
 
-      await policyCheckbox('Device SBI Client');
       expect((screen.getByRole('textbox', { name: 'Attribute 1 name' }) as HTMLInputElement).disabled).toBe(true);
       expect((screen.getByRole('combobox', { name: 'Attribute 1 source' }) as HTMLButtonElement).disabled).toBe(true);
       expect((screen.getByRole('button', { name: 'Remove attribute 1' }) as HTMLButtonElement).disabled).toBe(true);
       expect((screen.getByRole('button', { name: 'Add attribute' }) as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it('explains what the user can and cannot change', async () => {
+    it('explains what the user can and cannot change', () => {
       renderWith(cannotGrant, principalOn());
 
-      await policyCheckbox('Device SBI Client');
       const note = screen.getByText(/needs permission to grant authz policies/).textContent;
       expect(note).toMatch(/You can remove policies, turn the principal off or turn it on without policies\./);
       expect(note).toMatch(/Adding policies, turning the principal on with policies, changing subject attributes or changing the Enrollment CA while the principal is on/);
     });
   });
 
-  describe('policy list', () => {
-    it('follows the pages of the policy list', async () => {
-      vi.mocked(listPolicies)
-        .mockResolvedValueOnce({ list: [policy('policy-a', 'Device SBI Client')], next: 'page-2' })
-        .mockResolvedValueOnce({ list: [policy('policy-b', 'Fleet Reader')], next: '' });
-      renderWith(canGrant, principalOn());
+  describe('other RAs on the Enrollment CA', () => {
+    it('warns that the certificates of this RA get the policies of another RA on the CA', async () => {
+      vi.mocked(fetchAllRegistrationAuthorities).mockResolvedValue([storedRa('ra-a', 'ca-x', ['policy-a']), storedRa('ra-c', 'ca-y', ['policy-a'])]);
+      renderWith(cannotGrant, { ...createDefaultRaFormValues(0), id: 'ra-b', enrollmentCaId: 'ca-x' });
 
-      expect(await policyCheckbox('Fleet Reader')).toBeTruthy();
-      expect(screen.getByRole('checkbox', { name: 'Device SBI Client' })).toBeTruthy();
-      expect(listPolicies).toHaveBeenCalledTimes(2);
-      expect(listPolicies).toHaveBeenLastCalledWith(expect.objectContaining({ bookmark: 'page-2' }));
+      const alert = await screen.findByText('Devices of this RA get the policies of another RA');
+      expect(alert.closest('[role="alert"]')?.textContent).toMatch(/The authz principal of "RA ra-a" trusts every certificate signed by this CA/);
     });
 
-    it('sorts the policies by name, ignoring case', async () => {
-      vi.mocked(listPolicies).mockResolvedValue({
-        list: [policy('p-1', 'beta'), policy('p-2', 'Gamma'), policy('p-3', 'alpha')],
-        next: '',
-      });
-      renderWith(canGrant, principalOn());
+    it('does not warn about an RA on the CA whose principal grants nothing', async () => {
+      vi.mocked(fetchAllRegistrationAuthorities).mockResolvedValue([storedRa('ra-a', 'ca-x', []), storedRa('ra-d', 'ca-x', null)]);
+      renderWith(cannotGrant, { ...createDefaultRaFormValues(0), id: 'ra-b', enrollmentCaId: 'ca-x' });
 
-      await policyCheckbox('Gamma');
-      expect(policyNames()).toEqual(['alpha', 'beta', 'Gamma']);
+      await waitFor(() => expect(fetchAllRegistrationAuthorities).toHaveBeenCalled());
+      expect(screen.queryByText('Devices of this RA get the policies of another RA')).toBeNull();
     });
 
-    it('keeps showing a selected policy that is not in the list, so it can be removed', async () => {
-      renderWith(cannotGrant, principalOn({ authzPolicyIds: ['deleted-policy'] }));
+    it('does not warn an RA about its own principal', async () => {
+      vi.mocked(fetchAllRegistrationAuthorities).mockResolvedValue([storedRa('ra-a', 'ca-x', ['policy-a'])]);
+      renderWith(canGrant, principalOn({ id: 'ra-a', enrollmentCaId: 'ca-x', authzPolicyIds: ['policy-a'] }));
 
-      const checkbox = await policyCheckbox('deleted-policy');
-      expect(checkbox.getAttribute('aria-checked')).toBe('true');
-      expect((checkbox as HTMLButtonElement).disabled).toBe(false);
-      expect(policyNames()).toEqual(['Device SBI Client', 'deleted-policy']);
+      await waitFor(() => expect(fetchAllRegistrationAuthorities).toHaveBeenCalled());
+      expect(screen.queryByText('Devices of this RA get the policies of another RA')).toBeNull();
+      expect(screen.queryByText('Other RAs share this Enrollment CA')).toBeNull();
     });
 
-    it('says when authz has no policies', async () => {
-      vi.mocked(listPolicies).mockResolvedValue({ list: [], next: '' });
-      renderWith(canGrant, principalOn());
+    it('warns that the policies of this principal reach the certificates of the other RAs on the CA', async () => {
+      vi.mocked(fetchAllRegistrationAuthorities).mockResolvedValue([storedRa('ra-b', 'ca-x', null), storedRa('ra-c', 'ca-x', null), storedRa('ra-d', 'ca-x', null)]);
+      renderWith(canGrant, principalOn({ id: 'ra-a', enrollmentCaId: 'ca-x', authzPolicyIds: ['policy-a'] }));
 
-      expect(await screen.findByText('No policies are defined in authz.')).toBeTruthy();
-      expect(screen.queryAllByRole('checkbox')).toEqual([]);
+      const alert = await screen.findByText('Other RAs share this Enrollment CA');
+      expect(alert.closest('[role="alert"]')?.textContent).toMatch(/Certificates issued by "RA ra-b", "RA ra-c" and 1 more also get these policies/);
     });
 
-    it('shows the selected policies instead of the empty state', async () => {
-      vi.mocked(listPolicies).mockResolvedValue({ list: [], next: '' });
-      renderWith(canGrant, principalOn({ authzPolicyIds: ['policy-a'] }));
+    it('does not warn about sharing the CA while the principal has no policies', async () => {
+      vi.mocked(fetchAllRegistrationAuthorities).mockResolvedValue([storedRa('ra-b', 'ca-x', null)]);
+      renderWith(canGrant, principalOn({ id: 'ra-a', enrollmentCaId: 'ca-x' }));
 
-      expect(await policyCheckbox('policy-a')).toBeTruthy();
-      expect(screen.queryByText('No policies are defined in authz.')).toBeNull();
+      await waitFor(() => expect(fetchAllRegistrationAuthorities).toHaveBeenCalled());
+      expect(screen.queryByText('Other RAs share this Enrollment CA')).toBeNull();
     });
 
-    it('shows why the policies could not be loaded, along with the selected ones', async () => {
-      vi.mocked(listPolicies).mockRejectedValue(new Error('authz is unreachable'));
-      renderWith(canGrant, principalOn({ authzPolicyIds: ['policy-a'] }));
+    it('keeps the form usable when the RAs can not be listed', async () => {
+      vi.mocked(fetchAllRegistrationAuthorities).mockRejectedValue(new Error('down'));
+      renderWith(canGrant, principalOn({ enrollmentCaId: 'ca-x' }));
 
-      expect(await screen.findByText('Could not load the policies: authz is unreachable')).toBeTruthy();
-      expect(screen.getByRole('checkbox', { name: 'policy-a' }).getAttribute('aria-checked')).toBe('true');
-      expect(screen.queryByText('No policies are defined in authz.')).toBeNull();
+      await waitFor(() => expect(fetchAllRegistrationAuthorities).toHaveBeenCalled());
+      expect(addPoliciesButton().disabled).toBe(false);
     });
   });
 
@@ -203,7 +229,6 @@ describe('IssuanceSection', () => {
     it('marks the attributes touched when a name loses focus', async () => {
       const { touch } = renderWith(canGrant, principalOn({ authzAttributes: [{ name: '', source: 'x509.subject.cn' }] }));
 
-      await policyCheckbox('Device SBI Client');
       fireEvent.blur(screen.getByRole('textbox', { name: 'Attribute 1 name' }));
 
       expect(touch).toHaveBeenCalledWith('authzAttributes');
@@ -212,7 +237,6 @@ describe('IssuanceSection', () => {
     it('shows an issue next to the attributes while the principal is on', async () => {
       renderWith(canGrant, principalOn(), [issue]);
 
-      await policyCheckbox('Device SBI Client');
       expect(screen.getAllByText(issue.message)).toHaveLength(1);
       expect(document.getElementById('createAuthzPrincipal-settings')).toContainElement(screen.getByText(issue.message));
     });
@@ -221,16 +245,14 @@ describe('IssuanceSection', () => {
       const second: RaFormIssue = { ...issue, message: 'Every subject attribute of the authz principal needs a name.', kind: 'required' };
       renderWith(canGrant, principalOn(), [second, issue]);
 
-      await policyCheckbox('Device SBI Client');
       expect(screen.getByText(second.message)).toBeTruthy();
       expect(screen.getByText(issue.message)).toBeTruthy();
     });
 
-    it('groups the policies under their label for assistive technology', async () => {
+    it('groups the policies under their label for assistive technology', () => {
       renderWith(canGrant, principalOn());
 
-      await policyCheckbox('Device SBI Client');
-      expect(screen.getByRole('group', { name: 'Policies' })).toContainElement(screen.getByRole('checkbox', { name: 'Device SBI Client' }));
+      expect(screen.getByRole('group', { name: 'Policies' })).toContainElement(addPoliciesButton());
     });
 
     it('lists an issue with the section while the principal is off, as the attributes are hidden', () => {

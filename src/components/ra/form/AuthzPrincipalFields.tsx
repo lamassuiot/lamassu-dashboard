@@ -1,17 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Plus, Trash2, X } from 'lucide-react';
 
 import { FormFieldError } from '@/components/shared/FormValidationSummary';
+import { PolicySelectorSheet } from '@/components/shared/PolicySelectorSheet';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useGlobalCapability } from '@/contexts/PlatformAccessContext';
-import { listPolicies } from '@/lib/authz-api';
-import { AUTHZ_ATTRIBUTE_SOURCES, type AuthzAttributeMapping, type RaFormField, type RaFormValues } from '@/lib/ra-form';
+import { getPolicy } from '@/lib/authz-api';
+import { AUTHZ_ATTRIBUTE_SOURCES, type AuthzAttributeMapping, type RaFormField, type RaFormValues, type RaOnSameCa } from '@/lib/ra-form';
 import type { Policy } from '@/types/authz';
 
 interface AuthzPrincipalFieldsProps {
@@ -19,48 +20,54 @@ interface AuthzPrincipalFieldsProps {
   update: (patch: Partial<RaFormValues>) => void;
   touch: (field: RaFormField) => void;
   attributesErrors?: readonly string[];
+  /** Other RAs on the Enrollment CA: their certificates get the policies of this principal too. */
+  otherRasOnCa?: readonly RaOnSameCa[];
 }
 
-async function listAllPolicies(): Promise<Policy[]> {
-  const all: Policy[] = [];
-  let bookmark = '';
-  for (;;) {
-    const page = await listPolicies({ pageSize: 100, bookmark: bookmark || undefined });
-    all.push(...page.list);
-    if (!page.next || page.next === bookmark) return all;
-    bookmark = page.next;
-  }
+/** "A", "A and B", "A, B and 2 more". */
+export function listRaNames(ras: readonly RaOnSameCa[], shown = 2): string {
+  const names = ras.slice(0, shown).map(ra => `"${ra.name}"`);
+  const rest = ras.length - names.length;
+  if (rest > 0) return `${names.join(', ')} and ${rest} more`;
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? '';
+}
+
+/** Policies by id: undefined while loading, null when it does not exist or this user can not read it. */
+function usePolicyDetails(ids: readonly string[]) {
+  const [known, setKnown] = useState<Record<string, Policy | null>>({});
+  const missing = ids.filter(id => !(id in known));
+  const missingKey = missing.join('\n');
+
+  useEffect(() => {
+    if (!missingKey) return;
+    let cancelled = false;
+    Promise.all(missingKey.split('\n').map(id => getPolicy(id).then(policy => [id, policy] as const, () => [id, null] as const)))
+      .then(entries => !cancelled && setKnown(current => ({ ...current, ...Object.fromEntries(entries) })));
+    return () => {
+      cancelled = true;
+    };
+  }, [missingKey]);
+
+  const remember = (policies: Policy[]) => setKnown(current => ({ ...current, ...Object.fromEntries(policies.map(policy => [policy.id, policy])) }));
+  return { known, remember };
 }
 
 /**
  * Policies and subject attributes of the RA principal. Without permission to grant authz policies a user can
  * only take access away; the DMS Manager rejects any save that grants more.
  */
-export function AuthzPrincipalFields({ values, update, touch, attributesErrors = [] }: AuthzPrincipalFieldsProps) {
+export function AuthzPrincipalFields({ values, update, touch, attributesErrors = [], otherRasOnCa = [] }: AuthzPrincipalFieldsProps) {
   const canGrant = useGlobalCapability('authz.public.principal_policy', 'grant');
-  const [policies, setPolicies] = useState<Policy[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { known, remember } = usePolicyDetails(values.authzPolicyIds);
 
-  useEffect(() => {
-    let cancelled = false;
-    listAllPolicies()
-      .then(all => !cancelled && setPolicies(all))
-      .catch(err => !cancelled && setLoadError(err instanceof Error ? err.message : 'Could not load the policies.'));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const togglePolicy = (id: string, checked: boolean) =>
-    update({ authzPolicyIds: checked ? [...values.authzPolicyIds, id] : values.authzPolicyIds.filter(policyId => policyId !== id) });
+  const removePolicy = (id: string) => update({ authzPolicyIds: values.authzPolicyIds.filter(policyId => policyId !== id) });
+  const addPolicies = (policies: Policy[]) => {
+    remember(policies);
+    update({ authzPolicyIds: [...values.authzPolicyIds, ...policies.map(policy => policy.id).filter(id => !values.authzPolicyIds.includes(id))] });
+  };
   const setAttribute = (index: number, patch: Partial<AuthzAttributeMapping>) =>
     update({ authzAttributes: values.authzAttributes.map((attribute, i) => (i === index ? { ...attribute, ...patch } : attribute)) });
-
-  // A selected policy missing from the list (deleted, or not readable by this user) stays visible so it can be dropped.
-  const listed = (policies ?? [])
-    .map(policy => ({ id: policy.id, name: policy.name }))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-  const choices = [...listed, ...values.authzPolicyIds.filter(id => !listed.some(policy => policy.id === id)).map(id => ({ id, name: id }))];
 
   return (
     <>
@@ -71,34 +78,56 @@ export function AuthzPrincipalFields({ values, update, touch, attributesErrors =
       )}
 
       <div className="space-y-2" role="group" aria-labelledby="authz-policies-label">
-        <Label id="authz-policies-label">Policies</Label>
-        <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
-          <AlertTriangle className="mt-px size-3.5 shrink-0" />
-          <span>Every certificate signed by the Enrollment CA gets these policies, whether it was issued by this RA, by any other RA on that CA or by anyone else who signs with it.</span>
-        </p>
-        <p className="text-xs text-muted-foreground">Without any, devices authenticate but are allowed nothing.</p>
-        {policies === null && !loadError && <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Loading policies" />}
-        {loadError && <FormFieldError id="authzPolicies-error" title={`Could not load the policies: ${loadError}`} />}
-        {policies?.length === 0 && values.authzPolicyIds.length === 0 && (
-          <p className="text-sm text-muted-foreground">No policies are defined in authz.</p>
-        )}
-        <div className="max-h-56 space-y-1.5 overflow-y-auto">
-          {choices.map(policy => {
-            const checked = values.authzPolicyIds.includes(policy.id);
-            return (
-              <div key={policy.id} className="flex items-center gap-2">
-                <Checkbox
-                  id={`authz-policy-${policy.id}`}
-                  checked={checked}
-                  // Removing a policy needs no permission; adding one does.
-                  disabled={!canGrant && !checked}
-                  onCheckedChange={next => togglePolicy(policy.id, next === true)}
-                />
-                <Label htmlFor={`authz-policy-${policy.id}`} className="font-normal">{policy.name}</Label>
-              </div>
-            );
-          })}
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <Label id="authz-policies-label">Policies</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Every certificate signed by the Enrollment CA gets these policies, whether it was issued by this RA, by any other RA on that CA or by anyone else who signs with it.
+            </p>
+          </div>
+          <Button type="button" variant="secondary" size="sm" disabled={!canGrant} onClick={() => setSheetOpen(true)}>
+            <Plus className="mr-1 size-4" />
+            Add policies
+          </Button>
         </div>
+
+        {values.authzPolicyIds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No policies: devices authenticate but are allowed nothing.</p>
+        ) : (
+          <ul className="divide-y rounded-2xl border">
+            {values.authzPolicyIds.map(id => {
+              const policy = known[id];
+              const name = policy?.name ?? id;
+              return (
+                <li key={id} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 truncate text-sm font-medium">
+                      {policy === undefined && <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Loading policy" />}
+                      {name}
+                    </p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                      {policy === null ? `${id} · not found or not readable` : id}
+                    </p>
+                  </div>
+                  {/* Removing a policy needs no permission; adding one does. */}
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${name}`} onClick={() => removePolicy(id)}>
+                    <X className="size-4" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {values.authzPolicyIds.length > 0 && otherRasOnCa.length > 0 && (
+          <Alert variant="warning">
+            <AlertTriangle />
+            <AlertTitle>Other RAs share this Enrollment CA</AlertTitle>
+            <AlertDescription>
+              Certificates issued by {listRaNames(otherRasOnCa)} also get these policies. Anyone who can enroll in {otherRasOnCa.length > 1 ? 'those RAs' : 'that RA'} authenticates with them.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -153,6 +182,16 @@ export function AuthzPrincipalFields({ values, update, touch, attributesErrors =
         </Button>
         {attributesErrors.map((message, index) => <FormFieldError key={message} id={`authzAttributes-error-${index}`} title={message} />)}
       </div>
+
+      <PolicySelectorSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        excludedPolicyIds={values.authzPolicyIds}
+        title="Add Policies"
+        description="Select the policies the authz principal of this RA grants. They are granted when the RA is saved."
+        confirmLabel={count => (count > 1 ? `Add ${count} Policies` : 'Add Policy')}
+        onConfirm={addPolicies}
+      />
     </>
   );
 }
