@@ -7,6 +7,9 @@ import {
   decommissionDevice,
   registerDevice,
   fetchDeviceStats,
+  fetchDeviceEventsPaginated,
+  mergeDeviceEvents,
+  type ApiDeviceEventItem,
   type ApiDevice,
   type ApiResponse,
   type DeviceStats,
@@ -254,6 +257,132 @@ describe('devices-api', () => {
       await expect(fetchDeviceStats()).rejects.toThrow(
         'Failed to fetch device stats'
       )
+    })
+  })
+
+  describe('mergeDeviceEvents', () => {
+    const ev = (id: string, ts: string, description = id): ApiDeviceEventItem => ({
+      id,
+      timestampStr: ts,
+      type: 'T',
+      description,
+      source: 'test',
+    })
+
+    it('replaces items with the same id', () => {
+      const current = [ev('a', '2024-01-01T00:00:00Z', 'old')]
+      const incoming = [ev('a', '2024-01-01T00:00:00Z', 'new')]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].description).toBe('new')
+    })
+
+    it('keeps older loaded items not in incoming', () => {
+      const current = [ev('old', '2024-01-01T00:00:00Z')]
+      const incoming = [ev('new', '2024-01-02T00:00:00Z')]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result.map((e) => e.id)).toEqual(['new', 'old'])
+    })
+
+    it('sorts newest first and drops nothing', () => {
+      const current = [
+        ev('1', '2024-01-01T00:00:00Z'),
+        ev('3', '2024-01-03T00:00:00Z'),
+        ev('5', '2024-01-05T00:00:00Z'),
+      ]
+      const incoming = [ev('2', '2024-01-02T00:00:00Z'), ev('4', '2024-01-04T00:00:00Z')]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result.map((e) => e.id)).toEqual(['5', '4', '3', '2', '1'])
+    })
+
+    it('collapses duplicates inside incoming', () => {
+      const incoming = [
+        ev('a', '2024-01-01T00:00:00Z', 'first'),
+        ev('a', '2024-01-01T00:00:00Z', 'second'),
+      ]
+
+      const result = mergeDeviceEvents([], incoming)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].description).toBe('second')
+    })
+
+    it('puts unparsable timestamps last, keeps order stable, and does not mutate inputs', () => {
+      const current = [ev('bad1', 'nope'), ev('ok', '2024-01-01T00:00:00Z')]
+      const incoming = [ev('bad2', 'nope')]
+      const currentCopy = [...current]
+
+      const result = mergeDeviceEvents(current, incoming)
+
+      expect(result.map((e) => e.id)).toEqual(['ok', 'bad1', 'bad2'])
+      expect(current).toEqual(currentCopy)
+    })
+  })
+
+  describe('fetchDeviceEventsPaginated', () => {
+    const eventsUrl = `${DEV_API_BASE}/devices/dev-1/events`
+    const fetchEvents = () => fetchDeviceEventsPaginated({ deviceId: 'dev-1', accessToken: 'token' })
+
+    it('keeps the backend id', async () => {
+      server.use(http.get(eventsUrl, () => HttpResponse.json({
+        next: null,
+        list: [{ id: 'evt-1', event_ts: '2024-01-01T00:00:00Z', type: 'CREATED', description: 'Created' }],
+      })))
+
+      const { events } = await fetchEvents()
+
+      expect(events[0].id).toBe('evt-1')
+    })
+
+    it('asks only for events strictly older than `before`', async () => {
+      let query: URLSearchParams | undefined
+      server.use(http.get(eventsUrl, ({ request }) => {
+        query = new URL(request.url).searchParams
+        return HttpResponse.json({ next: null, list: [] })
+      }))
+
+      await fetchDeviceEventsPaginated({
+        deviceId: 'dev-1', accessToken: 'token', limit: 10, before: '2026-01-01T00:00:00.123456+01:00',
+      })
+
+      expect(query?.get('filter')).toBe('event_ts[before]2026-01-01T00:00:00.123456+01:00')
+      expect(query?.get('page_size')).toBe('10')
+      expect(query?.has('bookmark')).toBe(false)
+    })
+
+    it('asks only for events at exactly `at`', async () => {
+      let query: URLSearchParams | undefined
+      server.use(http.get(eventsUrl, ({ request }) => {
+        query = new URL(request.url).searchParams
+        return HttpResponse.json({ next: null, list: [] })
+      }))
+
+      await fetchDeviceEventsPaginated({ deviceId: 'dev-1', accessToken: 'token', at: '2026-01-01T00:00:00Z' })
+
+      expect(query?.get('filter')).toBe('event_ts[equal]2026-01-01T00:00:00Z')
+    })
+
+    it('builds distinct fallback ids for events without id that share timestamp and type', async () => {
+      const list = [
+        { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'a', structured_fields: { k: 1 } },
+        { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'b', structured_fields: { k: 1 } },
+        { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'a', structured_fields: { k: 2 } },
+      ]
+      server.use(http.get(eventsUrl, () => HttpResponse.json({ next: null, list })))
+
+      const first = await fetchEvents()
+      const second = await fetchEvents()
+
+      expect(new Set(first.events.map((e) => e.id)).size).toBe(3)
+      // stable across fetches, so the live merge does not duplicate rows
+      expect(second.events.map((e) => e.id)).toEqual(first.events.map((e) => e.id))
+      expect(mergeDeviceEvents(first.events, second.events)).toHaveLength(3)
     })
   })
 })
