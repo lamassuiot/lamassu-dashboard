@@ -67,7 +67,11 @@ const fakeSource = (total: number, minuteOf = (i: number) => -i) => {
     added += count
     all = [...fresh.reverse(), ...all]
   }
-  return { fetchPage, addNewer }
+  // a backfilled event, placed by its timestamp
+  const insert = (event: ApiDeviceEventItem) => {
+    all = [...all, event].sort((a, b) => Date.parse(b.timestampStr) - Date.parse(a.timestampStr))
+  }
+  return { fetchPage, addNewer, insert }
 }
 
 // ids s{from} .. s{to}, newest first
@@ -363,6 +367,36 @@ describe('TimelinePage live mode', () => {
 
     expect(shownIds()).toEqual(past(0, 59))
     expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
+
+  it('Load more shows every event sharing the anchor timestamp, past the backend page size', async () => {
+    fetchDeviceEventsPaginated.mockImplementation(fakeSource(1101, () => 0).fetchPage)
+    render(<TimelinePage />)
+    await flush()
+    expect(shownIds()).toEqual(past(0, 49))
+
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+
+    expect(shownIds()).toEqual(past(0, 1100))
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
+
+  it('a continued Load more returns an event backfilled older than the oldest row shown', async () => {
+    const source = fakeSource(100)
+    fetchDeviceEventsPaginated.mockImplementation(source.fetchPage)
+    render(<TimelinePage />)
+    await flush()
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+    expect(shownIds()).toEqual(past(0, 59))
+
+    // sorts newest first, so it lands after the rows already paged and the bookmark's offset still reaches it
+    source.insert(makeEvent('late', 'EVENT', minutesFromBase(-60.5)))
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+
+    expect(shownIds()).toEqual([...past(0, 60), 'late', ...past(61, 68)])
   })
 
   it('later Load mores continue the anchored query with its bookmark, unaffected by new events', async () => {

@@ -43,18 +43,30 @@ const MAX_LIVE_TIMELINE_EVENTS = 500;
 const MAX_EVENTS_PAGE_SIZE = 1000;
 
 /**
- * Every event with exactly `timestampStr` (up to the backend's largest page), followed by the first page of the
- * strictly older ones; `next` continues the older query. Anchoring at an event this way skips none of its
- * same-timestamp siblings (event_ts can be set by callers, so ties happen). Siblings already shown merge by id.
+ * Every event with exactly `timestampStr`, followed by the first page of the strictly older ones; `next` continues
+ * the older query. Anchoring at an event this way skips none of its same-timestamp siblings (event_ts can be set
+ * by callers, so ties happen). Siblings already shown merge by id.
  */
 async function fetchDeviceEventsAtOrBefore(
   { deviceId, accessToken, limit, timestampStr }: { deviceId: string; accessToken: string; limit: number; timestampStr: string },
 ): Promise<PaginatedDeviceEventsResponse> {
+  const fetchAllTied = async () => {
+    const tied: ApiDeviceEventItem[] = [];
+    let bookmark: string | null = null;
+    do {
+      const page: PaginatedDeviceEventsResponse = await fetchDeviceEventsPaginated({
+        deviceId, accessToken, limit: MAX_EVENTS_PAGE_SIZE, ...(bookmark ? { bookmark } : { at: timestampStr }),
+      });
+      tied.push(...page.events);
+      bookmark = page.next;
+    } while (bookmark);
+    return tied;
+  };
   const [tied, older] = await Promise.all([
-    fetchDeviceEventsPaginated({ deviceId, accessToken, limit: MAX_EVENTS_PAGE_SIZE, at: timestampStr }),
+    fetchAllTied(),
     fetchDeviceEventsPaginated({ deviceId, accessToken, limit, before: timestampStr }),
   ]);
-  return { events: [...tied.events, ...older.events], next: older.next, hasMore: older.hasMore };
+  return { events: [...tied, ...older.events], next: older.next, hasMore: older.hasMore };
 }
 
 const TIMELINE_MODE_OPTIONS: ViewModeOption<TimelineMode>[] = [
