@@ -64,6 +64,8 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   deviceRef.current = device;
   const currentDeviceIdRef = useRef(deviceId);
   currentDeviceIdRef.current = deviceId;
+  // Bumped by every device fetch, so a silent reload can tell that a newer fetch started after it.
+  const deviceFetchGenerationRef = useRef(0);
   const isMountedRef = useRef(true);
   useEffect(() => {
     isMountedRef.current = true;
@@ -106,6 +108,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
       setIsLoadingDevice(false);
       return;
     }
+    deviceFetchGenerationRef.current += 1;
     setIsLoadingDevice(true);
     setErrorDevice(null);
     try {
@@ -132,9 +135,12 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const reloadDeviceSilently = useCallback(async () => {
     const requestedId = deviceId;
     if (!requestedId) return;
+    const generation = ++deviceFetchGenerationRef.current;
     try {
       const data = await fetchDeviceById(requestedId);
       if (!isMountedRef.current || currentDeviceIdRef.current !== requestedId) return;
+      // A newer fetch (e.g. the reload after Decommission) owns the device state; this response is stale.
+      if (deviceFetchGenerationRef.current !== generation) return;
       const previousOwner = deviceRef.current?.dms_owner ?? '';
       setDevice(data);
       if (data.dms_owner === previousOwner) return;

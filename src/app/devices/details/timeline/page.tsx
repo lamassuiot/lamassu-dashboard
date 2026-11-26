@@ -10,7 +10,7 @@ import { RevocationModal } from '@/components/shared/RevocationModal';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchDeviceEventsPaginated, MAX_MERGED_DEVICE_EVENTS, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
+import { fetchDeviceEventsPaginated, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
 import { createCoalescingRefresher } from '@/lib/coalescing-refresher';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -193,8 +193,8 @@ export default function TimelinePage() {
       ]);
       if (cancelled || events.status !== 'fulfilled') return;
       const { events: fresh, next, hasMore } = events.value;
-      // Never shrink the list: rows the user loaded with "Load more" stay, the cap only limits the live window.
-      setTimelineRawEvents(prev => mergeDeviceEvents(prev, fresh, Math.max(MAX_MERGED_DEVICE_EVENTS, prev.length)));
+      // Nothing is evicted: dropping the oldest rows would leave a gap before the "Load more" bookmark.
+      setTimelineRawEvents(prev => mergeDeviceEvents(prev, fresh));
       if (initialLoadFailed) {
         // Without a first page there is no bookmark yet. Once one exists it is only advanced by "Load more".
         initialLoadFailed = false;
@@ -364,10 +364,9 @@ export default function TimelinePage() {
       const result = await fetchDeviceEventsPaginated({
         deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: timelineNextBookmark,
       });
-      // In live mode the page is merged without the cap: rows the user asked for must stay visible, or the
-      // bookmark would advance past history that is never shown.
+      // In live mode refreshes may already hold rows of this page, so merge by id instead of appending.
       setTimelineRawEvents(prev => timelineMode === 'realtime'
-        ? mergeDeviceEvents(prev, result.events, Infinity)
+        ? mergeDeviceEvents(prev, result.events)
         : [...prev, ...result.events]);
       setTimelineNextBookmark(result.next);
       setHasMoreTimelineEvents(result.hasMore);

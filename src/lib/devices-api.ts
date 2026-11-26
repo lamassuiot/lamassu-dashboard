@@ -67,17 +67,15 @@ export interface PaginatedDeviceEventsResponse {
 }
 
 
-export const MAX_MERGED_DEVICE_EVENTS = 500;
-
 /**
  * Merges freshly fetched events into the already loaded ones.
- * Incoming wins on equal `id`; the result is sorted newest first and capped at `max`.
- * Unparsable timestamps sort last, keeping their relative order. Inputs are not mutated.
+ * Incoming wins on equal `id`; the result is sorted newest first and nothing is dropped, so a "Load more"
+ * bookmark always continues right after the last row. Unparsable timestamps sort last, keeping their relative
+ * order. Inputs are not mutated.
  */
 export function mergeDeviceEvents(
   current: ApiDeviceEventItem[],
   incoming: ApiDeviceEventItem[],
-  max = MAX_MERGED_DEVICE_EVENTS,
 ): ApiDeviceEventItem[] {
   const byId = new Map<string, ApiDeviceEventItem>();
   for (const event of current) byId.set(event.id, event);
@@ -94,8 +92,7 @@ export function mergeDeviceEvents(
       if (aBad) return 1;
       if (bBad) return -1;
       return tb - ta;
-    })
-    .slice(0, max);
+    });
 }
 
 export async function fetchDevices(params: URLSearchParams): Promise<ApiResponse> {
@@ -132,15 +129,18 @@ export async function fetchDeviceEventsPaginated({
 
   const data = await handleApiError(response, `Failed to fetch events for device ${deviceId}`);
 
-  const events = Array.isArray(data.list)
-    ? data.list.map((event: any) => ({
-        id: event.id || `${event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || '1970-01-01T00:00:00.000Z'}:${event.type || event.event_type || 'EVENT'}`,
-        timestampStr: event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || '1970-01-01T00:00:00.000Z',
-        type: event.type || event.event_type || 'EVENT',
-        description: event.description || event.event_descriptions || '',
-        data: event.structured_fields ?? event.data,
-        source: event.source || 'device',
-      }))
+  const events: ApiDeviceEventItem[] = Array.isArray(data.list)
+    ? data.list.map((event: any) => {
+        const timestampStr = event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || '1970-01-01T00:00:00.000Z';
+        const type = event.type || event.event_type || 'EVENT';
+        const description = event.description || event.event_descriptions || '';
+        const eventData = event.structured_fields ?? event.data;
+        const source = event.source || 'device';
+        // The live timeline merges by id: without a backend id, every field goes into the fallback so distinct
+        // events never share it, and the same event keeps it across fetches.
+        const id = event.id || [timestampStr, type, source, description, JSON.stringify(eventData) ?? ''].join(':');
+        return { id, timestampStr, type, description, data: eventData, source };
+      })
     : [];
 
   return {

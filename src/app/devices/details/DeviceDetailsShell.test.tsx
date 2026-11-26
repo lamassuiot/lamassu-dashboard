@@ -67,11 +67,12 @@ const deferred = <T,>() => {
 }
 
 function Probe() {
-  const { device, reloadDeviceSilently } = useDeviceDetails()
+  const { device, reloadDeviceSilently, refreshDevice } = useDeviceDetails()
   return (
     <div>
       <span data-testid="status">{device?.status}</span>
       <button onClick={() => { void reloadDeviceSilently() }}>reload</button>
+      <button onClick={() => { void refreshDevice() }}>refresh</button>
     </div>
   )
 }
@@ -133,6 +134,24 @@ describe('DeviceDetailsShell reloadDeviceSilently', () => {
     expect(screen.getByTestId('status')).toHaveTextContent('NO_IDENTITY')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByText('Error Loading Device')).not.toBeInTheDocument()
+  })
+
+  it('drops a silent reload that resolves after a newer explicit load', async () => {
+    const stale = deferred<ApiDevice>()
+    fetchDeviceById
+      .mockResolvedValueOnce(makeDevice())
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(makeDevice({ status: 'DECOMMISSIONED' }))
+    await loadShell()
+
+    fireEvent.click(screen.getByText('reload'))
+    await waitFor(() => expect(fetchDeviceById).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByText('refresh'))
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('DECOMMISSIONED'))
+
+    await act(async () => { stale.resolve(makeDevice({ status: 'ACTIVE' })) })
+
+    expect(screen.getByTestId('status')).toHaveTextContent('DECOMMISSIONED')
   })
 
   it('refetches integrations only when dms_owner changes', async () => {

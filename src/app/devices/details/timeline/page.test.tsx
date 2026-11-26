@@ -217,14 +217,13 @@ describe('TimelinePage live mode', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
   })
 
-  it('Load more keeps every explicitly loaded row past the 500-row cap, and a refresh keeps them too', async () => {
+  it('never drops loaded rows: past 500 rows, refreshes with new events and Load more keep every row', async () => {
     localStorage.setItem('lamassu-timeline-page-size', '50')
     fetchDeviceEventsPaginated.mockImplementation(fakeSource(700))
     render(<TimelinePage />)
     await flush()
     expect(screen.getAllByRole('listitem')).toHaveLength(50)
 
-    // nine pages bring the list to the 500-row cap; the tenth must still be shown
     for (let i = 0; i < 10; i++) {
       fireEvent.click(screen.getByText('Load more'))
       await flush()
@@ -235,9 +234,18 @@ describe('TimelinePage live mode', () => {
     await tick(500)
     expect(screen.getAllByRole('listitem')).toHaveLength(550)
 
+    // a refresh bringing an event the list does not have yet adds it without evicting the oldest row
+    fetchDeviceEventsPaginated.mockResolvedValueOnce({
+      events: [makeEvent('new', 'EVENT', '2026-02-01T00:00:00Z')], next: '50', hasMore: true,
+    })
+    act(() => args.onChange())
+    await tick(500)
+    expect(screen.getAllByRole('listitem')).toHaveLength(551)
+
+    // Load more continues right after the last loaded row, so nothing is missing in between
     fireEvent.click(screen.getByText('Load more'))
     await flush()
-    expect(screen.getAllByRole('listitem')).toHaveLength(600)
+    expect(screen.getAllByRole('listitem')).toHaveLength(601)
   })
 
   it('offers Load more after a refresh when the first live request failed', async () => {

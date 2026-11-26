@@ -7,6 +7,7 @@ import {
   decommissionDevice,
   registerDevice,
   fetchDeviceStats,
+  fetchDeviceEventsPaginated,
   mergeDeviceEvents,
   type ApiDeviceEventItem,
   type ApiDevice,
@@ -287,7 +288,7 @@ describe('devices-api', () => {
       expect(result.map((e) => e.id)).toEqual(['new', 'old'])
     })
 
-    it('sorts newest first and caps at max', () => {
+    it('sorts newest first and drops nothing', () => {
       const current = [
         ev('1', '2024-01-01T00:00:00Z'),
         ev('3', '2024-01-03T00:00:00Z'),
@@ -295,9 +296,9 @@ describe('devices-api', () => {
       ]
       const incoming = [ev('2', '2024-01-02T00:00:00Z'), ev('4', '2024-01-04T00:00:00Z')]
 
-      const result = mergeDeviceEvents(current, incoming, 3)
+      const result = mergeDeviceEvents(current, incoming)
 
-      expect(result.map((e) => e.id)).toEqual(['5', '4', '3'])
+      expect(result.map((e) => e.id)).toEqual(['5', '4', '3', '2', '1'])
     })
 
     it('collapses duplicates inside incoming', () => {
@@ -321,6 +322,39 @@ describe('devices-api', () => {
 
       expect(result.map((e) => e.id)).toEqual(['ok', 'bad1', 'bad2'])
       expect(current).toEqual(currentCopy)
+    })
+  })
+
+  describe('fetchDeviceEventsPaginated', () => {
+    const eventsUrl = `${DEV_API_BASE}/devices/dev-1/events`
+    const fetchEvents = () => fetchDeviceEventsPaginated({ deviceId: 'dev-1', accessToken: 'token' })
+
+    it('keeps the backend id', async () => {
+      server.use(http.get(eventsUrl, () => HttpResponse.json({
+        next: null,
+        list: [{ id: 'evt-1', event_ts: '2024-01-01T00:00:00Z', type: 'CREATED', description: 'Created' }],
+      })))
+
+      const { events } = await fetchEvents()
+
+      expect(events[0].id).toBe('evt-1')
+    })
+
+    it('builds distinct fallback ids for events without id that share timestamp and type', async () => {
+      const list = [
+        { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'a', structured_fields: { k: 1 } },
+        { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'b', structured_fields: { k: 1 } },
+        { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'a', structured_fields: { k: 2 } },
+      ]
+      server.use(http.get(eventsUrl, () => HttpResponse.json({ next: null, list })))
+
+      const first = await fetchEvents()
+      const second = await fetchEvents()
+
+      expect(new Set(first.events.map((e) => e.id)).size).toBe(3)
+      // stable across fetches, so the live merge does not duplicate rows
+      expect(second.events.map((e) => e.id)).toEqual(first.events.map((e) => e.id))
+      expect(mergeDeviceEvents(first.events, second.events)).toHaveLength(3)
     })
   })
 })
