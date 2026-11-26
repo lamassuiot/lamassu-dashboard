@@ -10,7 +10,7 @@ import { RevocationModal } from '@/components/shared/RevocationModal';
 import { DeviceStatusBadge } from '@/components/shared/DeviceStatusBadge';
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchDeviceEventsPaginated, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
+import { fetchDeviceEventsPaginated, mergeDeviceEvents, subscribeToDeviceEventsSSE, type ApiDeviceEventItem, type PaginatedDeviceEventsResponse } from '@/lib/devices-api';
 import { createCoalescingRefresher } from '@/lib/coalescing-refresher';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -35,8 +35,10 @@ const POLLING_INTERVAL_OPTIONS = [
   { label: '60s', value: 60 },
 ];
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
-// Size of the first live page and of every refresh window, so the first bookmark starts where the window ends.
+// Size of the first live page and of every refresh window.
 const LIVE_REFRESH_PAGE_SIZE = 50;
+// New events never grow the live list past this, or past what the user loaded if larger: the oldest rows drop.
+const MAX_LIVE_TIMELINE_EVENTS = 500;
 
 const TIMELINE_MODE_OPTIONS: ViewModeOption<TimelineMode>[] = [
   { value: 'paginated', icon: CloudOff, label: 'Manual', ariaLabel: 'Manual mode' },
@@ -84,6 +86,9 @@ export default function TimelinePage() {
   const [isLoadingMoreTimelineEvents, setIsLoadingMoreTimelineEvents] = useState(false);
   const [isSseConnected, setIsSseConnected] = useState(false);
   const [sseFatalStatus, setSseFatalStatus] = useState<number | null>(null);
+  // Live mode: id of the oldest event the server has, once a response proved it. Load more stays until it is shown.
+  const [liveHistoryEndId, setLiveHistoryEndId] = useState<string | null>(null);
+  const isLoadingMoreRef = useRef(false);
 
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => {
     if (typeof window !== 'undefined') {
@@ -124,6 +129,7 @@ export default function TimelinePage() {
     setTimelineEvents([]);
     setTimelineNextBookmark(null);
     setHasMoreTimelineEvents(false);
+    setLiveHistoryEndId(null);
   }, []);
 
   const handleTimelinePageSizeChange = useCallback((size: number) => {
@@ -172,14 +178,19 @@ export default function TimelinePage() {
   useEffect(() => {
     setIsSseConnected(false);
     setSseFatalStatus(null);
+    setLiveHistoryEndId(null);
 
     if (timelineMode !== 'realtime' || !deviceId || !accessTokenRef.current) return;
 
     let cancelled = false;
     let refresher: ReturnType<typeof createCoalescingRefresher> | null = null;
     let controller: AbortController | null = null;
-    // Set when the first page failed: the first successful refresh then also provides the Load more bookmark.
-    let initialLoadFailed = false;
+
+    // A page with nothing after it ends with the oldest event the server has.
+    const noteHistoryEnd = (page: PaginatedDeviceEventsResponse) => {
+      const last = page.events.at(-1);
+      if (!page.hasMore && last) setLiveHistoryEndId(last.id);
+    };
 
     // The stream is only a change signal: re-read the newest events and the device itself.
     // A failure on either side leaves the current state untouched.
@@ -192,15 +203,15 @@ export default function TimelinePage() {
         reloadDeviceSilentlyRef.current(),
       ]);
       if (cancelled || events.status !== 'fulfilled') return;
-      const { events: fresh, next, hasMore } = events.value;
-      // Nothing is evicted: dropping the oldest rows would leave a gap before the "Load more" bookmark.
-      setTimelineRawEvents(prev => mergeDeviceEvents(prev, fresh));
-      if (initialLoadFailed) {
-        // Without a first page there is no bookmark yet. Once one exists it is only advanced by "Load more".
-        initialLoadFailed = false;
-        setTimelineNextBookmark(next);
-        setHasMoreTimelineEvents(hasMore);
-      }
+      const page = events.value;
+      // Load more continues from the oldest row shown, so dropping rows cannot leave a gap, except while a Load
+      // more is in flight: its page starts after the row that is oldest now.
+      const keepAll = isLoadingMoreRef.current;
+      setTimelineRawEvents(prev => {
+        const merged = mergeDeviceEvents(prev, page.events);
+        return keepAll ? merged : merged.slice(0, Math.max(MAX_LIVE_TIMELINE_EVENTS, prev.length));
+      });
+      noteHistoryEnd(page);
     };
 
     const initRealtime = async () => {
@@ -211,13 +222,9 @@ export default function TimelinePage() {
         const result = await fetchDeviceEventsPaginated({ deviceId, accessToken: token, limit: LIVE_REFRESH_PAGE_SIZE });
         if (cancelled) return;
         setTimelineRawEvents(result.events);
-        setTimelineNextBookmark(result.next);
-        setHasMoreTimelineEvents(result.hasMore);
+        noteHistoryEnd(result);
       } catch {
-        if (!cancelled) {
-          initialLoadFailed = true;
-          setTimelineRawEvents([]); setTimelineNextBookmark(null); setHasMoreTimelineEvents(false);
-        }
+        if (!cancelled) setTimelineRawEvents([]);
       } finally {
         if (!cancelled) setIsTimelineLoading(false);
       }
@@ -357,25 +364,39 @@ export default function TimelinePage() {
     processEvents();
   }, [device, timelineRawEvents, user?.access_token, timelineFetchedCerts]);
 
+  const oldestShownEvent = timelineRawEvents.at(-1);
+  const canLoadMoreTimelineEvents = timelineMode === 'realtime'
+    ? !!oldestShownEvent && oldestShownEvent.id !== liveHistoryEndId
+    : hasMoreTimelineEvents;
+
   const handleLoadMore = useCallback(async () => {
-    if (!deviceId || !user?.access_token || isLoadingMoreTimelineEvents || !timelineNextBookmark) return;
+    if (!deviceId || !user?.access_token || isLoadingMoreTimelineEvents) return;
+    const isLive = timelineMode === 'realtime';
+    // Live mode pages by date from the oldest row shown instead of the bookmark, so rows dropped by the cap come
+    // back without a gap. Unloaded events with that row's exact timestamp are skipped.
+    const page = isLive ? { before: oldestShownEvent?.timestampStr } : { bookmark: timelineNextBookmark ?? undefined };
+    if (!page.before && !page.bookmark) return;
     setIsLoadingMoreTimelineEvents(true);
+    isLoadingMoreRef.current = true;
     try {
       const result = await fetchDeviceEventsPaginated({
-        deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: timelineNextBookmark,
+        deviceId, accessToken: user.access_token, limit: timelinePageSize, ...page,
       });
-      // In live mode refreshes may already hold rows of this page, so merge by id instead of appending.
-      setTimelineRawEvents(prev => timelineMode === 'realtime'
-        ? mergeDeviceEvents(prev, result.events)
-        : [...prev, ...result.events]);
-      setTimelineNextBookmark(result.next);
-      setHasMoreTimelineEvents(result.hasMore);
+      if (isLive) {
+        setTimelineRawEvents(prev => mergeDeviceEvents(prev, result.events));
+        if (!result.hasMore) setLiveHistoryEndId(result.events.at(-1)?.id ?? oldestShownEvent?.id ?? null);
+      } else {
+        setTimelineRawEvents(prev => [...prev, ...result.events]);
+        setTimelineNextBookmark(result.next);
+        setHasMoreTimelineEvents(result.hasMore);
+      }
     } catch (err: any) {
       sileo.error({ title: 'Failed to load more events', description: err?.message || 'Please try again.' });
     } finally {
+      isLoadingMoreRef.current = false;
       setIsLoadingMoreTimelineEvents(false);
     }
-  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize, timelineMode]);
+  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize, timelineMode, oldestShownEvent]);
 
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
     setCertToRevoke(certInfo);
@@ -466,7 +487,7 @@ export default function TimelinePage() {
       ) : timelineEvents.length > 0 ? (
         <>
           <DeviceEventsTable events={timelineEvents} onRevoke={handleOpenRevokeModal} onReactivate={handleReactivate} />
-          {hasMoreTimelineEvents && (
+          {canLoadMoreTimelineEvents && (
             <div className="mt-4 flex justify-center">
               <Button onClick={handleLoadMore} variant="outline" size="sm"
                 disabled={isTimelineLoading || isLoadingMoreTimelineEvents} className="h-7 gap-1.5 text-xs">

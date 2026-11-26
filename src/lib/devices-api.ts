@@ -69,9 +69,8 @@ export interface PaginatedDeviceEventsResponse {
 
 /**
  * Merges freshly fetched events into the already loaded ones.
- * Incoming wins on equal `id`; the result is sorted newest first and nothing is dropped, so a "Load more"
- * bookmark always continues right after the last row. Unparsable timestamps sort last, keeping their relative
- * order. Inputs are not mutated.
+ * Incoming wins on equal `id`; the result is sorted newest first. Unparsable timestamps sort last, keeping their
+ * relative order. Inputs are not mutated.
  */
 export function mergeDeviceEvents(
   current: ApiDeviceEventItem[],
@@ -112,15 +111,19 @@ export async function fetchDeviceEventsPaginated({
   accessToken,
   limit = 5,
   bookmark,
+  before,
 }: {
   deviceId: string;
   accessToken: string;
   limit?: number;
   bookmark?: string;
+  /** Only events with an `event_ts` strictly older than this one. */
+  before?: string;
 }): Promise<PaginatedDeviceEventsResponse> {
   const params = new URLSearchParams();
   if (limit) params.set('page_size', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
+  if (before) params.append('filter', `event_ts[before]${before}`);
 
   const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events${params.toString() ? `?${params.toString()}` : ''}`;
   const response = await fetch(url, {

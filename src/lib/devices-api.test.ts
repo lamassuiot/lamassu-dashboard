@@ -340,6 +340,22 @@ describe('devices-api', () => {
       expect(events[0].id).toBe('evt-1')
     })
 
+    it('asks only for events strictly older than `before`', async () => {
+      let query: URLSearchParams | undefined
+      server.use(http.get(eventsUrl, ({ request }) => {
+        query = new URL(request.url).searchParams
+        return HttpResponse.json({ next: null, list: [] })
+      }))
+
+      await fetchDeviceEventsPaginated({
+        deviceId: 'dev-1', accessToken: 'token', limit: 10, before: '2026-01-01T00:00:00.123456+01:00',
+      })
+
+      expect(query?.get('filter')).toBe('event_ts[before]2026-01-01T00:00:00.123456+01:00')
+      expect(query?.get('page_size')).toBe('10')
+      expect(query?.has('bookmark')).toBe(false)
+    })
+
     it('builds distinct fallback ids for events without id that share timestamp and type', async () => {
       const list = [
         { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'a', structured_fields: { k: 1 } },

@@ -31,7 +31,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 vi.mock('@/components/devices/DeviceEventsTable', () => ({
   DeviceEventsTable: ({ events }: { events: { id: string; title: string }[] }) => (
-    <ul>{events.map((e) => <li key={e.id}>{e.title}</li>)}</ul>
+    <ul>{events.map((e) => <li key={e.id} data-id={e.id}>{e.title}</li>)}</ul>
   ),
 }))
 
@@ -43,17 +43,32 @@ const created = makeEvent('e1', 'CREATED', '2026-01-01T00:00:00Z')
 const shadow = makeEvent('e2', 'SHADOW-UPDATED', '2026-01-01T00:01:00Z')
 const older = makeEvent('e0', 'ERROR', '2025-12-31T00:00:00Z')
 
-// A fake event source of `total` events, newest first, paged with a numeric bookmark (the offset).
+const minutesFromBase = (minutes: number) => new Date(Date.UTC(2026, 0, 1) + minutes * 60_000).toISOString()
+
+// A fake event source, newest first: `total` past events s0 (newest) .. s{total-1}, plus newer events n0, n1, ...
+// added with `addNewer`. Like the backend it pages with an offset bookmark and filters `before` as strictly older.
 const fakeSource = (total: number) => {
-  const all = Array.from({ length: total }, (_, i) =>
-    makeEvent(`s${i}`, 'EVENT', new Date(Date.UTC(2026, 0, 1) - i * 60_000).toISOString()),
-  )
-  return async ({ limit, bookmark }: { limit: number; bookmark?: string }) => {
+  let all = Array.from({ length: total }, (_, i) => makeEvent(`s${i}`, 'EVENT', minutesFromBase(-i)))
+  let added = 0
+  const fetchPage = async ({ limit, bookmark, before }: { limit: number; bookmark?: string; before?: string }) => {
+    const pool = before ? all.filter((e) => Date.parse(e.timestampStr) < Date.parse(before)) : all
     const offset = bookmark ? Number(bookmark) : 0
-    const end = Math.min(offset + limit, total)
-    return { events: all.slice(offset, end), next: end < total ? String(end) : null, hasMore: end < total }
+    const end = Math.min(offset + limit, pool.length)
+    return { events: pool.slice(offset, end), next: end < pool.length ? String(end) : null, hasMore: end < pool.length }
   }
+  const addNewer = (count: number) => {
+    const fresh = Array.from({ length: count }, (_, i) => makeEvent(`n${added + i}`, 'EVENT', minutesFromBase(added + i + 1)))
+    added += count
+    all = [...fresh.reverse(), ...all]
+  }
+  return { fetchPage, addNewer }
 }
+
+// ids s{from} .. s{to}, newest first
+const past = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `s${from + i}`)
+// ids n{count-1} .. n0, newest first
+const newer = (count: number) => Array.from({ length: count }, (_, i) => `n${count - 1 - i}`)
+const shownIds = () => screen.getAllByRole('listitem').map((li) => li.dataset.id)
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -187,8 +202,8 @@ describe('TimelinePage live mode', () => {
     expect(screen.queryByText('Disconnected')).not.toBeInTheDocument()
   })
 
-  it('Load more after a refresh always brings new rows (initial page matches the refresh window)', async () => {
-    fetchDeviceEventsPaginated.mockImplementation(fakeSource(100))
+  it('Load more after a refresh always brings new rows', async () => {
+    fetchDeviceEventsPaginated.mockImplementation(fakeSource(100).fetchPage)
     render(<TimelinePage />)
     await flush()
     expect(screen.getAllByRole('listitem')).toHaveLength(50)
@@ -217,35 +232,79 @@ describe('TimelinePage live mode', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
   })
 
-  it('never drops loaded rows: past 500 rows, refreshes with new events and Load more keep every row', async () => {
-    localStorage.setItem('lamassu-timeline-page-size', '50')
-    fetchDeviceEventsPaginated.mockImplementation(fakeSource(700))
+  it('caps the list at 500 rows as new events arrive, and Load more brings the dropped rows back without a gap', async () => {
+    const source = fakeSource(100)
+    fetchDeviceEventsPaginated.mockImplementation(source.fetchPage)
     render(<TimelinePage />)
     await flush()
-    expect(screen.getAllByRole('listitem')).toHaveLength(50)
+    expect(shownIds()).toEqual(past(0, 49))
+
+    for (let i = 0; i < 10; i++) {
+      source.addNewer(50)
+      act(() => args.onChange())
+      await tick(500)
+    }
+    // 500 new events on top of the 50 shown: the oldest 50 rows were dropped
+    expect(shownIds()).toEqual(newer(500))
+
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+    expect(shownIds()).toEqual([...newer(500), ...past(0, 9)])
+  })
+
+  it('keeps rows loaded past the cap until new events push them out, and Load more resumes after the last row', async () => {
+    localStorage.setItem('lamassu-timeline-page-size', '50')
+    const source = fakeSource(700)
+    fetchDeviceEventsPaginated.mockImplementation(source.fetchPage)
+    render(<TimelinePage />)
+    await flush()
 
     for (let i = 0; i < 10; i++) {
       fireEvent.click(screen.getByText('Load more'))
       await flush()
     }
-    expect(screen.getAllByRole('listitem')).toHaveLength(550)
+    expect(shownIds()).toEqual(past(0, 549))
 
     act(() => args.onChange())
     await tick(500)
-    expect(screen.getAllByRole('listitem')).toHaveLength(550)
+    expect(shownIds()).toEqual(past(0, 549))
 
-    // a refresh bringing an event the list does not have yet adds it without evicting the oldest row
-    fetchDeviceEventsPaginated.mockResolvedValueOnce({
-      events: [makeEvent('new', 'EVENT', '2026-02-01T00:00:00Z')], next: '50', hasMore: true,
-    })
+    // the list does not grow past what was loaded: one new event drops the oldest row
+    source.addNewer(1)
     act(() => args.onChange())
     await tick(500)
-    expect(screen.getAllByRole('listitem')).toHaveLength(551)
+    expect(shownIds()).toEqual(['n0', ...past(0, 548)])
 
-    // Load more continues right after the last loaded row, so nothing is missing in between
     fireEvent.click(screen.getByText('Load more'))
     await flush()
-    expect(screen.getAllByRole('listitem')).toHaveLength(601)
+    expect(shownIds()).toEqual(['n0', ...past(0, 598)])
+  })
+
+  it('drops no rows while a Load more is in flight, so its page joins the list without a gap', async () => {
+    localStorage.setItem('lamassu-timeline-page-size', '50')
+    const source = fakeSource(700)
+    fetchDeviceEventsPaginated.mockImplementation(source.fetchPage)
+    render(<TimelinePage />)
+    await flush()
+    for (let i = 0; i < 9; i++) {
+      fireEvent.click(screen.getByText('Load more'))
+      await flush()
+    }
+    expect(shownIds()).toEqual(past(0, 499))
+
+    const gate = deferred<void>()
+    fetchDeviceEventsPaginated.mockImplementationOnce(async (req) => { await gate.promise; return source.fetchPage(req) })
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+
+    source.addNewer(1)
+    act(() => args.onChange())
+    await tick(500)
+    expect(shownIds()).toEqual(['n0', ...past(0, 499)])
+
+    await act(async () => { gate.resolve() })
+    await flush()
+    expect(shownIds()).toEqual(['n0', ...past(0, 549)])
   })
 
   it('offers Load more after a refresh when the first live request failed', async () => {
@@ -262,24 +321,33 @@ describe('TimelinePage live mode', () => {
     fetchDeviceEventsPaginated.mockResolvedValue({ events: [older], next: null, hasMore: false })
     fireEvent.click(screen.getByText('Load more'))
     await flush()
-    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ bookmark: 'b' }))
+    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ before: created.timestampStr }))
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
     expect(screen.queryByText('Load more')).not.toBeInTheDocument()
   })
 
-  it('does not replace the bookmark from the first load when a later refresh succeeds', async () => {
-    fetchDeviceEventsPaginated.mockResolvedValueOnce({ events: [created, shadow], next: 'b', hasMore: true })
+  it('Load more asks for events older than the oldest row shown, not for the bookmark', async () => {
+    fetchDeviceEventsPaginated.mockResolvedValueOnce({ events: [shadow, created], next: 'b', hasMore: true })
     render(<TimelinePage />)
     await flush()
 
-    fetchDeviceEventsPaginated.mockResolvedValue({ events: [shadow], next: 'c', hasMore: false })
-    act(() => args.onChange())
-    await tick(500)
-    expect(screen.getByText('Load more')).toBeInTheDocument()
-
+    fetchDeviceEventsPaginated.mockResolvedValue({ events: [older], next: null, hasMore: false })
     fireEvent.click(screen.getByText('Load more'))
     await flush()
-    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ bookmark: 'b' }))
+
+    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith({
+      deviceId: 'dev-1', accessToken: 'tok', limit: 10, before: created.timestampStr,
+    })
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
+
+  it('hides Load more once the first page holds every event', async () => {
+    fetchDeviceEventsPaginated.mockResolvedValue({ events: [shadow, created], next: null, hasMore: false })
+    render(<TimelinePage />)
+    await flush()
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
   })
 
   it('discards a refresh that settles after the device changed', async () => {
