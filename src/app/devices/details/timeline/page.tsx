@@ -39,6 +39,23 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 const LIVE_REFRESH_PAGE_SIZE = 50;
 // New events never grow the live list past this, or past what the user loaded if larger: the oldest rows drop.
 const MAX_LIVE_TIMELINE_EVENTS = 500;
+// The backend's largest page size.
+const MAX_EVENTS_PAGE_SIZE = 1000;
+
+/**
+ * Every event with exactly `timestampStr` (up to the backend's largest page), followed by the first page of the
+ * strictly older ones; `next` continues the older query. Anchoring at an event this way skips none of its
+ * same-timestamp siblings (event_ts can be set by callers, so ties happen). Siblings already shown merge by id.
+ */
+async function fetchDeviceEventsAtOrBefore(
+  { deviceId, accessToken, limit, timestampStr }: { deviceId: string; accessToken: string; limit: number; timestampStr: string },
+): Promise<PaginatedDeviceEventsResponse> {
+  const [tied, older] = await Promise.all([
+    fetchDeviceEventsPaginated({ deviceId, accessToken, limit: MAX_EVENTS_PAGE_SIZE, at: timestampStr }),
+    fetchDeviceEventsPaginated({ deviceId, accessToken, limit, before: timestampStr }),
+  ]);
+  return { events: [...tied.events, ...older.events], next: older.next, hasMore: older.hasMore };
+}
 
 const TIMELINE_MODE_OPTIONS: ViewModeOption<TimelineMode>[] = [
   { value: 'paginated', icon: CloudOff, label: 'Manual', ariaLabel: 'Manual mode' },
@@ -86,8 +103,8 @@ export default function TimelinePage() {
   const [isLoadingMoreTimelineEvents, setIsLoadingMoreTimelineEvents] = useState(false);
   const [isSseConnected, setIsSseConnected] = useState(false);
   const [sseFatalStatus, setSseFatalStatus] = useState<number | null>(null);
-  // Live mode: id of the oldest event the server has, once a response proved it. Load more stays until it is shown.
-  const [liveHistoryEndId, setLiveHistoryEndId] = useState<string | null>(null);
+  // Live mode history query: `next` continues it right after the row `afterId`, and is null when nothing is older.
+  const [liveHistoryCursor, setLiveHistoryCursor] = useState<{ afterId: string; next: string | null } | null>(null);
   const isLoadingMoreRef = useRef(false);
 
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => {
@@ -129,7 +146,7 @@ export default function TimelinePage() {
     setTimelineEvents([]);
     setTimelineNextBookmark(null);
     setHasMoreTimelineEvents(false);
-    setLiveHistoryEndId(null);
+    setLiveHistoryCursor(null);
   }, []);
 
   const handleTimelinePageSizeChange = useCallback((size: number) => {
@@ -178,7 +195,7 @@ export default function TimelinePage() {
   useEffect(() => {
     setIsSseConnected(false);
     setSseFatalStatus(null);
-    setLiveHistoryEndId(null);
+    setLiveHistoryCursor(null);
 
     if (timelineMode !== 'realtime' || !deviceId || !accessTokenRef.current) return;
 
@@ -189,7 +206,7 @@ export default function TimelinePage() {
     // A page with nothing after it ends with the oldest event the server has.
     const noteHistoryEnd = (page: PaginatedDeviceEventsResponse) => {
       const last = page.events.at(-1);
-      if (!page.hasMore && last) setLiveHistoryEndId(last.id);
+      if (!page.hasMore && last) setLiveHistoryCursor({ afterId: last.id, next: null });
     };
 
     // The stream is only a change signal: re-read the newest events and the device itself.
@@ -204,8 +221,8 @@ export default function TimelinePage() {
       ]);
       if (cancelled || events.status !== 'fulfilled') return;
       const page = events.value;
-      // Load more continues from the oldest row shown, so dropping rows cannot leave a gap, except while a Load
-      // more is in flight: its page starts after the row that is oldest now.
+      // Load more re-anchors at the oldest row shown once rows were dropped, so dropping cannot leave a gap, except
+      // while a Load more is in flight: its page continues from the row that is oldest now.
       const keepAll = isLoadingMoreRef.current;
       setTimelineRawEvents(prev => {
         const merged = mergeDeviceEvents(prev, page.events);
@@ -365,26 +382,41 @@ export default function TimelinePage() {
   }, [device, timelineRawEvents, user?.access_token, timelineFetchedCerts]);
 
   const oldestShownEvent = timelineRawEvents.at(-1);
+  // The cursor only holds while its row is still the oldest shown; once rows were dropped, Load more re-anchors.
+  const liveCursor = liveHistoryCursor?.afterId === oldestShownEvent?.id ? liveHistoryCursor : null;
   const canLoadMoreTimelineEvents = timelineMode === 'realtime'
-    ? !!oldestShownEvent && oldestShownEvent.id !== liveHistoryEndId
+    ? !!oldestShownEvent && liveCursor?.next !== null
     : hasMoreTimelineEvents;
 
   const handleLoadMore = useCallback(async () => {
     if (!deviceId || !user?.access_token || isLoadingMoreTimelineEvents) return;
+    const accessToken = user.access_token;
     const isLive = timelineMode === 'realtime';
-    // Live mode pages by date from the oldest row shown instead of the bookmark, so rows dropped by the cap come
-    // back without a gap. Unloaded events with that row's exact timestamp are skipped.
-    const page = isLive ? { before: oldestShownEvent?.timestampStr } : { bookmark: timelineNextBookmark ?? undefined };
-    if (!page.before && !page.bookmark) return;
+    let loadPage: () => Promise<PaginatedDeviceEventsResponse>;
+    if (isLive && oldestShownEvent) {
+      // Live mode pages its own history query, anchored at the oldest row shown, instead of the first page's
+      // bookmark: new events cannot shift it, same-timestamp siblings of that row are included, and rows dropped
+      // by the cap come back without a gap.
+      const next = liveCursor?.next;
+      const { timestampStr } = oldestShownEvent;
+      loadPage = () => next
+        ? fetchDeviceEventsPaginated({ deviceId, accessToken, limit: timelinePageSize, bookmark: next })
+        : fetchDeviceEventsAtOrBefore({ deviceId, accessToken, limit: timelinePageSize, timestampStr });
+    } else if (!isLive && timelineNextBookmark) {
+      const bookmark = timelineNextBookmark;
+      loadPage = () => fetchDeviceEventsPaginated({ deviceId, accessToken, limit: timelinePageSize, bookmark });
+    } else {
+      return;
+    }
     setIsLoadingMoreTimelineEvents(true);
     isLoadingMoreRef.current = true;
     try {
-      const result = await fetchDeviceEventsPaginated({
-        deviceId, accessToken: user.access_token, limit: timelinePageSize, ...page,
-      });
+      const result = await loadPage();
       if (isLive) {
+        // Refreshes only add newer rows meanwhile, so this merge ends with the row that will be the oldest shown.
+        const oldest = mergeDeviceEvents(timelineRawEvents, result.events).at(-1);
         setTimelineRawEvents(prev => mergeDeviceEvents(prev, result.events));
-        if (!result.hasMore) setLiveHistoryEndId(result.events.at(-1)?.id ?? oldestShownEvent?.id ?? null);
+        if (oldest) setLiveHistoryCursor({ afterId: oldest.id, next: result.next });
       } else {
         setTimelineRawEvents(prev => [...prev, ...result.events]);
         setTimelineNextBookmark(result.next);
@@ -396,7 +428,7 @@ export default function TimelinePage() {
       isLoadingMoreRef.current = false;
       setIsLoadingMoreTimelineEvents(false);
     }
-  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize, timelineMode, oldestShownEvent]);
+  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize, timelineMode, timelineRawEvents, oldestShownEvent, liveCursor]);
 
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
     setCertToRevoke(certInfo);

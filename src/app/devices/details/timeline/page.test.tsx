@@ -45,16 +45,22 @@ const older = makeEvent('e0', 'ERROR', '2025-12-31T00:00:00Z')
 
 const minutesFromBase = (minutes: number) => new Date(Date.UTC(2026, 0, 1) + minutes * 60_000).toISOString()
 
-// A fake event source, newest first: `total` past events s0 (newest) .. s{total-1}, plus newer events n0, n1, ...
-// added with `addNewer`. Like the backend it pages with an offset bookmark and filters `before` as strictly older.
-const fakeSource = (total: number) => {
-  let all = Array.from({ length: total }, (_, i) => makeEvent(`s${i}`, 'EVENT', minutesFromBase(-i)))
+type PageRequest = { limit: number; bookmark?: string; before?: string; at?: string }
+
+// A fake event source, newest first: `total` past events s0 (newest) .. s{total-1} at minute `minuteOf(i)`, plus
+// newer events n0, n1, ... added with `addNewer`. Like the backend it filters `before` (strictly older) and `at`
+// (same timestamp), and pages with an offset bookmark that keeps the filters of the query that issued it.
+const fakeSource = (total: number, minuteOf = (i: number) => -i) => {
+  let all = Array.from({ length: total }, (_, i) => makeEvent(`s${i}`, 'EVENT', minutesFromBase(minuteOf(i))))
   let added = 0
-  const fetchPage = async ({ limit, bookmark, before }: { limit: number; bookmark?: string; before?: string }) => {
-    const pool = before ? all.filter((e) => Date.parse(e.timestampStr) < Date.parse(before)) : all
-    const offset = bookmark ? Number(bookmark) : 0
-    const end = Math.min(offset + limit, pool.length)
-    return { events: pool.slice(offset, end), next: end < pool.length ? String(end) : null, hasMore: end < pool.length }
+  const fetchPage = async (req: PageRequest) => {
+    const { offset, before, at } = req.bookmark ? JSON.parse(req.bookmark) : { offset: 0, before: req.before, at: req.at }
+    const time = (ts: string) => Date.parse(ts)
+    const pool = all.filter((e) =>
+      (!before || time(e.timestampStr) < time(before)) && (!at || time(e.timestampStr) === time(at)))
+    const end = Math.min(offset + req.limit, pool.length)
+    const next = end < pool.length ? JSON.stringify({ offset: end, before, at }) : null
+    return { events: pool.slice(offset, end), next, hasMore: next !== null }
   }
   const addNewer = (count: number) => {
     const fresh = Array.from({ length: count }, (_, i) => makeEvent(`n${added + i}`, 'EVENT', minutesFromBase(added + i + 1)))
@@ -326,7 +332,7 @@ describe('TimelinePage live mode', () => {
     expect(screen.queryByText('Load more')).not.toBeInTheDocument()
   })
 
-  it('Load more asks for events older than the oldest row shown, not for the bookmark', async () => {
+  it('first Load more anchors at the oldest row shown: its timestamp siblings, then the page before it', async () => {
     fetchDeviceEventsPaginated.mockResolvedValueOnce({ events: [shadow, created], next: 'b', hasMore: true })
     render(<TimelinePage />)
     await flush()
@@ -335,10 +341,51 @@ describe('TimelinePage live mode', () => {
     fireEvent.click(screen.getByText('Load more'))
     await flush()
 
-    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith({
+    expect(fetchDeviceEventsPaginated).toHaveBeenCalledWith({
+      deviceId: 'dev-1', accessToken: 'tok', limit: 1000, at: created.timestampStr,
+    })
+    expect(fetchDeviceEventsPaginated).toHaveBeenCalledWith({
       deviceId: 'dev-1', accessToken: 'tok', limit: 10, before: created.timestampStr,
     })
+    expect(fetchDeviceEventsPaginated).not.toHaveBeenCalledWith(expect.objectContaining({ bookmark: 'b' }))
     expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
+
+  it('Load more shows events sharing the timestamp of the oldest row shown', async () => {
+    // s49 and s50 share a timestamp, and the first live page ends at s49
+    fetchDeviceEventsPaginated.mockImplementation(fakeSource(60, (i) => (i === 50 ? -49 : -i)).fetchPage)
+    render(<TimelinePage />)
+    await flush()
+    expect(shownIds()).toEqual(past(0, 49))
+
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+
+    expect(shownIds()).toEqual(past(0, 59))
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
+
+  it('later Load mores continue the anchored query with its bookmark, unaffected by new events', async () => {
+    const source = fakeSource(100)
+    fetchDeviceEventsPaginated.mockImplementation(source.fetchPage)
+    render(<TimelinePage />)
+    await flush()
+
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+    expect(shownIds()).toEqual(past(0, 59))
+
+    source.addNewer(5)
+    act(() => args.onChange())
+    await tick(500)
+
+    const calls = fetchDeviceEventsPaginated.mock.calls.length
+    fireEvent.click(screen.getByText('Load more'))
+    await flush()
+
+    expect(fetchDeviceEventsPaginated).toHaveBeenCalledTimes(calls + 1)
+    expect(fetchDeviceEventsPaginated).toHaveBeenLastCalledWith(expect.objectContaining({ bookmark: expect.any(String) }))
+    expect(shownIds()).toEqual([...newer(5), ...past(0, 69)])
   })
 
   it('hides Load more once the first page holds every event', async () => {

@@ -112,18 +112,23 @@ export async function fetchDeviceEventsPaginated({
   limit = 5,
   bookmark,
   before,
+  at,
 }: {
   deviceId: string;
   accessToken: string;
   limit?: number;
+  /** Continues the query that issued it, filters included. */
   bookmark?: string;
   /** Only events with an `event_ts` strictly older than this one. */
   before?: string;
+  /** Only events with exactly this `event_ts`. */
+  at?: string;
 }): Promise<PaginatedDeviceEventsResponse> {
   const params = new URLSearchParams();
   if (limit) params.set('page_size', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
   if (before) params.append('filter', `event_ts[before]${before}`);
+  if (at) params.append('filter', `event_ts[equal]${at}`);
 
   const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events${params.toString() ? `?${params.toString()}` : ''}`;
   const response = await fetch(url, {

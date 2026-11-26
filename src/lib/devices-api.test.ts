@@ -356,6 +356,18 @@ describe('devices-api', () => {
       expect(query?.has('bookmark')).toBe(false)
     })
 
+    it('asks only for events at exactly `at`', async () => {
+      let query: URLSearchParams | undefined
+      server.use(http.get(eventsUrl, ({ request }) => {
+        query = new URL(request.url).searchParams
+        return HttpResponse.json({ next: null, list: [] })
+      }))
+
+      await fetchDeviceEventsPaginated({ deviceId: 'dev-1', accessToken: 'token', at: '2026-01-01T00:00:00Z' })
+
+      expect(query?.get('filter')).toBe('event_ts[equal]2026-01-01T00:00:00Z')
+    })
+
     it('builds distinct fallback ids for events without id that share timestamp and type', async () => {
       const list = [
         { event_ts: '2024-01-01T00:00:00Z', type: 'SHADOW-UPDATED', description: 'a', structured_fields: { k: 1 } },
