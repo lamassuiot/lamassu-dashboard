@@ -363,8 +363,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       unkernel:
-        specifier: 0.2.0-261119-97d7945
-        version: 0.2.0-261119-97d7945
+        specifier: 0.2.0-261123-8f039c5
+        version: 0.2.0-261123-8f039c5
       uuid:
         specifier: ^14.0.3
         version: 14.0.3
@@ -5734,8 +5734,8 @@ packages:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
 
-  unkernel@0.2.0-261119-97d7945:
-    resolution: {integrity: sha512-1UEHvcI6eJC+MmQDljnxV8sR0yIVuLRyPsrOjBQBU27xCMw9eDOMWUSj6QZ7LtVPuki8umwS1vp3pNJFVuBqsg==}
+  unkernel@0.2.0-261123-8f039c5:
+    resolution: {integrity: sha512-bxKaZ9H3dLI2ZVXLwcGBLLGLU2QMQmNWIovYkWIbWXOEBCMW4kksAmVVWSkLEVy59vfMUA7RYeAneTM+NGp2wg==}
     engines: {node: '>=24'}
     hasBin: true
 
@@ -12512,7 +12512,7 @@ snapshots:
 
   universalify@2.0.1: {}
 
-  unkernel@0.2.0-261119-97d7945: {}
+  unkernel@0.2.0-261123-8f039c5: {}
 
   unplugin@3.4.0(rolldown@1.2.19)(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)):
     dependencies:
