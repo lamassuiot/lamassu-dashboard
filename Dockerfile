@@ -25,7 +25,7 @@ RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
 # Stage 2: Wisp server for the browser terminal. Built on Alpine, like the final image, so its
 # native modules match. Dependencies come with their prebuilt binaries; no install scripts run.
-FROM node:22-alpine AS wisp
+FROM node:26-alpine AS wisp
 WORKDIR /opt/wisp
 COPY wisp/package.json wisp/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
@@ -33,7 +33,7 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 # Stage 3: Debian image of the browser terminal, from the unkernel release pinned in package.json
 # (src/components/terminal/unkernel/sdk.ts reads it at /terminal/debian.erofs). Checked against the
 # release's SHA-256: update both together.
-FROM node:22-alpine AS distro
+FROM node:26-alpine AS distro
 ARG UNKERNEL_RELEASE=v0.2.0-261119-97d7945
 ARG DEBIAN_EROFS_SHA256=063ec61c7db829c2769f6d6b5ea50e2de183fdc726150958a0439b13686914ff
 RUN wget -q -O /debian.erofs "https://github.com/pithings/unkernel/releases/download/${UNKERNEL_RELEASE}/debian.erofs" && \
