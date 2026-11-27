@@ -19,6 +19,7 @@ import { BottomDockPanel } from '@/components/shared/BottomDockPanel';
 import { InlineNote } from '@/components/shared/InlineNote';
 import { RaIconFor, type RaIconSource } from '@/components/shared/RaIcon';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useRunInTerminal } from '@/components/terminal/TerminalContext';
 import { BlockSkeleton } from '@/components/shared/PageSkeletons';
 
 interface ApiRaItem extends RaIconSource {
@@ -43,6 +44,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
   className,
 }) => {
   const isMobile = useIsMobile();
+  const runInTerminal = useRunInTerminal();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pkcs7Certs, setPkcs7Certs] = useState('');
@@ -85,7 +87,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
     return cacertsCommand(get_EST_API_BASE_URL(), ra.id, 'application/pkcs7-mime');
   }, [ra?.id]);
 
-  if (presentation === 'docked' && !isMobile) {
+  if (presentation === 'docked' && (!isMobile || runInTerminal)) {
     return (
       <BottomDockPanel
         open={isOpen}

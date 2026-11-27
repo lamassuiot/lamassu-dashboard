@@ -1,0 +1,39 @@
+@property --enrollment-snake-travel {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+.enrollment-snake {
+  --enrollment-snake-width: 4px;
+  --enrollment-snake-inset: calc(var(--enrollment-snake-width) / 2);
+  stroke-width: var(--enrollment-snake-width);
+}
+
+.enrollment-snake rect {
+  x: var(--enrollment-snake-inset);
+  y: var(--enrollment-snake-inset);
+  width: calc(100% - var(--enrollment-snake-width));
+  height: calc(100% - var(--enrollment-snake-width));
+  rx: max(0px, calc(var(--radius-lg, 0.5rem) - var(--enrollment-snake-inset) - 1px));
+  stroke-dashoffset: calc(var(--enrollment-snake-travel, 0) + var(--enrollment-snake-tail-offset));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .enrollment-snake {
+    animation: enrollment-snake-progress 1.45s linear infinite;
+  }
+}
+
+@keyframes enrollment-snake-progress {
+  /* Both segments meet at 60% of the average speed, so the trace never stops. */
+  from {
+    --enrollment-snake-travel: 0;
+    animation-timing-function: cubic-bezier(0.4, 0.2, 0.6, 0.8);
+  }
+  50% {
+    --enrollment-snake-travel: -60;
+    animation-timing-function: cubic-bezier(0.4, 0.3, 0.6, 0.7);
+  }
+  to { --enrollment-snake-travel: -100; }
+}

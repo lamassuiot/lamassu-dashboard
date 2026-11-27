@@ -27,6 +27,7 @@ import { InlineNote } from './InlineNote';
 import { RaIconFor, type RaIconSource } from './RaIcon';
 import { Badge } from '@/components/ui/badge';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useRunInTerminal } from '@/components/terminal/TerminalContext';
 
 
 // RA type definition
@@ -73,6 +74,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
 }) => {
     
     const isMobile = useIsMobile();
+    const runInTerminal = useRunInTerminal();
     const [step, setStep] = useState(1);
     
     // Step 1: Search state
@@ -167,7 +169,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
     });
     const reenrollDecodeCommand = decodeCertificateCommands(`${finalDeviceId}.new.p7`, `${finalDeviceId}.new.crt`);
 
-    const docked = presentation === 'docked' && !isMobile;
+    const docked = presentation === 'docked' && (!isMobile || Boolean(runInTerminal));
 
     const stepContent = (
         <>

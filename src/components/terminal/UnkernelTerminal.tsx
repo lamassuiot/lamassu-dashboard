@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { sileo } from '@/lib/toast';
 import { mountUnkernel, type UnkernelSession } from './unkernel/mount';
+import type { TerminalCommand } from './TerminalContext';
 import './unkernel/unkernel.css';
 
 interface UnkernelTerminalProps {
@@ -10,12 +11,16 @@ interface UnkernelTerminalProps {
   /** Script to prepare in the guest (Send to terminal); `onScriptReady` tells the parent it was taken. */
   script: string | null;
   onScriptReady: (script: string) => void;
+  command?: TerminalCommand | null;
+  onCommandTaken?: (command: TerminalCommand) => void;
 }
 
 interface Failure {
   message: string;
   retry: () => void;
 }
+
+type Delivery = { kind: 'prepare' | 'run'; source: string };
 
 const SCRIPT_FAILED = 'Unable to prepare the enrollment script.';
 const MOUNT_FAILED = 'Unable to start the terminal.';
@@ -28,11 +33,11 @@ const isAbort = (error: unknown) => (error as { name?: string } | null)?.name ==
  */
 let mounts: Promise<unknown> = Promise.resolve();
 
-export default function UnkernelTerminal({ wispUrl, script, onScriptReady }: Readonly<UnkernelTerminalProps>) {
+export default function UnkernelTerminal({ wispUrl, script, onScriptReady, command, onCommandTaken }: Readonly<UnkernelTerminalProps>) {
   const host = useRef<HTMLDivElement>(null);
   const session = useRef<Promise<UnkernelSession | null> | null>(null);
   const latestSend = useRef(0);
-  const undelivered = useRef<string | null>(null);
+  const undelivered = useRef<Delivery | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [prepared, setPrepared] = useState<string | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -65,31 +70,44 @@ export default function UnkernelTerminal({ wispUrl, script, onScriptReady }: Rea
     };
   }, [wispUrl, attempt]);
 
-  const deliver = useCallback((text: string) => {
+  const deliver = useCallback((request: Delivery) => {
     const pending = session.current;
     if (!pending) return;
     const id = ++latestSend.current;
-    undelivered.current = text;
+    undelivered.current = request;
     void pending.then(async started => {
       if (!started || latestSend.current !== id) return;
       setFailure(null);
       try {
-        const { command } = await started.sendScript(text);
-        if (latestSend.current === id) { undelivered.current = null; setPrepared(command); }
+        const command = request.kind === 'run'
+          ? await started.runCommand(request.source).then(() => null)
+          : (await started.sendScript(request.source)).command;
+        if (latestSend.current === id) {
+          undelivered.current = null;
+          setPrepared(command);
+        }
       } catch (error) {
         // A newer script, or closing the terminal, replaces this one: not a failure.
         if (isAbort(error) || latestSend.current !== id) return;
-        setFailure({ message: SCRIPT_FAILED, retry: () => deliver(text) });
+        const message = request.kind === 'run' && error instanceof Error ? error.message : SCRIPT_FAILED;
+        setFailure({ message, retry: () => deliver(request) });
       }
     });
   }, []);
 
   useEffect(() => {
     if (script !== null) {
-      deliver(script);
+      deliver({ kind: 'prepare', source: script });
       onScriptReady(script);
     }
   }, [script, deliver, onScriptReady]);
+
+  useEffect(() => {
+    if (command) {
+      deliver({ kind: 'run', source: command.source });
+      onCommandTaken?.(command);
+    }
+  }, [command, deliver, onCommandTaken]);
 
   useEffect(() => {
     if (attempt > 0 && undelivered.current !== null) deliver(undelivered.current);

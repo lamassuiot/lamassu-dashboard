@@ -62,6 +62,8 @@ export interface WindowsApi {
 	 * could not (the window then stays, showing that, until closed).
 	 */
 	open(opts?: { select?: boolean; name?: string; file?: string; args?: string[] }): Promise<WindowInfo>;
+	/** Run a command block in a visible Bash session shared by command blocks. */
+	runCommand(source: string, signal: AbortSignal): Promise<void>;
 	/** Show window n and give it the keyboard focus (false: there is no such window). */
 	select(n: number): boolean;
 	/** Close window n (1 to 9): its shell is hung up. Resolves once it is gone. */

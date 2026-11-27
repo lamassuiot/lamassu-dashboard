@@ -48,6 +48,34 @@ const SLICE_MS = 16, SLICE_BYTES = 262144;
 const SGR = { gray: "\x1b[90m", red: "\x1b[1;31m", off: "\x1b[0m" };
 /** How often the foreground programs of the tty N windows are read. */
 const FG_MS = 1000;
+
+const COMMAND_DIR = /^\/tmp\/lamassu-bash\.[a-zA-Z0-9]+$/;
+// Load the staged text into Readline, then accept that line. The prompt shows
+// the source exactly as an entered command, without sending it as raw keys.
+const LOAD_COMMAND_KEY = "[910~";
+const SUBMIT_COMMAND = `\x1b${LOAD_COMMAND_KEY}\r`;
+const FIRST_COMMAND_SH = `umask 077
+dir=$(mktemp -d /tmp/lamassu-bash.XXXXXX)
+printf '%s\n' "$1" > "$dir/bashrc"
+cat > "$dir/command"
+printf '%s' "$dir"`;
+const BASH_RUNNER_RC = `umask 077
+unset HISTFILE
+set +H
+__lamassu_dir=\${BASH_SOURCE[0]%/*}
+trap 'rm -rf -- "$__lamassu_dir"' EXIT
+__lamassu_prompt_number=0
+__lamassu_load_command() {
+  local text
+  text=$(command cat -- "$__lamassu_dir/command" && printf '.') || return
+  command rm -f -- "$__lamassu_dir/command" || return
+  READLINE_LINE=\${text%.}
+  READLINE_POINT=\${#READLINE_LINE}
+}
+bind -x '"\\e${LOAD_COMMAND_KEY}":__lamassu_load_command'
+PROMPT_COMMAND='((++__lamassu_prompt_number))'
+PS1='\\u@\\h:\\w\\$ \\[\\e]0;lamassu-prompt:\${__lamassu_dir}:\${__lamassu_prompt_number}\\a\\]'`;
+
 /**
  * A line per shell pid: the name of its terminal's foreground process group
  * leader (tpgid, the 6th field after the name in /proc/<pid>/stat), or an
@@ -113,6 +141,8 @@ function yieldTask(): Promise<void> {
 
 interface Win {
 	n: number;
+	commandDirectory?: string;
+	commandReady?: boolean;
 	/** Shown in the status line: "tty N". */
 	name: string;
 	/** A tty N window (no name given): the status line shows its foreground program (fg). */
@@ -163,6 +193,7 @@ type OpenError = Error & { window?: number };
 export function createWindows(opts: WindowsOptions): Windows {
 	const $ = ui$();
 	const wins = new Map<number, Win>();
+	let launchingCommand = false;
 	const host = () => document.getElementById("terms")!;
 	const el0 = opts.term0.element;
 	/** Windows shown before, most recent first (for when the current one closes). */
@@ -284,6 +315,7 @@ export function createWindows(opts: WindowsOptions): Windows {
 	}
 
 	function input(w: Win, d: string | Uint8Array) {
+		w.commandReady = false;
 		if (w.state === "open" && w.session) w.session.write(d).catch(() => {});
 		else if (w.state === "ended" && typeof d === "string" && d.includes("\r")) void close(w.n);
 		else if (w.state === "opening" && w.pendingBytes + d.length <= PENDING_MAX) {
@@ -349,7 +381,9 @@ export function createWindows(opts: WindowsOptions): Windows {
 		p.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
 	});
 
-	async function open({ select: sel = true, name, file, args }: { select?: boolean; name?: string; file?: string; args?: string[] } = {}): Promise<WindowInfo> {
+	async function open({
+		select: sel = true, name, file, args, commandDirectory, onCommandPrompt,
+	}: { select?: boolean; name?: string; file?: string; args?: string[]; commandDirectory?: string; onCommandPrompt?: () => void } = {}): Promise<WindowInfo> {
 		if (!opts.alive()) throw new Error("The kernel is not running: reboot to open terminal windows");
 		let n = 1;
 		while (wins.has(n)) n++;
@@ -365,8 +399,9 @@ export function createWindows(opts: WindowsOptions): Windows {
 		const bottom = trackBottom(el); // before wterm's own ResizeObserver
 		const w: Win = {
 			n, name, tty, fg: "", el, bottom, term: null as unknown as WTerm, state: "opening", note: "", session: null,
-			abort: new AbortController(), pending: [], pendingBytes: 0, gone: false,
+			abort: new AbortController(), pending: [], pendingBytes: 0, gone: false, commandDirectory,
 		};
+		let lastPrompt = "";
 		w.term = new WTerm(el, {
 			...TERM_OPTIONS,
 			// A native paste can carry CRLF (Windows clipboard); CR and LF would be two Enters,
@@ -376,6 +411,13 @@ export function createWindows(opts: WindowsOptions): Windows {
 				input(w, KW.ui ? KW.ui.applyCtrl(text) : text);
 			},
 			onBinary: (d) => input(w, d),
+			onTitle: commandDirectory ? (title) => {
+				// A fresh prompt marks an empty input line. Subsequent typing invalidates it.
+				if (title === lastPrompt || !title.startsWith(`lamassu-prompt:${commandDirectory}:`)) return;
+				lastPrompt = title;
+				w.commandReady = true;
+				onCommandPrompt?.();
+			} : undefined,
 			onResize: (cols, rows) => { const px = pixels(w); w.session?.resize(cols, rows, px.x, px.y); },
 		});
 		w.term.setRenderingPaused(true);
@@ -441,9 +483,74 @@ export function createWindows(opts: WindowsOptions): Windows {
 		if (s) await s.close().catch(() => {});
 	}
 
+	const busy = () => new Error("Wait for the Bash prompt before running another command block.");
+
+	async function submitCommand(runner: Win) {
+		if (!runner.commandReady || !runner.session || runner.gone) throw busy();
+		runner.commandReady = false;
+		await runner.session.write(SUBMIT_COMMAND);
+	}
+
+	async function runCommand(source: string, signal: AbortSignal): Promise<void> {
+		if (launchingCommand) throw new Error("Another command is starting. Try again in a moment.");
+		launchingCommand = true;
+		try {
+			const vm = await opts.ready();
+			signal.throwIfAborted();
+			KW.ui?.closePanel();
+			const runner = [...wins.values()].find(w => w.commandDirectory && w.state === "open");
+			if (!runner?.commandDirectory) {
+				const result = await vm.exec("/bin/sh", ["-ec", FIRST_COMMAND_SH, "lamassu", BASH_RUNNER_RC], { input: source, signal });
+				const dir = result.stdout;
+				if (result.exitCode !== 0 || !COMMAND_DIR.test(dir)) throw new Error("Could not prepare the Bash session.");
+				let started: Win | undefined;
+				try {
+					signal.throwIfAborted();
+					let onCommandPrompt!: () => void;
+					const firstPrompt = new Promise<void>(resolve => { onCommandPrompt = resolve; });
+					const { n } = await open({
+						name: "Bash", file: "/bin/bash", args: ["--rcfile", `${dir}/bashrc`, "-i"],
+						commandDirectory: dir, onCommandPrompt,
+					});
+					started = wins.get(n);
+					if (!started) throw new Error("The Bash window closed before running the command.");
+					const timeout = AbortSignal.timeout(OPEN_TIMEOUT);
+					await abortable(firstPrompt, AbortSignal.any([signal, started.abort.signal, timeout])).catch(error => {
+						if (timeout.aborted) throw new Error("Bash did not reach its prompt.");
+						throw error;
+					});
+					signal.throwIfAborted();
+					await submitCommand(started);
+				} catch (error) {
+					if (started && !started.gone) await close(started.n);
+					if (!signal.aborted) await vm.exec("/bin/rm", ["-rf", "--", dir], { signal }).catch(() => {});
+					throw error;
+				}
+				return;
+			}
+
+			select(runner.n);
+			if (!runner.commandReady) throw busy();
+
+			const file = `${runner.commandDirectory}/command`;
+			try {
+				const staged = await vm.exec("/bin/sh", ["-ec", 'umask 077; cat > "$1"', "lamassu", file], { input: source, signal });
+				signal.throwIfAborted();
+				if (staged.exitCode !== 0) throw new Error("Could not prepare the command.");
+				await submitCommand(runner);
+			} catch (error) {
+				if (!signal.aborted) await vm.exec("/bin/rm", ["-f", "--", file], { signal }).catch(() => {});
+				throw error;
+			}
+		} finally {
+			launchingCommand = false;
+		}
+	}
+
 	return {
 		list,
 		open,
+		runCommand,
 		select,
 		close,
 		text: (n) => { const t = termOf(n); return t ? termText(t) : ""; },

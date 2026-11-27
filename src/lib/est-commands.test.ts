@@ -96,7 +96,7 @@ describe('est-commands', () => {
 
   it('builds cacerts requests', () => {
     expect(cacertsCommand('https://h/est', 'ra-1', 'application/x-pem-file')).toBe(
-      'curl --fail --silent --show-error \\\n  --header "Accept: application/x-pem-file" \\\n  "https://h/est/ra-1/cacerts"',
+      'curl --fail --silent --show-error \\\n  --header "Accept: application/x-pem-file" \\\n  --globoff -- \\\n  https://h/est/ra-1/cacerts',
     );
   });
 });

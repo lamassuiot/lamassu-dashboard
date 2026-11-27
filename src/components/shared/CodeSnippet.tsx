@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 import { highlightShell, type ShellTokenKind } from '@/lib/shell-highlight';
 import { highlightPem } from '@/lib/pem-highlight';
+import { useRunInTerminal } from '@/components/terminal/TerminalContext';
 
 export type CodeSnippetLanguage = 'shell' | 'pem' | 'base64';
 
@@ -131,6 +132,7 @@ export const CodeSnippet: React.FC<CodeSnippetProps> = ({
   className,
 }) => {
   const [copied, setCopied] = useState(false);
+  const runInTerminal = useRunInTerminal();
   const defaults = LANGUAGE_DEFAULTS[language];
   const Icon = icon ?? defaults.icon;
   const shouldWrap = wrap ?? defaults.wrap;
@@ -183,6 +185,19 @@ export const CodeSnippet: React.FC<CodeSnippetProps> = ({
         <span className="select-none font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
           {languageLabel ?? defaults.label}
         </span>
+        {language === 'shell' && runInTerminal && (
+          <button
+            type="button"
+            onClick={() => runInTerminal(content)}
+            disabled={isEmpty}
+            className={ICON_BUTTON}
+            aria-label="Run in terminal"
+            title="Run in terminal"
+          >
+            <SquareTerminal className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Run in terminal</span>
+          </button>
+        )}
         {downloadFilename && (
           <button
             type="button"

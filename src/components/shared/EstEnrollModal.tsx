@@ -23,6 +23,8 @@ import { CodeSnippet, ShellCommand } from './CodeSnippet';
 import { CommandStep, CommandSteps, InlineCode } from './CommandSteps';
 import { csrCommands, decodeCertificateCommands, estRequestCommand, placeholderCsrCommands, serverChainCommand, serverKeygenParseCommands, writePemFilesCommand } from '@/lib/est-commands';
 import { useSendToTerminal } from '@/components/terminal/TerminalContext';
+import { useBackgroundCommand } from '@/components/terminal/background';
+import { runBackgroundEnrollment, type EnrollmentActivity, type EnrollmentArtifacts } from '@/lib/est-background';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -32,6 +34,7 @@ import { CardSelector } from './CardSelector';
 import { RaIconFor } from './RaIcon';
 import { DockedWizardLayout } from './DockedWizardLayout';
 import { InlineNote } from './InlineNote';
+import { EnrollmentConsole } from './EnrollmentConsole';
 import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -80,6 +83,12 @@ const ENROLL_STEPS = [
     { label: 'Bootstrap', description: 'Save the issued certificate and key' },
     { label: 'Commands', description: 'Run the enrollment on the device' },
 ] as const;
+const BACKGROUND_ENROLL_STEPS = [
+    { label: 'Device', description: 'Identifier and enrollment method' },
+    { label: 'Key', description: 'Where the key pair is generated' },
+    { label: 'Bootstrap', description: 'Temporary credential for EST auth' },
+    { label: 'Enroll', description: 'Run enrollment and retrieve credentials' },
+] as const;
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
 
@@ -93,7 +102,15 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 }) => {
     const isMobile = useIsMobile();
     const sendToTerminal = useSendToTerminal();
-    const resolvedPresentation = presentation !== 'dialog' && isMobile && !sendToTerminal ? 'dialog' : presentation;
+    const runBackground = useBackgroundCommand();
+    const [enrolling, setEnrolling] = useState(false);
+    const [backgroundResult, setBackgroundResult] = useState<EnrollmentArtifacts | null>(null);
+    const [backgroundError, setBackgroundError] = useState<string | null>(null);
+    const [backgroundActivity, setBackgroundActivity] = useState<EnrollmentActivity[]>([]);
+    const [enrollmentMode, setEnrollmentMode] = useState<'commands' | 'background'>('commands');
+    const resolvedPresentation = presentation === 'dialog' && sendToTerminal
+        ? 'docked'
+        : presentation !== 'dialog' && isMobile && !sendToTerminal ? 'dialog' : presentation;
 
     // Dependencies state
     const [availableCAs, setAvailableCAs] = useState<CA[]>([]);
@@ -168,6 +185,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setBootstrapKeygenSpec('2048');
             setBootstrapPrivateKey('');
             setValidateServerCert(false);
+            setBackgroundResult(null);
+            setBackgroundError(null);
+            setBackgroundActivity([]);
 
             // Auto-select CA based on RA config
             if (ra && availableCAs.length > 0) {
@@ -195,6 +215,10 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     useEffect(() => {
         initPkijsEngine();
     }, []);
+
+    useEffect(() => {
+        if (isOpen) setEnrollmentMode('commands');
+    }, [isOpen]);
 
     const handleKeygenTypeChange = (type: string) => {
         setKeygenType(type);
@@ -291,7 +315,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 const issuedPem = result.certificate ? base64ToPem(result.certificate) : 'Error: Certificate not found in response.';
 
                 setBootstrapCertificate(issuedPem);
-                setStep(4);
+                setStep(enrollmentMode === 'background' ? 5 : 4);
 
             } catch (e: any) {
                 sileo.error({ title: "Bootstrap Certificate Issuance Failed", description: e.message });
@@ -306,6 +330,13 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     const handleBack = () => {
         if (step === 5) {
+            if (enrollmentMode === 'background') {
+                setBackgroundResult(null);
+                setBackgroundError(null);
+                setBackgroundActivity([]);
+                setStep(3);
+                return;
+            }
             // If we are at step 5 and there's no bootstrap certificate,
             // it means we skipped step 4. Go back to step 3.
             if (!bootstrapCertificate) {
@@ -321,6 +352,8 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     };
 
     const finalDeviceId = deviceId || 'device-id'; // Fallback for display
+    const displayedSteps = enrollmentMode === 'background' ? BACKGROUND_ENROLL_STEPS : ENROLL_STEPS;
+    const displayedStep = enrollmentMode === 'background' && step === 5 ? 4 : step;
 
     let estBaseUrl = get_EST_API_BASE_URL();
     try {
@@ -369,19 +402,56 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     });
     const serverKeygenParseCommand = serverKeygenParseCommands(`${outputName}.multipart`, `${outputName}.key`, `${outputName}.crt`);
 
+    const enrollmentCommands = [
+        ...(validateServerCert ? [{ label: 'Fetch the EST server chain', command: serverCertCommand }] : []),
+        ...(keygenMethod === 'device' ? [
+            { label: 'Generate the device key and CSR', command: deviceCsrCommand },
+            { label: 'Request the certificate', command: enrollRequestCommand },
+            { label: 'Decode the certificate', command: enrollDecodeCommand },
+        ] : [
+            { label: 'Generate a placeholder CSR', command: placeholderCsrCommand },
+            { label: 'Request the key and certificate', command: serverKeygenRequestCommand },
+            { label: 'Extract the key and certificate', command: serverKeygenParseCommand },
+        ]),
+    ];
     const enrollmentScript = [
         '#!/bin/sh', 'set -e',
         bootstrapCertificate && bootstrapPrivateKey ? bootstrapFilesCommand : '',
-        validateServerCert ? serverCertCommand : '',
-        keygenMethod === 'device' ? deviceCsrCommand : placeholderCsrCommand,
-        keygenMethod === 'device' ? enrollRequestCommand : serverKeygenRequestCommand,
-        keygenMethod === 'device' ? enrollDecodeCommand : serverKeygenParseCommand,
+        ...enrollmentCommands.map(({ command }) => command),
     ].filter(Boolean).join('\n\n');
+
+    const handleBackgroundEnroll = async () => {
+        if (!runBackground || !bootstrapCertificate || !bootstrapPrivateKey || enrolling || backgroundResult) return;
+        setEnrolling(true);
+        setBackgroundError(null);
+        setBackgroundActivity([]);
+        try {
+            const result = await runBackgroundEnrollment(
+                runBackground, bootstrapFilesCommand, enrollmentCommands, `${outputName}.crt`, `${outputName}.key`,
+                activity => setBackgroundActivity(current => [...current, activity]),
+            );
+            setBackgroundResult(result);
+        } catch (error) {
+            setBackgroundError(error instanceof Error ? error.message : 'Enrollment failed.');
+        } finally {
+            setEnrolling(false);
+        }
+    };
 
     const stepContent = (
                     <div className="space-y-4">
                         {step === 1 && (
-                            <div className="max-w-2xl space-y-1.5">
+                            <div className="max-w-2xl space-y-5">
+                                {runBackground && <CardSelector
+                                    label="Enrollment method"
+                                    value={enrollmentMode}
+                                    onChange={setEnrollmentMode}
+                                    options={[
+                                        { value: 'commands', label: 'Enrollment commands', description: 'Prepare commands to run on the device.', icon: Cpu },
+                                        { value: 'background', label: 'Enroll in background', description: 'Run enrollment in the browser and retrieve the certificate and private key.', icon: Server },
+                                    ]}
+                                />}
+                                <div className="space-y-1.5">
                                 <Label htmlFor="deviceId">Device ID</Label>
                                 <div className="flex items-center gap-2">
                                     <Input
@@ -415,6 +485,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                         Used as the Common Name of the device certificate.
                                     </p>
                                 )}
+                                </div>
                             </div>
                         )}
                         {step === 2 && (
@@ -426,8 +497,8 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     options={[
                                         {
                                             value: 'device',
-                                            label: 'Generate key on device',
-                                            description: 'The device creates the key pair. The private key never leaves the device.',
+                                            label: enrollmentMode === 'background' ? 'Generate key in browser' : 'Generate key on device',
+                                            description: enrollmentMode === 'background' ? 'Unkernel creates the key pair in the browser. Download the private key for the device.' : 'The device creates the key pair. The private key never leaves the device.',
                                             icon: Cpu,
                                         },
                                         {
@@ -463,7 +534,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                                 </Select>
                                             </div>
                                         </div>
-                                        <div className="space-y-3">
+                                        {enrollmentMode === 'commands' && <div className="space-y-3">
                                             <div className="space-y-1">
                                                 <Label>Generate Key &amp; CSR</Label>
                                                 <p className="text-sm text-muted-foreground">
@@ -474,7 +545,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                                 title="Generate key and CSR"
                                                 command={deviceCsrCommand}
                                             />
-                                        </div>
+                                        </div>}
                                     </div>
                                 )}
 
@@ -626,16 +697,20 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                         )}
                          {step === 5 && (
                             <div className="space-y-6">
+                                {enrollmentMode === 'background' && !bootstrapCertificate && (
+                                    <InlineNote>Background enrollment requires a bootstrap certificate and key issued in this wizard. Go back to issue them.</InlineNote>
+                                )}
                                 <div className="space-y-3">
-                                    <p className="text-sm text-muted-foreground">
+                                    {enrollmentMode === 'commands' ? <p className="text-sm text-muted-foreground">
                                         Run the commands from a directory containing{' '}
                                         <InlineCode>bootstrap.crt</InlineCode>, <InlineCode>bootstrap.key</InlineCode>
                                         {keygenMethod === 'device' && <>{' '}and <InlineCode>{strippedCsrFile}</InlineCode></>}.
-                                    </p>
+                                    </p> : <p className="text-sm text-muted-foreground">Enroll <InlineCode>{finalDeviceId}</InlineCode> with the bootstrap credential issued in the previous step. The certificate and private key will be available to download when enrollment completes.</p>}
                                     <div className="flex items-center gap-2">
                                         <Switch
                                             id="validate-server-cert"
                                             checked={validateServerCert}
+                                            disabled={enrolling || backgroundResult !== null}
                                             onCheckedChange={setValidateServerCert}
                                         />
                                         <Label htmlFor="validate-server-cert">Validate server certificate (recommended)</Label>
@@ -651,7 +726,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     )}
                                 </div>
 
-                                <CommandSteps>
+                                {enrollmentMode === 'commands' && <CommandSteps>
                                     {validateServerCert && (
                                         <CommandStep
                                             title="Trust the EST server"
@@ -691,7 +766,34 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                             <ShellCommand title="Parse multipart response" command={serverKeygenParseCommand} />
                                         </CommandStep>
                                     )}
-                                </CommandSteps>
+                                </CommandSteps>}
+
+                                {enrollmentMode === 'background' && (
+                                    <>
+                                        {backgroundError && (
+                                            <InlineNote tone="error">
+                                                <span role="alert" className="whitespace-pre-wrap break-words">{backgroundError}</span>
+                                            </InlineNote>
+                                        )}
+                                        <EnrollmentConsole
+                                            activity={backgroundActivity}
+                                            status={enrolling ? 'running' : backgroundError ? 'failed' : backgroundResult ? 'complete' : 'idle'}
+                                            inspection={backgroundResult?.inspection}
+                                        />
+                                        {backgroundResult && (
+                                            <div className="space-y-4">
+                                                <div role="status" className="space-y-1">
+                                                    <p className="text-sm font-medium">Enrollment complete</p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Save the certificate and private key and install them on the device.
+                                                    </p>
+                                                </div>
+                                                <CodeSnippet language="pem" title="Device certificate" content={backgroundResult.certificate} downloadFilename={`${outputName}.crt`} maxHeight="12rem" />
+                                                <CodeSnippet language="pem" title="Device private key" content={backgroundResult.privateKey} downloadFilename={`${outputName}.key`} maxHeight="12rem" />
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -723,11 +825,11 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const navigationButtons = (
         <div className="flex flex-wrap justify-end gap-2">
             {step > 1 && (
-                <Button variant="secondary" onClick={handleBack} disabled={isGenerating}>
+                <Button variant="secondary" onClick={handleBack} disabled={isGenerating || enrolling}>
                     <ArrowLeft className="mr-2 h-4 w-4"/>Back
                 </Button>
             )}
-            {step === 3 && (
+            {step === 3 && enrollmentMode === 'commands' && (
                 <Button variant="secondary" onClick={handleSkipBootstrap}>
                     Skip &amp; Use Existing
                 </Button>
@@ -739,8 +841,11 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 </Button>
             ) : (
                 <>
-                    {sendToTerminal && <Button type="button" variant="secondary" onClick={() => sendToTerminal(enrollmentScript)}>Send to terminal</Button>}
-                    <Button onClick={() => onOpenChange(false)}>Finish</Button>
+                    {enrollmentMode === 'commands' && sendToTerminal && <Button type="button" variant="secondary" disabled={enrolling} onClick={() => sendToTerminal(enrollmentScript)}>Send to terminal</Button>}
+                    {enrollmentMode === 'background' && runBackground && !backgroundResult && <Button type="button" disabled={enrolling || !bootstrapCertificate || !bootstrapPrivateKey} onClick={() => void handleBackgroundEnroll()}>
+                        Enroll in background
+                    </Button>}
+                    <Button disabled={enrolling} onClick={() => onOpenChange(false)}>Finish</Button>
                 </>
             )}
         </div>
@@ -751,7 +856,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             <>
                 <BottomDockPanel
                     open={isOpen}
-                    onOpenChange={onOpenChange}
+                    onOpenChange={(open) => { if (!enrolling) onOpenChange(open); }}
                     storageKey="est-enroll"
                     icon={<RaIconFor ra={ra} />}
                     title="EST Enroll"
@@ -761,14 +866,14 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             {deviceId && <Badge variant="muted" className="max-w-[18rem] truncate font-mono font-normal">{deviceId}</Badge>}
                         </>
                     }
-                    description={`Step ${step} of ${ENROLL_STEPS.length} · ${ENROLL_STEPS[step - 1].label}`}
+                    description={`Step ${displayedStep} of ${displayedSteps.length} · ${displayedSteps[displayedStep - 1].label}`}
                     className={className}
                 >
                     <DockedWizardLayout
-                        steps={ENROLL_STEPS}
-                        currentStep={step}
+                        steps={displayedSteps}
+                        currentStep={displayedStep}
                         footerNotice={validationSummary}
-                        footerStart={<Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>}
+                        footerStart={<Button variant="ghost" disabled={enrolling} onClick={() => onOpenChange(false)}>Cancel</Button>}
                         footerEnd={navigationButtons}
                     >
                         {!ra ? (
@@ -790,9 +895,9 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 </p>
             </div>
 
-            <div className="flex-grow my-2 -mr-6 overflow-y-auto px-6 pr-6">
+            <div className="flex-grow min-h-0 my-2 -mr-6 overflow-y-auto px-6 pr-6">
                 <div className="pt-2">
-                    <Stepper currentStep={step} steps={ENROLL_STEPS.map(s => s.label)} />
+                    <Stepper currentStep={displayedStep} steps={displayedSteps.map(s => s.label)} />
                 </div>
                 {stepContent}
             </div>
@@ -802,7 +907,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 <div className="w-full space-y-4">
                     {validationSummary}
                     <div className="flex flex-wrap justify-between gap-2">
-                        <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                        <Button variant="ghost" disabled={enrolling} onClick={() => onOpenChange(false)}>Cancel</Button>
                         {navigationButtons}
                     </div>
                 </div>
@@ -821,7 +926,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     }
 
     return (
-        <Sheet open={isOpen} onOpenChange={onOpenChange}>
+        <Sheet open={isOpen} onOpenChange={(open) => { if (!enrolling) onOpenChange(open); }}>
             <ResizableSheetContent storageKey="est-enroll" side="right" className={cn("w-full p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw] flex flex-col", className)}>
                 <SheetHeader className="sr-only">
                     <SheetTitle>EST Enroll</SheetTitle>

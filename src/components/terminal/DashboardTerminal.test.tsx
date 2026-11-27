@@ -1,12 +1,21 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { CodeSnippet, ShellCommand } from '@/components/shared/CodeSnippet';
 import { DashboardTerminal } from './DashboardTerminal';
-import { useSendToTerminal } from './TerminalContext';
+import { useSendToTerminal, type TerminalCommand } from './TerminalContext';
+
+type TerminalProps = {
+  wispUrl?: () => string | undefined;
+  script: string | null;
+  onScriptReady: (script: string) => void;
+  command: TerminalCommand | null;
+  onCommandTaken: (command: TerminalCommand) => void;
+};
 
 const state = vi.hoisted(() => ({
   config: null as Record<string, unknown> | null,
-  props: [] as { wispUrl?: () => string | undefined; script: string | null; onScriptReady: (script: string) => void }[],
+  props: [] as TerminalProps[],
   mounted: 0,
   unmounted: 0,
 }));
@@ -35,7 +44,7 @@ vi.mock('@/components/shared/BottomDockPanel', async () => {
 
 vi.mock('./UnkernelTerminal', async () => {
   const { useEffect } = await import('react');
-  function UnkernelTerminalStub(props: { wispUrl?: () => string | undefined; script: string | null; onScriptReady: (script: string) => void }) {
+  function UnkernelTerminalStub(props: TerminalProps) {
     state.props.push(props);
     useEffect(() => {
       state.mounted += 1;
@@ -52,6 +61,8 @@ function Consumer() {
   return null;
 }
 
+const snippet = "cat <<'EOF'\nexample\nEOF\n";
+
 function renderTerminal() {
   return render(
     <TooltipProvider>
@@ -60,6 +71,8 @@ function renderTerminal() {
           <>
             {trigger}
             <Consumer />
+            <ShellCommand command={snippet} />
+            <CodeSnippet content="certificate" language="pem" />
           </>
         )}
       </DashboardTerminal>
@@ -87,7 +100,27 @@ describe('DashboardTerminal', () => {
 
     expect(screen.queryByRole('button', { name: 'Terminal' })).toBeNull();
     expect(send).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Run in terminal' })).toBeNull();
     expect(screen.queryByTestId('unkernel')).toBeNull();
+  });
+
+  it('opens the dock from a Bash block and forwards the unchanged multiline source for foreground execution', async () => {
+    renderTerminal();
+
+    const run = screen.getByRole('button', { name: 'Run in terminal' });
+    fireEvent.click(run);
+
+    expect(await screen.findByTestId('unkernel')).toBeInTheDocument();
+    const first = lastProps().command!;
+    expect(first.source).toBe(snippet);
+    expect(lastProps().script).toBeNull();
+    act(() => lastProps().onCommandTaken(first));
+    expect(lastProps().command).toBeNull();
+
+    fireEvent.click(run);
+    expect(lastProps().command?.source).toBe(snippet);
+    expect(lastProps().command).not.toBe(first);
+    expect(state.mounted).toBe(1);
   });
 
   it('mounts the terminal when the trigger is clicked, with the trimmed Wisp URL', async () => {

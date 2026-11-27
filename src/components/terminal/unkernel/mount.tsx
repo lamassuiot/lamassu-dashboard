@@ -23,11 +23,16 @@ import { start, type Boot } from './boot.ts';
 import { App } from './components/App.tsx';
 import { loadSettings, readConfig } from './config.ts';
 import { createKW, type KWGlobal } from './kw.ts';
+import { execWithStderr } from './exec.ts';
 import { checkSupport, type KernelHandle } from './sdk.ts';
 import { ui$, type Store, type UiState } from './store.ts';
 import { browser, createUi, type Ui } from './ui.ts';
 
 export interface UnkernelSession {
+  /** Run a command block in the foreground of the visible terminal. */
+  runCommand(source: string): Promise<void>;
+  /** Execute a process after boot and return its captured output. */
+  exec(file: string, args: string[], signal: AbortSignal, input?: string, onStderr?: (chunk: string) => void): Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
   /**
    * Abort a boot in progress, sync and stop the kernel, close every terminal
    * window, let go of the data disk (and its lock), unmount the UI and remove
@@ -188,6 +193,7 @@ export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {
   while (stopsInFlight.size) await Promise.allSettled(stopsInFlight);
   const defaults = () => ({ wisp: typeof opts.wisp === 'function' ? opts.wisp() : opts.wisp });
   let closed = false;
+  const closeSignal = new AbortController();
   let restarting: Promise<void> | null = null;
   let stopping: Promise<void> | null = null;
   /** Called when `current` is replaced (a restart). */
@@ -209,7 +215,7 @@ export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {
   let current = mountInstance(root, { saved: loadSettings(), defaults: defaults() }, reload);
 
   /** This session's KW once the system runs; rejects if the boot fails, or with an AbortError. */
-  const whenRunning = (signal: AbortSignal) =>
+  const whenRunning = (signal: AbortSignal, failure = PREPARE_FAILED) =>
     new Promise<KWGlobal>((resolve, reject) => {
       let unsubscribe = () => {};
       const done = () => {
@@ -230,7 +236,7 @@ export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {
           resolve(current.kw);
         } else if (state === 'error') {
           done();
-          reject(new Error(PREPARE_FAILED));
+          reject(new Error(failure));
         }
         // Halted (powered off, suspended): Reboot or Resume start a run that gets the script.
       }
@@ -274,9 +280,24 @@ export async function mountUnkernel(root: HTMLElement, opts: UnkernelOptions = {
   };
 
   return {
+    async runCommand(source) {
+      const signal = closeSignal.signal;
+      const kw = await whenRunning(signal, 'Unable to start Bash because the terminal did not boot.');
+      signal.throwIfAborted();
+      if (!kw.windows) throw new Error('The terminal is unavailable.');
+      await kw.windows.runCommand(source, signal);
+    },
+    async exec(file, args, signal, input, onStderr) {
+      if (closed) throw abortError('The terminal was closed.');
+      const kw = await whenRunning(signal, 'Unable to start Unkernel.');
+      const vm = await kw.ready!();
+      if (onStderr) return execWithStderr(vm, file, args, signal, input, onStderr);
+      return vm.exec(file, args, { signal, input });
+    },
     stop() {
       if (stopping) return stopping;
       closed = true;
+      closeSignal.abort(abortError('The terminal was closed.'));
       cancelPending('The terminal was closed.');
       // Synchronously when no restart runs, so the boot is aborted at once.
       const p = restarting ? restarting.then(() => current.stop()) : current.stop();

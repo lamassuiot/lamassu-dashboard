@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertExpandableContent, AlertTitle } from '@/c
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPublicAPIUrl } from '@/lib/api-domains';
+import { shellArgument } from '@/lib/est-commands';
 
 const signatureAlgorithms = [
     'RSASSA_PSS_SHA_256', 'RSASSA_PSS_SHA_384', 'RSASSA_PSS_SHA_512',
@@ -106,7 +107,7 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
     };
 
     // Generate bearer token export command
-    const bearerTokenExport = `export BEARER_TOKEN="${user?.access_token || 'YOUR_ACCESS_TOKEN_HERE'}"`;
+    const bearerTokenExport = `export BEARER_TOKEN=${shellArgument(user?.access_token || 'YOUR_ACCESS_TOKEN_HERE')}`;
 
     const keyAliasSanitized = keyAlias.replaceAll(/\s+/g, '_');
     const kmsUrl = getPublicAPIUrl().replace(/^https?:\/\//, "");
@@ -195,7 +196,7 @@ export OPENSSL_CONF=$(pwd)/openssl-pkcs11-provider.conf`;
             ? `echo -n "your-data-to-sign" | openssl dgst -${hashAlgorithm} -binary -out digest.bin
 
 openssl pkeyutl -sign \\
-  -inkey "pkcs11:label=${keyAliasSanitized};type=private" ${pssOption} \\
+  -inkey ${shellArgument(`pkcs11:label=${keyAliasSanitized};type=private`)} ${pssOption} \\
   ${opensslFlags} \\
   -in digest.bin -out signature.bin
 
@@ -203,7 +204,7 @@ echo "signed data digest: $(cat digest.bin | hexdump -v -e '/1 "%02x"')"
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
 `
             : `echo -n "your-data-to-sign" | \\
-openssl dgst -${hashAlgorithm} -sign "pkcs11:label=${keyAliasSanitized};type=private" ${isPssAlgorithm ? '-sigopt rsa_padding_mode:pss' : ''} ${opensslFlags} -out signature.bin
+openssl dgst -${hashAlgorithm} -sign ${shellArgument(`pkcs11:label=${keyAliasSanitized};type=private`)} ${isPssAlgorithm ? '-sigopt rsa_padding_mode:pss' : ''} ${opensslFlags} -out signature.bin
 
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"`
     };
@@ -218,9 +219,9 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"`
         const pssOption = isPssAlgorithm ? '-pkeyopt rsa_padding_mode:pss' : '';
 
         return inputType === 'digest'
-            ? `openssl pkey -provider pkcs11 -provider default  -in "pkcs11:object=${keyAliasSanitized}" -pubout > ${keyAliasSanitized}.pub
+            ? `openssl pkey -provider pkcs11 -provider default  -in ${shellArgument(`pkcs11:object=${keyAliasSanitized}`)} -pubout > ${shellArgument(`./${keyAliasSanitized}.pub`)}
 
-openssl pkeyutl -verify -pubin -inkey ${keyAliasSanitized}.pub -in digest.bin -sigfile signature.bin ${pssOption} ${opensslFlags}`
+openssl pkeyutl -verify -pubin -inkey ${shellArgument(`./${keyAliasSanitized}.pub`)} -in digest.bin -sigfile signature.bin ${pssOption} ${opensslFlags}`
             : `echo -n "your-data-to-sign" | \\
 openssl dgst -${hashAlgorithm} -verify public-key.pem \\
   -signature signature.bin`;
@@ -265,7 +266,7 @@ openssl dgst -${hashAlgorithm} -binary -out digest.bin data-to-sign.txt` : ''}
 pkcs11-tool --module ./lms-pkcs11-x86.so --sign \\
   ${commandFlags} \\
   --signature-format openssl \\
-  --label "${keyAliasSanitized}" \\
+  --label ${shellArgument(keyAliasSanitized)} \\
   --input-file ${pkcs11InFile} \\
   --output-file signature.bin
 

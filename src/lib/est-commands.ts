@@ -11,7 +11,7 @@ export interface KeyParams {
 
 const INDENT = '  ';
 
-function shellArgument(value: string): string {
+export function shellArgument(value: string): string {
   return /^[a-zA-Z0-9_./:@%+,-]+$/.test(value) ? value : "'" + value.replaceAll("'", "'\\''") + "'";
 }
 
@@ -165,9 +165,12 @@ export function writePemFilesCommand(files: { filename: string; base64: string }
 }
 
 export function cacertsCommand(estBaseUrl: string, raId: string, accept: 'application/x-pem-file' | 'application/pkcs7-mime'): string {
+  const path = `${estBaseUrl}/${encodeURIComponent(raId)}/cacerts`;
+  const url = typeof window === 'undefined' ? path : new URL(path, window.location.origin).href;
   return continued(
     'curl --fail --silent --show-error',
     `--header "Accept: ${accept}"`,
-    `"${estBaseUrl}/${raId}/cacerts"`,
+    '--globoff --',
+    shellArgument(url),
   );
 }

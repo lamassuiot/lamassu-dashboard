@@ -1,6 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TerminalContext } from '@/components/terminal/TerminalContext';
+import { BackgroundCommandContext, type BackgroundCommand } from '@/components/terminal/background';
+import { fetchAndProcessCAs, findCaById, signCertificate } from '@/lib/ca-data';
 import { EstEnrollModal } from './EstEnrollModal';
 
 vi.mock('@/lib/ca-data', () => ({ fetchAndProcessCAs: vi.fn(async () => []), findCaById: vi.fn(), signCertificate: vi.fn() }));
@@ -26,5 +28,70 @@ describe('EST enrollment terminal action', () => {
     expect(script).toContain('/ra-1/simpleenroll');
     expect(script).toContain('openssl pkcs7');
     expect(script).not.toContain('base64 -d > bootstrap.key');
+  });
+
+  it('keeps the command workflow separate when existing bootstrap credentials are used', async () => {
+    const run = vi.fn();
+    render(<BackgroundCommandContext.Provider value={run}><EstEnrollModal isOpen onOpenChange={vi.fn()} ra={ra} initialDeviceId="sensor-1" presentation="inline" /></BackgroundCommandContext.Provider>);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip & Use Existing' }));
+    expect(screen.queryByRole('button', { name: 'Enroll in background' })).not.toBeInTheDocument();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it.each(['device', 'server'] as const)('shows progress and returns %s enrollment credentials in the last step', async (method) => {
+    const ca = { id: 'bootstrap-ca', name: 'Bootstrap CA', expires: '2049-01-01T00:00:00Z', status: 'active' };
+    vi.mocked(fetchAndProcessCAs).mockResolvedValueOnce([ca] as never);
+    vi.mocked(findCaById).mockReturnValue(ca as never);
+    vi.mocked(signCertificate).mockResolvedValue({ certificate: btoa('bootstrap certificate') } as never);
+    const certificate = '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----';
+    const key = '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----';
+    let complete!: (result: Awaited<ReturnType<BackgroundCommand>>) => void;
+    let stderr!: (chunk: string) => void;
+    const pendingEnrollment = new Promise<Awaited<ReturnType<BackgroundCommand>>>(resolve => { complete = resolve; });
+    const run = vi.fn<BackgroundCommand>((_file, _args, _input, onStderr) => {
+      stderr = onStderr!;
+      return pendingEnrollment;
+    });
+    const configuredRa = { ...ra, settings: { enrollment_settings: { ...ra.settings.enrollment_settings, est_rfc7030_settings: { client_certificate_settings: { validation_cas: ['bootstrap-ca'] } } }, server_keygen_settings: { enabled: true } } };
+    render(<BackgroundCommandContext.Provider value={run}><EstEnrollModal isOpen onOpenChange={vi.fn()} ra={configuredRa} initialDeviceId="sensor-1" presentation="inline" /></BackgroundCommandContext.Provider>);
+    await waitFor(() => expect(fetchAndProcessCAs).toHaveBeenCalled());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    fireEvent.click(screen.getByText('Enroll in background'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    if (method === 'server') fireEvent.click(screen.getByText('Generate key on server'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.queryByRole('button', { name: 'Skip & Use Existing' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Issue Bootstrap Cert' }));
+    await screen.findByRole('button', { name: 'Enroll in background' });
+    expect(screen.queryByRole('button', { name: 'Send to terminal' })).not.toBeInTheDocument();
+    const details = screen.getByRole('button', { name: 'Terminal output Ready' });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Enroll in background' }));
+    expect(screen.getByRole('progressbar', { name: 'Enrolling device' })).toBeInTheDocument();
+    fireEvent.click(details);
+    const log = within(screen.getByRole('log', { name: 'Enrollment activity' }));
+    expect(log.queryByText(/curl --fail/)).not.toBeInTheDocument();
+    act(() => { stderr('__EST_STEP__0\n__EST_STEP__1\n__EST_ST'); });
+    act(() => { stderr('EP__2\n'); });
+    expect(log.getByText('Prepare bootstrap credentials')).toBeInTheDocument();
+    expect(log.queryByText(/curl --fail/)).not.toBeInTheDocument();
+    act(() => { stderr('__EST_STEP__3\n'); });
+    expect(log.getByText(method === 'device' ? 'Request the certificate' : 'Request the key and certificate')).toBeInTheDocument();
+    expect(log.getByText(/curl --fail/)).toBeInTheDocument();
+    expect(log.queryByText(/base64 -d > bootstrap.key/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Device private key')).not.toBeInTheDocument();
+    await act(async () => {
+      complete({ exitCode: 0, stderr: '', stdout: `subject=CN=sensor-1\n__EST_CERT__${btoa(certificate)}\n__EST_KEY__${btoa(key)}\n__EST_END__\n` });
+    });
+    expect(log.getByText('subject=CN=sensor-1')).toBeInTheDocument();
+    expect(log.queryByText(/__EST_KEY__|BEGIN PRIVATE KEY/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Device certificate')).toBeInTheDocument();
+    expect(screen.getByText('Device private key')).toBeInTheDocument();
+    expect(run).toHaveBeenCalledWith('/bin/sh', expect.any(Array), expect.stringContaining(method === 'device' ? '/ra-1/simpleenroll' : '/ra-1/serverkeygen'), expect.any(Function));
   });
 });
