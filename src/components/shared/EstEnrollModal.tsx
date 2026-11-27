@@ -107,6 +107,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const [backgroundResult, setBackgroundResult] = useState<EnrollmentArtifacts | null>(null);
     const [backgroundError, setBackgroundError] = useState<string | null>(null);
     const [backgroundActivity, setBackgroundActivity] = useState<EnrollmentActivity[]>([]);
+    const [consoleOpen, setConsoleOpen] = useState(false);
     const [enrollmentMode, setEnrollmentMode] = useState<'commands' | 'background'>('commands');
     const resolvedPresentation = presentation === 'dialog' && sendToTerminal
         ? 'docked'
@@ -188,6 +189,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setBackgroundResult(null);
             setBackgroundError(null);
             setBackgroundActivity([]);
+            setConsoleOpen(false);
 
             // Auto-select CA based on RA config
             if (ra && availableCAs.length > 0) {
@@ -334,6 +336,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 setBackgroundResult(null);
                 setBackgroundError(null);
                 setBackgroundActivity([]);
+                setConsoleOpen(false);
                 setStep(3);
                 return;
             }
@@ -433,6 +436,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setBackgroundResult(result);
         } catch (error) {
             setBackgroundError(error instanceof Error ? error.message : 'Enrollment failed.');
+            setConsoleOpen(true);
         } finally {
             setEnrolling(false);
         }
@@ -776,9 +780,12 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                             </InlineNote>
                                         )}
                                         <EnrollmentConsole
+                                            open={consoleOpen}
+                                            onOpenChange={setConsoleOpen}
                                             activity={backgroundActivity}
                                             status={enrolling ? 'running' : backgroundError ? 'failed' : backgroundResult ? 'complete' : 'idle'}
                                             inspection={backgroundResult?.inspection}
+                                            error={backgroundError}
                                         />
                                         {backgroundResult && (
                                             <div className="space-y-4">

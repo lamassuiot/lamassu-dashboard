@@ -64,7 +64,9 @@ printf '\\n__EST_END__\\n'` },
   };
   const result = await run('/bin/sh', ['-s', '--', certificateFile, keyFile], script, readProgress);
   if (result.exitCode !== 0) {
-    const error = result.stderr.replace(/^__EST_STEP__\d+$/gm, '').trim();
+    // The last marker identifies the failing step. Earlier steps can write
+    // progress to stderr even when they succeed, such as OpenSSL key generation.
+    const error = result.stderr.split(/^__EST_STEP__\d+\r?$/m).at(-1)?.trim();
     throw new Error(error || `Enrollment failed (exit code ${result.exitCode}).`);
   }
   const match = result.stdout.match(/\n__EST_CERT__([A-Za-z0-9+/=]+)\n__EST_KEY__([A-Za-z0-9+/=]+)\n__EST_END__\s*$/);

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { ChevronRight, SquareTerminal } from 'lucide-react';
 import { Collapsible } from 'radix-ui';
 import type { EnrollmentActivity } from '@/lib/est-background';
@@ -25,27 +25,29 @@ const SNAKE_LAYERS = Array.from({ length: SNAKE_LAYER_COUNT }, (_, layer) => {
 });
 
 interface EnrollmentConsoleProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   activity: readonly EnrollmentActivity[];
   status: keyof typeof STATUS;
   inspection?: string;
+  error?: string | null;
 }
 
-export function EnrollmentConsole({ activity, status, inspection }: Readonly<EnrollmentConsoleProps>) {
-  const [open, setOpen] = useState(false);
+export function EnrollmentConsole({ open, onOpenChange, activity, status, inspection, error }: Readonly<EnrollmentConsoleProps>) {
   const logRef = useRef<HTMLDivElement>(null);
   const followOutput = useRef(true);
   const { label, dot } = STATUS[status];
 
   useLayoutEffect(() => {
-    if (activity.length === 0) followOutput.current = true;
+    if (activity.length === 0 || error) followOutput.current = true;
     const log = logRef.current;
     if (open && log && followOutput.current) log.scrollTop = log.scrollHeight;
-  }, [open, activity, inspection, status]);
+  }, [open, activity, inspection, error, status]);
 
   return (
     <Collapsible.Root
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={onOpenChange}
       className="relative min-w-0 overflow-hidden rounded-lg border border-border bg-black text-zinc-200"
     >
       {status === 'running' && <div role="progressbar" aria-label="Enrolling device" className="sr-only" />}
@@ -97,6 +99,9 @@ export function EnrollmentConsole({ activity, status, inspection }: Readonly<Enr
           )}
           {inspection && (
             <pre className="mt-3 whitespace-pre-wrap break-words border-t border-zinc-800 pt-3 text-zinc-300">{inspection}</pre>
+          )}
+          {error && (
+            <pre aria-live="off" className="mt-3 whitespace-pre-wrap break-words border-t border-zinc-800 pt-3 text-red-400">{error}</pre>
           )}
         </div>
       </Collapsible.Content>

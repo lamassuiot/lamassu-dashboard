@@ -41,7 +41,11 @@ describe('EST enrollment terminal action', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it.each(['device', 'server'] as const)('shows progress and returns %s enrollment credentials in the last step', async (method) => {
+  it.each([
+    { method: 'device', exitCode: 0 },
+    { method: 'server', exitCode: 0 },
+    { method: 'device', exitCode: 60 },
+  ])('reports $method enrollment in the console (exit $exitCode)', async ({ method, exitCode }) => {
     const ca = { id: 'bootstrap-ca', name: 'Bootstrap CA', expires: '2049-01-01T00:00:00Z', status: 'active' };
     vi.mocked(fetchAndProcessCAs).mockResolvedValueOnce([ca] as never);
     vi.mocked(findCaById).mockReturnValue(ca as never);
@@ -71,6 +75,22 @@ describe('EST enrollment terminal action', () => {
     expect(details).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(screen.getByRole('button', { name: 'Enroll in background' }));
     expect(screen.getByRole('progressbar', { name: 'Enrolling device' })).toBeInTheDocument();
+    if (exitCode !== 0) {
+      const error = "curl: (60) SSL: no alternative certificate subject name matches target hostname 'lab.lamassu.io'";
+      const trace = `__EST_STEP__0\n__EST_STEP__1\n__EST_STEP__2\n..+...++++++\n__EST_STEP__3\n${error}\nMore details here: https://curl.se/docs/sslcerts.html\n`;
+      act(() => { stderr(trace); });
+      await act(async () => { complete({ exitCode, stdout: '', stderr: trace }); });
+
+      expect(details).toHaveAttribute('aria-expanded', 'true');
+      const log = within(screen.getByRole('log', { name: 'Enrollment activity' }));
+      expect(log.getByText('Request the certificate')).toBeInTheDocument();
+      const consoleError = log.getByText(/curl: \(60\) SSL:/);
+      expect(consoleError).toHaveTextContent(error);
+      expect(consoleError).not.toHaveTextContent('++++++');
+      expect(screen.getByRole('alert')).toHaveTextContent(error);
+      expect(screen.getByRole('button', { name: 'Enroll in background' })).toBeEnabled();
+      return;
+    }
     fireEvent.click(details);
     const log = within(screen.getByRole('log', { name: 'Enrollment activity' }));
     expect(log.queryByText(/curl --fail/)).not.toBeInTheDocument();
