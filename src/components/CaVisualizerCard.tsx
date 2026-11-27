@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { HardDrive, ShieldAlert } from 'lucide-react';
+import { HardDrive, ShieldAlert, X } from 'lucide-react';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
@@ -81,14 +81,25 @@ const renderStatusIcon = (
   sizes: (typeof variantClasses)[CardVariant],
   allCryptoEngines?: ApiCryptoEngine[]
 ): React.ReactNode => {
-  if (statusVariant !== 'active') {
+  if (statusVariant === 'expired') {
     return <ShieldAlert className={cn('text-destructive', sizes.alertIcon)} />;
   }
   const engine = ca.kmsKeyId ? allCryptoEngines?.find(e => e.id === ca.kmsKeyId) : undefined;
-  if (engine) {
-    return <CryptoEngineViewer engine={engine} iconOnly className={sizes.engineIcon} />;
+  const icon = engine
+    ? <CryptoEngineViewer engine={engine} iconOnly className={sizes.engineIcon} />
+    : <HardDrive className={cn('text-primary', sizes.fallbackIcon)} />;
+  if (statusVariant === 'revoked') {
+    // Keep the crypto engine icon and flag the revocation with a small badge on top of it.
+    return (
+      <span className="relative inline-flex">
+        {icon}
+        <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-white ring-1 ring-card">
+          <X className="h-2.5 w-2.5" strokeWidth={3} />
+        </span>
+      </span>
+    );
   }
-  return <HardDrive className={cn('text-primary', sizes.fallbackIcon)} />;
+  return icon;
 };
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines, variant = 'default' }) => {

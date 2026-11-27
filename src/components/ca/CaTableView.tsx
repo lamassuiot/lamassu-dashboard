@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import Link from '@/components/shared/RouterLink';
 import { format, formatDistanceStrict } from 'date-fns';
-import { AlertTriangle, Ban, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, LockKeyhole, MoreVertical, ShieldAlert, Signature, UploadCloud } from 'lucide-react';
+import { AlertTriangle, Check, CircleHelp, Eye, FilePlus2, FileText, GitBranchPlus, HardDrive, Landmark, LockKeyhole, MoreVertical, ShieldAlert, Signature, UploadCloud, X } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Button } from '@/components/ui/button';
@@ -103,9 +103,6 @@ function getDisplayStatus(ca: CA): DisplayStatus {
 
 // One 32px icon slot per row so every CA lines up; status and engine icons stay small inside it.
 function CaIcon({ status, engine }: Readonly<{ status: DisplayStatus; engine?: ApiCryptoEngine }>) {
-  if (status === 'REVOKED') {
-    return <span className="flex h-8 w-8 shrink-0 items-center justify-center"><Ban className="h-4 w-4 text-destructive" /></span>;
-  }
   if (status === 'EXPIRED') {
     return <span className="flex h-8 w-8 shrink-0 items-center justify-center"><ShieldAlert className="h-4 w-4 text-destructive" /></span>;
   }
@@ -114,9 +111,16 @@ function CaIcon({ status, engine }: Readonly<{ status: DisplayStatus; engine?: A
   }
   return (
     <span className="flex h-8 w-8 shrink-0 items-center justify-center">
-      {engine
-        ? <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6" />
-        : <HardDrive className="h-6 w-6 text-primary" />}
+      <span className="relative inline-flex">
+        {engine
+          ? <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6" />
+          : <HardDrive className="h-6 w-6 text-primary" />}
+        {status === 'REVOKED' && (
+          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-white ring-1 ring-card">
+            <X className="h-3 w-3" strokeWidth={3} />
+          </span>
+        )}
+      </span>
     </span>
   );
 }
